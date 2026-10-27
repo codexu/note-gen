@@ -116,7 +116,10 @@ export default function PluginsSettingPage({ mobile = false }: { mobile?: boolea
               {t('tabs.installed')}
               <Badge variant="secondary">{installed.length}</Badge>
             </TabsTrigger>
-            {!mobile ? <TabsTrigger value="market">{t('ux.discover')}</TabsTrigger> : null}
+            {!mobile ? <TabsTrigger value="market">
+              {t('ux.discover')}
+              {catalog ? <Badge variant="secondary">{catalog.plugins.length}</Badge> : null}
+            </TabsTrigger> : null}
             {!mobile ? <TabsTrigger value="updates">
               {t('tabs.updates')}
               {updateCount > 0 ? <Badge variant="secondary">{updateCount}</Badge> : null}

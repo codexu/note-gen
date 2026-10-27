@@ -8,6 +8,7 @@ import {
   confirmPluginPackageActivation,
   commitPluginHostState,
   fetchPluginMarketCatalog,
+  fetchPluginMarketStatistics,
   importDevelopmentPlugin,
   installPluginFromMarket,
   listInstalledPluginPackages,
@@ -23,6 +24,7 @@ import type {
   PluginFailureRecord,
   PluginLogEntry,
   PluginMarketCatalog,
+  PluginMarketStatistics,
   PluginPermissionGrant,
   PluginPermissionName,
   PluginRuntimeState,
@@ -79,12 +81,16 @@ interface PluginStoreState {
   catalog: PluginMarketCatalog | null
   marketLoading: boolean
   marketError: string | null
+  marketStatistics: PluginMarketStatistics | null
+  statisticsLoading: boolean
+  statisticsError: string | null
   operationPluginId: string | null
 
   initialize: () => Promise<void>
   refreshWorkspace: () => Promise<void>
   refreshInstalled: () => Promise<void>
   refreshMarket: (force?: boolean) => Promise<void>
+  refreshMarketStatistics: (force?: boolean) => Promise<void>
   setEnablement: (pluginId: string, enablement: PluginEnablement) => Promise<void>
   setPermissionGrant: (
     pluginId: string,
@@ -750,6 +756,9 @@ export const usePluginStore = create<PluginStoreState>((set, get) => ({
   catalog: null,
   marketLoading: false,
   marketError: null,
+  marketStatistics: null,
+  statisticsLoading: false,
+  statisticsError: null,
   operationPluginId: null,
 
   initialize: async () => {
@@ -853,6 +862,7 @@ export const usePluginStore = create<PluginStoreState>((set, get) => ({
   },
 
   refreshMarket: async (force = false) => {
+    void get().refreshMarketStatistics(force)
     set({ marketLoading: true, marketError: null })
     try {
       const catalog = await fetchPluginMarketCatalog({ force })
@@ -861,6 +871,19 @@ export const usePluginStore = create<PluginStoreState>((set, get) => ({
       set({ marketError: safeErrorMessage(error) })
     } finally {
       set({ marketLoading: false })
+    }
+  },
+
+  refreshMarketStatistics: async (force = false) => {
+    if (get().statisticsLoading) return
+    set({ statisticsLoading: true, statisticsError: null })
+    try {
+      const marketStatistics = await fetchPluginMarketStatistics(force)
+      set({ marketStatistics })
+    } catch (error) {
+      set({ statisticsError: safeErrorMessage(error) })
+    } finally {
+      set({ statisticsLoading: false })
     }
   },
 

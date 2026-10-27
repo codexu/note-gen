@@ -66,9 +66,9 @@ use plugins::{
 };
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use plugins::{
-    plugin_confirm_activation, plugin_fetch_market, plugin_import_local, plugin_install_market,
-    plugin_list_installed, plugin_read_entry, plugin_read_locale, plugin_read_usage, plugin_rollback,
-    plugin_uninstall,
+    plugin_confirm_activation, plugin_fetch_market, plugin_fetch_market_statistics,
+    plugin_import_local, plugin_install_market, plugin_list_installed, plugin_read_entry,
+    plugin_read_locale, plugin_read_usage, plugin_rollback, plugin_uninstall,
 };
 use remote_skills::{
     cancel_remote_skill_download, inspect_remote_skill, install_remote_skill, search_remote_skills,
@@ -187,6 +187,8 @@ pub fn run() {
             plugin_list_installed,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             plugin_fetch_market,
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            plugin_fetch_market_statistics,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             plugin_install_market,
             #[cfg(not(any(target_os = "android", target_os = "ios")))]

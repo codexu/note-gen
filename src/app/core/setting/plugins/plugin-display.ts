@@ -3,6 +3,7 @@ import type {
   InstalledPlugin,
   PluginMarketEntry,
   PluginMarketRelease,
+  PluginMarketStatistics,
   PluginPermissionName,
   PluginPlatform,
   PluginViewContribution,
@@ -75,6 +76,27 @@ export function getLatestDesktopRelease(
 
 export function hasNewerVersion(currentVersion: string, nextVersion: string | undefined): boolean {
   return Boolean(nextVersion && compareSemver(nextVersion, currentVersion) > 0)
+}
+
+export function getPluginDownloads(entry: PluginMarketEntry, statistics: PluginMarketStatistics | null): number | null {
+  if (!statistics) return null
+  const recorded = statistics.plugins[entry.id]
+  if (recorded) return recorded.downloads
+  const covered = entry.releases.some(release => [release.packageUrl, ...(release.packageUrls ?? [])].some(value => {
+    try {
+      const url = new URL(value)
+      return url.origin === 'https://download.notegen.top' && url.pathname.startsWith('/plugins/v1/packages/')
+    } catch {
+      return false
+    }
+  }))
+  return covered ? 0 : null
+}
+
+export function getPluginUpdatedAt(entry: PluginMarketEntry): number {
+  return Math.max(0, ...entry.releases
+    .filter(release => release.revoked === undefined && release.platforms.includes('desktop'))
+    .map(release => Date.parse(release.publishedAt) || 0))
 }
 
 export function formatPluginDate(value: string, locale: string): string {

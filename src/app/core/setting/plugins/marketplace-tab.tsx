@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocale, useTranslations } from 'next-intl'
 import {
   BadgeCheck,
+  Download,
   ExternalLink,
   PackagePlus,
   Search,
@@ -44,11 +45,18 @@ import {
 } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { PluginMarketEntry } from '@/lib/plugins/types'
 import { compareSemver } from '@/lib/plugins/manifest'
 import { usePluginStore } from '@/stores/plugins'
 import useSettingStore from '@/stores/setting'
-import { getLatestDesktopRelease, getPluginMarketText } from './plugin-display'
+import { formatPluginDate, getLatestDesktopRelease, getPluginDownloads, getPluginMarketText, getPluginUpdatedAt } from './plugin-display'
+
+const sortOptions = ['downloads', 'updated', 'name'] as const
+type MarketSort = typeof sortOptions[number]
+const categoryKeys = ['appearance', 'development', 'diagrams', 'editor', 'journaling', 'language', 'navigation', 'productivity', 'statistics'] as const
 
 function MarketplaceSkeleton() {
   return (
@@ -80,12 +88,24 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled, installPlugi
   const installed = usePluginStore((state) => state.installed)
   const marketLoading = usePluginStore((state) => state.marketLoading)
   const marketError = usePluginStore((state) => state.marketError)
+  const statistics = usePluginStore((state) => state.marketStatistics)
+  const statisticsLoading = usePluginStore((state) => state.statisticsLoading)
+  const statisticsError = usePluginStore((state) => state.statisticsError)
   const operationPluginId = usePluginStore((state) => state.operationPluginId)
   const appVersion = useSettingStore((state) => state.version)
   const refreshMarket = usePluginStore((state) => state.refreshMarket)
   const installFromMarket = usePluginStore((state) => state.installFromMarket)
   const [operationError, setOperationError] = useState<string | null>(null)
   const [reviewEntry, setReviewEntry] = useState<PluginMarketEntry | null>(null)
+  const [sort, setSort] = useState<MarketSort>('downloads')
+  const [category, setCategory] = useState('*')
+  const categories = useMemo(() => [...new Set(catalog?.plugins.flatMap(plugin => plugin.categories ?? []) ?? [])].sort(), [catalog])
+  const activeCategory = categories.includes(category) ? category : '*'
+  const categoryLabel = (value: string) => {
+    const key = categoryKeys.find(key => key === value)
+    return key ? t(`market.categories.${key}`) : value
+  }
+  const numberFormat = useMemo(() => new Intl.NumberFormat(locale), [locale])
 
   const installedById = useMemo(
     () => new Map(installed.map((plugin) => [plugin.manifest.id, plugin])),
@@ -96,6 +116,7 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled, installPlugi
     return [...(catalog?.plugins ?? [])]
       .map(plugin => ({ ...plugin, ...getPluginMarketText(plugin, locale) }))
       .filter((plugin) => {
+        if (activeCategory !== '*' && !plugin.categories?.includes(activeCategory)) return false
         if (!normalizedQuery) return true
         return [
           plugin.name,
@@ -104,14 +125,19 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled, installPlugi
           plugin.id,
           ...Object.values(plugin.localizations ?? {}).flatMap(text => [text.name, text.description]),
           ...(plugin.categories ?? []),
+          ...(plugin.categories ?? []).map(value => {
+            const key = categoryKeys.find(key => key === value)
+            return key ? t(`market.categories.${key}`) : value
+          }),
         ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
       })
       .sort((left, right) => {
-        const leftRank = Number(left.featured) + Number(left.official)
-        const rightRank = Number(right.featured) + Number(right.official)
-        return rightRank - leftRank || left.name.localeCompare(right.name)
+        const byName = left.name.localeCompare(right.name, locale) || left.id.localeCompare(right.id)
+        if (sort === 'downloads') return (getPluginDownloads(right, statistics) ?? -1) - (getPluginDownloads(left, statistics) ?? -1) || byName
+        if (sort === 'updated') return getPluginUpdatedAt(right) - getPluginUpdatedAt(left) || byName
+        return byName
       })
-  }, [catalog?.plugins, query, locale])
+  }, [catalog?.plugins, query, locale, activeCategory, sort, statistics, t])
 
   async function handleInstall(entry: PluginMarketEntry) {
     const release = getLatestDesktopRelease(entry, appVersion)
@@ -151,10 +177,40 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled, installPlugi
         onQueryChange={onQueryChange}
         placeholder={t('market.searchPlaceholder')}
         searchLabel={t('market.searchLabel')}
-        refreshing={marketLoading}
+        refreshing={marketLoading || statisticsLoading}
         disabled={Boolean(operationPluginId)}
         onRefresh={() => void refreshMarket(true)}
       />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ToggleGroup type="single" size="sm" value={activeCategory} onValueChange={value => setCategory(value || '*')} className="max-w-full flex-wrap" aria-label={t('market.categoryLabel')}>
+          <ToggleGroupItem value="*">{t('market.allCategories')}</ToggleGroupItem>
+          {categories.map(value => <ToggleGroupItem key={value} value={value}>{categoryLabel(value)}</ToggleGroupItem>)}
+        </ToggleGroup>
+        <Select value={sort} onValueChange={value => {
+          const next = sortOptions.find(option => option === value)
+          if (next) setSort(next)
+        }}>
+          <SelectTrigger size="sm" aria-label={t('market.sortLabel')}><SelectValue /></SelectTrigger>
+          <SelectContent><SelectGroup>
+            {sortOptions.map(value => <SelectItem key={value} value={value}>{t(`market.sort.${value}`)}</SelectItem>)}
+          </SelectGroup></SelectContent>
+        </Select>
+      </div>
+      {!statistics || statistics.stale || statisticsError ? (
+        <p className="text-xs text-muted-foreground" role="status">
+          {statistics
+            ? t('market.statisticsCached', { date: formatPluginDate(statistics.updatedAt, locale) })
+            : t(statisticsLoading ? 'market.statisticsLoading' : 'market.statisticsUnavailable')}
+        </p>
+      ) : null}
+      {statisticsError ? (
+        <Alert variant="warning">
+          <WifiOff />
+          <AlertTitle>{t('market.statisticsUnavailable')}</AlertTitle>
+          <AlertDescription>{statisticsError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {catalog?.stale ? (
         <Alert variant="warning">
@@ -191,6 +247,7 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled, installPlugi
               .sort((left, right) => compareSemver(right.version, left.version))[0]
             const installedPlugin = installedById.get(entry.id)
             const busy = operationPluginId === entry.id
+            const downloads = getPluginDownloads(entry, statistics)
             return (
               <Item role="listitem" key={entry.id} variant="outline" className="items-start">
                 <ItemMedia variant="icon">
@@ -232,9 +289,20 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled, installPlugi
                   </Button>
                 </ItemActions>
                 <ItemFooter className="justify-start border-t pt-2 text-xs text-muted-foreground">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0} className="inline-flex items-center gap-1">
+                        <Download className="size-3.5" aria-hidden />
+                        {downloads === null ? t('market.downloadsUnknown') : t('market.downloadsCount', { count: numberFormat.format(downloads) })}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{t('market.downloadsDescription')}</TooltipContent>
+                  </Tooltip>
                   <span>{t('market.permissionsCount', { count: (release?.permissions ?? entry.permissions).length })}</span>
                   {entry.categories?.map((category) => (
-                    <Badge key={category} variant="outline">{category}</Badge>
+                    <Badge key={category} asChild variant={activeCategory === category ? 'secondary' : 'outline'}>
+                      <button type="button" aria-pressed={activeCategory === category} onClick={() => setCategory(activeCategory === category ? '*' : category)}>{categoryLabel(category)}</button>
+                    </Badge>
                   ))}
                 </ItemFooter>
               </Item>
@@ -245,9 +313,10 @@ export function MarketplaceTab({ query, onQueryChange, onInstalled, installPlugi
         <Empty className="min-h-52 border">
           <EmptyHeader>
             <EmptyMedia variant="icon"><Search /></EmptyMedia>
-            <EmptyTitle>{query ? t('market.noResults') : t('market.empty')}</EmptyTitle>
-            <EmptyDescription>{query ? t('market.noResultsDesc') : t('market.emptyDesc')}</EmptyDescription>
+            <EmptyTitle>{query || activeCategory !== '*' ? t('market.noResults') : t('market.empty')}</EmptyTitle>
+            <EmptyDescription>{query || activeCategory !== '*' ? t('market.noResultsDesc') : t('market.emptyDesc')}</EmptyDescription>
           </EmptyHeader>
+          {query || activeCategory !== '*' ? <Button variant="outline" size="sm" onClick={() => { onQueryChange(''); setCategory('*') }}>{t('market.clearFilters')}</Button> : null}
         </Empty>
       )}
 

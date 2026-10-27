@@ -168,6 +168,20 @@ export interface PluginMarketCatalog {
   stale: boolean
 }
 
+/** Advisory CDN request counts; never used to authorize installation. */
+export interface PluginMarketStatistics {
+  schemaVersion: 1
+  source: 'aliyun-cdn-offline-logs'
+  domain: 'download.notegen.top'
+  metric: 'http-200-get-requests'
+  updatedAt: string
+  windowStart: string
+  windowEnd: string
+  totalDownloads: number
+  plugins: Record<string, { downloads: number; versions: Record<string, number> }>
+  stale: boolean
+}
+
 export interface PluginWorkspaceBinding {
   workspaceId: string
   workspaceKey: string

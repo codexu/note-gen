@@ -11,6 +11,7 @@ import { checkIsTauri } from '@/lib/check'
 import type {
   InstalledPlugin,
   PluginMarketCatalog,
+  PluginMarketStatistics,
 } from '@/lib/plugins/internal-types'
 
 export interface PluginInstallResult {
@@ -98,6 +99,13 @@ export async function fetchPluginMarketCatalog(options?: {
   return invokePluginBackend<PluginMarketCatalog>('plugin_fetch_market', {
     force: options?.force ?? false,
   })
+}
+
+export async function fetchPluginMarketStatistics(force = false): Promise<PluginMarketStatistics> {
+  if (!checkIsTauri()) {
+    throw new PluginError('UnavailableOnPlatform', 'Plugin statistics are available in the desktop app')
+  }
+  return invokePluginBackend<PluginMarketStatistics>('plugin_fetch_market_statistics', { force })
 }
 
 export async function installPluginFromMarket(

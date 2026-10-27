@@ -49,6 +49,9 @@ const MAX_ARCHIVE_ENTRIES: usize = 256;
 const MAX_PATH_DEPTH: usize = 12;
 const MAX_COMPRESSION_RATIO: u64 = 100;
 const MAX_INDEX_BYTES: u64 = 5 * 1024 * 1024;
+const MAX_MARKET_STATISTICS_BYTES: u64 = 512 * 1024;
+const MARKET_STATISTICS_TTL_MS: u64 = 5 * 60 * 1_000;
+const MARKET_STATISTICS_URL: &str = "https://download.notegen.top/plugins/stats/v1/stats.json";
 const MAX_SIGNATURE_BYTES: u64 = 8 * 1024;
 const MAX_NOTE_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_PLUGIN_STATE_BYTES: u64 = 5 * 1024 * 1024;
@@ -83,6 +86,7 @@ pub struct PluginManager {
     mutation_lock: AsyncMutex<()>,
     host_state_lock: AsyncMutex<()>,
     storage_lock: AsyncMutex<()>,
+    statistics_lock: AsyncMutex<()>,
     note_locks: StdMutex<BTreeMap<PathBuf, Arc<AsyncMutex<()>>>>,
 }
 
@@ -92,6 +96,7 @@ impl Default for PluginManager {
             mutation_lock: AsyncMutex::new(()),
             host_state_lock: AsyncMutex::new(()),
             storage_lock: AsyncMutex::new(()),
+            statistics_lock: AsyncMutex::new(()),
             note_locks: StdMutex::new(BTreeMap::new()),
         }
     }
@@ -495,6 +500,36 @@ pub struct PluginMarketCatalog {
     pub plugins: Vec<PluginMarketEntry>,
     pub source: PluginMarketSource,
     pub stale: bool,
+}
+
+// Advisory display data, kept separate from the signed installation catalog.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginMarketStatistics {
+    pub schema_version: u32,
+    pub source: String,
+    pub domain: String,
+    pub metric: String,
+    pub updated_at: String,
+    pub window_start: String,
+    pub window_end: String,
+    pub total_downloads: u64,
+    pub plugins: BTreeMap<String, PluginDownloadStatistics>,
+    #[serde(default)]
+    pub stale: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PluginDownloadStatistics {
+    pub downloads: u64,
+    pub versions: BTreeMap<String, u64>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CachedMarketStatistics {
+    fetched_at_ms: u64,
+    statistics: PluginMarketStatistics,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -3548,6 +3583,85 @@ fn cached_market_path(app: &AppHandle) -> PluginResult<PathBuf> {
     Ok(market_catalog_directory(app)?.join("verified-index.json"))
 }
 
+fn validate_market_statistics(statistics: &PluginMarketStatistics) -> PluginResult<()> {
+    let invalid = || plugin_error("InvalidMarket", "Plugin download statistics are invalid");
+    if statistics.schema_version != 1
+        || statistics.source != "aliyun-cdn-offline-logs"
+        || statistics.domain != "download.notegen.top"
+        || statistics.metric != "http-200-get-requests"
+        || statistics.total_downloads > MAX_JAVASCRIPT_INTEGER
+        || [&statistics.updated_at, &statistics.window_start, &statistics.window_end]
+            .iter().any(|value| value.is_empty() || value.len() > 40)
+    {
+        return Err(invalid());
+    }
+    let mut total = 0_u64;
+    for (id, plugin) in &statistics.plugins {
+        if !is_valid_plugin_id(id) || plugin.downloads > MAX_JAVASCRIPT_INTEGER {
+            return Err(invalid());
+        }
+        let mut versions_total = 0_u64;
+        for (version, count) in &plugin.versions {
+            if Version::parse(version).is_err() || *count > MAX_JAVASCRIPT_INTEGER {
+                return Err(invalid());
+            }
+            versions_total = versions_total.checked_add(*count).ok_or_else(invalid)?;
+        }
+        if versions_total != plugin.downloads {
+            return Err(invalid());
+        }
+        total = total.checked_add(plugin.downloads).ok_or_else(invalid)?;
+    }
+    if total != statistics.total_downloads {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+async fn fetch_market_statistics(app: &AppHandle, force: bool) -> PluginResult<PluginMarketStatistics> {
+    let path = market_catalog_directory(app)?.join("download-statistics.json");
+    // Invalid/missing advisory cache must never prevent fetching fresh data.
+    let cached = read_limited_file(&path, MAX_MARKET_STATISTICS_BYTES * 2, "download statistics cache")
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<CachedMarketStatistics>(&bytes).ok())
+        .filter(|cache| cache.fetched_at_ms <= now_ms()
+            && validate_market_statistics(&cache.statistics).is_ok());
+    if !force {
+        if let Some(cache) = &cached {
+            if now_ms().saturating_sub(cache.fetched_at_ms) < MARKET_STATISTICS_TTL_MS {
+                return Ok(cache.statistics.clone());
+            }
+        }
+    }
+    let remote = async {
+        let client = build_market_client()?;
+        let bytes = tokio::time::timeout(
+            Duration::from_secs(15),
+            fetch_limited(&client, MARKET_STATISTICS_URL, MAX_MARKET_STATISTICS_BYTES),
+        ).await.map_err(|_| plugin_error("MarketUnavailable", "Plugin statistics request timed out"))??;
+        let mut statistics: PluginMarketStatistics = serde_json::from_slice(&bytes)
+            .map_err(|_| plugin_error("InvalidMarket", "Plugin download statistics contain invalid JSON"))?;
+        validate_market_statistics(&statistics)?;
+        statistics.stale = false;
+        let cache = CachedMarketStatistics { fetched_at_ms: now_ms(), statistics: statistics.clone() };
+        // A cache write failure must not discard successfully fetched statistics.
+        if let Ok(bytes) = serde_json::to_vec(&cache) {
+            let _ = atomic_write(&path, &bytes);
+        }
+        Ok::<_, PluginBackendError>(statistics)
+    }.await;
+    match remote {
+        Ok(statistics) => Ok(statistics),
+        Err(error) => match cached {
+            Some(mut cache) => {
+                cache.statistics.stale = true;
+                Ok(cache.statistics)
+            }
+            None => Err(error),
+        },
+    }
+}
+
 fn market_high_water_path(app: &AppHandle) -> PluginResult<PathBuf> {
     Ok(market_catalog_directory(app)?.join("market-high-water.json"))
 }
@@ -5472,6 +5586,16 @@ pub async fn plugin_fetch_market(
 ) -> PluginResult<PluginMarketCatalog> {
     let _guard = manager.mutation_lock.lock().await;
     fetch_market_catalog(&app, force.unwrap_or(false)).await
+}
+
+#[tauri::command]
+pub async fn plugin_fetch_market_statistics(
+    app: AppHandle,
+    manager: TauriState<'_, PluginManager>,
+    force: Option<bool>,
+) -> PluginResult<PluginMarketStatistics> {
+    let _guard = manager.statistics_lock.lock().await;
+    fetch_market_statistics(&app, force.unwrap_or(false)).await
 }
 
 #[tauri::command]

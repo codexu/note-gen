@@ -74,7 +74,8 @@ use mcp_runtime::{
 use notion_import::import_notion_zip;
 use ocr_packages::{list_ocr_providers, run_ocr_provider};
 use plugins::{
-    plugin_commit_host_state, plugin_confirm_activation, plugin_fetch_market, plugin_import_local,
+    plugin_commit_host_state, plugin_confirm_activation, plugin_fetch_market,
+    plugin_fetch_market_statistics, plugin_import_local,
     plugin_install_market, plugin_list_installed, plugin_read_host_state,
     plugin_delete_workspace_note, plugin_list_workspace_notes, plugin_move_workspace_note,
     plugin_network_fetch, plugin_open_or_create_note, plugin_read_entry, plugin_read_locale,
@@ -246,6 +247,7 @@ fn main() {
             plugin_storage_remove,
             plugin_list_installed,
             plugin_fetch_market,
+            plugin_fetch_market_statistics,
             plugin_install_market,
             plugin_confirm_activation,
             plugin_import_local,

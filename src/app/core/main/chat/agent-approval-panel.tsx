@@ -3,14 +3,21 @@
 import * as React from "react"
 import { CheckCircle2, ChevronDown, ChevronRight, ShieldAlert, XCircle } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { ApprovalUi, type ApprovalUiModel } from "@/components/chat-ui/approval-ui"
 import { formatConfirmationPreview } from "@/lib/agent/tool-confirmation-display"
 import emitter from "@/lib/emitter"
-import { cn } from "@/lib/utils"
 import { formatAgentToolName } from "./agent-display-utils"
 
 export interface PendingAgentConfirmation {
+  id?: string
+  runId?: string
+  chatId?: number
+  conversationId?: number
+  traceEventId?: string
+  workspacePath?: string
   toolName: string
   params: Record<string, unknown>
   previewParams?: Record<string, unknown>
@@ -28,6 +35,8 @@ interface AgentApprovalPanelProps {
   pendingConfirmation?: PendingAgentConfirmation
   onConfirm?: (scope?: "once" | "conversation") => void
   onCancel?: () => void
+  readOnly?: boolean
+  embedded?: boolean
 }
 
 interface RemoteSkillRiskWarning {
@@ -48,15 +57,18 @@ export function AgentApprovalPanel({
   pendingConfirmation,
   onConfirm,
   onCancel,
+  readOnly = false,
+  embedded = false,
 }: AgentApprovalPanelProps) {
   const t = useTranslations()
-  const [expanded, setExpanded] = React.useState(true)
+  const [expanded, setExpanded] = React.useState(false)
 
   React.useEffect(() => {
-    setExpanded(true)
-  }, [pendingConfirmation?.toolName, pendingConfirmation?.params])
+    setExpanded(false)
+  }, [pendingConfirmation?.id, pendingConfirmation?.toolName, pendingConfirmation?.params])
 
   React.useEffect(() => {
+    if (readOnly) return
     if (
       pendingConfirmation?.originalContent === undefined ||
       pendingConfirmation.modifiedContent === undefined
@@ -76,9 +88,10 @@ export function AgentApprovalPanel({
     return () => {
       emitter.emit("editor-agent-diff-clear")
     }
-  }, [pendingConfirmation])
+  }, [pendingConfirmation, readOnly])
 
   React.useEffect(() => {
+    if (readOnly) return
     if (pendingConfirmation?.toolName !== "canvas_apply_operations") {
       emitter.emit("canvas-agent-preview-clear")
       return
@@ -92,7 +105,7 @@ export function AgentApprovalPanel({
 
     emitter.emit("canvas-agent-preview", { operations })
     return () => emitter.emit("canvas-agent-preview-clear")
-  }, [pendingConfirmation])
+  }, [pendingConfirmation, readOnly])
 
   const approvalPreview = React.useMemo(() => {
     if (!pendingConfirmation) return null
@@ -121,7 +134,7 @@ export function AgentApprovalPanel({
     }
 
     try {
-      return JSON.stringify(value, null, 2)
+      return JSON.stringify(value, null, 2) ?? String(value)
     } catch {
       return String(value)
     }
@@ -131,15 +144,13 @@ export function AgentApprovalPanel({
     return null
   }
 
-  const title = translateKey(
-    approvalPreview.titleKey,
-    formatAgentToolName(pendingConfirmation.toolName)
-  )
+  const title = approvalPreview.titleKey === "record.chat.input.agent.confirmation.fallback.title"
+    ? formatAgentToolName(pendingConfirmation.toolName)
+    : translateKey(approvalPreview.titleKey, formatAgentToolName(pendingConfirmation.toolName))
   const description = translateKey(
     approvalPreview.descriptionKey,
     "Agent 请求执行需要确认的操作。"
   )
-  const hasDetails = approvalPreview.fields.length > 0
   const isRemoteSkillInstall = pendingConfirmation.toolName === "skill_install_source"
   const riskWarnings = Array.isArray(pendingConfirmation.params.warnings)
     ? pendingConfirmation.params.warnings.filter(
@@ -174,131 +185,100 @@ export function AgentApprovalPanel({
     return warning.code
   }
 
+  const model: ApprovalUiModel = {
+    fields: visibleFields.map(field => ({
+      label: translateKey(field.labelKey, field.name),
+      value: formatFieldValue(field.value),
+      format: field.displayType,
+    })),
+    warningTitle: translateKey(
+      "record.chat.input.agent.confirmation.tools.install_remote_skill.warningTitle",
+      "检测到安装风险"
+    ),
+    warnings: isRemoteSkillInstall ? riskWarnings.map(warning => ({
+      message: formatRiskWarning(warning),
+      paths: warning.paths.filter((path): path is string => typeof path === "string"),
+    })) : [],
+  }
+  const summaryFieldNames = new Set([
+    "filePath", "fileName", "folderPath", "sourcePath", "targetPath", "newName",
+    "name", "skill_id", "script_id", "scriptName", "source",
+  ])
+  const summaryFields = visibleFields.filter(field => (
+    summaryFieldNames.has(field.name)
+    && typeof field.value === "string"
+    && field.value.trim().length > 0
+  ))
+  const summary = summaryFields.length > 0
+    ? summaryFields.map(field => summaryFields.length === 1
+      ? formatFieldValue(field.value)
+      : `${translateKey(field.labelKey, field.name)}: ${formatFieldValue(field.value)}`
+    ).join(" · ")
+    : pendingConfirmation.filePath || description
+  const hasDetails = model.fields.length > 0
+
   return (
-    <div className="flex w-full flex-col gap-2 rounded-md border bg-background p-2 shadow-sm">
-      <div>
-        <button
-          type="button"
-          className="flex w-full min-w-0 items-start gap-2 text-left"
-          onClick={() => hasDetails && setExpanded((value) => !value)}
-          disabled={!hasDetails}
-        >
-          <ShieldAlert className="mt-0.5 size-4 shrink-0 text-primary" />
-          <span className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-sm font-medium">{title}</span>
-              {hasDetails && (
-                expanded ? (
-                  <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                )
-              )}
-            </span>
-            <span className="block max-w-full truncate text-xs text-muted-foreground">
-              {pendingConfirmation.filePath || description}
-            </span>
-          </span>
-        </button>
-      </div>
+    <Collapsible open={expanded} onOpenChange={setExpanded} asChild>
+      <Card size="sm" className="min-w-0">
+        <CardHeader className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-1 basis-40">
+            <CardTitle className="flex items-center gap-2">
+              {!embedded && <ShieldAlert className="size-4 shrink-0" />}
+              <span className="min-w-0 break-words">{title}</span>
+            </CardTitle>
+            <CardDescription className="line-clamp-2 break-all" title={summary}>
+              {summary}
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            {hasDetails && <CollapsibleTrigger asChild>
+              <Button type="button" variant="ghost" size="sm">
+                {t("record.chat.input.agent.confirmation.parameters")}
+                {expanded ? <ChevronDown data-icon="inline-end" /> : <ChevronRight data-icon="inline-end" />}
+              </Button>
+            </CollapsibleTrigger>}
+            {!readOnly && <>
+              <Button type="button" size="sm" variant="ghost" disabled={!onCancel} onClick={onCancel}>
+                <XCircle data-icon="inline-start" />
+                {t("record.chat.input.agent.confirmation.cancel")}
+              </Button>
+              {pendingConfirmation.canApproveForSession && <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                disabled={!onConfirm}
+                onClick={() => onConfirm?.("conversation")}
+              >
+                {t("record.chat.input.agent.confirmation.session")}
+              </Button>}
+              <Button type="button" size="sm" disabled={!onConfirm} onClick={() => onConfirm?.("once")}>
+                <CheckCircle2 data-icon="inline-start" />
+                {isRemoteSkillInstall
+                  ? riskWarnings.length > 0
+                    ? translateKey(
+                        "record.chat.input.agent.confirmation.tools.install_remote_skill.continue",
+                        "继续安装"
+                      )
+                    : translateKey(
+                        "record.chat.input.agent.confirmation.tools.install_remote_skill.confirm",
+                        "确认安装"
+                      )
+                  : t("record.chat.input.agent.confirmation.confirm")}
+              </Button>
+            </>}
+          </div>
+        </CardHeader>
 
-      <div className="flex flex-wrap items-center justify-end gap-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 px-2 text-xs"
-          onClick={onCancel}
-        >
-          <XCircle data-icon="inline-start" />
-          {t("record.chat.input.agent.confirmation.cancel")}
-        </Button>
-        <Button
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={() => onConfirm?.("once")}
-        >
-          <CheckCircle2 data-icon="inline-start" />
-          {isRemoteSkillInstall
-            ? riskWarnings.length > 0
-              ? translateKey(
-                  "record.chat.input.agent.confirmation.tools.install_remote_skill.continue",
-                  "继续安装"
-                )
-              : translateKey(
-                  "record.chat.input.agent.confirmation.tools.install_remote_skill.confirm",
-                  "确认安装"
-                )
-            : t("record.chat.input.agent.confirmation.confirm")}
-        </Button>
-        {pendingConfirmation.canApproveForSession && (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-7 px-2 text-xs"
-            onClick={() => onConfirm?.("conversation")}
-          >
-            {t("record.chat.input.agent.confirmation.session")}
-          </Button>
-        )}
-      </div>
+        {model.warnings.length > 0 && <CardContent className="min-w-0">
+          <ApprovalUi model={{ ...model, fields: [] }} />
+        </CardContent>}
 
-      {expanded && hasDetails && (
-        <div className="mt-2 border-t pt-2">
-          {isRemoteSkillInstall && riskWarnings.length > 0 && (
-            <Alert variant="destructive" className="mb-2">
-              <ShieldAlert />
-              <AlertTitle>
-                {translateKey(
-                  "record.chat.input.agent.confirmation.tools.install_remote_skill.warningTitle",
-                  "检测到安装风险"
-                )}
-              </AlertTitle>
-              <AlertDescription>
-                <ul className="list-inside list-disc">
-                  {riskWarnings.map((warning, index) => (
-                    <li key={`${warning.code}-${index}`}>
-                      {formatRiskWarning(warning)}
-                      {warning.paths.length > 0 && (
-                        <span className="block break-all pl-4 text-xs">
-                          {warning.paths.slice(0, 5).join(", ")}
-                          {warning.paths.length > 5 ? ` (+${warning.paths.length - 5})` : ""}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
-          {visibleFields.length > 0 && (
-            <div className="mt-2 flex max-h-56 flex-col gap-2 overflow-auto text-xs">
-              {visibleFields.map((field) => {
-                const formattedValue = formatFieldValue(field.value)
-
-                return (
-                  <div key={field.name} className="grid grid-cols-[88px_minmax(0,1fr)] gap-2">
-                    <span className="truncate text-muted-foreground">
-                      {translateKey(field.labelKey, field.name)}
-                    </span>
-                    {field.displayType === "content" || field.displayType === "json" ? (
-                      <pre
-                        className={cn(
-                          "whitespace-pre-wrap break-words rounded bg-muted/60 px-2 py-1 text-foreground",
-                          field.displayType === "content" && "max-h-[6.75rem] overflow-y-auto leading-5",
-                        )}
-                      >
-                        {formattedValue}
-                      </pre>
-                    ) : (
-                      <span className="break-words text-foreground">{formattedValue}</span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+        {hasDetails && <CollapsibleContent asChild>
+          <CardContent className="min-w-0">
+            <ApprovalUi model={{ ...model, warnings: [] }} />
+          </CardContent>
+        </CollapsibleContent>}
+      </Card>
+    </Collapsible>
   )
 }

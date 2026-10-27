@@ -175,6 +175,8 @@ const useChatStore = create<ChatState>((set, get) => ({
     maxIterations: 15,
     currentIteration: 0,
     pendingConfirmation: undefined,
+    pendingUiInteraction: undefined,
+    responsePreview: undefined,
     confirmationHistory: [],
     loadedSkills: undefined,
     selectedSkills: undefined,
@@ -209,6 +211,8 @@ const useChatStore = create<ChatState>((set, get) => ({
         currentIteration: 0,
         pendingConfirmation: undefined,
         pendingQuestion: undefined,
+        pendingUiInteraction: undefined,
+        responsePreview: undefined,
         confirmationHistory: [],
         loadedSkills: undefined,
         selectedSkills: undefined,
@@ -421,7 +425,8 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
   saveChat: async (chat, isSave = false) => {
     get().updateChat(chat)
-    if (isSave && !get().isTemporaryConversation) {
+    // A background run still owns its persisted message after the user switches chats.
+    if (isSave && chat.id >= 0) {
       await updateChat(chat)
     }
   },
@@ -613,6 +618,18 @@ const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteConversation: async (id: number) => {
+    const { agentSessionManager } = await import('@/lib/agent/agent-session-manager')
+    const sessionId = `conversation:${id}`
+    const session = agentSessionManager.get(sessionId)
+    session?.abort()
+    if (session) await session.waitForIdle()
+    agentSessionManager.dispose(sessionId)
+    const state = get().agentState
+    get().setAgentState({
+      ...(state.pendingConfirmation?.conversationId === id ? { pendingConfirmation: undefined } : {}),
+      ...(state.pendingQuestion?.conversationId === id ? { pendingQuestion: undefined } : {}),
+      ...(state.pendingUiInteraction?.conversationId === id ? { pendingUiInteraction: undefined } : {}),
+    })
     const { deleteConversation: deleteConv } = await import('@/db/conversations')
     await deleteConv(id)
 

@@ -1,6 +1,6 @@
 import { isPluginDisplayVisible } from './display-preferences'
 import { create } from 'zustand'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import {
   PluginError,
   parsePluginUiExtension,

@@ -10,6 +10,10 @@ import { LinkedResource, isLinkedFolder, type MarkdownFile } from "@/lib/files"
 import { readTextFile } from "@tauri-apps/plugin-fs"
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { AgentHandler } from "@/lib/agent/agent-handler"
+import { requestChatUiInteraction } from '@/lib/chat-ui/interaction'
+import { getChatResponseCompletion } from '@/lib/chat-ui/serialization'
+import { fingerprintWorkspaceIdentity } from '@/lib/chat-ui/workspace'
+import { getSkillWorkspaceIdentity } from '@/lib/skills/runtime'
 import { agentSessionManager } from '@/lib/agent/agent-session-manager'
 import { isRequestAbortError } from "@/lib/agent/runtime"
 import { agentDebugLog, previewText } from "@/lib/agent/debug-log"
@@ -18,7 +22,7 @@ import { getToolByName } from "@/lib/agent/tools"
 import { getSessionApprovalScope, matchesSessionApproval } from "@/lib/agent/session-approval"
 import { ImageAttachment } from "./image-attachments"
 import { cn } from "@/lib/utils"
-import type { AgentTraceEvent } from "@/lib/agent/types"
+import type { AgentTraceEvent, ConfirmationRecord } from "@/lib/agent/types"
 import type { AgentApprovalDecision, AgentSteeringPayload } from "@/lib/agent/types"
 import { serializeChatAttachments, type RuntimeChatAttachment } from '@/lib/chat-attachments'
 import { retainCompletedAgentTraceEvents } from '@/lib/agent/trace-retention'
@@ -54,6 +58,19 @@ import {
   type AgentRequestSnapshot,
 } from './agent-session-context'
 import { useChatAgentSession } from './use-chat-agent-session'
+
+function resolveRecordedApprovalEvent(event: AgentTraceEvent, records: ConfirmationRecord[]): AgentTraceEvent {
+  if (event.type !== 'approval' || event.approvalDecision) return event
+  const record = records.findLast(item => item.traceEventId === event.id && item.runId === event.runId)
+  if (!record || record.status === 'pending') return event
+  const approved = record.status === 'confirmed'
+  return {
+    ...event,
+    approvalDecision: approved ? 'approved' : record.status === 'superseded' ? 'steered' : 'denied',
+    status: approved ? 'success' : 'error',
+    message: approved ? '用户已确认操作。' : '本次确认已取消。',
+  }
+}
 
 function getLastDisplayableAgentContent(
   liveContent: string | undefined,
@@ -280,7 +297,8 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
       filePath?: string
       from?: number
       to?: number
-    }
+    },
+    target?: { chatId: number; conversationId?: number; workspacePath: string },
   ): Promise<AgentApprovalDecision> => {
     const tool = getToolByName(toolName)
     const sessionApprovalScope = getSessionApprovalScope(toolName, tool, params)
@@ -299,7 +317,11 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
     }
 
     const currentChatState = useChatStore.getState()
-    const activeConversationId = currentChatState.currentConversationId
+    const activeConversationId = target ? target.conversationId ?? null : currentChatState.currentConversationId
+    const activeState = currentChatState.agentState
+    const workspacePath = target?.workspacePath ?? useSettingStore.getState().workspacePath
+    if ((target && activeState.activeChatId !== target.chatId)
+      || useSettingStore.getState().workspacePath !== workspacePath) return Promise.resolve('denied')
     const autoApproveConversationId = currentChatState.agentAutoApproveConversationId
     const autoApproveRuntimeScriptKey = currentChatState.agentAutoApproveRuntimeScriptKey
 
@@ -319,59 +341,55 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
     }
 
     return new Promise((resolve) => {
-      agentDebugLog('approval_pending_set', {
-        toolName,
-        params,
-        context,
-        canApproveForSession,
-        sessionApprovalScope,
-      })
-
-      // 将确认请求保存到 store，在对话中显示
+      const id = crypto.randomUUID()
+      const runId = activeState.runId
+      const chatId = target?.chatId ?? activeState.activeChatId
+      const traceEventId = activeState.traceEvents?.findLast(event =>
+        event.runId === runId && event.type === 'approval' && event.toolName === toolName && event.status === 'running'
+      )?.id
+      let settled = false
+      let unsubscribeChat = () => {}
+      let unsubscribeSettings = () => {}
+      const finish = (decision: AgentApprovalDecision) => {
+        if (settled) return
+        settled = true
+        unsubscribeChat()
+        unsubscribeSettings()
+        const latest = useChatStore.getState()
+        if (latest.agentState.pendingConfirmation?.id === id) {
+          latest.setAgentState({ pendingConfirmation: undefined })
+        }
+        resolve(decision)
+      }
+      agentDebugLog('approval_pending_set', { id, toolName, params, context, canApproveForSession, sessionApprovalScope })
       setAgentState({
         pendingConfirmation: {
-          toolName,
-          params,
-          previewParams: context?.previewParams,
           ...context,
+          id, runId, chatId, conversationId: activeConversationId ?? undefined,
+          traceEventId, workspacePath, toolName, params,
+          previewParams: context?.previewParams,
           canApproveForSession,
           sessionApprovalType: sessionApprovalScope?.type,
           sessionApprovalKey: sessionApprovalScope?.permissionKey,
+        },
+      })
+      unsubscribeChat = useChatStore.subscribe(state => {
+        if (state.agentState.pendingConfirmation?.id !== id) {
+          const record = state.agentState.confirmationHistory.findLast(item => item.id === id)
+          finish(record?.status === 'confirmed' ? 'approved' : record?.status === 'superseded' ? 'steered' : 'denied')
+        } else if (state.agentState.runId !== runId || state.agentState.activeChatId !== chatId
+          || !state.agentState.isRunning
+          || (chatId !== undefined && chatId < 0 && (!state.isTemporaryConversation || !state.chats.some(chat => chat.id === chatId)))) {
+          finish('denied')
         }
+      })
+      unsubscribeSettings = useSettingStore.subscribe(state => {
+        if (state.workspacePath !== workspacePath) finish('denied')
       })
       void notifyPendingAgentApproval({
-        title: t("record.chat.input.agent.confirmation.notification.title"),
-        body: t("record.chat.input.agent.confirmation.notification.description"),
+        title: t('record.chat.input.agent.confirmation.notification.title'),
+        body: t('record.chat.input.agent.confirmation.notification.description'),
       })
-      
-      // 轮询检查用户是否已确认或取消
-      const checkInterval = setInterval(() => {
-        const currentState = useChatStore.getState()
-        
-        // 如果 pendingConfirmation 被清除，说明用户已操作
-        if (!currentState.agentState.pendingConfirmation) {
-          clearInterval(checkInterval)
-          const latestRecord = [...currentState.agentState.confirmationHistory]
-            .reverse()
-            .find((record) =>
-              record.toolName === toolName &&
-              JSON.stringify(record.params) === JSON.stringify(params)
-            )
-
-          agentDebugLog('approval_pending_resolved', {
-            toolName,
-            params,
-            latestRecord,
-            resolved: latestRecord?.status === 'confirmed',
-          })
-
-          resolve(latestRecord?.status === 'confirmed'
-            ? 'approved'
-            : latestRecord?.status === 'superseded'
-              ? 'steered'
-              : 'denied')
-        }
-      }, 100)
     })
   }
 
@@ -380,25 +398,35 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
     if (signal?.aborted) return Promise.resolve(null)
     return new Promise((resolve) => {
       const id = crypto.randomUUID()
+      const source = useChatStore.getState().agentState
+      const chatId = source.activeChatId
+      const runId = source.runId
+      const workspacePath = useSettingStore.getState().workspacePath
+      const traceEventId = source.traceEvents?.findLast(event => event.runId === runId && event.toolName === 'ask_user_question' && event.type === 'tool_call' && event.status === 'running')?.id
+      const toolCallId = source.toolCalls.findLast(call => call.toolName === 'ask_user_question' && call.status === 'running')?.id
       let settled = false
       let unsubscribe = () => {}
+      let unsubscribeSettings = () => {}
       const finish = (answers: import('@/lib/agent/types').AgentUserAnswer[] | null) => {
         if (settled) return
         settled = true
         unsubscribe()
+        unsubscribeSettings()
         signal?.removeEventListener('abort', abort)
         if (useChatStore.getState().agentState.pendingQuestion?.id === id) {
-          setAgentState({ pendingQuestion: undefined, status: 'calling_tool' })
+          setAgentState({ pendingQuestion: undefined, ...(useChatStore.getState().agentState.runId === runId && useChatStore.getState().agentState.isRunning ? { status: 'calling_tool' as const } : {}) })
         }
         resolve(answers)
       }
       const abort = () => finish(null)
-      setAgentState({ pendingQuestion: { id, conversationId, questions }, status: 'waiting_answer', isThinking: false })
+      setAgentState({ pendingQuestion: { id, conversationId, chatId, runId, traceEventId, toolCallId, workspacePath, questions }, status: 'waiting_answer', isThinking: false })
       unsubscribe = useChatStore.subscribe((state) => {
         const pending = state.agentState.pendingQuestion
-        if (pending?.id !== id) finish(null)
+        if (pending?.id !== id || state.agentState.runId !== runId || !state.agentState.isRunning
+          || (chatId !== undefined && chatId < 0 && (!state.isTemporaryConversation || !state.chats.some(chat => chat.id === chatId)))) finish(null)
         else if (pending.response !== undefined) finish(pending.response)
       })
+      unsubscribeSettings = useSettingStore.subscribe(state => { if (state.workspacePath !== workspacePath) finish(null) })
       signal?.addEventListener('abort', abort, { once: true })
       if (signal?.aborted) abort()
       void notifyPendingAgentApproval({
@@ -459,7 +487,8 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
         currentState.agentState.traceEvents || []
       )
       const stoppedAt = Date.now()
-      const completedTraceEvents = (currentState.agentState.traceEvents || []).map(event => {
+      const completedTraceEvents = (currentState.agentState.traceEvents || []).map(rawEvent => {
+        const event = resolveRecordedApprovalEvent(rawEvent, currentState.agentState.confirmationHistory)
         if (event.status !== 'running') {
           return event
         }
@@ -479,6 +508,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
         traceEvents,
         changes: currentState.agentState.changes || [],
         runId: currentState.agentState.runId,
+        workspaceFingerprint,
         status: aborted ? 'stopped' : 'failed',
         loadedSkills: currentState.agentState.loadedSkills || [],
         selectedSkills: currentState.agentState.selectedSkills || [],
@@ -513,6 +543,9 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
     }
 
     // 每次都创建新的 AgentHandler，使用当前的 placeholderMessage
+    const agentWorkspacePath = useSettingStore.getState().workspacePath
+    const workspaceFingerprint = await fingerprintWorkspaceIdentity(getSkillWorkspaceIdentity(await getWorkspacePath()))
+    if (useSettingStore.getState().workspacePath !== agentWorkspacePath) throw new Error('WORKSPACE_CHANGED')
     const agentHandler = new AgentHandler({
       stateAdapter: chatAgentStateAdapter,
       resourceAdapter: chatAgentResourceAdapter,
@@ -526,8 +559,12 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
       activeFilePath: activeArticle.activeFilePath,
       activeCanvasId: activeCanvasId || undefined,
       permissionMode: agentPermissionMode,
-      requestConfirmation,
+      requestConfirmation: (toolName, params, context) => requestConfirmation(toolName, params, context, { chatId: placeholderMessage.id, conversationId: placeholderMessage.conversationId, workspacePath: agentWorkspacePath }),
       requestUserQuestion: (questions, signal) => requestUserQuestion(questions, signal, placeholderMessage.conversationId),
+      requestUserInteraction: (uiRequest, context) => requestChatUiInteraction(uiRequest, context, {
+        chatId: placeholderMessage.id,
+        conversationId: placeholderMessage.conversationId,
+      }),
       currentQuote: request.quoteData
         ? {
             fileName: request.quoteData.fileName,
@@ -557,9 +594,10 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
         deferredOverflowError = undefined
         // 获取 Agent 执行历史，保存结构化运行轨迹
         const { agentState } = useChatStore.getState()
+        const renderedResponseCompleted = Boolean(getChatResponseCompletion(agentState))
         const effectivelyStopped = Boolean(stopped)
           || manualStopRequestedRef.current
-          || isRequestAbortError(result)
+          || (!renderedResponseCompleted && isRequestAbortError(result))
         if (!effectivelyStopped && pendingCapacityProbe) {
           const aiConfig = modelSnapshot.config
           if (aiConfig) {
@@ -571,7 +609,8 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
           pendingCapacityProbe = undefined
         }
         const completedAt = Date.now()
-        const completedTraceEvents = (agentState.traceEvents || []).map(event => {
+        const completedTraceEvents = (agentState.traceEvents || []).map(rawEvent => {
+          const event = resolveRecordedApprovalEvent(rawEvent, agentState.confirmationHistory)
           if (event.status !== 'running') {
             return event
           }
@@ -592,6 +631,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
           traceEvents,
           changes: agentState.changes || [],
           runId: agentState.runId,
+          workspaceFingerprint,
           status: effectivelyStopped ? 'stopped' : agentState.status,
           loadedSkills: agentState.loadedSkills || [],
           selectedSkills: agentState.selectedSkills || [],
@@ -615,14 +655,16 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
           finalContent = t('record.chat.input.stopped')
         }
 
-        if (!effectivelyStopped) {
+        if (!effectivelyStopped && !renderedResponseCompleted) {
           const partialSuccessContent = buildPartialSuccessContent(result, agentState.toolCalls)
           if (partialSuccessContent && /^工具 .+执行失败：|^工具 .+执行出错：|^Error:/.test(finalContent.trim())) {
             finalContent = partialSuccessContent
           }
         }
 
-        finalContent = sanitizeAgentFinalContent(finalContent)
+        if (!renderedResponseCompleted || effectivelyStopped) {
+          finalContent = sanitizeAgentFinalContent(finalContent)
+        }
 
         const currentState = useChatStore.getState()
         const currentMessage = currentState.chats.find(c => c.id === placeholderMessage.id)
@@ -1182,7 +1224,8 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
     const request = createRequestSnapshot(overrideText)
     if (!request.inputValue.trim() && request.images.length === 0 && request.fileAttachments.length === 0) return
     const wasStreaming = agentSession.isStreaming
-    const isReplacingPendingApproval = Boolean(useChatStore.getState().agentState.pendingConfirmation || useChatStore.getState().agentState.pendingQuestion)
+    const waitingState = useChatStore.getState().agentState
+    const isReplacingPendingApproval = Boolean(waitingState.pendingConfirmation || waitingState.pendingQuestion || waitingState.pendingUiInteraction)
     if (!wasStreaming) {
       manualStopRequestedRef.current = false
       contextOverflowRetryRef.current = 0

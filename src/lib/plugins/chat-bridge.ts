@@ -1,5 +1,5 @@
 import { PluginError, type PluginChatDraftOptions } from '@notegen/plugin-api'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { usePluginUiStore } from './ui-registry'
 import { useSidebarStore } from '@/stores/sidebar'
 

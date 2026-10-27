@@ -1,5 +1,5 @@
 import { PluginError, type PluginContext, type PluginPermissionName, type PluginRecord } from '@notegen/plugin-api'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { getDb } from '@/db'
 import { attachMarkTagIds, getMarkById, insertMark, RECORD_TAG_MATCH_SQL, updatePluginTextRecord, type Mark } from '@/db/marks'
 import emitter from '@/lib/emitter'

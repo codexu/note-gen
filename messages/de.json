@@ -4362,6 +4362,22 @@
               "script_id": "Registriertes Skript"
             },
             "tools": {
+              "update_file": {
+                "title": "Datei ändern",
+                "description": "Die Änderungen werden in der Zieldatei gespeichert."
+              },
+              "update_editor_content": {
+                "title": "Editorinhalt ändern",
+                "description": "Einfügungen, Ersetzungen oder Löschungen werden im aktuellen Editor angewendet."
+              },
+              "delete_folder": {
+                "title": "Ordner löschen",
+                "description": "Die ausgewählten Ordner und ihre Inhalte werden gelöscht."
+              },
+              "install_skill": {
+                "title": "Skill-Paket installieren",
+                "description": "Das Skill-Paket wird am gewählten Ort installiert. Eine vorhandene Version wird vor dem Ersetzen gesichert."
+              },
               "create_memory": {
                 "title": "Diese Information merken?",
                 "description": "Nach Bestätigung kann KI diese Information in zukünftigen Chats verwenden.",
@@ -4440,7 +4456,33 @@
                 "title": "Node.js-Pakete für den Skill installieren",
                 "description": "Die aufgeführten npm-Pakete in die eigene Umgebung dieses Skills laden, ohne Installationsskripte der Pakete auszuführen."
               }
-            }
+            },
+            "previewBefore": "Vor der Änderung",
+            "previewAfter": "Nach der Änderung"
+          },
+          "ui": {
+            "waiting": "Eingabe ausstehend",
+            "expired": "Beendet",
+            "displayed": "Information",
+            "submitted": "Gesendet",
+            "cancelled": "Abgebrochen",
+            "submit": "Senden und fortfahren",
+            "cancel": "Abbrechen",
+            "required": "Bitte dieses Feld ausfüllen.",
+            "invalid": "Bitte dieses Feld prüfen.",
+            "emptyValue": "Nicht angegeben",
+            "search": "Optionen durchsuchen",
+            "searchLabel": "{label} durchsuchen",
+            "select": "Option auswählen",
+            "loading": "Optionen werden geladen…",
+            "noOptions": "Keine Optionen verfügbar",
+            "moreOptions": "Die ersten 100 Optionen werden angezeigt. Mit der Suche lässt sich die Auswahl eingrenzen.",
+            "rootFolder": "Stammordner",
+            "renderError": "Dieser interaktive Inhalt konnte nicht angezeigt werden. Bitte im Chat fortfahren.",
+            "loadError": "Optionen konnten nicht geladen werden. Bitte erneut versuchen.",
+            "retry": "Erneut versuchen",
+            "submitError": "Senden fehlgeschlagen. Bitte erneut versuchen.",
+            "expiredDescription": "Diese Interaktion ist beendet. Bitte im aktuellen Chat eine neue starten."
           }
         },
         "fileLink": {
@@ -4578,6 +4620,23 @@
         "cancel": "Abbrechen",
         "delete": "Löschen",
         "deleteConfirm": "Bist du sicher, dass du diese Nachricht löschen möchtest?"
+      },
+      "response": {
+        "generating": "Komponenten werden generiert…",
+        "previewActions": "Nach Abschluss der Generierung verfügbar",
+        "openSource": "Quelle öffnen",
+        "saveArtifact": "Datei speichern unter",
+        "copied": "Kopiert",
+        "saved": "Datei gespeichert",
+        "unavailable": "Der Inhalt ist nicht verfügbar oder gehört zu einem anderen Arbeitsbereich.",
+        "actionFailed": "Aktion fehlgeschlagen",
+        "imageFailed": "Das Bild konnte nicht angezeigt werden.",
+        "mathFailed": "Die Formel konnte nicht verarbeitet werden. Der ursprüngliche LaTeX-Code wird angezeigt.",
+        "step": {
+          "pending": "Ausstehend",
+          "current": "In Bearbeitung",
+          "done": "Erledigt"
+        }
       },
       "artifacts": {
         "open": "{name} öffnen",

@@ -2,6 +2,7 @@ import type { AiConfig } from '@/app/core/setting/config'
 import type { Chat } from '@/db/chats'
 import type { ModelCapacity } from './model-capacity'
 import { estimateTokens } from './token-counter'
+import { getChatMessageHistoryText } from './history-messages'
 
 export const DEFAULT_OUTPUT_RESERVE = 2_048
 export const MIN_RECENT_HISTORY_BUDGET = 512
@@ -53,7 +54,7 @@ export function estimateConversationContextBudget(
   )
   const summaryTokens = estimateTokens(summary || '')
   const historyTokens = history.reduce(
-    (sum, chat) => sum + estimateTokens(chat.content || ''),
+    (sum, chat) => sum + estimateTokens(getChatMessageHistoryText(chat)),
     0
   )
   const additionalContextTokens = estimateTokens(input.additionalContext || '')

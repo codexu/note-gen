@@ -17,6 +17,8 @@ import { buildMcpAgentToolCatalog } from '@/lib/mcp/agent-tools'
 import { agentDebugLog, previewText } from './debug-log'
 import { getRagAgentPolicy } from '@/lib/rag-agent-policy'
 import { WebSearchBudget } from './web-search-budget'
+import { getChatResponseText, parseChatResponseSpec } from '@/lib/chat-ui/response-catalog'
+import { createChatResponseStream } from '@/lib/chat-ui/response-stream'
 import type {
   AgentChange,
   AgentContextSnapshot,
@@ -62,9 +64,10 @@ async function executeAgentTool(
   context: AgentContextSnapshot,
   requestUserQuestion?: AgentToolExecutionContext['requestUserQuestion'],
   workspaceIdentity?: string,
+  requestUserInteraction?: AgentToolExecutionContext['requestUserInteraction'],
 ): Promise<AgentToolResult> {
   try {
-    return await tool.execute(args, { runId, signal, context, requestUserQuestion, workspaceIdentity })
+    return await tool.execute(args, { runId, signal, context, requestUserQuestion, requestUserInteraction, workspaceIdentity })
   } catch (error) {
     if (isRequestAbortError(error)) {
       throw error
@@ -945,6 +948,7 @@ export class AgentRuntime {
         context,
         callbacks.requestUserQuestion,
         runWorkspaceIdentity,
+        callbacks.requestUserInteraction,
       )
       if (tool.name === 'web_search') webSearchBudget.recordResult(result)
       return result
@@ -1088,6 +1092,79 @@ export class AgentRuntime {
       })
     }
 
+    let responsePreviewDisplayed = false
+    const clearResponsePreview = () => {
+      if (!responsePreviewDisplayed) return
+      callbacks.onResponsePreview?.(undefined, runId)
+      responsePreviewDisplayed = false
+    }
+
+    // Both Markdown and rendered replies must pass the same evidence checks before publication.
+    const getFinalResponseReview = (draft: string, offeredToolNames: ReadonlySet<string>): string | undefined => {
+      if (
+        knowledgeSearchCount > 0
+        && !knowledgeCitationChecked
+        && !toolCalls.some(call => call.toolName === 'knowledge_cite_sources' && call.status === 'success')
+      ) {
+        knowledgeCitationChecked = true
+        return [
+          '## App Context',
+          'A knowledge search occurred, but the draft did not identify which retrieved sources were actually used.',
+          'If the draft relies on any retrieved source, call knowledge_cite_sources with only those source keys, then return the final answer.',
+          'Do not cite sources that were merely retrieved, rejected, or left unread. If no retrieved source supports the draft, return the answer without claiming support from the knowledge base.',
+          'Do not mention this internal citation check.',
+        ].join('\n')
+      }
+      if (
+        !forceFinalResponseReason
+        && !directAnswerEvidenceChecked
+        && knowledgeSearchCount === 0
+        && offeredToolNames.has('knowledge_search')
+        && (
+          claimsUserNoteEvidence(draft)
+          || explicitlyRequestsKnowledgeLookup(context.userInput)
+          || requestsSavedPersonalFact(context.userInput)
+        )
+      ) {
+        directAnswerEvidenceChecked = true
+        return [
+          '## App Context',
+          'The draft above answers a request that may depend on the user\'s saved knowledge, but no unified knowledge search occurred in this run. Calls to memory_list, tag_list, mark_list, or other tools do not replace knowledge_search.',
+          'Verify that attribution semantically, without relying on required keywords or fixed business fields. Do not treat the draft itself as evidence.',
+          'If the claimed fact is not already supported by the conversation, current editor context, current canvas, or saved memory context, call knowledge_search now. If the existing context really supports it, return the final answer directly.',
+          'Do not mention this internal evidence-attribution check.',
+        ].join('\n')
+      }
+      return undefined
+    }
+
+    const appendFinalResponseReview = (draft: string, review: string) => {
+      clearResponsePreview()
+      callbacks.onCandidateAnswerClear?.()
+      messages.push({ role: 'assistant', content: draft }, { role: 'user', content: review })
+    }
+
+    const completeFinalResponse = (content: string, renderedToolCallId?: string): AgentRuntimeResult => {
+      agentDebugLog('final_answer', {
+        runId,
+        format: renderedToolCallId ? 'json-render' : 'markdown',
+        contentLength: content.length,
+        preview: previewText(content),
+      })
+      const finalTrace = recorder.add({
+        type: 'final',
+        title: '完成',
+        status: 'success',
+        message: content,
+        ...(renderedToolCallId ? { output: { format: 'json-render', toolCallId: renderedToolCallId } } : {}),
+      })
+      callbacks.onTrace?.(finalTrace)
+      callbacks.onStatus?.('completed')
+      callbacks.onFinalAnswerRender?.(content)
+      clearResponsePreview()
+      return { runId, content, stopped: false, steps, toolCalls, changes, trace: recorder.all() }
+    }
+
     const drainSteering = async () => {
       if (!this.steeringRequested) return false
       if (this.stopped) return false
@@ -1207,6 +1284,7 @@ export class AgentRuntime {
 
     try {
       agentLoop: for (let iteration = 1; iteration <= ABSOLUTE_MAX_MODEL_ROUNDS + 1; iteration += 1) {
+        clearResponsePreview()
         if (iteration > ABSOLUTE_MAX_MODEL_ROUNDS && !forceFinalResponseReason) {
           break
         }
@@ -1323,6 +1401,34 @@ export class AgentRuntime {
         let streamedTokenCount = 0
         let lastModelProgressTraceAt = 0
         const streamedToolCalls = new Map<number, StreamingToolCallAccumulator>()
+        let responseStream: ReturnType<typeof createChatResponseStream> | undefined
+        let responseArgumentOffset = 0
+        let lastResponsePreviewAt = 0
+
+        const renderResponsePreview = (force = false) => {
+          const call = streamedToolCalls.size === 1 ? streamedToolCalls.values().next().value : undefined
+          if (this.stopped || this.steeringRequested || !offeredToolNames.has('render_response')
+            || !call || call.function.name !== 'render_response') {
+            clearResponsePreview()
+            responseStream = undefined
+            responseArgumentOffset = 0
+            return
+          }
+          responseStream ??= createChatResponseStream()
+          const fragment = call.function.arguments.slice(responseArgumentOffset)
+          responseArgumentOffset = call.function.arguments.length
+          responseStream.push(fragment)
+          const now = Date.now()
+          if (!force && now - lastResponsePreviewAt < STREAM_RENDER_INTERVAL_MS) return
+          lastResponsePreviewAt = now
+          const snapshot = responseStream.snapshot()
+          if (snapshot === undefined) return
+          if (!snapshot) { clearResponsePreview(); return }
+          callbacks.onResponsePreview?.({ ...snapshot, runId,
+            toolCallId: call.id || modelTrace.id, workspaceIdentity: runWorkspaceIdentity,
+          }, runId)
+          responsePreviewDisplayed = true
+        }
 
         const renderCandidateAnswer = (force = false) => {
           if (toolCallsStarted || !assistantContent.trim() || assistantContent === lastCandidateAnswerContent) {
@@ -1407,6 +1513,8 @@ export class AgentRuntime {
             streamedToolCalls.set(index, current)
           }
 
+          renderResponsePreview()
+
           const now = Date.now()
           if (streamedText && now - lastModelProgressTraceAt >= 100) {
             streamedTokenCount = estimateTokens(streamedText)
@@ -1427,6 +1535,7 @@ export class AgentRuntime {
             lastStreamYieldAt = Date.now()
             if (this.stopped) throw new Error('USER_STOPPED')
             renderCandidateAnswer()
+            renderResponsePreview()
           }
         }
         if (this.stopped) throw new Error('USER_STOPPED')
@@ -1434,6 +1543,7 @@ export class AgentRuntime {
         // All callbacks stay inside this run's try/catch; no render timer can
         // write stale content after a stop, a new round, or a failed request.
         renderCandidateAnswer(true)
+        renderResponsePreview(true)
         streamedTokenCount = estimateTokens(streamedText)
         activeModelStreamedTokenCount = streamedTokenCount
         assistantContent = assistantContent.trim() ? assistantContent : ''
@@ -1483,7 +1593,8 @@ export class AgentRuntime {
           duration: Date.now() - modelTrace.timestamp,
           output: modelTraceOutput,
           reasoning: assistantReasoning || undefined,
-          isIntermediateResponse: (toolUses.length > 0 || this.steeringRequested) && Boolean(assistantContent),
+          isIntermediateResponse: !(toolUses.length === 1 && toolUses[0].function.name === 'render_response')
+            && (toolUses.length > 0 || this.steeringRequested) && Boolean(assistantContent),
           streamedTokenCount,
         })
         if (responseTrace) callbacks.onTrace?.(responseTrace)
@@ -1496,6 +1607,7 @@ export class AgentRuntime {
           callbacks.onCandidateAnswerClear?.()
         }
         await agentEventBus.emit('after-model-call', { runId, content: assistantContent })
+        if (this.stopped) throw new Error('USER_STOPPED')
 
         if (toolUses.length === 0) {
           const resolvedContent = assistantContent || finalContent
@@ -1510,80 +1622,12 @@ export class AgentRuntime {
           if (!resolvedContent) {
             throw new Error('AI response did not include a message')
           }
-          if (
-            knowledgeSearchCount > 0
-            && !knowledgeCitationChecked
-            && !toolCalls.some(call => call.toolName === 'knowledge_cite_sources' && call.status === 'success')
-          ) {
-            knowledgeCitationChecked = true
-            callbacks.onCandidateAnswerClear?.()
-            messages.push(
-              { role: 'assistant', content: resolvedContent },
-              {
-                role: 'user',
-                content: [
-                  '## App Context',
-                  'A knowledge search occurred, but the draft did not identify which retrieved sources were actually used.',
-                  'If the draft relies on any retrieved source, call knowledge_cite_sources with only those source keys, then return the final answer.',
-                  'Do not cite sources that were merely retrieved, rejected, or left unread. If no retrieved source supports the draft, return the answer without claiming support from the knowledge base.',
-                  'Do not mention this internal citation check.',
-                ].join('\n'),
-              }
-            )
+          const review = getFinalResponseReview(resolvedContent, offeredToolNames)
+          if (review) {
+            appendFinalResponseReview(resolvedContent, review)
             continue
           }
-          if (
-            !forceFinalResponseReason
-            && !directAnswerEvidenceChecked
-            && knowledgeSearchCount === 0
-            && offeredToolNames.has('knowledge_search')
-            && (
-              claimsUserNoteEvidence(resolvedContent)
-              || explicitlyRequestsKnowledgeLookup(context.userInput)
-              || requestsSavedPersonalFact(context.userInput)
-            )
-          ) {
-            directAnswerEvidenceChecked = true
-            callbacks.onCandidateAnswerClear?.()
-            messages.push(
-              { role: 'assistant', content: resolvedContent },
-              {
-                role: 'user',
-                content: [
-                  '## App Context',
-                  'The draft above answers a request that may depend on the user\'s saved knowledge, but no unified knowledge search occurred in this run. Calls to memory_list, tag_list, mark_list, or other tools do not replace knowledge_search.',
-                  'Verify that attribution semantically, without relying on required keywords or fixed business fields. Do not treat the draft itself as evidence.',
-                  'If the claimed fact is not already supported by the conversation, current editor context, current canvas, or saved memory context, call knowledge_search now. If the existing context really supports it, return the final answer directly.',
-                  'Do not mention this internal evidence-attribution check.',
-                ].join('\n'),
-              }
-            )
-            continue
-          }
-          agentDebugLog('final_answer', {
-            runId,
-            contentLength: resolvedContent.length,
-            preview: previewText(resolvedContent),
-          })
-          callbacks.onStatus?.('completed')
-          callbacks.onFinalAnswerRender?.(resolvedContent)
-          const finalTrace = recorder.add({
-            type: 'final',
-            title: '完成',
-            status: 'success',
-            message: resolvedContent,
-          })
-          callbacks.onTrace?.(finalTrace)
-
-          return {
-            runId,
-            content: resolvedContent,
-            stopped: false,
-            steps,
-            toolCalls,
-            changes,
-            trace: recorder.all(),
-          }
+          return completeFinalResponse(resolvedContent)
         }
 
         messages.push(createAssistantToolCallMessage(
@@ -1615,6 +1659,7 @@ export class AgentRuntime {
           try {
             args = parseToolArguments(toolUse.function.arguments)
           } catch (error) {
+            if (toolName === 'render_response') clearResponsePreview()
             const parseErrorResult: AgentToolResult = {
               ok: false,
               message: `工具参数 JSON 无效：${error instanceof Error ? error.message : String(error)}。请重新发起同一个工具调用，并返回合法 JSON 参数。`,
@@ -1716,13 +1761,64 @@ export class AgentRuntime {
             continue
           }
 
+          if (tool.name === 'render_response' && toolUses.length !== 1) {
+            const batchResult: AgentToolResult = {
+              ok: false,
+              error: 'INVALID_TOOL_BATCH',
+              message: 'render_response must be the only tool call in its model response. Complete the other requested operations first, then choose a normal Markdown reply or call render_response alone with the complete final answer.',
+            }
+            toolCall.status = 'error'
+            toolCall.result = toolResultToLegacy(batchResult)
+            callbacks.onToolCall?.(toolCall)
+            appendToolResult(toolUse.id, toolName, args, batchResult)
+            continue
+          }
+
           const invalidToolInput = validateToolInputShape(tool, args)
           if (invalidToolInput) {
+            if (tool.name === 'render_response') clearResponsePreview()
             toolCall.status = 'error'
             toolCall.result = toolResultToLegacy(invalidToolInput)
             callbacks.onToolCall?.(toolCall)
             appendToolResult(toolUse.id, toolName, args, invalidToolInput)
             continue
+          }
+
+          if (tool.name === 'render_response') {
+            if (this.steeringRequested) {
+              const supersededResult: AgentToolResult = {
+                ok: false,
+                error: 'SUPERSEDED_BY_STEERING',
+                message: 'A newer user instruction superseded this final reply. Apply it before choosing the final answer.',
+              }
+              toolCall.status = 'error'
+              toolCall.result = toolResultToLegacy(supersededResult)
+              callbacks.onToolCall?.(toolCall)
+              appendToolResult(toolUse.id, toolName, args, supersededResult)
+              continue agentLoop
+            }
+            let draft: string | undefined
+            try {
+              draft = getChatResponseText(parseChatResponseSpec(args.spec))
+            } catch {
+              // Let the tool return its normal actionable spec-validation error.
+            }
+            if (draft !== undefined) {
+              const review = getFinalResponseReview(draft, offeredToolNames)
+              if (review) {
+                const reviewResult: AgentToolResult = {
+                  ok: false,
+                  error: 'FINAL_RESPONSE_REQUIRES_EVIDENCE',
+                  message: 'The final reply has not been published. Review the following app feedback, complete any necessary knowledge lookup or source citation, then choose the final reply format again.',
+                }
+                toolCall.status = 'error'
+                toolCall.result = toolResultToLegacy(reviewResult)
+                callbacks.onToolCall?.(toolCall)
+                appendToolResult(toolUse.id, toolName, args, reviewResult)
+                appendFinalResponseReview(draft, review)
+                continue agentLoop
+              }
+            }
           }
 
           if (
@@ -1878,6 +1974,10 @@ export class AgentRuntime {
             callbacks.onTrace?.(approvalTrace)
 
             const approvalPreview = await buildEditorApprovalPreview(tool.name, args)
+            if (approvalPreview) {
+              const previewTrace = recorder.update(approvalTrace.id, { approvalPreview })
+              if (previewTrace) callbacks.onTrace?.(previewTrace)
+            }
             if (this.stopped) {
               throw new Error('USER_STOPPED')
             }
@@ -1913,6 +2013,7 @@ export class AgentRuntime {
               toolCall.result = toolResultToLegacy(supersededResult)
               callbacks.onToolCall?.(toolCall)
               const updatedApprovalTrace = recorder.update(approvalTrace.id, {
+                approvalDecision: 'steered',
                 status: 'error',
                 message: supersededResult.message,
                 output: supersededResult,
@@ -1932,6 +2033,7 @@ export class AgentRuntime {
               toolCall.result = toolResultToLegacy(deniedResult)
               callbacks.onToolCall?.(toolCall)
               const updatedApprovalTrace = recorder.update(approvalTrace.id, {
+                approvalDecision: 'denied',
                 status: 'error',
                 message: deniedResult.message,
                 output: deniedResult,
@@ -1968,6 +2070,7 @@ export class AgentRuntime {
             }
 
             const updatedApprovalTrace = recorder.update(approvalTrace.id, {
+              approvalDecision: 'approved',
               status: 'success',
               message: '用户已确认操作。',
             })
@@ -2087,15 +2190,22 @@ export class AgentRuntime {
           })
           if (updatedTrace) callbacks.onTrace?.(updatedTrace)
 
-          // Cancelling a question ends this turn, rather than letting later
-          // tools in the same batch act on information the user did not supply.
-          if (tool.name === 'ask_user_question' && result.error === 'USER_CANCELLED_QUESTION' && !this.steeringRequested) {
+          if (tool.name === 'render_response' && !result.ok) clearResponsePreview()
+
+          // An unanswered interaction must not let the remaining batch act on guessed input.
+          const cancelledQuestion = tool.name === 'ask_user_question' && result.error === 'USER_CANCELLED_QUESTION'
+          const cancelledUi = tool.name === 'show_ui' && result.error === 'USER_CANCELLED_UI'
+          if (cancelledQuestion || cancelledUi) {
+            appendToolResult(toolUse.id, tool.name, args, result)
+            cancelRemainingToolCalls(toolIndex, '用户交互已取消或被新指令取代。')
+            if (this.steeringRequested) continue agentLoop
+            const cancellationTitle = tool.name === 'show_ui' ? '已取消交互' : '已取消提问'
             finalContent = changes.length > 0
-              ? `已取消提问，本轮不再继续执行；此前已有 ${changes.length} 项改动，请以改动记录为准。`
-              : '已取消提问，本轮不再继续执行。'
+              ? `${cancellationTitle}，本轮不再继续执行；此前已有 ${changes.length} 项改动，请以改动记录为准。`
+              : `${cancellationTitle}，本轮不再继续执行。`
             callbacks.onStatus?.('completed')
             callbacks.onFinalAnswerRender?.(finalContent)
-            const finalTrace = recorder.add({ type: 'final', title: '已取消提问', status: 'success', message: finalContent })
+            const finalTrace = recorder.add({ type: 'final', title: cancellationTitle, status: 'success', message: finalContent })
             callbacks.onTrace?.(finalTrace)
             return { runId, content: finalContent, stopped: false, steps, toolCalls, changes, trace: recorder.all() }
           }
@@ -2106,6 +2216,23 @@ export class AgentRuntime {
             input: args,
             result,
           })
+
+          if (tool.name === 'render_response' && result.ok) {
+            const data = result.data && typeof result.data === 'object' && !Array.isArray(result.data)
+              ? result.data as Record<string, unknown>
+              : undefined
+            const content = typeof data?.content === 'string' ? data.content : ''
+            if (content.trim()) {
+              appendToolResult(toolUse.id, tool.name, args, result)
+              await assertRunWorkspace()
+              if (this.stopped) throw new Error('USER_STOPPED')
+              if (this.steeringRequested) {
+                callbacks.onCandidateAnswerClear?.()
+                continue agentLoop
+              }
+              return completeFinalResponse(content, toolCall.id)
+            }
+          }
 
           let modelFacingResult = result
           let identicalReadResultRepeatCount = 0
@@ -2303,6 +2430,7 @@ export class AgentRuntime {
         trace: recorder.all(),
       }
     } catch (error) {
+      clearResponsePreview()
       if (error instanceof Error && error.message.startsWith('WORKSPACE_CHANGED:')) {
         this.abortController?.abort()
         finalContent = '工作区已切换，本次任务已停止。请在目标工作区重新发起请求。'

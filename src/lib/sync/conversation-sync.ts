@@ -23,6 +23,7 @@ import type { ConversationSyncTombstone } from '@/db/conversation-sync-state'
 import { v5 as uuidv5 } from 'uuid'
 import { recordSyncTiming } from './sync-timing'
 import { CONVERSATION_ASSETS_DIRECTORY, resolveConversationAssetPath } from '@/lib/conversation-assets'
+import { sanitizeChatUiBlocksForSync } from '@/lib/chat-ui/serialization'
 
 export const CONVERSATION_SYNC_DIRECTORY = '.data/conversations'
 export const CONVERSATION_SYNC_INDEX_PATH = `${CONVERSATION_SYNC_DIRECTORY}/index.json`
@@ -55,6 +56,7 @@ export interface ConversationSyncMessage {
   ragSources?: string
   ragSourceDetails?: string
   agentHistory?: string
+  uiBlocks?: string
   thinking?: string
   quoteData?: string
   condensedContent?: string
@@ -517,6 +519,7 @@ function normalizeSyncMessage(value: unknown): ConversationSyncMessage | null {
     ragSources: optionalString(value.ragSources),
     ragSourceDetails: sanitizeRagSourceDetails(optionalString(value.ragSourceDetails)),
     agentHistory: optionalString(value.agentHistory),
+    uiBlocks: sanitizeChatUiBlocksForSync(optionalString(value.uiBlocks)),
     thinking: optionalString(value.thinking),
     quoteData: optionalString(value.quoteData),
     condensedContent: optionalString(value.condensedContent),
@@ -625,6 +628,7 @@ function chatToSyncMessage(chat: Chat): ConversationSyncMessage | null {
     ragSources: chat.ragSources,
     ragSourceDetails: sanitizeRagSourceDetails(chat.ragSourceDetails),
     agentHistory: chat.agentHistory,
+    uiBlocks: sanitizeChatUiBlocksForSync(chat.uiBlocks),
     thinking: chat.thinking,
     quoteData: chat.quoteData,
     condensedContent: chat.condensedContent,
@@ -963,7 +967,13 @@ function mergeMessages(
       || message.syncUpdatedAt > existing.syncUpdatedAt
       || (message.syncUpdatedAt === existing.syncUpdatedAt
         && stableSerialize(message) > stableSerialize(existing))) {
-      merged.set(message.syncId, message)
+      merged.set(message.syncId, {
+        ...message,
+        uiBlocks: message.uiBlocks ?? existing?.uiBlocks,
+      })
+    } else if (existing.uiBlocks === undefined && message.uiBlocks !== undefined) {
+      // Older clients omit UI blocks even when updating the rest of a message.
+      merged.set(message.syncId, { ...existing, uiBlocks: message.uiBlocks })
     }
   }
   return Array.from(merged.values()).sort((left, right) => (
@@ -1119,10 +1129,10 @@ async function persistMergedConversationItems(
              syncId, syncUpdatedAt, tagId, conversationId, content, role, type,
              image, images, imageAnalyses, attachments, inserted, createdAt,
              ragSources, ragSourceDetails, agentHistory, thinking, quoteData,
-             condensedContent, condensedAt
+             condensedContent, condensedAt, uiBlocks
            ) values (
              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-             $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+             $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
            )
            on conflict(syncId) do update set
              syncUpdatedAt = excluded.syncUpdatedAt,
@@ -1142,6 +1152,7 @@ async function persistMergedConversationItems(
              agentHistory = excluded.agentHistory,
              thinking = excluded.thinking,
              quoteData = excluded.quoteData,
+             uiBlocks = coalesce(excluded.uiBlocks, chats.uiBlocks),
              condensedContent = excluded.condensedContent,
              condensedAt = excluded.condensedAt`,
           [
@@ -1165,6 +1176,7 @@ async function persistMergedConversationItems(
             message.quoteData,
             message.condensedContent,
             message.condensedAt,
+            message.uiBlocks ?? null,
           ]
       )
     }

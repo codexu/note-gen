@@ -4427,6 +4427,22 @@
               "script_id": "Script registrado"
             },
             "tools": {
+              "update_file": {
+                "title": "Modificar arquivo",
+                "description": "As alterações serão salvas no arquivo de destino."
+              },
+              "update_editor_content": {
+                "title": "Modificar conteúdo do editor",
+                "description": "Inserções, substituições ou exclusões serão aplicadas no editor atual."
+              },
+              "delete_folder": {
+                "title": "Excluir pasta",
+                "description": "As pastas selecionadas e seu conteúdo serão excluídos."
+              },
+              "install_skill": {
+                "title": "Instalar pacote do Skill",
+                "description": "O pacote do Skill será instalado no local selecionado. Uma versão existente será copiada para backup antes da substituição."
+              },
               "create_memory": {
                 "title": "Lembrar desta informação?",
                 "description": "Após a confirmação, a IA poderá usar esta informação em conversas futuras.",
@@ -4461,7 +4477,33 @@
                 "title": "Instalar pacotes Node.js do Skill",
                 "description": "Baixar os pacotes npm listados para o ambiente próprio deste Skill, sem executar scripts de instalação dos pacotes."
               }
-            }
+            },
+            "previewBefore": "Antes das alterações",
+            "previewAfter": "Depois das alterações"
+          },
+          "ui": {
+            "waiting": "Aguardando preenchimento",
+            "expired": "Encerrado",
+            "displayed": "Informação",
+            "submitted": "Enviado",
+            "cancelled": "Cancelado",
+            "submit": "Enviar e continuar",
+            "cancel": "Cancelar",
+            "required": "Preencha este campo.",
+            "invalid": "Verifique este campo.",
+            "emptyValue": "Não informado",
+            "search": "Pesquisar opções",
+            "searchLabel": "Pesquisar {label}",
+            "select": "Selecione uma opção",
+            "loading": "Carregando opções…",
+            "noOptions": "Nenhuma opção disponível",
+            "moreOptions": "Exibindo as primeiras 100 opções. Pesquise para refinar os resultados.",
+            "rootFolder": "Pasta raiz",
+            "renderError": "Não foi possível exibir este conteúdo interativo. Continue no chat.",
+            "loadError": "Não foi possível carregar as opções. Tente novamente.",
+            "retry": "Tentar novamente",
+            "submitError": "Não foi possível enviar. Tente novamente.",
+            "expiredDescription": "Esta interação foi encerrada. Inicie uma nova no chat atual."
           }
         },
         "imageSelector": {
@@ -4617,6 +4659,23 @@
         "lineSingle": "引用自 {fileName} 第 {line} 行",
         "lineRange": "引用自 {fileName} 第 {startLine}-{endLine} 行",
         "noLine": "引用自 {fileName}"
+      },
+      "response": {
+        "generating": "Gerando componentes…",
+        "previewActions": "Disponível quando a geração terminar",
+        "openSource": "Abrir fonte",
+        "saveArtifact": "Salvar arquivo como",
+        "copied": "Copiado",
+        "saved": "Arquivo salvo",
+        "unavailable": "O conteúdo está indisponível ou pertence a outro espaço de trabalho.",
+        "actionFailed": "Falha na ação",
+        "imageFailed": "Não foi possível exibir a imagem.",
+        "mathFailed": "Não foi possível interpretar a fórmula. Exibindo o LaTeX original.",
+        "step": {
+          "pending": "Pendente",
+          "current": "Em andamento",
+          "done": "Concluído"
+        }
       },
       "artifacts": {
         "open": "Abrir {name}",

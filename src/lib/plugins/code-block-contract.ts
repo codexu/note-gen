@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { validatePluginResourcePath } from '@notegen/plugin-api'
 
 // Resource protocol 1 is independent of QuickJS RPC. The manifest validator

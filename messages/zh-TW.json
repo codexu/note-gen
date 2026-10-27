@@ -4358,6 +4358,22 @@
               "script_id": "已登錄指令碼"
             },
             "tools": {
+              "update_file": {
+                "title": "修改檔案",
+                "description": "將把修改儲存到目標檔案。"
+              },
+              "update_editor_content": {
+                "title": "修改編輯器內容",
+                "description": "將在目前的編輯器中套用插入、取代或刪除操作。"
+              },
+              "delete_folder": {
+                "title": "刪除資料夾",
+                "description": "將刪除所選資料夾及其中的內容。"
+              },
+              "install_skill": {
+                "title": "安裝 Skill 套件",
+                "description": "將把 Skill 套件安裝到指定位置；取代既有版本時會先備份。"
+              },
               "create_memory": {
                 "title": "記住這條資訊？",
                 "description": "確認後，AI 會在之後的對話中使用這條資訊。",
@@ -4392,7 +4408,33 @@
                 "title": "安裝 Skill Node.js 相依套件",
                 "description": "將從 npm 下載所列相依套件並安裝到此 Skill 的獨立環境，不執行套件的安裝指令碼。"
               }
-            }
+            },
+            "previewBefore": "修改前",
+            "previewAfter": "修改後"
+          },
+          "ui": {
+            "waiting": "等待填寫",
+            "expired": "已結束",
+            "displayed": "資訊",
+            "submitted": "已提交",
+            "cancelled": "已取消",
+            "submit": "提交並繼續",
+            "cancel": "取消",
+            "required": "請填寫此項。",
+            "invalid": "請檢查此項內容。",
+            "emptyValue": "未填寫",
+            "search": "搜尋選項",
+            "searchLabel": "搜尋{label}",
+            "select": "請選擇",
+            "loading": "正在載入選項…",
+            "noOptions": "沒有可用選項",
+            "moreOptions": "僅顯示前 100 項，可透過搜尋縮小範圍。",
+            "rootFolder": "根目錄",
+            "renderError": "此互動內容暫時無法顯示，請透過對話繼續。",
+            "loadError": "選項載入失敗，請重試。",
+            "retry": "重試",
+            "submitError": "提交失敗，請重試。",
+            "expiredDescription": "此互動已結束，請在目前對話中重新發起。"
           }
         },
         "fileLink": {
@@ -4624,6 +4666,23 @@
       "condensed": {
         "message": "已壓縮 {count} 條歷史訊息",
         "summary": "續接摘要"
+      },
+      "response": {
+        "generating": "正在產生元件…",
+        "previewActions": "產生完成後可操作",
+        "openSource": "開啟來源",
+        "saveArtifact": "另存檔案",
+        "copied": "已複製",
+        "saved": "檔案已另存",
+        "unavailable": "內容已無法使用，或不屬於目前的工作區。",
+        "actionFailed": "操作失敗",
+        "imageFailed": "無法顯示圖片。",
+        "mathFailed": "無法解析公式，已顯示原始 LaTeX。",
+        "step": {
+          "pending": "待進行",
+          "current": "進行中",
+          "done": "已完成"
+        }
       },
       "artifacts": {
         "open": "開啟 {name}",

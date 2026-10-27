@@ -13,6 +13,8 @@ import { useSidebarStore } from "@/stores/sidebar"
 import useTagStore from "@/stores/tag"
 import { AgentRunTimeline } from "./agent-run-timeline"
 import type { AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
+import type { Chat } from "@/db/chats"
+import { ChatUiMessages } from "@/components/chat-ui/chat-ui-messages"
 
 interface RagSourceDetail {
   filepath: string
@@ -32,6 +34,7 @@ interface RagSourceDetail {
 }
 
 interface AgentPanelWithRagProps {
+  chat?: Chat
   // RAG 相关
   ragSources?: string[]
   ragSourceDetails?: RagSourceDetail[]
@@ -99,6 +102,7 @@ interface StructuredAgentHistory {
  * Agent 面板组件 - 将知识库检索和 Agent 执行合并在一起
  */
 export function AgentPanelWithRag({
+  chat,
   ragSources = [],
   ragSourceDetails = [],
   agentHistoryJson,
@@ -234,6 +238,7 @@ export function AgentPanelWithRag({
   if (hasStructuredHistory) {
     return (
       <AgentRunTimeline
+        chat={chat}
         modelName={structuredHistory?.modelName}
         status={structuredHistory?.status || "completed"}
         isRunning={false}
@@ -372,6 +377,7 @@ export function AgentPanelWithRag({
           )}
         </ul>
       </div>
+      {chat && <ChatUiMessages chat={chat} />}
     </div>
   )
 }

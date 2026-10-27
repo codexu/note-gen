@@ -4352,6 +4352,22 @@
               "script_id": "登録済みスクリプト"
             },
             "tools": {
+              "update_file": {
+                "title": "ファイルを変更",
+                "description": "変更内容を対象のファイルに保存します。"
+              },
+              "update_editor_content": {
+                "title": "エディターの内容を変更",
+                "description": "現在のエディターで挿入、置換、削除の操作を適用します。"
+              },
+              "delete_folder": {
+                "title": "フォルダーを削除",
+                "description": "選択したフォルダーとその内容を削除します。"
+              },
+              "install_skill": {
+                "title": "Skill パッケージをインストール",
+                "description": "指定した場所に Skill パッケージをインストールします。既存のバージョンを置き換える前にバックアップします。"
+              },
               "create_memory": {
                 "title": "この情報を記憶しますか？",
                 "description": "確認すると、AI が今後の会話でこの情報を使用します。",
@@ -4386,7 +4402,33 @@
                 "title": "Skill の Node.js パッケージをインストール",
                 "description": "一覧の npm パッケージをこの Skill 専用の環境にダウンロードします。パッケージのインストールスクリプトは実行しません。"
               }
-            }
+            },
+            "previewBefore": "変更前",
+            "previewAfter": "変更後"
+          },
+          "ui": {
+            "waiting": "入力待ち",
+            "expired": "終了",
+            "displayed": "情報",
+            "submitted": "送信済み",
+            "cancelled": "キャンセル済み",
+            "submit": "送信して続行",
+            "cancel": "キャンセル",
+            "required": "この項目を入力してください。",
+            "invalid": "この項目を確認してください。",
+            "emptyValue": "未入力",
+            "search": "選択肢を検索",
+            "searchLabel": "{label}を検索",
+            "select": "選択してください",
+            "loading": "選択肢を読み込み中…",
+            "noOptions": "選択肢がありません",
+            "moreOptions": "最初の100件を表示しています。検索で絞り込めます。",
+            "rootFolder": "ルートフォルダー",
+            "renderError": "この操作画面を表示できませんでした。チャットで続けてください。",
+            "loadError": "選択肢を読み込めませんでした。もう一度お試しください。",
+            "retry": "再試行",
+            "submitError": "送信できませんでした。もう一度お試しください。",
+            "expiredDescription": "この操作は終了しました。現在のチャットで新しく開始してください。"
           }
         },
         "imageSelector": {
@@ -4624,6 +4666,23 @@
       "condensed": {
         "message": "過去のメッセージ {count} 件を圧縮しました",
         "summary": "継続用の要約"
+      },
+      "response": {
+        "generating": "コンポーネントを生成中…",
+        "previewActions": "生成が完了すると操作できます",
+        "openSource": "参照元を開く",
+        "saveArtifact": "名前を付けて保存",
+        "copied": "コピーしました",
+        "saved": "ファイルを保存しました",
+        "unavailable": "内容が利用できないか、別のワークスペースに属しています。",
+        "actionFailed": "操作に失敗しました",
+        "imageFailed": "画像を表示できませんでした。",
+        "mathFailed": "数式を解析できませんでした。元の LaTeX を表示しています。",
+        "step": {
+          "pending": "未着手",
+          "current": "進行中",
+          "done": "完了"
+        }
       },
       "artifacts": {
         "open": "{name} を開く",

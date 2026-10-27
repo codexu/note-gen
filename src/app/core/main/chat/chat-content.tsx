@@ -44,6 +44,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { parseModelChangeMarker } from './model-selection'
 import { PluginChatMessageActions } from '@/components/plugins/plugin-embedded-views'
 import { getAgentArtifactPaths } from '@/lib/agent/artifacts'
+import { ChatUiMessages } from '@/components/chat-ui/chat-ui-messages'
+import { ChatResponse } from '@/components/chat-ui/chat-response'
 
 interface DisplayedConversationCompaction {
   revision: number
@@ -314,7 +316,7 @@ const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { 
   // AI 消息：左对齐，无边框，无图标
   return (
     <div className="flex w-full min-w-0">
-      <div className='text-sm leading-6 flex-1 word-break min-w-0 overflow-hidden'>
+      <div className='text-sm leading-6 flex-1 word-break min-w-0 overflow-hidden [&_[data-slot=card]]:ring-inset'>
         {children}
         <PluginChatMessageActions conversationId={chat.conversationId} messageId={chat.id} role={chat.role} messageType={chat.type} />
       </div>
@@ -560,6 +562,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
         ragSources.length > 0 ||
         ragSourceDetails.length > 0 ||
         mcpToolCalls.length > 0 ||
+        Boolean(chat.uiBlocks && chat.uiBlocks.trim() !== '[]') ||
         isLiveAgentVisible
       )
 
@@ -574,8 +577,9 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
           <div className="w-full space-y-4">
             {/* 合并的 RAG 和 Agent 面板 - 只在有 agentHistory 时显示（历史模式） */}
             {/* 实时执行时，RAG 和 Agent 步骤在 AgentExecutionStatusWrapper 中统一显示 */}
-            {chat.agentHistory && (
+            {chat.agentHistory && !isLiveAgentVisible && (
               <AgentPanelWithRag
+                chat={chat}
                 ragSources={ragSources}
                 ragSourceDetails={ragSourceDetails}
                 agentHistoryJson={chat.agentHistory}
@@ -585,7 +589,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
             {isLiveAgentVisible && (
               <div className="space-y-2">
                 {(agentState.isRunning || hasLiveAgentTrace) && (
-                  <AgentExecutionStatus />
+                  <AgentExecutionStatus chat={chat} />
                 )}
               </div>
             )}
@@ -600,11 +604,13 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
             )}
 
             <ChatThinking chat={chat} />
-            <ChatPreview
+            <ChatResponse
+              chat={chat}
               text={liveAgentContent ?? content ?? ''}
               streaming={isGeneratingMessage}
               artifacts={artifacts}
             />
+            {!chat.agentHistory && !isLiveAgentVisible && <ChatUiMessages chat={chat} />}
             {!isGeneratingMessage && (
               <MessageControl chat={chat}>
                 <MarkText chat={chat} />

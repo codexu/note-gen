@@ -1,3 +1,6 @@
+import { getChatResponseCompletion, getChatUiHistoryText } from '@/lib/chat-ui/serialization'
+import { getChatResultHistoryText } from '@/lib/chat-ui/results'
+
 type ChatLike = {
   id?: number
   role: string
@@ -5,6 +8,7 @@ type ChatLike = {
   content?: string | null
   condensedContent?: string | null
   agentHistory?: string | null
+  uiBlocks?: string | null
 }
 
 type MessageLike = {
@@ -14,6 +18,16 @@ type MessageLike = {
 
 const MAX_RETAINED_MESSAGE_CHARS = 16_000
 const MAX_RECOVERY_EVIDENCE_CHARS = 9_000
+
+export function getChatMessageHistoryText(chat: {
+  content?: string | null
+  uiBlocks?: string | null
+  agentHistory?: string | null
+}): string {
+  return [chat.content || '', getChatUiHistoryText(chat.uiBlocks, chat.content, getChatResponseCompletion(chat.agentHistory)), getChatResultHistoryText({ agentHistory: chat.agentHistory ?? undefined, uiBlocks: chat.uiBlocks ?? undefined })]
+    .filter(Boolean)
+    .join('\n\n')
+}
 
 function asRecoveryRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -198,7 +212,7 @@ export function buildChatHistoryForAI(chats: ChatLike[], systemPrompt?: string):
     }
 
     const role: 'user' | 'assistant' = chat.role === 'user' ? 'user' : 'assistant'
-    const content = withAgentRecovery(chat.content || '', chat, index === latestAssistantIndex)
+    const content = withAgentRecovery(getChatMessageHistoryText(chat), chat, index === latestAssistantIndex)
 
     if (content) {
       messages.push({ role, content })
@@ -293,7 +307,7 @@ ${options.conversationSummary}
 
     const role: 'user' | 'assistant' = chat.role === 'user' ? 'user' : 'assistant'
     const retainedContent = preserveContinuationTail(
-      chat.content || '',
+      getChatMessageHistoryText(chat),
       Boolean(options?.conversationSummary)
     )
     const content = withAgentRecovery(retainedContent, chat, index === latestAssistantIndex)

@@ -58,6 +58,7 @@ export interface Chat {
   ragSources?: string // RAG引用的文件名，JSON字符串数组
   ragSourceDetails?: string // RAG引用的详细信息，JSON字符串数组（包含文件路径和文本片段）
   agentHistory?: string // Agent执行历史，JSON字符串
+  uiBlocks?: string // 对话交互组件及提交状态，JSON字符串数组
   thinking?: string // AI 思考过程
   quoteData?: string // 引用信息，JSON字符串
   // 压缩相关字段
@@ -84,7 +85,8 @@ export async function initChatsDb() {
       ragSources text default null,
       agentHistory text default null,
       thinking text default null,
-      quoteData text default null
+      quoteData text default null,
+      uiBlocks text default null
     )
   `)
   
@@ -105,6 +107,12 @@ export async function initChatsDb() {
     `)
   } catch {
     // 如果列已存在，忽略错误
+  }
+
+  try {
+    await db.execute(`alter table chats add column uiBlocks text default null`)
+  } catch {
+    // Idempotent migration.
   }
   
   // 迁移：为现有表添加 images 列（如果不存在）
@@ -269,8 +277,8 @@ export async function insertChat(chat: Omit<Chat, 'id' | 'createdAt'>) {
   const syncId = chat.syncId || uuid()
   const syncUpdatedAt = chat.syncUpdatedAt || await nextConversationSyncTimestamp()
   const result = await db.execute(
-    "insert into chats (syncId, syncUpdatedAt, tagId, conversationId, content, role, type, image, images, imageAnalyses, attachments, inserted, createdAt, ragSources, ragSourceDetails, agentHistory, thinking, quoteData, condensedContent, condensedAt) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)",
-    [syncId, syncUpdatedAt, chat.tagId, chat.conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.imageAnalyses, chat.attachments, chat.inserted ? 1 : 0, createdAt, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt]
+    "insert into chats (syncId, syncUpdatedAt, tagId, conversationId, content, role, type, image, images, imageAnalyses, attachments, inserted, createdAt, ragSources, ragSourceDetails, agentHistory, thinking, quoteData, condensedContent, condensedAt, uiBlocks) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)",
+    [syncId, syncUpdatedAt, chat.tagId, chat.conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.imageAnalyses, chat.attachments, chat.inserted ? 1 : 0, createdAt, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt, chat.uiBlocks]
   )
 
   if (chat.role === 'user' && chat.content?.trim()) {
@@ -310,6 +318,36 @@ export async function getChatsByConversation(conversationId: number) {
   return result
 }
 
+export async function getChatById(id: number): Promise<Chat | undefined> {
+  const db = await getDb()
+  const chats = await db.select<Chat[]>(
+    'select * from chats where id = $1',
+    [id]
+  )
+  return chats[0]
+}
+
+export async function updateChatUiBlocks(chatId: number, uiBlocks: string): Promise<void> {
+  const db = await getDb()
+  const chats = await db.select<Array<{ conversationId: number | null }>>(
+    'select conversationId from chats where id = $1',
+    [chatId]
+  )
+  if (!chats[0]) throw new Error('The chat message no longer exists.')
+
+  const syncUpdatedAt = await nextConversationSyncTimestamp()
+  const result = await db.execute(
+    'update chats set uiBlocks = $1, syncUpdatedAt = $2 where id = $3',
+    [uiBlocks, syncUpdatedAt, chatId]
+  )
+  if (result.rowsAffected === 0) throw new Error('The chat message no longer exists.')
+
+  const conversationId = chats[0].conversationId
+  await invalidateConversationCompactions([conversationId])
+  await touchConversationSyncVersion(conversationId, syncUpdatedAt)
+  enqueueConversationAutoSync('chat-ui-updated')
+}
+
 // 获取所有 chats（用于同步）
 export async function getAllChats() {
   const db = await getDb()
@@ -343,8 +381,8 @@ export async function insertChats(chats: Chat[]) {
       const syncUpdatedAt = chat.syncUpdatedAt || await nextConversationSyncTimestamp()
       const conversationId = chat.conversationId || fallbackConversationId
       await db.execute(
-        "insert into chats (syncId, syncUpdatedAt, tagId, conversationId, content, role, type, image, images, imageAnalyses, attachments, inserted, createdAt, ragSources, ragSourceDetails, agentHistory, thinking, quoteData, condensedContent, condensedAt) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)",
-        [syncId, syncUpdatedAt, chat.tagId, conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.imageAnalyses, chat.attachments, chat.inserted ? 1 : 0, chat.createdAt, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt]
+        "insert into chats (syncId, syncUpdatedAt, tagId, conversationId, content, role, type, image, images, imageAnalyses, attachments, inserted, createdAt, ragSources, ragSourceDetails, agentHistory, thinking, quoteData, condensedContent, condensedAt, uiBlocks) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)",
+        [syncId, syncUpdatedAt, chat.tagId, conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.imageAnalyses, chat.attachments, chat.inserted ? 1 : 0, chat.createdAt, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt, chat.uiBlocks]
       )
     }
     await db.execute('COMMIT')
@@ -388,8 +426,8 @@ export async function updateChat(chat: Chat) {
   )
   const syncUpdatedAt = await nextConversationSyncTimestamp()
   const result = await db.execute(
-    "update chats set tagId = $1, conversationId = $2, content = $3, role = $4, type = $5, image = $6, images = $7, imageAnalyses = $8, attachments = $9, inserted = $10, ragSources = $11, ragSourceDetails = $12, agentHistory = $13, thinking = $14, quoteData = $15, condensedContent = $16, condensedAt = $17, syncUpdatedAt = $18 where id = $19",
-    [chat.tagId, chat.conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.imageAnalyses, chat.attachments, chat.inserted ? 1 : 0, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt, syncUpdatedAt, chat.id])
+    "update chats set tagId = $1, conversationId = $2, content = $3, role = $4, type = $5, image = $6, images = $7, imageAnalyses = $8, attachments = $9, inserted = $10, ragSources = $11, ragSourceDetails = $12, agentHistory = $13, thinking = $14, quoteData = $15, condensedContent = $16, condensedAt = $17, uiBlocks = coalesce($18, uiBlocks), syncUpdatedAt = $19 where id = $20",
+    [chat.tagId, chat.conversationId, chat.content, chat.role, chat.type, chat.image, chat.images, chat.imageAnalyses, chat.attachments, chat.inserted ? 1 : 0, chat.ragSources, chat.ragSourceDetails, chat.agentHistory, chat.thinking, chat.quoteData, chat.condensedContent, chat.condensedAt, chat.uiBlocks ?? null, syncUpdatedAt, chat.id])
   await invalidateConversationCompactions([existing[0]?.conversationId, chat.conversationId])
   await touchConversationSyncVersion(chat.conversationId, syncUpdatedAt)
   enqueueConversationAutoSync('chat-updated')

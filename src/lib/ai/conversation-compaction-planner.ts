@@ -1,8 +1,12 @@
+import { parseChatUiBlocks } from '@/lib/chat-ui/serialization'
+import { getChatMessageHistoryText } from './history-messages'
+
 export type CompactionChatLike = {
   id: number
   role: string
   type: string
   content?: string | null
+  uiBlocks?: string | null
 }
 
 export type CompactionTurn<T extends CompactionChatLike> = {
@@ -20,11 +24,14 @@ export function getCompletedConversationHistory<T extends CompactionChatLike>(ch
 
   const hasCompletedReply = active
     .slice(currentUserIndex + 1)
-    .some(chat =>
-      (chat.type === 'chat' || chat.type === 'note')
-      && chat.role !== 'user'
-      && Boolean(chat.content?.trim())
-    )
+    .some(chat => {
+      if ((chat.type !== 'chat' && chat.type !== 'note') || chat.role === 'user') {
+        return false
+      }
+      const uiBlocks = parseChatUiBlocks(chat.uiBlocks)
+      if (uiBlocks.some(block => block.status === 'pending')) return false
+      return Boolean(chat.content?.trim()) || uiBlocks.length > 0
+    })
 
   return hasCompletedReply ? active : active.slice(0, currentUserIndex)
 }
@@ -42,7 +49,7 @@ export function buildConversationTurns<T extends CompactionChatLike>(
     }
     turns.push({
       chats: current,
-      tokenCount: current.reduce((sum, item) => sum + estimate(item.content || ''), 0),
+      tokenCount: current.reduce((sum, item) => sum + estimate(getChatMessageHistoryText(item)), 0),
     })
   }
 

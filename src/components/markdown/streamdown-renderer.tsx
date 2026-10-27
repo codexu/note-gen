@@ -2,7 +2,7 @@
 
 import { createMathPlugin } from '@streamdown/math'
 import { cjk } from '@streamdown/cjk'
-import { useMemo, type ComponentProps } from 'react'
+import { createContext, useContext, useMemo, type ComponentProps } from 'react'
 import {
   Streamdown,
   defaultRemarkPlugins,
@@ -28,6 +28,7 @@ interface StreamdownRendererProps {
   streaming?: boolean
   className?: string
   interactiveCodeBlocks?: boolean
+  interactive?: boolean
   translations?: Partial<StreamdownTranslations>
   artifacts?: AgentArtifactPaths
 }
@@ -55,8 +56,12 @@ const streamingAnimation: AnimateOptions = {
   stagger: 8,
 }
 
+const MarkdownInteractionContext = createContext(true)
+
 function StreamdownLink({ children, node, ...props }: ComponentProps<'a'> & { node?: unknown }) {
+  const interactive = useContext(MarkdownInteractionContext)
   void node
+  if (!interactive) return <span>{children}</span>
   const index = artifactLinkIndex(props.href)
   if (index !== null) return <ArtifactLink index={index} href={props.href!}>{children}</ArtifactLink>
   return (
@@ -85,12 +90,17 @@ const components: Components = {
   span: ColoredText as Components['span'],
   mark: ColoredHighlight as Components['mark'],
 }
+const previewComponents: Components = {
+  ...components,
+  img: (({ alt }: ComponentProps<'img'>) => <span>{alt}</span>) as Components['img'],
+}
 
 export function StreamdownRenderer({
   markdown,
   streaming = false,
   className,
   interactiveCodeBlocks = true,
+  interactive = true,
   translations,
   artifacts = EMPTY_ARTIFACT_LINKS,
 }: StreamdownRendererProps) {
@@ -103,13 +113,14 @@ export function StreamdownRenderer({
   const artifactKey = JSON.stringify({ paths: artifacts.paths, targets: artifacts.allowedPaths })
   return (
     <div className={cn('streamdown-document w-full text-foreground', className)}>
-      <ArtifactLinksContext.Provider value={artifacts}>
-        <Streamdown
-          key={artifactKey}
+      <MarkdownInteractionContext.Provider value={interactive}>
+        <ArtifactLinksContext.Provider value={artifacts}>
+          <Streamdown
+          key={`${artifactKey}:${interactive ? 'interactive' : 'preview'}`}
           animated={streaming ? streamingAnimation : false}
-          components={components}
+          components={interactive ? components : previewComponents}
           allowedTags={colorTags}
-          controls={interactiveCodeBlocks ? interactiveControls : false}
+          controls={interactive && interactiveCodeBlocks ? interactiveControls : false}
           isAnimating={streaming}
           linkSafety={linkSafety}
           lineNumbers={interactiveCodeBlocks}
@@ -117,10 +128,11 @@ export function StreamdownRenderer({
           plugins={plugins}
           remarkPlugins={remarkPlugins}
           translations={translations}
-        >
-          {normalizeLatexForKatex(markdown)}
-        </Streamdown>
-      </ArtifactLinksContext.Provider>
+          >
+            {normalizeLatexForKatex(markdown)}
+          </Streamdown>
+        </ArtifactLinksContext.Provider>
+      </MarkdownInteractionContext.Provider>
     </div>
   )
 }

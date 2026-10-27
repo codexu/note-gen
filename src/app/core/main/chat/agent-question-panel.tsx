@@ -1,109 +1,136 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useChatStore from '@/stores/chat'
-import type { AgentState, AgentUserAnswer } from '@/lib/agent/types'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Field, FieldGroup } from '@/components/ui/field'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { ArrowRight, Check } from 'lucide-react'
+import useSettingStore from '@/stores/setting'
+import type { AgentState, AgentTraceEvent, AgentUserAnswer, AgentUserQuestion } from '@/lib/agent/types'
+import { QuestionUi } from '@/components/chat-ui/question-ui'
 
 type PendingQuestion = NonNullable<AgentState['pendingQuestion']>
 
-export function AgentQuestionPanel() {
+export function AgentQuestionPanel({ chatId, traceEventId, embedded = false }: {
+  chatId?: number
+  traceEventId?: string
+  embedded?: boolean
+}) {
   const pending = useChatStore(state => state.agentState.pendingQuestion)
   const conversationId = useChatStore(state => state.currentConversationId)
-  if (!pending || pending.conversationId !== (conversationId ?? undefined)) return null
-  return <QuestionForm key={pending.id} pending={pending} />
+  const activeChatId = useChatStore(state => state.agentState.activeChatId)
+  const runId = useChatStore(state => state.agentState.runId)
+  const running = useChatStore(state => state.agentState.isRunning)
+  const workspacePath = useSettingStore(state => state.workspacePath)
+  if (!pending || !running || pending.response !== undefined || pending.conversationId !== (conversationId ?? undefined)
+    || (chatId !== undefined && pending.chatId !== chatId)
+    || (traceEventId !== undefined && pending.traceEventId !== traceEventId && pending.toolCallId !== traceEventId)
+    || (pending.chatId !== undefined && pending.chatId !== activeChatId)
+    || (pending.runId !== undefined && pending.runId !== runId)
+    || (pending.workspacePath !== undefined && pending.workspacePath !== workspacePath)) return null
+  return <QuestionForm key={pending.id} pending={pending} embedded={embedded} />
 }
 
-function QuestionForm({ pending }: { pending: PendingQuestion }) {
-  const t = useTranslations('record.chat.input.agent.question')
+function QuestionForm({ pending, embedded }: { pending: PendingQuestion; embedded: boolean }) {
   const [answers, setAnswers] = useState<AgentUserAnswer[]>(() => pending.questions.map(question => ({ question: question.question, selected: [] })))
   const [questionIndex, setQuestionIndex] = useState(0)
   const [submitted, setSubmitted] = useState(false)
-  const advancingRef = useRef(false)
-  const panelRef = useRef<HTMLDivElement>(null)
+  const advancing = useRef(false)
+  const answered = useRef(false)
+  const panel = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    advancingRef.current = false
-    panelRef.current?.querySelector('[data-slot="card-content"]')?.scrollTo(0, 0)
-    if (document.hasFocus()) panelRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true })
+    advancing.current = false
+    panel.current?.querySelector('[data-slot="card-content"]')?.scrollTo(0, 0)
+    if (document.hasFocus()) panel.current?.querySelector<HTMLElement>('[data-slot="toggle-group-item"]')?.focus({ preventScroll: true })
   }, [questionIndex])
   const question = pending.questions[questionIndex]
-  const selected = answers[questionIndex].selected
-  const labelId = `question-${pending.id}-${questionIndex}`
+  const selected = answers[questionIndex]?.selected ?? []
   const respond = (response: AgentUserAnswer[] | null) => {
     const store = useChatStore.getState()
-    if (submitted || store.agentState.pendingQuestion?.id !== pending.id || (store.currentConversationId ?? undefined) !== pending.conversationId) return
+    const latest = store.agentState.pendingQuestion
+    if (answered.current || !latest || latest.id !== pending.id || latest.response !== undefined || !store.agentState.isRunning
+      || (store.currentConversationId ?? undefined) !== pending.conversationId
+      || (pending.chatId !== undefined && store.agentState.activeChatId !== pending.chatId)
+      || (pending.runId !== undefined && store.agentState.runId !== pending.runId)
+      || (pending.workspacePath !== undefined && useSettingStore.getState().workspacePath !== pending.workspacePath)) return
+    answered.current = true
     setSubmitted(true)
-    store.setAgentState({ pendingQuestion: { ...pending, response } })
+    store.setAgentState({ pendingQuestion: { ...latest, response } })
   }
   const advance = (nextAnswers: AgentUserAnswer[]) => {
-    if (submitted || advancingRef.current || nextAnswers[questionIndex].selected.length === 0) return
-    advancingRef.current = true
+    if (answered.current || advancing.current || !nextAnswers[questionIndex]?.selected.length) return
+    advancing.current = true
     setAnswers(nextAnswers)
     if (questionIndex + 1 < pending.questions.length) setQuestionIndex(questionIndex + 1)
     else respond(nextAnswers)
   }
   const select = (values: string[]) => {
-    if (submitted || advancingRef.current) return
+    if (!question || answered.current || advancing.current) return
+    const valid = values.length === new Set(values).size && values.every(value => question.options.some(option => option.label === value))
+    if (!valid || (!question.multiSelect && values.length > 1)) return
     const nextAnswers = answers.map((answer, index) => index === questionIndex ? { ...answer, selected: values } : answer)
     if (question.multiSelect) setAnswers(nextAnswers)
     else if (values.length) advance(nextAnswers)
   }
-  const options = question.options.map((option, index) => (
-    <ToggleGroupItem key={option.label} value={option.label} className="h-auto min-h-11 w-full items-start justify-start gap-3 whitespace-normal px-3 py-3 text-left">
-      <Badge variant="outline" aria-hidden="true">{index + 1}</Badge>
-      <span className="flex min-w-0 flex-1 flex-col gap-1 break-words">
-        <span>{option.label}</span>
-        {option.description && <span className="text-muted-foreground">{option.description}</span>}
-      </span>
-      {question.multiSelect && selected.includes(option.label) && <Check aria-hidden="true" />}
-    </ToggleGroupItem>
-  ))
-  return (
-    <Card ref={panelRef} size="sm" className="mb-2 w-full min-w-0" onKeyDown={event => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopPropagation()
-        respond(null)
-      } else if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && question.multiSelect && selected.length) {
-        event.preventDefault()
-        event.stopPropagation()
-        advance(answers)
-      }
-    }}>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          {pending.questions.length > 1 && <Badge variant="outline">{questionIndex + 1}/{pending.questions.length}</Badge>}
-          <Badge variant="secondary">{t(question.multiSelect ? 'multiple' : 'single')}</Badge>
-        </div>
-        <CardTitle id={labelId} className="break-words" aria-live="polite">{question.question}</CardTitle>
-      </CardHeader>
-      <CardContent className="max-h-[45dvh] overflow-y-auto">
-        <FieldGroup>
-          <Field data-disabled={submitted}>
-            {question.multiSelect ? (
-              <ToggleGroup key={questionIndex} type="multiple" variant="outline" orientation="vertical" className="w-full" aria-labelledby={labelId} value={selected} onValueChange={select} disabled={submitted}>
-                {options}
-              </ToggleGroup>
-            ) : (
-              <ToggleGroup key={questionIndex} type="single" variant="outline" orientation="vertical" className="w-full" aria-labelledby={labelId} value={selected[0] || ''} onValueChange={value => select(value ? [value] : [])} disabled={submitted}>
-                {options}
-              </ToggleGroup>
-            )}
-            {question.multiSelect && (
-              <Button variant="ghost" className="w-full justify-start" disabled={submitted || selected.length === 0} onClick={() => advance(answers)}>
-                <ArrowRight data-icon="inline-start" />
-                {t('done')}
-              </Button>
-            )}
-          </Field>
-        </FieldGroup>
-      </CardContent>
-    </Card>
-  )
+
+  if (!question) return null
+  return <div ref={panel} onKeyDown={event => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      respond(null)
+    } else if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && question.multiSelect && selected.length) {
+      event.preventDefault()
+      event.stopPropagation()
+      advance(answers)
+    }
+  }}>
+    <QuestionUi id={pending.id} questions={pending.questions} answers={answers} questionIndex={questionIndex} disabled={submitted} embedded={embedded}
+      onSelect={select} onAdvance={() => advance(answers)} onCancel={() => respond(null)} />
+  </div>
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | undefined => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+
+function readQuestions(input: unknown): AgentUserQuestion[] {
+  const raw = asRecord(input)?.questions
+  if (!Array.isArray(raw) || raw.length > 4) return []
+  return raw.flatMap((value: unknown): AgentUserQuestion[] => {
+    const item = asRecord(value)
+    if (!item || typeof item.question !== 'string' || !item.question || item.question.length > 1_000 || !Array.isArray(item.options) || item.options.length > 6) return []
+    const options = item.options.flatMap((value: unknown) => {
+      const option = asRecord(value)
+      if (!option || typeof option.label !== 'string' || !option.label || option.label.length > 200) return []
+      return [{ label: option.label, description: typeof option.description === 'string' ? option.description.slice(0, 500) : undefined }]
+    })
+    return [{ question: item.question, options, multiSelect: item.multiSelect === true }]
+  })
+}
+
+function readAnswers(output: unknown): { answers: AgentUserAnswer[]; cancelled: boolean } {
+  const result = asRecord(output)
+  const cancelled = result?.error === 'USER_CANCELLED_QUESTION'
+  if (result?.ok !== true && result?.success !== true) return { answers: [], cancelled }
+  const raw = asRecord(result.data)?.answers
+  if (!Array.isArray(raw) || raw.length > 4) return { answers: [], cancelled }
+  const answers = raw.flatMap((value: unknown): AgentUserAnswer[] => {
+    const item = asRecord(value)
+    if (!item || typeof item.question !== 'string' || !item.question || item.question.length > 1_000 || !Array.isArray(item.selected)
+      || item.selected.length > 6 || item.selected.some(value => typeof value !== 'string' || !value || value.length > 200)) return []
+    return [{ question: item.question, selected: item.selected as string[] }]
+  })
+  return { answers, cancelled }
+}
+
+/** Recorded output only: this view never writes pendingQuestion or synthesizes a response. */
+export function AgentQuestionResult({ event }: { event: AgentTraceEvent }) {
+  const history = useMemo(() => {
+    const result = readAnswers(event.output)
+    let questions = readQuestions(event.input)
+    if (!questions.length) questions = result.answers.map(answer => ({ question: answer.question, options: answer.selected.map(label => ({ label })), multiSelect: answer.selected.length > 1 }))
+    const answers = questions.map((question, index) => {
+      const answer = result.answers[index]
+      const valid = answer?.question === question.question && answer.selected.every(value => question.options.some(option => option.label === value))
+      return { question: question.question, selected: valid ? answer.selected : [] }
+    })
+    return { ...result, questions, answers }
+  }, [event.input, event.output])
+  return <QuestionUi id={event.id} questions={history.questions} answers={history.answers} cancelled={history.cancelled} readOnly embedded />
 }

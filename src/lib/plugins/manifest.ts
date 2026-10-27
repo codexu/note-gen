@@ -1,6 +1,6 @@
 import { getCodeBlockRenderers } from './code-block-contract'
 import { validatePluginResources } from '@notegen/plugin-api'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import {
   PLUGIN_API_VERSION,
   isValidPluginMenuCondition,

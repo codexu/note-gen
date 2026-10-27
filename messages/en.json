@@ -4501,6 +4501,22 @@
               "script_id": "Registered script"
             },
             "tools": {
+              "update_file": {
+                "title": "Modify file",
+                "description": "Changes will be saved to the target file."
+              },
+              "update_editor_content": {
+                "title": "Modify editor content",
+                "description": "Insertions, replacements, or deletions will be applied in the current editor."
+              },
+              "delete_folder": {
+                "title": "Delete folder",
+                "description": "The selected folders and their contents will be deleted."
+              },
+              "install_skill": {
+                "title": "Install Skill package",
+                "description": "The Skill package will be installed in the selected location. An existing version will be backed up before replacement."
+              },
               "create_memory": {
                 "title": "Remember this information?",
                 "description": "After confirmation, AI can use this information in future chats.",
@@ -4579,7 +4595,33 @@
                 "title": "Install Skill Node.js packages",
                 "description": "Download the listed npm packages into this Skill’s own environment without running package installation scripts."
               }
-            }
+            },
+            "previewBefore": "Before changes",
+            "previewAfter": "After changes"
+          },
+          "ui": {
+            "waiting": "Waiting for input",
+            "expired": "Ended",
+            "displayed": "Information",
+            "submitted": "Submitted",
+            "cancelled": "Cancelled",
+            "submit": "Submit and continue",
+            "cancel": "Cancel",
+            "required": "Complete this field.",
+            "invalid": "Check this field.",
+            "emptyValue": "Not provided",
+            "search": "Search options",
+            "searchLabel": "Search {label}",
+            "select": "Select an option",
+            "loading": "Loading options…",
+            "noOptions": "No options available",
+            "moreOptions": "Showing the first 100 options. Search to narrow the results.",
+            "rootFolder": "Root folder",
+            "renderError": "This interactive content could not be displayed. Continue in the chat.",
+            "loadError": "Could not load options. Try again.",
+            "retry": "Retry",
+            "submitError": "Could not submit. Try again.",
+            "expiredDescription": "This interaction has ended. Start a new one in the current chat."
           }
         },
         "fileLink": {
@@ -4717,6 +4759,23 @@
         "cancel": "Cancel",
         "delete": "Delete",
         "deleteConfirm": "Are you sure to delete this message?"
+      },
+      "response": {
+        "generating": "Generating components…",
+        "previewActions": "Available when generation finishes",
+        "openSource": "Open source",
+        "saveArtifact": "Save file as",
+        "copied": "Copied",
+        "saved": "File saved",
+        "unavailable": "The content is unavailable or belongs to another workspace.",
+        "actionFailed": "Action failed",
+        "imageFailed": "The image could not be displayed.",
+        "mathFailed": "The formula could not be parsed. Showing the original LaTeX.",
+        "step": {
+          "pending": "Pending",
+          "current": "In progress",
+          "done": "Done"
+        }
       },
       "artifacts": {
         "open": "Open {name}",

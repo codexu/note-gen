@@ -4414,6 +4414,22 @@
               "script_id": "已登记脚本"
             },
             "tools": {
+              "update_file": {
+                "title": "修改文件",
+                "description": "将把修改保存到目标文件。"
+              },
+              "update_editor_content": {
+                "title": "修改编辑器内容",
+                "description": "将在当前编辑器中应用插入、替换或删除操作。"
+              },
+              "delete_folder": {
+                "title": "删除文件夹",
+                "description": "将删除所选文件夹及其中的内容。"
+              },
+              "install_skill": {
+                "title": "安装 Skill 包",
+                "description": "将把 Skill 包安装到指定位置；替换已有版本时会先备份。"
+              },
               "create_memory": {
                 "title": "记住这条信息？",
                 "description": "确认后，AI 会在之后的对话中使用这条信息。",
@@ -4492,7 +4508,33 @@
                 "title": "安装 Skill Node.js 依赖",
                 "description": "将从 npm 下载所列依赖并安装到此 Skill 的独立环境，不运行包的安装脚本。"
               }
-            }
+            },
+            "previewBefore": "修改前",
+            "previewAfter": "修改后"
+          },
+          "ui": {
+            "waiting": "等待填写",
+            "expired": "已结束",
+            "displayed": "信息",
+            "submitted": "已提交",
+            "cancelled": "已取消",
+            "submit": "提交并继续",
+            "cancel": "取消",
+            "required": "请填写此项。",
+            "invalid": "请检查此项内容。",
+            "emptyValue": "未填写",
+            "search": "搜索选项",
+            "searchLabel": "搜索{label}",
+            "select": "请选择",
+            "loading": "正在加载选项…",
+            "noOptions": "没有可用选项",
+            "moreOptions": "仅显示前 100 项，可通过搜索缩小范围。",
+            "rootFolder": "根目录",
+            "renderError": "此交互内容暂时无法显示，请通过对话继续。",
+            "loadError": "选项加载失败，请重试。",
+            "retry": "重试",
+            "submitError": "提交失败，请重试。",
+            "expiredDescription": "此交互已结束，请在当前对话中重新发起。"
           }
         },
         "fileLink": {
@@ -4717,6 +4759,23 @@
       "mark": {
         "recorded": "已记录",
         "record": "记录"
+      },
+      "response": {
+        "generating": "正在生成组件…",
+        "previewActions": "生成完成后可操作",
+        "openSource": "打开来源",
+        "saveArtifact": "另存文件",
+        "copied": "已复制",
+        "saved": "文件已另存",
+        "unavailable": "内容已不可用，或不属于当前工作区。",
+        "actionFailed": "操作失败",
+        "imageFailed": "图片无法显示。",
+        "mathFailed": "公式无法解析，已显示原始 LaTeX。",
+        "step": {
+          "pending": "待进行",
+          "current": "进行中",
+          "done": "已完成"
+        }
       },
       "artifacts": {
         "open": "打开 {name}",

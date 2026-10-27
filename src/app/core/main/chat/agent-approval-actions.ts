@@ -1,15 +1,39 @@
 import { agentDebugLog } from "@/lib/agent/debug-log"
 import useChatStore from "@/stores/chat"
+import useSettingStore from "@/stores/setting"
 
 export type AgentApprovalScope = "once" | "conversation"
 
-export function confirmPendingAgentAction(scope: AgentApprovalScope = "once") {
+function getActionableConfirmation(expectedId?: string) {
   const latestState = useChatStore.getState()
   const pendingConfirmation = latestState.agentState.pendingConfirmation
-  if (!pendingConfirmation) return
+  if (!pendingConfirmation || !latestState.agentState.isRunning) return
+  if (expectedId !== undefined && pendingConfirmation.id !== expectedId) return
+  if (pendingConfirmation.runId !== undefined && pendingConfirmation.runId !== latestState.agentState.runId) return
+  const chatId = pendingConfirmation.chatId ?? latestState.agentState.activeChatId
+  if (chatId === undefined || chatId !== latestState.agentState.activeChatId) return
+  const owner = latestState.chats.find(chat => chat.id === chatId)
+  if (!owner || (owner.conversationId ?? undefined) !== (latestState.currentConversationId ?? undefined)) return
+  if (pendingConfirmation.id && pendingConfirmation.conversationId !== (latestState.currentConversationId ?? undefined)) return
+  if (pendingConfirmation.workspacePath !== undefined && pendingConfirmation.workspacePath !== useSettingStore.getState().workspacePath) return
+  return { latestState, pendingConfirmation }
+}
 
-  const effectiveScope = scope
+export function confirmPendingAgentAction(scope: AgentApprovalScope = "once", expectedId?: string) {
+  const actionable = getActionableConfirmation(expectedId)
+  if (!actionable) return
+  const { latestState, pendingConfirmation } = actionable
+
+  const effectiveScope = scope === "conversation" && pendingConfirmation.canApproveForSession
+    ? "conversation"
+    : "once"
   const confirmationRecord = {
+    id: pendingConfirmation.id,
+    runId: pendingConfirmation.runId,
+    chatId: pendingConfirmation.chatId,
+    conversationId: pendingConfirmation.conversationId,
+    traceEventId: pendingConfirmation.traceEventId,
+    workspacePath: pendingConfirmation.workspacePath,
     toolName: pendingConfirmation.toolName,
     params: pendingConfirmation.params,
     status: "confirmed" as const,
@@ -37,12 +61,18 @@ export function confirmPendingAgentAction(scope: AgentApprovalScope = "once") {
   })
 }
 
-export function cancelPendingAgentAction() {
-  const latestState = useChatStore.getState()
-  const pendingConfirmation = latestState.agentState.pendingConfirmation
-  if (!pendingConfirmation) return
+export function cancelPendingAgentAction(expectedId?: string) {
+  const actionable = getActionableConfirmation(expectedId)
+  if (!actionable) return
+  const { latestState, pendingConfirmation } = actionable
 
   const confirmationRecord = {
+    id: pendingConfirmation.id,
+    runId: pendingConfirmation.runId,
+    chatId: pendingConfirmation.chatId,
+    conversationId: pendingConfirmation.conversationId,
+    traceEventId: pendingConfirmation.traceEventId,
+    workspacePath: pendingConfirmation.workspacePath,
     toolName: pendingConfirmation.toolName,
     params: pendingConfirmation.params,
     status: "cancelled" as const,

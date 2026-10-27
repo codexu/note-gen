@@ -1,4 +1,5 @@
 import type { Chat } from '@/db/chats'
+import { getChatMessageHistoryText } from './history-messages'
 
 /**
  * 简单的 Token 估算（不依赖外部库）
@@ -16,7 +17,7 @@ export function estimateTokens(text: string): number {
  */
 export function estimateChatTokens(chats: Chat[]): number {
   return chats.reduce((sum, chat) => {
-    return sum + estimateTokens(chat.content || '')
+    return sum + estimateTokens(getChatMessageHistoryText(chat))
   }, 0)
 }
 
@@ -26,5 +27,5 @@ export function estimateChatTokens(chats: Chat[]): number {
 export function estimateUserTokens(chats: Chat[]): number {
   return chats
     .filter(c => c.role === 'user')
-    .reduce((sum, chat) => sum + estimateTokens(chat.content || ''), 0)
+    .reduce((sum, chat) => sum + estimateTokens(getChatMessageHistoryText(chat)), 0)
 }

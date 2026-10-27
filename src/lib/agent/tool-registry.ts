@@ -51,6 +51,8 @@ import { imageTools } from './tools/image-tools'
 import { canvasTools } from './tools/canvas-tools'
 import { webTools } from './tools/web-tools'
 import { askUserQuestionTool } from './tools/ask-user-question'
+import { showUiTool } from './tools/show-ui'
+import { renderResponseTool } from './tools/render-response'
 import { knowledgeTools } from './tools/knowledge-tools'
 import {
   executeRegisteredSkillScript,
@@ -1920,6 +1922,8 @@ function buildMcpListToolsTool(): AgentTool {
 function buildTools(): AgentTool[] {
   return [
     askUserQuestionTool,
+    showUiTool,
+    renderResponseTool,
     adaptLegacyTool({
       name: 'editor_get_state',
       title: '读取编辑器状态',

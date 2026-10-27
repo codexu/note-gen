@@ -7,9 +7,11 @@ import { retainCompletedAgentTraceEvents } from './trace-retention'
 import type { AgentStateAdapter } from './agent-state-adapter'
 import type { AgentResourceAdapter } from './agent-resource-adapter'
 import type { AiConfig } from '@/app/core/setting/config'
+import { cancelActiveChatUiInteractions } from '@/lib/chat-ui/interaction'
 
 export interface AgentHandlerConfig {
   requestUserQuestion?: import('./types').AgentToolExecutionContext['requestUserQuestion']
+  requestUserInteraction?: import('./types').AgentToolExecutionContext['requestUserInteraction']
   stateAdapter: AgentStateAdapter
   resourceAdapter: AgentResourceAdapter
   activeChatId?: number
@@ -149,6 +151,7 @@ export class AgentHandler {
         onStatus: (status) => {
           stateAdapter.setState({
             status,
+            ...(['completed', 'failed', 'stopped'].includes(status) ? { responsePreview: undefined } : {}),
             isRunning: status !== 'completed' && status !== 'failed' && status !== 'stopped',
             isThinking: status === 'thinking',
             currentStepStartTime: status === 'thinking' || status === 'calling_tool'
@@ -190,8 +193,16 @@ export class AgentHandler {
             finalAnswerContent: undefined,
           })
         },
+        onResponsePreview: (preview, previewRunId) => {
+          const state = stateAdapter.getState()
+          if (state.runId !== previewRunId || state.activeChatId !== this.config.activeChatId) return
+          if (!preview) { stateAdapter.setState({ responsePreview: undefined }); return }
+          if (this.stopped || !state.isRunning || state.runId !== preview.runId) return
+          stateAdapter.setState({ responsePreview: preview })
+        },
         onFinalAnswerRender: (content) => {
           stateAdapter.setState({
+            responsePreview: undefined,
             activeChatId: this.config.activeChatId,
             isFinalAnswerMode: true,
             finalAnswerContent: content,
@@ -202,6 +213,7 @@ export class AgentHandler {
           return await this.config.requestConfirmation?.(toolName, params, context) || 'denied'
         },
         requestUserQuestion: this.config.requestUserQuestion,
+        requestUserInteraction: this.config.requestUserInteraction,
       })
 
       this.acceptingSteering = false
@@ -242,7 +254,8 @@ export class AgentHandler {
 
   stop() {
     this.stopped = true
-    this.config.stateAdapter.setState({ pendingQuestion: undefined })
+    cancelActiveChatUiInteractions()
+    this.config.stateAdapter.setState({ pendingQuestion: undefined, pendingUiInteraction: undefined, responsePreview: undefined })
     const state = this.config.stateAdapter.getState()
     const pending = state.pendingConfirmation
     if (pending) {
@@ -251,6 +264,12 @@ export class AgentHandler {
         confirmationHistory: [
           ...state.confirmationHistory,
           {
+            id: pending.id,
+            runId: pending.runId,
+            chatId: pending.chatId,
+            conversationId: pending.conversationId,
+            traceEventId: pending.traceEventId,
+            workspacePath: pending.workspacePath,
             toolName: pending.toolName,
             params: pending.params,
             status: 'cancelled',
@@ -267,7 +286,8 @@ export class AgentHandler {
       return false
     }
 
-    this.config.stateAdapter.setState({ pendingQuestion: undefined })
+    cancelActiveChatUiInteractions()
+    this.config.stateAdapter.setState({ pendingQuestion: undefined, pendingUiInteraction: undefined, responsePreview: undefined })
 
     const state = this.config.stateAdapter.getState()
     const pending = state.pendingConfirmation
@@ -277,6 +297,12 @@ export class AgentHandler {
         confirmationHistory: [
           ...state.confirmationHistory,
           {
+            id: pending.id,
+            runId: pending.runId,
+            chatId: pending.chatId,
+            conversationId: pending.conversationId,
+            traceEventId: pending.traceEventId,
+            workspacePath: pending.workspacePath,
             toolName: pending.toolName,
             params: pending.params,
             status: 'superseded',
@@ -466,6 +492,7 @@ export class AgentHandler {
 
   private finishRun(result: AgentRuntimeResult) {
     this.config.stateAdapter.setState({
+      responsePreview: undefined,
       runId: result.runId,
       isRunning: false,
       isThinking: false,

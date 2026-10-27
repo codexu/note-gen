@@ -1,5 +1,5 @@
 import { PluginError, type PluginAiRequest, type PluginAiStreamEvent, type PluginDisposable } from '@notegen/plugin-api'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { getAISettings, createOpenAIClient, getChatTokenLimitParams } from '@/lib/ai/utils'
 
 const requestSchema = z.object({ requestId: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/), prompt: z.string().min(1).max(20_000), system: z.string().max(10_000).optional(), maxOutputTokens: z.number().int().min(1).max(4096).optional() }).strict()

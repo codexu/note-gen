@@ -21,6 +21,7 @@ type ChatPreviewProps = {
   streaming?: boolean
   containerClassName?: string
   artifacts?: AgentArtifactPaths
+  interactive?: boolean
 }
 
 const MIN_RENDER_INTERVAL_MS = 33
@@ -31,7 +32,7 @@ function isMacOS() {
   return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent)
 }
 
-export default function ChatPreview({ text, streaming = false, containerClassName, artifacts }: ChatPreviewProps) {
+export default function ChatPreview({ text, streaming = false, containerClassName, artifacts, interactive = true }: ChatPreviewProps) {
   const t = useTranslations('record.chat.messageControl')
   const { contentTextScale } = useSettingStore()
   const streamdownTranslations = useMemo(() => ({
@@ -206,6 +207,7 @@ export default function ChatPreview({ text, streaming = false, containerClassNam
           streaming={streaming || (hasStreamedRef.current && displayedText.length < text.length)}
           translations={streamdownTranslations}
           artifacts={artifacts}
+          interactive={interactive}
         />
       </div>
     </div>

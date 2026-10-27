@@ -1,4 +1,5 @@
 import { agentDebugLog } from "@/lib/agent/debug-log"
+import type { ConfirmationRecord } from "@/lib/agent/types"
 import useChatStore from "@/stores/chat"
 import useSettingStore from "@/stores/setting"
 
@@ -27,7 +28,7 @@ export function confirmPendingAgentAction(scope: AgentApprovalScope = "once", ex
   const effectiveScope = scope === "conversation" && pendingConfirmation.canApproveForSession
     ? "conversation"
     : "once"
-  const confirmationRecord = {
+  const confirmationRecord: ConfirmationRecord = {
     id: pendingConfirmation.id,
     runId: pendingConfirmation.runId,
     chatId: pendingConfirmation.chatId,
@@ -36,7 +37,7 @@ export function confirmPendingAgentAction(scope: AgentApprovalScope = "once", ex
     workspacePath: pendingConfirmation.workspacePath,
     toolName: pendingConfirmation.toolName,
     params: pendingConfirmation.params,
-    status: "confirmed" as const,
+    status: "confirmed",
     timestamp: Date.now(),
     scope: effectiveScope,
     sessionApprovalType: pendingConfirmation.sessionApprovalType,
@@ -66,7 +67,7 @@ export function cancelPendingAgentAction(expectedId?: string) {
   if (!actionable) return
   const { latestState, pendingConfirmation } = actionable
 
-  const confirmationRecord = {
+  const confirmationRecord: ConfirmationRecord = {
     id: pendingConfirmation.id,
     runId: pendingConfirmation.runId,
     chatId: pendingConfirmation.chatId,
@@ -75,7 +76,7 @@ export function cancelPendingAgentAction(expectedId?: string) {
     workspacePath: pendingConfirmation.workspacePath,
     toolName: pendingConfirmation.toolName,
     params: pendingConfirmation.params,
-    status: "cancelled" as const,
+    status: "cancelled",
     timestamp: Date.now(),
   }
 

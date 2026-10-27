@@ -24,7 +24,7 @@ export function TooltipButton(
     onClick?: () => void;
     disabled?: boolean;
     variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | null | undefined;
-    size?: "icon" | "sm" | "default" | "lg";
+    size?: "icon" | "icon-xs" | "sm" | "default" | "lg";
     side?: "top" | "right" | "bottom" | "left";
     buttonClassName?: string;
     buttonId?: string;

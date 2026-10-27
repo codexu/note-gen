@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { takeToolDisplayTitle } from './tool-display'
 import { createAssistantToolCallMessage, createChatCompletionStreamWithToolChoiceFallback, createOpenAIClient, getAISettings, getChatTokenLimitParams, getSystemPromptContent, handleAIError, validateAIService, withFastAiRequestOptions } from '@/lib/ai/utils'
 import { estimateTokens } from '@/lib/ai/token-counter'
 import { AgentContextManager } from './context-manager'
@@ -1257,7 +1258,7 @@ export class AgentRuntime {
     const finalizeInterruptedModelTrace = (
       status: 'success' | 'error',
       title: string,
-      isIntermediateResponse = false
+      isIntermediateResponse = true
     ) => {
       if (!activeModelTraceId) {
         return
@@ -1270,7 +1271,8 @@ export class AgentRuntime {
         duration: Date.now() - activeModelStartedAt,
         output: activeModelContent || undefined,
         reasoning: activeModelReasoning || undefined,
-        isIntermediateResponse: isIntermediateResponse && Boolean(activeModelContent),
+        isIntermediateResponse: isIntermediateResponse && Boolean(activeModelContent)
+          && activeModelContent !== finalContent,
         streamedTokenCount: activeModelStreamedTokenCount,
       })
       if (interruptedTrace) callbacks.onTrace?.(interruptedTrace)
@@ -1593,8 +1595,9 @@ export class AgentRuntime {
           duration: Date.now() - modelTrace.timestamp,
           output: modelTraceOutput,
           reasoning: assistantReasoning || undefined,
-          isIntermediateResponse: !(toolUses.length === 1 && toolUses[0].function.name === 'render_response')
-            && (toolUses.length > 0 || this.steeringRequested) && Boolean(assistantContent),
+          // Keep every emitted paragraph until this response is accepted as
+          // the final reply. A review, steering, or stop can still follow.
+          isIntermediateResponse: Boolean(assistantContent),
           streamedTokenCount,
         })
         if (responseTrace) callbacks.onTrace?.(responseTrace)
@@ -1627,6 +1630,8 @@ export class AgentRuntime {
             appendFinalResponseReview(resolvedContent, review)
             continue
           }
+          const finalModelTrace = recorder.update(modelTrace.id, { isIntermediateResponse: false })
+          if (finalModelTrace) callbacks.onTrace?.(finalModelTrace)
           return completeFinalResponse(resolvedContent)
         }
 
@@ -1656,8 +1661,10 @@ export class AgentRuntime {
           const toolName = toolUse.function.name
           const tool = toolMap.get(toolName)
           let args: Record<string, unknown>
+          let displayTitle: string | undefined
           try {
             args = parseToolArguments(toolUse.function.arguments)
+            displayTitle = takeToolDisplayTitle(args)
           } catch (error) {
             if (toolName === 'render_response') clearResponsePreview()
             const parseErrorResult: AgentToolResult = {
@@ -1735,6 +1742,7 @@ export class AgentRuntime {
           const toolCall: ToolCall = {
             id: toolUse.id || createAgentId('tool-call'),
             toolName,
+            displayTitle,
             params: args,
             status: 'pending',
             timestamp: Date.now(),
@@ -2088,7 +2096,8 @@ export class AgentRuntime {
 
           const trace = recorder.add({
             type: 'tool_call',
-            title: tool.title,
+            title: displayTitle || tool.title,
+            displayTitle,
             status: 'running',
             toolName,
             input: args,

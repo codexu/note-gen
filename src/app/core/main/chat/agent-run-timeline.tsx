@@ -7,19 +7,23 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  Layers,
+  MessageSquare,
   Play,
+  ShieldCheck,
   Sparkles,
-  Wrench,
 } from "lucide-react"
 import type { AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
+import { Separator } from "@/components/ui/separator"
 import { AgentContextTray, type RagSourceDetail } from "./agent-context-tray"
 import {
   agentStatusText,
   formatAgentDuration,
   formatAgentToolActivity,
   formatAgentToolName,
+  getAgentToolIcon,
 } from "./agent-display-utils"
 import { estimateTokens } from "@/lib/ai/token-counter"
 import ChatPreview from "./chat-preview"
@@ -35,6 +39,7 @@ import { associateChatUiBlocks } from "@/lib/chat-ui/timeline"
 import { AgentApprovalPanel } from "./agent-approval-panel"
 import { cancelPendingAgentAction, confirmPendingAgentAction } from "./agent-approval-actions"
 import { AgentQuestionPanel, AgentQuestionResult } from "./agent-question-panel"
+import { getAgentArtifactPaths } from "@/lib/agent/artifacts"
 
 interface AgentRunTimelineProps {
   chat?: Chat
@@ -58,7 +63,16 @@ function eventIcon(event: AgentTraceEvent) {
   }
 
   if (event.type === "tool_call" || event.type === "tool_result") {
-    return <Wrench />
+    const Icon = getAgentToolIcon(event.toolName)
+    return <Icon />
+  }
+
+  if (event.type === 'approval') {
+    return <ShieldCheck />
+  }
+
+  if (event.type === 'steering') {
+    return <MessageSquare />
   }
 
   if (event.type === "final") {
@@ -93,11 +107,13 @@ function hasMeaningfulTraceDetail(value: unknown) {
 
 function shouldShowTraceEvent(event: AgentTraceEvent) {
   if (event.type === "model_call" || event.type === "model_response") {
-    return event.status === "running" || Boolean(
-      event.isIntermediateResponse &&
-      typeof event.output === "string" &&
-      event.output.trim()
-    )
+    return event.status === "running" || Boolean(event.reasoning?.trim())
+      || (event.isIntermediateResponse === false && event.output === undefined)
+      || Boolean(
+        event.isIntermediateResponse &&
+        typeof event.output === "string" &&
+        event.output.trim()
+      )
   }
 
   if (event.type === "final") {
@@ -164,26 +180,6 @@ function getReceivedTokenCount(event: AgentTraceEvent) {
       ? JSON.stringify(event.output)
       : ""
   return estimateTokens(`${event.reasoning || ""}${output}`)
-}
-
-function formatProcessedDuration(duration?: number) {
-  if (duration === undefined) return ""
-  if (duration < 1000) return `${duration}ms`
-
-  const totalSeconds = Math.round(duration / 1000)
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-
-  if (hours > 0) {
-    return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`
-  }
-
-  if (minutes > 0) {
-    return `${minutes}m ${String(seconds).padStart(2, "0")}s`
-  }
-
-  return `${seconds}s`
 }
 
 function formatTraceDetail(value: unknown) {
@@ -288,7 +284,8 @@ function eventFromToolCall(toolCall: ToolCall): AgentTraceEvent {
     id: toolCall.id,
     runId: "live",
     type: "tool_call",
-    title: formatAgentToolName(toolCall.toolName),
+    title: toolCall.displayTitle || formatAgentToolName(toolCall.toolName),
+    displayTitle: toolCall.displayTitle,
     status: toolCall.status === "running"
       ? "running"
       : toolCall.status === "error"
@@ -306,7 +303,6 @@ function eventFromToolCall(toolCall: ToolCall): AgentTraceEvent {
 
 export function AgentRunTimeline({
   chat,
-  modelName,
   status = "idle",
   isRunning = false,
   traceEvents = [],
@@ -321,8 +317,27 @@ export function AgentRunTimeline({
   const pendingApproval = useChatStore(state => state.agentState.pendingConfirmation)
   const pendingQuestion = useChatStore(state => state.agentState.pendingQuestion)
   const activeChatId = useChatStore(state => state.agentState.activeChatId)
+  const responsePreview = useChatStore(state => state.agentState.activeChatId === chat?.id
+    ? state.agentState.responsePreview : undefined)
   const [expandedEvents, setExpandedEvents] = React.useState<Record<string, boolean>>({})
-  const [processOpen, setProcessOpen] = React.useState(false)
+  const [expandedGroups, setExpandedGroups] = React.useState<Record<string, boolean>>({})
+  // Candidate text can still become an intermediate message followed by tools.
+  // Collapse only for an actual final reply or a structured final-reply preview.
+  const hasFinalResponse = status === 'completed' || traceEvents.some(event => event.type === 'final')
+    || Boolean(responsePreview)
+  const [processOpen, setProcessOpen] = React.useState(!hasFinalResponse)
+  const runId = traceEvents[0]?.runId
+  React.useEffect(() => {
+    setProcessOpen(!hasFinalResponse)
+  }, [hasFinalResponse, runId, chat?.id])
+  const [completedText, setCompletedText] = React.useState<Record<string, string>>({})
+  const [presentedLive, setPresentedLive] = React.useState(isRunning)
+  React.useEffect(() => {
+    if (isRunning) setPresentedLive(true)
+  }, [isRunning])
+  const completeText = React.useCallback((id: string, text: string) => {
+    setCompletedText(current => current[id] === text ? current : { ...current, [id]: text })
+  }, [])
 
   const events = React.useMemo(() => {
     if (traceEvents.length > 0) {
@@ -340,7 +355,39 @@ export function AgentRunTimeline({
     return uiBlocks.filter(block => !matched.has(block.id))
   }, [uiBlocks, uiByEvent])
   const hasRunningEvent = events.some((event) => event.status === "running")
+  const sequencePresentation = !hasFinalResponse && (isRunning || presentedLive)
+  const visibleEvents = React.useMemo(() => {
+    if (!sequencePresentation) return events
+    const visible: AgentTraceEvent[] = []
+    for (const event of events) {
+      visible.push(event)
+      const text = getModelResponseContent(event)
+      // Keep later items queued while this paragraph is still streaming or
+      // visibly typing. Tool execution itself is independent of presentation.
+      if (text && (event.status === 'running' || completedText[event.id] !== text)) break
+    }
+    return visible
+  }, [events, completedText, sequencePresentation])
+  const segments = React.useMemo(() => {
+    const result: { id: string; kind: 'event' | 'tools'; events: AgentTraceEvent[] }[] = []
+    for (const event of visibleEvents) {
+      // Active items stay at the top level; only completed tool calls are grouped.
+      const standalone = Boolean(getModelResponseContent(event))
+        || (isRunning && (event.status === 'running' || event.status === 'pending'))
+        || event.type === 'approval' || event.type === 'steering' || event.type === 'error'
+        || event.toolName === 'show_ui' || event.toolName === 'ask_user_question'
+      const previous = result.at(-1)
+      if (!standalone && previous?.kind === 'tools') {
+        previous.events.push(event)
+      } else {
+        result.push({ id: event.id, kind: standalone ? 'event' : 'tools', events: [event] })
+      }
+    }
+    return result
+  }, [visibleEvents, isRunning])
+  const artifacts = React.useMemo(() => getAgentArtifactPaths(chat?.agentHistory, toolCalls), [chat?.agentHistory, toolCalls])
   const [liveNow, setLiveNow] = React.useState(() => Date.now())
+  const [presentationStartedAt] = React.useState(() => chat?.createdAt ?? Date.now())
 
   React.useEffect(() => {
     if (!isRunning && !hasRunningEvent) {
@@ -359,34 +406,185 @@ export function AgentRunTimeline({
     setExpandedEvents(current => ({ ...current, [id]: !expanded }))
   }
 
-  if (!isRunning && events.length === 0 && ragSources.length === 0 && loadedSkills.length === 0 && uiBlocks.length === 0) {
+  if (!isRunning && traceEvents.length === 0 && events.length === 0 && ragSources.length === 0 && loadedSkills.length === 0 && uiBlocks.length === 0) {
     return hasUnreadableUi && chat ? <ChatUiMessages chat={chat} /> : null
   }
 
-  const showStatusRow = events.length === 0 && (
-    isRunning ||
-    status === "failed" ||
-    status === "stopped"
-  )
+  const lastEvent = events.at(-1)
+  const streamingText = Boolean(lastEvent && getModelResponseContent(lastEvent)
+    && lastEvent.status === 'running')
+  const showStatusRow = (isRunning && (events.length === 0 || streamingText))
+    || (events.length === 0 && (traceEvents.length > 0 || status === 'failed' || status === 'stopped'))
   const durationEvents = traceEvents.length > 0 ? traceEvents : events
-  const processStartedAt = durationEvents.length > 0
-    ? Math.min(...durationEvents.map((event) => event.timestamp))
-    : undefined
+  const processStartedAt = Math.min(presentationStartedAt, ...durationEvents.map(event => event.timestamp))
   const processFinishedAt = durationEvents.length > 0
     ? Math.max(...durationEvents.map((event) => event.timestamp + (event.duration || 0)))
     : undefined
-  const processDuration = processStartedAt === undefined
-    ? undefined
-    : Math.max(0, (isRunning ? liveNow : processFinishedAt || processStartedAt) - processStartedAt)
-  const modelExecutionCount = events.filter((event) =>
-    event.type === "model_call" || event.type === "model_response"
-  ).length
-  const processLabel = [
-    "已处理",
-    processDuration === undefined ? undefined : formatProcessedDuration(processDuration),
-    modelExecutionCount > 0 ? `· 执行 ${modelExecutionCount} 次` : undefined,
-    modelName ? `· ${modelName}` : undefined,
-  ].filter(Boolean).join(" ")
+  const processDuration = Math.max(0, (isRunning ? liveNow : processFinishedAt ?? processStartedAt) - processStartedAt)
+  const processLabel = t(isRunning ? 'input.agent.timeline.processing' : 'input.agent.timeline.elapsed', {
+    duration: Math.floor(processDuration / 1000),
+  })
+
+  const renderEvent = (event: AgentTraceEvent) => {
+    const eventUi = uiByEvent.get(event.id) ?? []
+    const hasUi = eventUi.length > 0
+    const waitingForUi = eventUi.some(block => block.id === pendingUiId && block.status === 'pending')
+    const isApproval = event.type === 'approval'
+    const isQuestion = event.toolName === 'ask_user_question'
+    const ownsRun = Boolean(isRunning && chat && chat.id === activeChatId)
+    const activeApproval = isApproval && ownsRun && pendingApproval
+      && (pendingApproval.traceEventId ? pendingApproval.traceEventId === event.id : event.status === 'running' && pendingApproval.toolName === event.toolName)
+      ? pendingApproval : undefined
+    const activeQuestion = isQuestion && ownsRun && pendingQuestion
+      && (pendingQuestion.traceEventId === event.id || pendingQuestion.toolCallId === event.id || (!pendingQuestion.traceEventId && !pendingQuestion.toolCallId && event.status === 'running'))
+      ? pendingQuestion : undefined
+    const hasHostUi = isApproval || isQuestion
+    const approvalConfirmed = event.approvalDecision === 'approved' || (event.status === 'success' && event.message === '用户已确认操作。')
+    const approvalStatus = activeApproval ? 'input.agent.confirmation.title'
+      : approvalConfirmed ? 'input.agent.confirmation.confirmed'
+        : event.approvalDecision === 'denied' || event.approvalDecision === 'steered' || event.status === 'error'
+          ? 'input.agent.confirmation.cancelled' : 'input.agent.ui.expired'
+    const storedExpanded = expandedEvents[event.id] ?? eventUi.some(block => block.mode === 'display')
+    const isModelEvent = event.type === "model_call" || event.type === "model_response"
+    const eventLabel = hasUi ? eventUi[0].title : event.toolName
+      ? formatAgentToolActivity(event)
+      : event.title
+    const visibleMessage = !hasUi && !hasHostUi && shouldShowEventMessage(event) ? event.message : undefined
+    const modelResponseContent = getModelResponseContent(event)
+    const modelReasoningContent = getModelReasoningContent(event)
+    const inputDetail = hasUi || hasHostUi ? undefined : compactTraceInput(event)
+    const outputDetail = hasUi || hasHostUi || modelResponseContent ? undefined : compactTraceOutput(event, visibleMessage)
+    const hasTraceDetails = Boolean(
+      visibleMessage || inputDetail !== undefined || outputDetail !== undefined
+    )
+    const hasDetails = Boolean(
+      hasUi ||
+      hasHostUi ||
+      modelReasoningContent ||
+      hasTraceDetails
+    )
+    const forceExpanded = waitingForUi || Boolean(activeApproval || activeQuestion) || (isModelEvent && event.status === "running")
+    const expanded = forceExpanded || storedExpanded
+    const canToggle = hasDetails && !forceExpanded
+    const displayDuration = event.duration ?? (
+      event.status === "running"
+        ? Math.max(0, liveNow - event.timestamp)
+        : undefined
+    )
+    const receivedTokenCount = isModelEvent ? getReceivedTokenCount(event) : 0
+    const toolIsRunning = isRunning && event.status === 'running' && !hasHostUi && !hasUi
+      && (event.type === 'tool_call' || event.type === 'tool_result')
+    return (
+      <div key={event.id} role="listitem" className="min-w-0 text-sm">
+        {(!modelResponseContent || modelReasoningContent) && <Marker asChild>
+          <button
+            type="button"
+            className="group min-h-6 py-0.5 transition-colors hover:text-foreground"
+            onClick={() => canToggle && toggleEvent(event.id, expanded)}
+            aria-expanded={hasDetails ? expanded : undefined}
+          >
+            <MarkerIcon>{eventIcon(event)}</MarkerIcon>
+            <MarkerContent className="flex-1">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="agent-tool-title min-w-0 flex-1 truncate" data-running={toolIsRunning} title={eventLabel}>
+                {eventLabel}
+              </span>
+              {hasUi && <Badge variant="secondary">{t(`input.agent.ui.${eventUi[0].status === 'pending' ? waitingForUi ? 'waiting' : 'expired' : eventUi[0].status}`)}</Badge>}
+              {isApproval && <Badge variant="secondary">{t(approvalStatus)}</Badge>}
+              {isQuestion && <Badge variant="secondary">{t(`input.agent.ui.${activeQuestion ? 'waiting' : hasRecordedQuestionAnswers(event) ? 'submitted' : event.status === 'error' ? 'cancelled' : 'expired'}`)}</Badge>}
+              {displayDuration !== undefined && (
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {formatAgentDuration(displayDuration)}
+                </span>
+              )}
+              {receivedTokenCount > 0 && (
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  · {receivedTokenCount.toLocaleString()} tokens
+                </span>
+              )}
+            </span>
+            </MarkerContent>
+            {canToggle && (
+              <MarkerIcon>
+                {expanded ? <ChevronDown /> : <ChevronRight />}
+              </MarkerIcon>
+            )}
+          </button>
+        </Marker>}
+
+        {expanded && isApproval && event.toolName && (
+          <div className="mt-2 min-w-0 pb-2">
+            <AgentApprovalPanel
+              pendingConfirmation={activeApproval ?? { toolName: event.toolName, params: event.input ?? {}, ...event.approvalPreview }}
+              readOnly={!activeApproval}
+              embedded
+              onConfirm={scope => confirmPendingAgentAction(scope, activeApproval?.id)}
+              onCancel={() => cancelPendingAgentAction(activeApproval?.id)}
+            />
+          </div>
+        )}
+
+        {expanded && isQuestion && (
+          <div className="mt-2 min-w-0 pb-2">
+            {activeQuestion
+              ? <AgentQuestionPanel chatId={chat?.id} traceEventId={event.id} embedded />
+              : <AgentQuestionResult event={event} />}
+          </div>
+        )}
+
+        {expanded && hasUi && chat && (
+          <div className="mt-2 min-w-0 pb-2">
+            <ChatUiMessages chat={chat} blocks={eventUi} embedded />
+          </div>
+        )}
+
+        {modelReasoningContent && expanded && event.status !== "running" && (
+          <div className="mt-2 min-w-0 pb-2 text-xs">
+            <div className="max-h-48 overflow-y-auto rounded bg-muted/60 p-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-muted-foreground">
+              {modelReasoningContent}
+            </div>
+          </div>
+        )}
+
+        {modelResponseContent && (
+          <div className="min-w-0">
+            <ChatPreview
+              text={modelResponseContent}
+              streaming={isRunning && event.status === "running"}
+              artifacts={artifacts}
+              onDisplayComplete={text => completeText(event.id, text)}
+              containerClassName="max-w-full md:max-w-full"
+            />
+          </div>
+        )}
+
+        {expanded && hasTraceDetails && (
+          <div className="mt-2 flex min-w-0 flex-col gap-2 pb-2 text-xs">
+            {visibleMessage && (
+              <div className="flex flex-col gap-1">
+                <div className="font-medium text-muted-foreground">{t('input.agent.resultSummary')}</div>
+                <div className="rounded bg-muted/60 p-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-muted-foreground">
+                  {visibleMessage}
+                </div>
+              </div>
+            )}
+            {inputDetail !== undefined && (
+              <div className="flex flex-col gap-1">
+                <div className="font-medium text-muted-foreground">{t('input.agent.queryParameters')}</div>
+                <pre className={traceDetailClassName(event)}>{formatTraceDetail(inputDetail)}</pre>
+              </div>
+            )}
+            {outputDetail !== undefined && (
+              <div className="flex flex-col gap-1">
+                <div className="font-medium text-muted-foreground">{t('input.agent.toolResult')}</div>
+                <pre className={traceDetailClassName(event)}>{formatTraceDetail(outputDetail)}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const processContent = (
     <div className="flex flex-col gap-2">
@@ -397,165 +595,37 @@ export function AgentRunTimeline({
       />
 
       {events.length > 0 && (
-        <div role="list" className="flex flex-col gap-1">
-          {events.map((event) => {
-            const eventUi = uiByEvent.get(event.id) ?? []
-            const hasUi = eventUi.length > 0
-            const waitingForUi = eventUi.some(block => block.id === pendingUiId && block.status === 'pending')
-            const isApproval = event.type === 'approval'
-            const isQuestion = event.toolName === 'ask_user_question'
-            const ownsRun = Boolean(isRunning && chat && chat.id === activeChatId)
-            const activeApproval = isApproval && ownsRun && pendingApproval
-              && (pendingApproval.traceEventId ? pendingApproval.traceEventId === event.id : event.status === 'running' && pendingApproval.toolName === event.toolName)
-              ? pendingApproval : undefined
-            const activeQuestion = isQuestion && ownsRun && pendingQuestion
-              && (pendingQuestion.traceEventId === event.id || pendingQuestion.toolCallId === event.id || (!pendingQuestion.traceEventId && !pendingQuestion.toolCallId && event.status === 'running'))
-              ? pendingQuestion : undefined
-            const hasHostUi = isApproval || isQuestion
-            const approvalConfirmed = event.approvalDecision === 'approved' || (event.status === 'success' && event.message === '用户已确认操作。')
-            const approvalStatus = activeApproval ? 'input.agent.confirmation.title'
-              : approvalConfirmed ? 'input.agent.confirmation.confirmed'
-                : event.approvalDecision === 'denied' || event.approvalDecision === 'steered' || event.status === 'error'
-                  ? 'input.agent.confirmation.cancelled' : 'input.agent.ui.expired'
-            const storedExpanded = expandedEvents[event.id] ?? eventUi.some(block => block.mode === 'display')
-            const isModelEvent = event.type === "model_call" || event.type === "model_response"
-            const eventLabel = hasUi ? eventUi[0].title : event.toolName
-              ? formatAgentToolActivity(event)
-              : event.title
-            const visibleMessage = !hasUi && !hasHostUi && shouldShowEventMessage(event) ? event.message : undefined
-            const modelResponseContent = getModelResponseContent(event)
-            const modelReasoningContent = getModelReasoningContent(event)
-            const inputDetail = hasUi || hasHostUi ? undefined : compactTraceInput(event)
-            const outputDetail = hasUi || hasHostUi || modelResponseContent ? undefined : compactTraceOutput(event, visibleMessage)
-            const hasTraceDetails = Boolean(
-              visibleMessage || inputDetail !== undefined || outputDetail !== undefined
-            )
-            const hasDetails = Boolean(
-              hasUi ||
-              hasHostUi ||
-              modelReasoningContent ||
-              hasTraceDetails
-            )
-            const forceExpanded = waitingForUi || Boolean(activeApproval || activeQuestion) || (isModelEvent && event.status === "running")
-            const expanded = forceExpanded || storedExpanded
-            const canToggle = hasDetails && !forceExpanded
-            const displayDuration = event.duration ?? (
-              event.status === "running"
-                ? Math.max(0, liveNow - event.timestamp)
-                : undefined
-            )
-            const receivedTokenCount = isModelEvent ? getReceivedTokenCount(event) : 0
+        <div role="list" className="flex min-w-0 flex-col gap-2">
+          {segments.map(segment => {
+            if (segment.kind === 'event' || segment.events.length === 1) return renderEvent(segment.events[0])
+            const running = isRunning && segment.events.some(event => event.status === 'running' || event.status === 'pending')
+            const failed = segment.events.some(event => event.status === 'error')
+            const tools = segment.events.filter(event => event.toolName)
+            const firstIcon = getAgentToolIcon(tools[0]?.toolName)
+            const GroupIcon = tools.length > 0 && tools.every(event => getAgentToolIcon(event.toolName) === firstIcon)
+              ? firstIcon : Layers
+            const label = [...new Set(tools.map(event => event.displayTitle || event.title || formatAgentToolName(event.toolName || '')))].join(' · ')
+              || t('input.agent.thinking')
             return (
-              <div key={event.id} role="listitem" className="text-sm">
-                <Marker asChild>
-                  <button
-                    type="button"
-                    className="group items-start py-1.5 transition-colors hover:text-foreground"
-                    onClick={() => canToggle && toggleEvent(event.id, expanded)}
-                    aria-expanded={hasDetails ? expanded : undefined}
-                  >
-                    <MarkerIcon className="mt-0.5">{eventIcon(event)}</MarkerIcon>
-                    <MarkerContent className="flex-1">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className={expanded ? "min-w-0 break-words [overflow-wrap:anywhere]" : "truncate"}>
-                        {eventLabel}
-                      </span>
-                      {hasUi && <Badge variant="secondary">{t(`input.agent.ui.${eventUi[0].status === 'pending' ? waitingForUi ? 'waiting' : 'expired' : eventUi[0].status}`)}</Badge>}
-                      {isApproval && <Badge variant="secondary">{t(approvalStatus)}</Badge>}
-                      {isQuestion && <Badge variant="secondary">{t(`input.agent.ui.${activeQuestion ? 'waiting' : hasRecordedQuestionAnswers(event) ? 'submitted' : event.status === 'error' ? 'cancelled' : 'expired'}`)}</Badge>}
-                      {displayDuration !== undefined && (
-                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                          {formatAgentDuration(displayDuration)}
-                        </span>
-                      )}
-                      {receivedTokenCount > 0 && (
-                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                          · {receivedTokenCount.toLocaleString()} tokens
-                        </span>
-                      )}
-                    </span>
-                    {visibleMessage && !expanded && (
-                      <span className="mt-1 block max-w-full truncate text-xs text-muted-foreground">
-                        {visibleMessage}
-                      </span>
-                    )}
-                    </MarkerContent>
-                    {canToggle && (
-                      <MarkerIcon className="mt-0.5">
-                        {expanded ? <ChevronDown /> : <ChevronRight />}
-                      </MarkerIcon>
-                    )}
-                  </button>
-                </Marker>
-
-                {expanded && isApproval && event.toolName && (
-                  <div className="min-w-0 pb-2 pl-6">
-                    <AgentApprovalPanel
-                      pendingConfirmation={activeApproval ?? { toolName: event.toolName, params: event.input ?? {}, ...event.approvalPreview }}
-                      readOnly={!activeApproval}
-                      embedded
-                      onConfirm={scope => confirmPendingAgentAction(scope, activeApproval?.id)}
-                      onCancel={() => cancelPendingAgentAction(activeApproval?.id)}
-                    />
+              <Collapsible key={segment.id} role="listitem" className="min-w-0"
+                open={expandedGroups[segment.id] ?? false}
+                onOpenChange={open => setExpandedGroups(current => ({ ...current, [segment.id]: open }))}>
+                <CollapsibleTrigger asChild>
+                  <Marker asChild>
+                    <button type="button" className="group min-h-6 py-0.5 transition-colors hover:text-foreground" aria-busy={running}>
+                      <MarkerIcon>{running ? <Loader2 className="animate-spin" /> : failed ? <AlertTriangle /> : <GroupIcon />}</MarkerIcon>
+                      <MarkerContent className="flex-1 truncate">{label}</MarkerContent>
+                      {tools.length > 1 && <span className="shrink-0 text-xs text-muted-foreground">{t('input.agent.timeline.tools', { count: tools.length })}</span>}
+                      <MarkerIcon><ChevronRight className="transition-transform group-data-[state=open]:rotate-90" /></MarkerIcon>
+                    </button>
+                  </Marker>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div role="list" className="mt-1 flex min-w-0 flex-col gap-1">
+                    {segment.events.map(renderEvent)}
                   </div>
-                )}
-
-                {expanded && isQuestion && (
-                  <div className="min-w-0 pb-2 pl-6">
-                    {activeQuestion
-                      ? <AgentQuestionPanel chatId={chat?.id} traceEventId={event.id} embedded />
-                      : <AgentQuestionResult event={event} />}
-                  </div>
-                )}
-
-                {expanded && hasUi && chat && (
-                  <div className="min-w-0 pb-2 pl-6">
-                    <ChatUiMessages chat={chat} blocks={eventUi} embedded />
-                  </div>
-                )}
-
-                {modelReasoningContent && expanded && event.status !== "running" && (
-                  <div className="pb-2 pl-6 text-xs">
-                    <div className="max-h-48 overflow-y-auto rounded bg-muted/60 p-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-muted-foreground">
-                      {modelReasoningContent}
-                    </div>
-                  </div>
-                )}
-
-                {modelResponseContent && event.isIntermediateResponse && event.status !== "running" && (
-                  <div className="pb-2">
-                    <ChatPreview
-                      text={modelResponseContent}
-                      containerClassName="max-w-full md:max-w-full"
-                    />
-                  </div>
-                )}
-
-                {expanded && hasTraceDetails && (
-                  <div className="flex flex-col gap-2 pb-2 pl-6 text-xs">
-                    {visibleMessage && (
-                      <div className="flex flex-col gap-1">
-                        <div className="font-medium text-muted-foreground">{t('input.agent.resultSummary')}</div>
-                        <div className="rounded bg-muted/60 p-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-muted-foreground">
-                          {visibleMessage}
-                        </div>
-                      </div>
-                    )}
-                    {inputDetail !== undefined && (
-                      <div className="flex flex-col gap-1">
-                        <div className="font-medium text-muted-foreground">{t('input.agent.queryParameters')}</div>
-                        <pre className={traceDetailClassName(event)}>{formatTraceDetail(inputDetail)}</pre>
-                      </div>
-                    )}
-                    {outputDetail !== undefined && (
-                      <div className="flex flex-col gap-1">
-                        <div className="font-medium text-muted-foreground">{t('input.agent.toolResult')}</div>
-                        <pre className={traceDetailClassName(event)}>{formatTraceDetail(outputDetail)}</pre>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
             )
           })}
         </div>
@@ -574,25 +644,22 @@ export function AgentRunTimeline({
   )
 
   return (
-    <div className="space-y-2">
-      {isRunning ? processContent : (
-        <Collapsible open={processOpen} onOpenChange={setProcessOpen}>
-          <CollapsibleTrigger asChild>
-            <Marker asChild>
-              <button type="button" className="group py-1.5 transition-colors hover:text-foreground">
-                <MarkerIcon>{statusIcon(status, isRunning)}</MarkerIcon>
-                <MarkerContent className="flex-1 truncate">{processLabel}</MarkerContent>
-                <MarkerIcon>
-                  <ChevronRight className="transition-transform group-data-[state=open]:rotate-90" />
-                </MarkerIcon>
-              </button>
-            </Marker>
-          </CollapsibleTrigger>
-
-          <CollapsibleContent>{processContent}</CollapsibleContent>
-        </Collapsible>
-      )}
-      {hasUnreadableUi && chat && <ChatUiMessages chat={chat} />}
+    <div className="flex flex-col gap-2">
+      <Collapsible className="flex min-w-0 flex-col gap-2" open={processOpen} onOpenChange={setProcessOpen}>
+        <CollapsibleTrigger asChild>
+          <Marker asChild>
+            <button type="button" className="group min-h-6 py-0.5 transition-colors hover:text-foreground">
+              <MarkerContent className="truncate">{processLabel || agentStatusText[status]}</MarkerContent>
+              <MarkerIcon><ChevronRight className="transition-transform group-data-[state=open]:rotate-90" /></MarkerIcon>
+            </button>
+          </Marker>
+        </CollapsibleTrigger>
+        <Separator />
+        <CollapsibleContent>
+          {processContent}
+          {hasUnreadableUi && chat && <ChatUiMessages chat={chat} />}
+        </CollapsibleContent>
+      </Collapsible>
       {!isRunning && status === "stopped" && (
         <Button
           type="button"

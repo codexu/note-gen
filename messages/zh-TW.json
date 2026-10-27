@@ -4266,6 +4266,11 @@
           "acting": "執行中",
           "observation": "觀察結果",
           "toolCalls": "工具調用",
+          "timeline": {
+            "elapsed": "耗時 {duration} 秒",
+            "processing": "已處理 {duration} 秒",
+            "tools": "{count} 次工具呼叫"
+          },
           "resultSummary": "結果摘要",
           "queryParameters": "查詢參數",
           "toolResult": "工具結果",

@@ -219,7 +219,7 @@ export function AgentApprovalPanel({
 
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded} asChild>
-      <Card size="sm" className="min-w-0">
+      <Card size="sm" className="w-full min-w-0 ring-inset">
         <CardHeader className="flex min-w-0 flex-wrap items-center gap-2">
           <div className="min-w-0 flex-1 basis-40">
             <CardTitle className="flex items-center gap-2">

@@ -14,3 +14,40 @@
   background-size: 200% 200%;
   animation: gradient 2s ease infinite;
 }
+
+@keyframes agent-tool-shimmer {
+  from {
+    background-position: 100% 50%;
+  }
+  to {
+    background-position: -100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports ((background-clip: text) or (-webkit-background-clip: text)) {
+    .agent-tool-title[data-running="true"] {
+      background-image: linear-gradient(
+        110deg,
+        hsl(var(--muted-foreground)) 40%,
+        hsl(var(--foreground)) 50%,
+        hsl(var(--muted-foreground)) 60%
+      );
+      background-size: 250% 100%;
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      animation: agent-tool-shimmer 2.4s ease-in-out infinite;
+    }
+  }
+}
+
+@media (forced-colors: active) {
+  .agent-tool-title[data-running="true"] {
+    animation: none;
+    background-image: none;
+    color: CanvasText;
+    -webkit-text-fill-color: currentColor;
+  }
+}

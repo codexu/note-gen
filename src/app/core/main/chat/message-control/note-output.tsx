@@ -93,10 +93,11 @@ export function NoteOutput({chat}: {chat: Chat}) {
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
+          className="[&_svg:not([class*='size-'])]:size-3.5"
           aria-label={t('note.convert')}
         >
-          <SquarePen className="size-4" />
+          <SquarePen />
         </Button>
       </ResponsiveDialogTrigger>
       <ResponsiveDialogContent className="sm:max-w-[525px]">

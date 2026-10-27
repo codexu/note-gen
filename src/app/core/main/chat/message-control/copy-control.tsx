@@ -8,9 +8,10 @@ import { writeText } from "tauri-plugin-clipboard-api"
 interface CopyControlProps {
   chat: Chat
   translatedContent?: string
+  variant?: 'ghost' | 'secondary'
 }
 
-export function CopyControl({ chat, translatedContent }: CopyControlProps) {
+export function CopyControl({ chat, translatedContent, variant = 'ghost' }: CopyControlProps) {
   const t = useTranslations()
   const [isCopied, setIsCopied] = useState(false)
   
@@ -51,9 +52,9 @@ export function CopyControl({ chat, translatedContent }: CopyControlProps) {
       <TooltipButton
         icon={
           isCopied ? (
-            <Check className="h-4 w-4" />
+            <Check />
           ) : (
-            <Copy className="h-4 w-4" />
+            <Copy />
           )
         }
         tooltipText={
@@ -61,8 +62,8 @@ export function CopyControl({ chat, translatedContent }: CopyControlProps) {
           t('record.chat.messageControl.copy')
         }
         onClick={handleCopy}
-        variant="ghost"
-        size="sm"
+        variant={variant}
+        size="icon-xs" buttonClassName="[&_svg:not([class*='size-'])]:size-3.5"
         disabled={isCopied}
       />
     </>

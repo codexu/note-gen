@@ -4260,6 +4260,11 @@
           "acting": "実行中",
           "observation": "観察結果",
           "toolCalls": "ツール呼び出し",
+          "timeline": {
+            "elapsed": "所要時間 {duration} 秒",
+            "processing": "処理中 {duration} 秒",
+            "tools": "ツール呼び出し {count} 回"
+          },
           "resultSummary": "結果の概要",
           "queryParameters": "検索パラメータ",
           "toolResult": "ツールの結果",

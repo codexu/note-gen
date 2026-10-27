@@ -1,4 +1,63 @@
 import type { AgentRunStatus, AgentTraceEvent } from "@/lib/agent/types"
+import {
+  BookOpen, Brain, CheckCircle2, Copy, FileEdit, FilePlus, Files, FileText,
+  FolderOpen, FolderPlus, Globe, Image, LayoutPanelTop, Link2, MessageSquare,
+  Network, PackagePlus, Pencil, Puzzle, Search, Tag, Terminal, TextSelect,
+  Trash2, Wrench, ArrowRightLeft, type LucideIcon,
+} from "lucide-react"
+
+const toolIcons: Record<string, LucideIcon> = {
+  web_search: Search,
+  web_read_page: Globe,
+  editor_get_state: FileText,
+  editor_get_selection: TextSelect,
+  editor_insert_at_cursor: Pencil,
+  editor_replace_range: FileEdit,
+  editor_replace_lines: FileEdit,
+  editor_apply_transaction: FileEdit,
+  note_list_files: Files,
+  note_list_files_by_date: Files,
+  note_read_file: FileText,
+  note_read_files_batch: BookOpen,
+  note_open_file: FolderOpen,
+  note_create_file: FilePlus,
+  note_update_file: FileEdit,
+  note_delete_file: Trash2,
+  note_rename_file: Pencil,
+  note_move_file: ArrowRightLeft,
+  note_copy_file: Copy,
+  folder_create: FolderPlus,
+  folder_delete: Trash2,
+  attachment_list: FolderOpen,
+  attachment_read: FileText,
+  knowledge_search: Search,
+  knowledge_read_sources: BookOpen,
+  knowledge_cite_sources: Link2,
+  skill_search_remote: Search,
+  skill_run_code: Terminal,
+  skill_execute_script: Terminal,
+  skill_install_package: PackagePlus,
+  skill_install_source: PackagePlus,
+  skill_install_python_dependencies: PackagePlus,
+  skill_install_node_dependencies: PackagePlus,
+  skill_validate_package: CheckCircle2,
+  skill_uninstall: Trash2,
+  skill_read_resource: BookOpen,
+  ask_user_question: MessageSquare,
+  show_ui: LayoutPanelTop,
+  render_response: LayoutPanelTop,
+}
+
+const toolCategoryIcons: [string, LucideIcon][] = [
+  ['folder_', FolderOpen], ['tag_', Tag], ['mark_', Pencil],
+  ['memory_', Brain], ['skill_', Puzzle], ['mcp_', Network],
+  ['canvas_', LayoutPanelTop], ['image_', Image], ['system_', Terminal],
+  ['knowledge_', BookOpen], ['note_', FileText], ['editor_', FileEdit],
+]
+
+export function getAgentToolIcon(name = ''): LucideIcon {
+  return toolIcons[name] ?? toolCategoryIcons.find(([prefix]) => name.startsWith(prefix))?.[1] ?? Wrench
+}
 
 export const agentStatusText: Record<AgentRunStatus, string> = {
   idle: "空闲",
@@ -18,6 +77,8 @@ export const agentStatusText: Record<AgentRunStatus, string> = {
 
 export function formatAgentToolName(name: string) {
   const attachmentToolNames: Record<string, string> = {
+    web_search: "搜索互联网",
+    web_read_page: "读取网页",
     attachment_list: "附件 · 查看文件夹",
     attachment_read: "附件 · 读取文件",
   }
@@ -99,8 +160,8 @@ function getToolActivityTarget(event: AgentTraceEvent) {
 }
 
 export function formatAgentToolActivity(event: AgentTraceEvent) {
-  const action = event.title || (event.toolName ? formatAgentToolName(event.toolName) : "执行操作")
-  const target = getToolActivityTarget(event)
+  const action = event.displayTitle || event.title || (event.toolName ? formatAgentToolName(event.toolName) : "执行操作")
+  const target = event.displayTitle ? undefined : getToolActivityTarget(event)
   const description = target ? `${action} · ${target}` : action
 
   if (event.status === "running") {

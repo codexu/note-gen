@@ -4312,6 +4312,11 @@
           "thought": "思考",
           "action": "行动",
           "toolCalls": "工具调用",
+          "timeline": {
+            "elapsed": "用时 {duration} 秒",
+            "processing": "已处理 {duration} 秒",
+            "tools": "{count} 次工具调用"
+          },
           "resultSummary": "结果摘要",
           "queryParameters": "查询参数",
           "toolResult": "工具结果",

@@ -176,8 +176,8 @@ function ChatUiCard({ block, active, checking, embedded }: { block: ChatUiBlock;
   const status = block.status === 'pending' ? active || checking ? 'waiting' : 'expired' : block.status
   const fallback = <Alert><AlertDescription>{t('renderError')}</AlertDescription></Alert>
 
-  return <form onSubmit={submit} noValidate>
-    <Card size="sm" className="min-w-0">
+  return <form onSubmit={submit} noValidate className="w-full min-w-0">
+    <Card size="sm" className="w-full min-w-0 ring-inset">
       {!embedded && <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="min-w-0 break-words">{block.title}</CardTitle>

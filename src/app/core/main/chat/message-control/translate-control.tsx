@@ -79,11 +79,11 @@ export function TranslateControl({ chat, onTranslatedContent }: TranslateControl
       trigger={
         <div className="inline-flex">
           <TooltipButton
-            icon={isTranslating ? <Loader2 className="size-4 animate-spin" /> : <GlobeIcon className="size-4" />}
+            icon={isTranslating ? <Loader2 className="animate-spin" /> : <GlobeIcon />}
             tooltipText={translateT('tooltip')}
             disabled={isTranslating}
             variant="ghost"
-            size="sm"
+            size="icon-xs" buttonClassName="[&_svg:not([class*='size-'])]:size-3.5"
           />
         </div>
       }

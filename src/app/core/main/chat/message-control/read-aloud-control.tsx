@@ -73,11 +73,11 @@ export function ReadAloudControl({ chat, translatedContent }: ReadAloudControlPr
       <TooltipButton
         icon={
           isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="animate-spin" />
           ) : isPlaying ? (
-            <VolumeX className="h-4 w-4" />
+            <VolumeX />
           ) : (
-            <Volume2 className="h-4 w-4" />
+            <Volume2 />
           )
         }
         tooltipText={
@@ -87,7 +87,7 @@ export function ReadAloudControl({ chat, translatedContent }: ReadAloudControlPr
         }
         onClick={handleTextToSpeech}
         variant="ghost"
-        size="sm"
+        size="icon-xs" buttonClassName="[&_svg:not([class*='size-'])]:size-3.5"
         disabled={isLoading}
       />
     </>

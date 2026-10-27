@@ -10,9 +10,13 @@ import { CopyControl } from "./copy-control"
 import { ReadAloudControl } from "./read-aloud-control"
 import { TooltipButton } from "@/components/tooltip-button"
 import { useTranslations } from 'next-intl';
+import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
 
 export default function MessageControl({chat, children}: {chat: Chat, children: React.ReactNode}) {
-  const { deleteChat } = useChatStore()
+  const { deleteChat, chats } = useChatStore()
+  const isMobile = useIsMobile()
+  const alwaysVisible = chat.role !== 'system' || chats.at(-1)?.id === chat.id
   const [translatedContent, setTranslatedContent] = useState<string>('')
   const t = useTranslations('common')
   
@@ -33,19 +37,22 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
 
   return (
     <>
-      <div className='mt-2 flex flex-wrap items-center justify-between gap-1'>
+      <div className={cn('mt-2 flex min-h-6 flex-wrap items-center justify-between gap-1 transition-opacity motion-reduce:transition-none',
+        !alwaysVisible && 'pointer-events-none opacity-0 group-data-[actions-visible=true]/assistant-message:pointer-events-auto group-data-[actions-visible=true]/assistant-message:opacity-100',
+        !alwaysVisible && !isMobile && 'group-hover/assistant-message:pointer-events-auto group-hover/assistant-message:opacity-100 group-focus-within/assistant-message:pointer-events-auto group-focus-within/assistant-message:opacity-100')}>
 
         <div className="flex min-w-0 items-center gap-1">
           <MessageInfo chat={chat} />
           <CondensedIndicator chat={chat} />
         </div>
 
-        <div className='ml-auto flex items-center'>
+        <div className='ml-auto flex items-center gap-0.5 text-muted-foreground'>
           {children || null}
 
           <CopyControl
             chat={chat}
             translatedContent={translatedContent}
+            variant="ghost"
           />
 
           <TranslateControl
@@ -58,7 +65,7 @@ export default function MessageControl({chat, children}: {chat: Chat, children: 
             translatedContent={translatedContent}
           />
 
-          <TooltipButton icon={<XIcon className='size-4' />} tooltipText={t('delete')} variant={"ghost"} size={"icon"} onClick={deleteHandler}/>
+          <TooltipButton icon={<XIcon />} tooltipText={t('delete')} variant="ghost" size="icon-xs" buttonClassName="[&_svg:not([class*='size-'])]:size-3.5" onClick={deleteHandler}/>
         </div>
       </div>
 

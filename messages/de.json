@@ -4260,6 +4260,11 @@
           "thought": "Gedanke",
           "action": "Aktion",
           "toolCalls": "Tool-Aufrufe",
+          "timeline": {
+            "elapsed": "Dauer: {duration} s",
+            "processing": "In Bearbeitung seit {duration} s",
+            "tools": "{count, plural, one {# Werkzeugaufruf} other {# Werkzeugaufrufe}}"
+          },
           "resultSummary": "Ergebniszusammenfassung",
           "queryParameters": "Abfrageparameter",
           "toolResult": "Tool-Ergebnis",

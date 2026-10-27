@@ -4335,6 +4335,11 @@
           "acting": "Agindo",
           "observation": "Observação",
           "toolCalls": "Chamadas de Ferramenta",
+          "timeline": {
+            "elapsed": "Duração: {duration}s",
+            "processing": "Processando há {duration}s",
+            "tools": "{count, plural, one {# chamada de ferramenta} other {# chamadas de ferramenta}}"
+          },
           "resultSummary": "Resumo do resultado",
           "queryParameters": "Parâmetros da consulta",
           "toolResult": "Resultado da ferramenta",

@@ -8,9 +8,17 @@ dayjs.extend(relativeTime)
 
 interface MessageInfoProps {
   chat: Chat
+  format?: 'relative' | 'time'
 }
 
-export function MessageInfo({ chat }: MessageInfoProps) {
+export function MessageInfo({ chat, format = 'relative' }: MessageInfoProps) {
+
+  if (format === 'time') {
+    return <time className="text-xs tabular-nums text-muted-foreground"
+      dateTime={dayjs(chat.createdAt).toISOString()} title={dayjs(chat.createdAt).format('YYYY-MM-DD HH:mm:ss')}>
+      {dayjs(chat.createdAt).format('HH:mm')}
+    </time>
+  }
 
   return (
     <div className='flex items-center gap-1 -translate-x-3'>

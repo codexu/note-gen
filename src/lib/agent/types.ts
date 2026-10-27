@@ -208,6 +208,7 @@ export interface AgentTraceEvent {
   timestamp: number
   duration?: number
   toolName?: string
+  displayTitle?: string
   input?: Record<string, unknown>
   output?: unknown
   message?: string
@@ -348,6 +349,7 @@ export interface ToolResult {
 export interface ToolCall {
   id: string
   toolName: string
+  displayTitle?: string
   params: Record<string, any>
   result?: ToolResult
   status: 'pending' | 'running' | 'success' | 'error'

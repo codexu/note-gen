@@ -10,6 +10,9 @@ import { NoteOutput } from './message-control/note-output'
 import { MarkText } from './message-control/mark-text'
 import { ChatClipboard } from './chat-clipboard'
 import MessageControl from './message-control'
+import { CopyControl } from './message-control/copy-control'
+import { MessageInfo } from './message-control/message-info'
+import { TooltipButton } from '@/components/tooltip-button'
 import ChatEmpty from './chat-empty'
 import { useTranslations } from 'next-intl'
 import ChatThinking from './chat-thinking'
@@ -176,11 +179,13 @@ const ChatContent = React.memo(function ChatContent() {
   }, [loading, compactionRunning, agentState.isRunning, chats])
 
   return (
-    <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor" scrollPreviousItemPeek={8}>
+    <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor" scrollPreviousItemPeek={80} scrollMargin={16}>
       <MessageScroller className="flex-1">
         <MessageScrollerViewport id="chats-wrapper" className="overflow-x-hidden p-4">
           <MessageScrollerContent
-            className={cn("items-end", chats.length === 0 && "h-full")}
+            className={cn("items-end gap-3", chats.length === 0 && "h-full",
+              chats.length > 0 && !loading && !agentState.isRunning && !compactionRunning && "pb-[clamp(8rem,30dvh,20rem)]")}
+            spacerClassName="shrink-0"
           >
             {chats.length ? chats.map((chat) => (
               <React.Fragment key={chat.id}>
@@ -267,47 +272,43 @@ ChatContent.displayName = 'ChatContent'
 
 const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { chat: Chat, children: React.ReactNode }) {
   const { deleteChat } = useChatStore()
-  const [showDelete, setShowDelete] = useState(false)
+  const [showActions, setShowActions] = useState(false)
   const isMobile = useIsMobile()
+  const t = useTranslations('common')
 
   const handleDelete = useCallback(() => {
     deleteChat(chat.id)
   }, [chat.id, deleteChat])
-  const shouldShowDelete = showDelete
 
-  // 用户消息：右对齐，带边框和背景
+  // Keep controls outside the inverse bubble and reserve their space on hover.
   if (chat.role === 'user') {
     return (
-      <div className="flex w-full justify-end">
+      <div className="flex w-full min-w-0 justify-end">
         <div
-          className="group relative max-w-[85%] rounded-lg border px-3 py-2"
+          className="group/user-message flex min-w-0 max-w-[85%] flex-col items-end gap-1"
           onMouseEnter={() => {
-            if (!isMobile) setShowDelete(true)
+            if (!isMobile) setShowActions(true)
           }}
           onMouseLeave={() => {
-            if (!isMobile) setShowDelete(false)
-          }}
-          onClick={() => {
-            if (isMobile) setShowDelete((prev) => !prev)
+            if (!isMobile) setShowActions(false)
           }}
         >
-          <div className='text-sm leading-6 wrap-break-word text-primary-foreground'>
+          <div className="min-w-0 max-w-full rounded-2xl bg-foreground px-4 py-3 text-sm leading-6 wrap-break-word text-background"
+            tabIndex={0}
+            onClick={() => {
+              if (isMobile) setShowActions(previous => !previous)
+            }}>
             {children}
           </div>
-          <div onClick={event => event.stopPropagation()}><PluginChatMessageActions conversationId={chat.conversationId} messageId={chat.id} role={chat.role} messageType={chat.type} /></div>
-          {shouldShowDelete && (
-            <Button
-              onClick={(event) => {
-                event.stopPropagation()
-                handleDelete()
-              }}
-              size="icon"
-              variant="ghost"
-              className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border shadow-sm"
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
+          <div className={cn('flex min-h-6 max-w-full flex-wrap items-center justify-end gap-0.5 text-muted-foreground transition-opacity motion-reduce:transition-none',
+            showActions ? 'opacity-100' : 'pointer-events-none opacity-0',
+            !isMobile && 'group-focus-within/user-message:pointer-events-auto group-focus-within/user-message:opacity-100')}
+            onClick={event => event.stopPropagation()}>
+            <MessageInfo chat={chat} format="time" />
+            <CopyControl chat={chat} variant="ghost" />
+            <TooltipButton icon={<X />} tooltipText={t('delete')} variant="ghost" size="icon-xs" buttonClassName="[&_svg:not([class*='size-'])]:size-3.5" onClick={handleDelete} />
+            <PluginChatMessageActions conversationId={chat.conversationId} messageId={chat.id} role={chat.role} messageType={chat.type} />
+          </div>
         </div>
       </div>
     )
@@ -315,7 +316,14 @@ const MessageWrapper = React.memo(function MessageWrapper({ chat, children }: { 
 
   // AI 消息：左对齐，无边框，无图标
   return (
-    <div className="flex w-full min-w-0">
+    <div className="group/assistant-message flex w-full min-w-0"
+      data-actions-visible={isMobile && showActions}
+      onClick={event => {
+        if (!isMobile || !(event.target instanceof Element)
+          || event.target.closest('button, a, input, textarea, select, [role="button"]')
+          || window.getSelection()?.isCollapsed === false) return
+        setShowActions(previous => !previous)
+      }}>
       <div className='text-sm leading-6 flex-1 word-break min-w-0 overflow-hidden [&_[data-slot=card]]:ring-inset'>
         {children}
         <PluginChatMessageActions conversationId={chat.conversationId} messageId={chat.id} role={chat.role} messageType={chat.type} />
@@ -345,6 +353,9 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
     agentState.pendingConfirmation
   )
   const isLiveAgentVisible = isActiveAgentMessage && (agentState.isRunning || agentState.isFinalAnswerMode || hasLiveAgentTrace)
+  // Streaming agent text belongs to its model item in the timeline. Only the
+  // completed reply (or a structured response preview) belongs below it.
+  const isStreamingAgentTimeline = isLiveAgentVisible && agentState.isRunning
   const artifacts = useMemo(() => getAgentArtifactPaths(
     chat.agentHistory,
     isActiveAgentMessage ? agentState.toolCalls : undefined,
@@ -574,7 +585,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
       return <MessageWrapper chat={chat}>
         {chat.role === 'system' ? (
           // AI 消息：所有内容放在一个容器中
-          <div className="w-full space-y-4">
+          <div className="w-full space-y-2">
             {/* 合并的 RAG 和 Agent 面板 - 只在有 agentHistory 时显示（历史模式） */}
             {/* 实时执行时，RAG 和 Agent 步骤在 AgentExecutionStatusWrapper 中统一显示 */}
             {chat.agentHistory && !isLiveAgentVisible && (
@@ -606,8 +617,8 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
             <ChatThinking chat={chat} />
             <ChatResponse
               chat={chat}
-              text={liveAgentContent ?? content ?? ''}
-              streaming={isGeneratingMessage}
+              text={isStreamingAgentTimeline ? '' : liveAgentContent ?? content ?? ''}
+              streaming={isGeneratingMessage && !isStreamingAgentTimeline}
               artifacts={artifacts}
             />
             {!chat.agentHistory && !isLiveAgentVisible && <ChatUiMessages chat={chat} />}
@@ -619,7 +630,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
           </div>
         ) : (
           // 用户消息
-          <div className="w-full space-y-3 text-primary">
+          <div className="flex w-full min-w-0 flex-col gap-3">
             {/* 显示用户消息中的图片 */}
             {images.length > 0 && (
               <ChatImages
@@ -633,8 +644,8 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
             {quoteData && (
               <div className="flex flex-col gap-1 text-[11px]">
                 <div className="flex items-center gap-1">
-                  <QuoteIcon className="size-3 text-primary/75" />
-                  <span className="text-primary/75">
+                  <QuoteIcon className="size-3 opacity-75" />
+                  <span className="opacity-75">
                     {quoteData.startLine !== -1 && quoteData.endLine !== -1 ? (
                       quoteData.startLine === quoteData.endLine ? (
                         t('record.chat.quote.lineSingle', { fileName: quoteData.fileName, line: quoteData.startLine })
@@ -646,7 +657,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
                     )}
                   </span>
                 </div>
-                <div className="text-primary/50 line-clamp-2 whitespace-pre-wrap pl-4">
+                <div className="line-clamp-2 whitespace-pre-wrap pl-4 opacity-60">
                   {quoteData.fullContent}
                 </div>
               </div>

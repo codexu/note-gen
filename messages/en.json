@@ -4399,6 +4399,11 @@
           "thought": "Thought",
           "action": "Action",
           "toolCalls": "Tool Calls",
+          "timeline": {
+            "elapsed": "Took {duration}s",
+            "processing": "Processing for {duration}s",
+            "tools": "{count, plural, one {# tool call} other {# tool calls}}"
+          },
           "resultSummary": "Result summary",
           "queryParameters": "Query parameters",
           "toolResult": "Tool result",

@@ -41,7 +41,7 @@ const questionCatalog = defineCatalog(schema, {
 
 const components: Components<typeof questionCatalog> = {
   Stack: ({ children }) => <FieldGroup>{children}</FieldGroup>,
-  Question: ({ props, children }) => <Card size="sm" className={cn('w-full min-w-0', !props.embedded && 'mb-2')}>
+  Question: ({ props, children }) => <Card size="sm" className={cn('w-full min-w-0 ring-inset', !props.embedded && 'mb-2')}>
     <CardHeader>
       <div className="flex flex-wrap items-center gap-2">
         {props.total > 1 && <Badge variant="outline">{props.position}/{props.total}</Badge>}

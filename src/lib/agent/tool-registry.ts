@@ -1,4 +1,5 @@
 import type OpenAI from 'openai'
+import { withToolDisplayTitle } from './tool-display'
 import useArticleStore from '@/stores/article'
 import { useMcpStore } from '@/stores/mcp'
 import { callTool as callMcpTool } from '@/lib/mcp/tools'
@@ -2325,7 +2326,7 @@ export class AgentToolRegistry {
                 .join('; ')}.`
             : tool.description
         }`,
-        parameters: (
+        parameters: withToolDisplayTitle(
           tool.name === 'skill_execute_script' && loadedSkillIds.size > 0
             ? {
                 ...tool.inputSchema,

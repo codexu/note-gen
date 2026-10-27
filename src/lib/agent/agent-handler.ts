@@ -334,12 +334,14 @@ export class AgentHandler {
 
   private appendTrace(event: AgentTraceEvent) {
     const current = this.config.stateAdapter.getState()
+    const traceEvents = current.traceEvents || []
+    const exists = traceEvents.some(item => item.id === event.id)
     this.config.stateAdapter.setState({
       runId: event.runId,
-      traceEvents: [
-        ...(current.traceEvents || []).filter((item) => item.id !== event.id),
-        event,
-      ],
+      // Completing an item must not move it past items that started after it.
+      traceEvents: exists
+        ? traceEvents.map(item => item.id === event.id ? { ...event } : item)
+        : [...traceEvents, { ...event }],
       currentThought: event.message || event.title,
     })
     this.config.onThought?.(event.message || event.title)

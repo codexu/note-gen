@@ -41,7 +41,7 @@ mod system_permissions;
 mod tray;
 mod web_clipper;
 mod window;
-#[cfg(all(target_os = "windows", not(debug_assertions)))]
+#[cfg(target_os = "windows")]
 mod windows_installer;
 
 use ai::{
@@ -117,6 +117,19 @@ fn is_developer_tools_open(window: tauri::WebviewWindow) -> bool {
     window.is_devtools_open()
 }
 
+#[tauri::command]
+fn get_desktop_update_target(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        windows_installer::update_target(&app.package_info().version.to_string()).map(Some)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         // 单实例插件必须最先加载，避免 Windows 文件关联二次启动时继续初始化托盘等资源。
@@ -164,6 +177,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         // 注册命令处理器
         .invoke_handler(tauri::generate_handler![
+            get_desktop_update_target,
             browser::browser_create,
             browser::browser_set_theme,
             browser::browser_set_bounds,

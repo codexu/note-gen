@@ -70,6 +70,77 @@ fn has_current_msi(install_dir: &Path, version: &str) -> bool {
     false
 }
 
+fn has_current_nsis(install_dir: &Path, version: &str) -> bool {
+    for hive in [HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE] {
+        for view in [KEY_WOW64_64KEY, KEY_WOW64_32KEY] {
+            let Ok(product) = RegKey::predef(hive).open_subkey_with_flags(
+                format!(r"{UNINSTALL_KEY}\NoteGen"),
+                KEY_READ | view,
+            ) else {
+                continue;
+            };
+            if product.get_value::<String, _>("DisplayName").ok().as_deref() != Some("NoteGen")
+                || product.get_value::<String, _>("DisplayVersion").ok().as_deref() != Some(version)
+                || product.get_value::<u32, _>("WindowsInstaller").unwrap_or(0) != 0
+                || product.get_value::<u32, _>("NoModify").ok() != Some(1)
+                || product.get_value::<u32, _>("NoRepair").ok() != Some(1)
+                || !install_location(&product)
+                    .is_some_and(|location| same_directory(&location, install_dir))
+            {
+                continue;
+            }
+            let Ok(command) = product.get_value::<String, _>("UninstallString") else {
+                continue;
+            };
+            let Some(uninstaller) = command
+                .strip_prefix('"')
+                .and_then(|value| value.strip_suffix('"'))
+            else {
+                continue;
+            };
+            let uninstaller = Path::new(uninstaller);
+            if uninstaller.file_name().and_then(|name| name.to_str()) == Some("uninstall.exe")
+                && uninstaller
+                    .parent()
+                    .and_then(|path| std::fs::canonicalize(path).ok())
+                    .is_some_and(|location| same_directory(&location, install_dir))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+pub fn update_target(version: &str) -> Result<String, String> {
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    let parent = executable
+        .parent()
+        .ok_or("Cannot locate the NoteGen installation directory")?;
+    let install_dir = std::fs::canonicalize(parent).map_err(|error| error.to_string())?;
+    // Match this running version and directory, not another installation or stale entry.
+    let installer = match (
+        has_current_msi(&install_dir, version),
+        has_current_nsis(&install_dir, version),
+    ) {
+        (true, false) => "msi",
+        (false, true) => "nsis",
+        _ => {
+            return Err(
+                "Cannot reliably identify the NoteGen installer. Please reinstall using your preferred installer before updating."
+                    .to_string(),
+            );
+        }
+    };
+    let arch = match std::env::consts::ARCH {
+        "x86_64" => "x86_64",
+        "x86" => "i686",
+        "aarch64" => "aarch64",
+        arch => return Err(format!("Unsupported Windows update architecture: {arch}")),
+    };
+    Ok(format!("windows-{arch}-{installer}"))
+}
+
 // Never run the NSIS uninstaller: it would delete files now owned by MSI.
 // Only remove the known per-user NSIS entry when the running release has an
 // MSI registration for this exact version and directory. Separate installs,
@@ -99,6 +170,11 @@ pub fn cleanup_legacy_nsis(version: &str) -> io::Result<()> {
             Ok(value) => value == 0,
             Err(error) => error.kind() == io::ErrorKind::NotFound,
         };
+        // A current NSIS registration may own these files after a manual reinstall.
+        // Leave ambiguous same-version installations intact instead of deleting it.
+        if legacy.get_value::<String, _>("DisplayVersion").ok().as_deref() == Some(version) {
+            continue;
+        }
         if legacy
             .get_value::<String, _>("DisplayName")
             .ok()

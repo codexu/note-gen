@@ -287,10 +287,12 @@ jobs:
             bundlePath: 'src-tauri/target/release/bundle/appimage/NoteGen_*.AppImage'
             noSign: true
           - platform: 'windows-latest'
-            # Keep manual installs and the legacy windows-x86_64 updater on MSI.
-            args: '--bundles msi'
+            # Publish both formats; the legacy updater target continues to use MSI.
+            args: '--bundles nsis,msi'
             name: 'windows'
-            bundlePath: 'src-tauri\target\release\bundle\msi\NoteGen_*.msi'
+            bundlePath: |
+              src-tauri/target/release/bundle/nsis/NoteGen_*
+              src-tauri/target/release/bundle/msi/NoteGen_*
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -442,11 +444,36 @@ jobs:
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           security delete-keychain $KEYCHAIN_PATH || true
 
+  finalize-windows-updater:
+    needs: publish-tauri
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERSION: ${{ needs.publish-tauri.outputs.appVersion }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Run after every desktop job has finished writing latest.json.
+      - name: Add installer-specific Windows update targets
+        run: |
+          set -euo pipefail
+          test -n "$VERSION"
+          gh release download "note-gen-v${VERSION}" --dir dist-updater --clobber \
+            --pattern latest.json --pattern '*.exe*' --pattern '*.msi*'
+          python3 scripts/generate-windows-updater.py \
+            --directory dist-updater \
+            --version "$VERSION" \
+            --repository "$GITHUB_REPOSITORY"
+          gh release upload "note-gen-v${VERSION}" dist-updater/latest.json --clobber
+
   mirror-release-to-aliyun:
     needs:
       - build-android
       - publish-tauri
-    if: ${{ always() && needs.build-android.result == 'success' && (needs.publish-tauri.result == 'success' || github.repository == 'codexu/note-gen-deploy-test') }}
+      - finalize-windows-updater
+    if: ${{ always() && needs.build-android.result == 'success' && ((needs.publish-tauri.result == 'success' && needs.finalize-windows-updater.result == 'success') || github.repository == 'codexu/note-gen-deploy-test') }}
     permissions:
       contents: read
     runs-on: ubuntu-latest

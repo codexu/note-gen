@@ -1,4 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store'
+import { invoke } from '@tauri-apps/api/core'
 import { create } from 'zustand'
 import { check, Update } from '@tauri-apps/plugin-updater'
 import { fetch as httpFetch } from '@tauri-apps/plugin-http'
@@ -131,8 +132,11 @@ const useUpdateStore = create<UpdateState>((set, get) => ({
   
   checkForUpdates: async (options) => {
     try {
+      // Never fall back to the legacy MSI target if installation detection fails.
+      const target = await invoke<string | null>('get_desktop_update_target')
       const update = await check({
         timeout: 5000,
+        ...(target ? { target } : {}),
       })
       
       if (update) {
@@ -152,6 +156,7 @@ const useUpdateStore = create<UpdateState>((set, get) => ({
       }
     } catch (error) {
       // 启动时保持静默，设置页由调用方显示带上下文的错误。
+      set({ update: null, hasUpdate: false })
       if (options?.throwOnError) throw error
     }
   },

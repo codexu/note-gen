@@ -34,6 +34,11 @@
     "active": true,
     "createUpdaterArtifacts": false,
     "targets": "all",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
     "resources": [
       "icons",
       "resources/ocr/*"

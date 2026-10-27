@@ -214,6 +214,9 @@ async function createRawConversationRemoteStorage(store: Store): Promise<Convers
           repo,
           path,
           sha: getRemoteSha(existing),
+          // Keep the checked SHA; an unguarded upload refreshes it and can
+          // overwrite a concurrent update made after the content comparison.
+          guarded: expectedContent !== undefined,
           message: `Sync conversation ${path.split('/').pop() || 'data'}`,
         }))
       },
@@ -1487,34 +1490,35 @@ export async function uploadConversations() {
   for (const item of activeItems) {
     const itemStartedAt = Date.now()
     const remoteEntry = remoteEntries.get(item.syncId)
-    let expectedRemoteItemContent: string | null = null
-    let parsedRemoteItem: ConversationSyncItem | null = null
+    // A previous attempt may have published the item but not its index entry.
+    // Inspect the actual file even without an index entry, and use that exact
+    // snapshot both for merging and for the conditional write below.
+    const remoteItemPath = remoteEntry?.path ?? getConversationItemPath(item.syncId)
+    const expectedRemoteItemContent = await storage.read(remoteItemPath)
+    if (remoteEntry && expectedRemoteItemContent === null) return false
+    const parsedRemoteItem = expectedRemoteItemContent !== null
+      ? parseConversationSyncItem(expectedRemoteItemContent)
+      : null
+    if (expectedRemoteItemContent !== null
+      && (!parsedRemoteItem || parsedRemoteItem.syncId !== item.syncId)) return false
+    const remoteMatchesLocal = parsedRemoteItem !== null
+      && stableSerialize(parsedRemoteItem) === stableSerialize(item)
     if (remoteEntry?.syncUpdatedAt === item.syncUpdatedAt
-      && versions[item.syncId] === item.syncUpdatedAt) {
-      expectedRemoteItemContent = await storage.read(remoteEntry.path)
-      if (!expectedRemoteItemContent) return false
-      parsedRemoteItem = parseConversationSyncItem(expectedRemoteItemContent)
-      if (!parsedRemoteItem || parsedRemoteItem.syncId !== item.syncId) return false
-      if (stableSerialize(parsedRemoteItem) === stableSerialize(item)) {
-        publishedItems.push(item)
-        recordSyncTiming('conversationItemUpload', itemStartedAt, {
-          messages: item.messages.length,
-          mode: 'unchanged',
-        })
-        continue
-      }
+      && versions[item.syncId] === item.syncUpdatedAt
+      && remoteMatchesLocal) {
+      publishedItems.push(item)
+      recordSyncTiming('conversationItemUpload', itemStartedAt, {
+        messages: item.messages.length,
+        mode: 'unchanged',
+      })
+      continue
     }
     let itemToPublish = item
-    if (remoteEntry && expectedRemoteItemContent === null) {
-      expectedRemoteItemContent = await storage.read(remoteEntry.path)
-      if (!expectedRemoteItemContent) return false
-    }
-    if (remoteEntry && (
-      versions[item.syncId] !== remoteEntry.syncUpdatedAt
-      || parsedRemoteItem !== null
+    if (parsedRemoteItem && (
+      versions[item.syncId] !== parsedRemoteItem.syncUpdatedAt
+      || !remoteMatchesLocal
     )) {
-      const remoteItem = parsedRemoteItem || parseConversationSyncItem(expectedRemoteItemContent)
-      if (!remoteItem || remoteItem.syncId !== item.syncId) return false
+      const remoteItem = parsedRemoteItem
       await downloadConversationAssets([remoteItem])
       const mergedTombstones = mergeTombstones(
         tombstones,

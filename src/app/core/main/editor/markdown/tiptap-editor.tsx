@@ -28,6 +28,7 @@ import { Extension, nodeInputRule, type Editor as CoreEditor, type JSONContent, 
 import { Fragment, Slice, type Node as ProseMirrorNode, type NodeType } from '@tiptap/pm/model'
 import { AllSelection, EditorState, Plugin, PluginKey, Selection, TextSelection, type Transaction } from '@tiptap/pm/state'
 import { closeHistory, redoDepth, undoDepth } from '@tiptap/pm/history'
+import { StepMap } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
@@ -2444,21 +2445,6 @@ function resetEditorHistory(editor: CoreEditor): void {
   editor.view.updateState(nextState)
 }
 
-function setEditorContentWithoutUndo(editor: CoreEditor, content: string | JSONContent): void {
-  editor
-    .chain()
-    .command(({ tr }) => {
-      closeHistory(tr)
-      return true
-    })
-    .setMeta('addToHistory', false)
-    .setContent(content, { contentType: typeof content === 'string' ? 'markdown' : 'json' })
-    .run()
-
-  resetEditorHistory(editor)
-  emitEditorUndoRedoState(editor)
-}
-
 export function TipTapEditor({
   initialContent,
   onChange,
@@ -3172,21 +3158,51 @@ export function TipTapEditor({
   const trySetMarkdownContent = useCallback((
     targetEditor: CoreEditor,
     content: string,
-    options: { emitUpdate?: boolean; resetHistory?: boolean; preparedTokens?: PreparedMarkdownTokens | null } = {}
+    options: { emitUpdate?: boolean; resetHistory?: boolean; preserveViewState?: boolean; preparedTokens?: PreparedMarkdownTokens | null } = {}
   ): boolean => {
+    const previousState = options.preserveViewState ? targetEditor.state : null
+    const scrollPositions = options.preserveViewState
+      ? [scrollContainerRef.current, targetEditor.view.dom]
+        .filter((element): element is HTMLElement => element !== null)
+        .map(element => ({ element, top: element.scrollTop, left: element.scrollLeft }))
+      : []
     applyingReadOnlySnapshotRef.current = true
     try {
       const parsedContent = options.preparedTokens?.source === content
         ? parsePreparedMarkdown(targetEditor, options.preparedTokens)
         : null
       const editorContent = parsedContent ?? content
+      const chain = targetEditor.chain()
       if (options.resetHistory) {
-        setEditorContentWithoutUndo(targetEditor, editorContent)
-      } else {
-        targetEditor.commands.setContent(editorContent, {
+        chain.command(({ tr }) => {
+          closeHistory(tr)
+          return true
+        }).setMeta('addToHistory', false)
+      }
+      chain
+        .setContent(editorContent, {
           contentType: typeof editorContent === 'string' ? 'markdown' : 'json',
           emitUpdate: options.emitUpdate,
         })
+        .command(({ tr }) => {
+          if (!previousState) return true
+          const start = previousState.doc.content.findDiffStart(tr.doc.content)
+          const end = previousState.doc.content.findDiffEnd(tr.doc.content)
+          let mapping = StepMap.empty
+          if (start !== null && end) {
+            // Repeated text can make the common prefix and suffix overlap.
+            const overlap = Math.max(0, start - Math.min(end.a, end.b))
+            mapping = new StepMap([start, end.a + overlap - start, end.b + overlap - start])
+          }
+          // Restore in the same transaction so no listener sees a cursor
+          // temporarily mapped to the end by the full-document replacement.
+          tr.setSelection(previousState.selection.getBookmark().map(mapping).resolve(tr.doc))
+          return true
+        })
+        .run()
+      if (options.resetHistory) {
+        resetEditorHistory(targetEditor)
+        emitEditorUndoRedoState(targetEditor)
       }
       setMarkdownParseError(null)
       setHasUnparsedSourceChanges(false)
@@ -3200,6 +3216,10 @@ export function TipTapEditor({
       setHasUnparsedSourceChanges(true)
       return false
     } finally {
+      for (const { element, top, left } of scrollPositions) {
+        element.scrollTop = top
+        element.scrollLeft = left
+      }
       applyingReadOnlySnapshotRef.current = false
     }
   }, [])
@@ -3269,7 +3289,7 @@ export function TipTapEditor({
         sourceMarkdownRef.current = markdown
         setSourceMarkdown(markdown)
         if (!isSourceViewRef.current && !isInitializingVisualContentRef.current) {
-          trySetMarkdownContent(editor, markdown, { resetHistory: true })
+          trySetMarkdownContent(editor, markdown, { resetHistory: true, preserveViewState: true })
         }
         onChangeRef.current?.(markdown)
         queueMicrotask(() => {
@@ -4440,7 +4460,7 @@ export function TipTapEditor({
   }, [activeFilePath, isActive, isSourceView, restoreEditorViewState])
 
   const scrollMobileSelectionIntoView = useCallback(() => {
-    if (!isMobile || !editor || editor.isDestroyed || !scrollContainerRef.current) {
+    if (!isMobile || !editor || editor.isDestroyed || !editor.isFocused || !scrollContainerRef.current) {
       return
     }
 
@@ -4498,6 +4518,9 @@ export function TipTapEditor({
     const isCurrentOperation = captureEditorOperation()
 
     const scheduleSelectionScroll = (minimumDelay = 0) => {
+      if (!editor.isFocused || externalUpdateCounterRef.current > 0 || applyingReadOnlySnapshotRef.current) {
+        return
+      }
       if (scrollTimer !== null) {
         window.clearTimeout(scrollTimer)
       }
@@ -5222,6 +5245,10 @@ export function TipTapEditor({
         frame = null
         try {
           if (!isCurrentOperation()) return
+          const scrollContainer = scrollContainerRef.current
+          if (scrollContainer) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight
+          }
           if (editorContainerRef.current) {
             const proseMirror = editorContainerRef.current.querySelector('.ProseMirror') as HTMLElement
             if (proseMirror) {
@@ -6137,7 +6164,7 @@ export function TipTapEditor({
             if (sequence !== canonicalExternalUpdateSequenceRef.current) {
               return
             }
-            trySetMarkdownContent(editor, newContent)
+            trySetMarkdownContent(editor, newContent, { preserveViewState: true })
           } finally {
             isReadyRef.current = true
             externalUpdateCounterRef.current = Math.max(0, externalUpdateCounterRef.current - 1)
@@ -6223,7 +6250,7 @@ export function TipTapEditor({
           if (sequence !== canonicalExternalUpdateSequenceRef.current) {
             return
           }
-          trySetMarkdownContent(editor, event.content)
+          trySetMarkdownContent(editor, event.content, { preserveViewState: true })
         } finally {
           isReadyRef.current = true
           if (pendingSyncUpdateRef.current === event) {

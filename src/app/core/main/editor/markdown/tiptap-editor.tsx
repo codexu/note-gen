@@ -156,6 +156,7 @@ import {
 } from '@/lib/self-hosted-sync/markdown-collaboration'
 import './style.css'
 import { MainStatusBarPortal } from '../../main-status-bar'
+import { SelfHostedNoteConflicts } from './sync/self-hosted-note-conflicts'
 import { PluginEditorContextMenu } from '@/components/plugins/plugin-editor-context-menu'
 
 const MathEditorDialog = dynamic(
@@ -2624,6 +2625,7 @@ export function TipTapEditor({
   const [isCanvasDragOver, setIsCanvasDragOver] = useState(false)
   const [isCanvasDropPending, setIsCanvasDropPending] = useState(false)
   const [selfHostedCollaborators, setSelfHostedCollaborators] = useState<SelfHostedRemoteCursor[]>([])
+  const [selfHostedSessionRevision, setSelfHostedSessionRevision] = useState(0)
   const aiActionHandlersRef = useRef({
     polish: async () => {},
     concise: async () => {},
@@ -3262,6 +3264,23 @@ export function TipTapEditor({
   }, [])
 
   useEffect(() => {
+    let disposed = false
+    const rootPromise = getCurrentEditorWorkspaceRoot().catch(() => null)
+    const resetSession = async (event: Events['self-hosted-note-collaboration-reset']) => {
+      if (!editorPathsReferToSameFile(activeFilePath, event.path, event.workspaceRoot)) return
+      const root = await rootPromise
+      if (!disposed && root && workspaceRootsReferToSameLocation(root, event.workspaceRoot)) {
+        setSelfHostedSessionRevision(value => value + 1)
+      }
+    }
+    emitter.on('self-hosted-note-collaboration-reset', resetSession)
+    return () => {
+      disposed = true
+      emitter.off('self-hosted-note-collaboration-reset', resetSession)
+    }
+  }, [activeFilePath, workspacePath])
+
+  useEffect(() => {
     let cancelled = false
     let stopPresence: (() => void) | null = null
     const setup = async () => {
@@ -3432,6 +3451,7 @@ export function TipTapEditor({
     isMobile,
     primaryBackupMethod,
     selfHostedRuntimeReady,
+    selfHostedSessionRevision,
     standalone,
     tSelfHosted,
     trySetMarkdownContent,
@@ -7767,6 +7787,14 @@ export function TipTapEditor({
           } : {}),
         } as CSSProperties}
       >
+      {!standalone && primaryBackupMethod === 'selfHosted' && (
+        <SelfHostedNoteConflicts
+          activeFilePath={activeFilePath}
+          isActive={isActive}
+          getMarkdown={getCurrentMarkdownSnapshot}
+          disabled={readOnly || !editable || isInitializingVisualContent}
+        />
+      )}
       {developerMode && developerPerformanceInfo ? (
         <div className="pointer-events-none absolute left-3 top-3 z-40 rounded-md border bg-background/90 px-2.5 py-2 font-mono text-[11px] leading-5 text-muted-foreground shadow-sm backdrop-blur">
           <div>{t('developerPerformance.documentSize')}: {formatDeveloperDocumentSize(sourceMarkdown)}</div>

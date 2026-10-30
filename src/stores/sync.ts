@@ -64,6 +64,8 @@ interface SyncState {
 
   selfHostedConnected: boolean
   setSelfHostedConnected: (connected: boolean) => void
+  selfHostedServiceAvailable: boolean | null
+  setSelfHostedServiceAvailable: (available: boolean) => void
   selfHostedRuntimeReady: boolean
   setSelfHostedRuntimeReady: (ready: boolean) => void
 
@@ -190,7 +192,14 @@ const useSyncStore = create<SyncState>((set) => ({
 
   selfHostedConnected: false,
   setSelfHostedConnected: (connected) => {
-    set(state => ({ selfHostedConnected: connected, providerChecks: { ...state.providerChecks, selfHosted: 'settled' } }))
+    set(state => ({ selfHostedConnected: connected,
+      ...(!connected ? { selfHostedServiceAvailable: null } : {}),
+      providerChecks: { ...state.providerChecks, selfHosted: 'settled' } }))
+  },
+  selfHostedServiceAvailable: null,
+  setSelfHostedServiceAvailable: available => {
+    set(state => ({ selfHostedServiceAvailable: available,
+      providerChecks: { ...state.providerChecks, selfHosted: 'settled' } }))
   },
   selfHostedRuntimeReady: false,
   setSelfHostedRuntimeReady: (ready) => {

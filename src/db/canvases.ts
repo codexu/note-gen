@@ -173,7 +173,7 @@ export async function insertCanvasProject(input: {
   return getCanvasProject(input.id)
 }
 
-export async function updateCanvasDocument(id: string, document: CanvasDocument) {
+export async function updateCanvasDocument(id: string, document: CanvasDocument, options: { enqueueSync?: boolean } = {}) {
   const db = await getDb()
   const updatedAt = Date.now()
   const content = JSON.stringify(document)
@@ -181,11 +181,11 @@ export async function updateCanvasDocument(id: string, document: CanvasDocument)
     'update canvases set content = $1, schemaVersion = $2, updatedAt = $3 where id = $4',
     [content, document.schemaVersion, updatedAt, id]
   )
-  enqueueCanvasSync('canvas-updated')
+  if (options.enqueueSync !== false) enqueueCanvasSync('canvas-updated')
   await invalidateCanvasKnowledgeIndex(id)
   enqueueCanvasKnowledgeIndex(id)
   const project = await getCanvasProject(id)
-  await recordCanvasProjectActivity(id, project?.title || id, updatedAt)
+  if (options.enqueueSync !== false) await recordCanvasProjectActivity(id, project?.title || id, updatedAt)
   return updatedAt
 }
 

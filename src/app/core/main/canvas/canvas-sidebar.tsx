@@ -436,11 +436,11 @@ export function CanvasSidebar() {
 
   const handleDelete = async (id: string) => {
     if (processingCanvas) return
-    const syncConfigured = await isAutoDataSyncProviderConfigured()
-    if (syncConfigured) setProcessingCanvas({ id, action: 'delete' })
+    setProcessingCanvas({ id, action: 'delete' })
     const tabId = getCanvasTabPath(id)
     const wasActive = useArticleStore.getState().activeTabId === tabId
     try {
+      const syncConfigured = await isAutoDataSyncProviderConfigured()
       const result = await deleteProject(id, syncConfigured)
       if (result === 'synced') {
         await refreshSyncedVersions()

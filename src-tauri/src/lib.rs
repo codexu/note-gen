@@ -321,6 +321,11 @@ pub fn run() {
             plugins::cleanup_plugin_artifacts(app.handle());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Resumed = event {
+                let _ = tauri::Emitter::emit(app_handle, "self-hosted-app-resumed", ());
+            }
+        });
 }

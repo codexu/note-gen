@@ -79,7 +79,7 @@ function rememberThumbnailRepairAttempt(key: string) {
   if (oldestKey) thumbnailRepairAttempts.delete(oldestKey)
 }
 
-export type CanvasDeleteResult = 'local' | 'synced' | 'pending'
+export type CanvasDeleteResult = 'local' | 'synced' | 'queued' | 'pending'
 
 interface CanvasState {
   projects: CanvasProject[]
@@ -99,6 +99,7 @@ interface CanvasState {
   setSelectionContext: (context: CanvasSelectionContext | null) => void
   setPendingFocus: (focus: { canvasId: string; nodeIds: string[] } | null) => void
   updateDocument: (id: string, document: CanvasDocument) => void
+  applyRemoteDocument: (id: string, document: CanvasDocument) => Promise<void>
   updateHistory: (id: string, history: CanvasHistoryState) => void
   saveProject: (id: string) => Promise<void>
   refreshThumbnail: (id: string) => Promise<void>
@@ -129,6 +130,8 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     set(state => ({
       projects,
       deletedProjects: allProjects.filter(project => project.deletedAt),
+      activeCanvasId: projects.some(project => project.id === state.activeCanvasId) ? state.activeCanvasId : null,
+      selectionContext: projects.some(project => project.id === state.selectionContext?.canvasId) ? state.selectionContext : null,
       documents: Object.fromEntries(projects.map(project => [
         project.id,
         project.id === state.activeCanvasId
@@ -233,6 +236,20 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     }, 1000))
   },
 
+  applyRemoteDocument: async (id, document) => {
+    // Remote materialization must not become another local CRDT edit or
+    // schedule a full snapshot upload back to the sender.
+    const timer = saveTimers.get(id)
+    if (timer) clearTimeout(timer)
+    saveTimers.delete(id)
+    set(state => ({ documents: { ...state.documents, [id]: document } }))
+    const updatedAt = await updateCanvasDocument(id, document, { enqueueSync: false })
+    set(state => ({
+      projects: state.projects.map(project => project.id === id
+        ? { ...project, document, updatedAt } : project),
+    }))
+  },
+
   updateHistory: (id, history) => {
     const nextHistory = structuredClone(history)
     set(state => ({
@@ -334,6 +351,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     if (useSettingStore.getState().primaryBackupMethod === 'selfHosted') {
       const { enqueueCanvasSnapshot } = await import('@/lib/self-hosted-sync/outbox')
       await enqueueCanvasSnapshot(id)
+      enqueueAutoDataSync('records', 'canvas-pinned')
     }
   },
 
@@ -349,6 +367,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     if (useSettingStore.getState().primaryBackupMethod === 'selfHosted') {
       const { enqueueCanvasSnapshot } = await import('@/lib/self-hosted-sync/outbox')
       await enqueueCanvasSnapshot(id)
+      enqueueAutoDataSync('records', 'canvas-renamed')
     }
   },
 
@@ -372,6 +391,8 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     if (selfHosted) {
       const { enqueueCanvasSnapshot } = await import('@/lib/self-hosted-sync/outbox')
       await enqueueCanvasSnapshot(id, 'delete')
+      const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
+      void getSelfHostedSyncRuntime().wake('canvas-deleted')
     }
     const syncConfigured = selfHosted || (configured ?? await isAutoDataSyncProviderConfigured())
     let synced = false
@@ -398,7 +419,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
       }
     })
     if (!syncConfigured) return 'local'
-    if (selfHosted) return 'pending'
+    if (selfHosted) return 'queued'
     return synced ? 'synced' : 'pending'
   },
 
@@ -431,6 +452,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     if (useSettingStore.getState().primaryBackupMethod === 'selfHosted') {
       const { enqueueCanvasSnapshot } = await import('@/lib/self-hosted-sync/outbox')
       await enqueueCanvasSnapshot(id)
+      enqueueAutoDataSync('records', 'canvas-restored')
     }
     return project
   },

@@ -9,7 +9,7 @@ interface Targets {
   parentIds: Set<string>
   domain: string | undefined
 }
-interface Change { id: number; domain: string; localKey: string; state: string }
+interface Change { id: number; domain: string; localKey: string; state: string; operation: 'upsert' | 'delete' }
 interface Command {
   payload: string
   objectId: string | null
@@ -95,7 +95,7 @@ async function mutationTargets(context: Context, event: SyncEvent, payload?: Rec
 
 async function targetChanges(context: Context, targets: Targets) {
   return (await getDb()).select<Change[]>(
-    `select id, domain, local_key as localKey, state from self_hosted_local_changes
+    `select id, domain, local_key as localKey, state, operation from self_hosted_local_changes
      where state in ('pending', 'queued') and (workspace_id = $1 or workspace_id is null)
        and ((domain || ':' || local_key) in (select value from json_each($2))
          or ($3 = 'setting' and domain = 'setting'))`,
@@ -103,9 +103,10 @@ async function targetChanges(context: Context, targets: Targets) {
   )
 }
 
-export async function pendingPersonalChangesForEvent(context: Context, event: SyncEvent, payload: Record<string, unknown>) {
+export async function pendingPersonalChangesForEvent(context: Context, event: SyncEvent, payload: Record<string, unknown>, includeQueued = false) {
   if (context.workspaceType !== 'account-data' || !event.objectId) return [] as Change[]
-  return (await targetChanges(context, await mutationTargets(context, event, payload))).filter(change => change.state === 'pending')
+  return (await targetChanges(context, await mutationTargets(context, event, payload)))
+    .filter(change => includeQueued || change.state === 'pending')
 }
 
 /** A failed attachment elsewhere in the workspace must not guard this object's rows. */

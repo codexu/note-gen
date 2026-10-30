@@ -305,6 +305,10 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
       [Date.now(), id]
     )
     await refresh()
+    // Confirming the preserved copy must also release its rejected command;
+    // mobile has no desktop status-bar retry button to perform this step.
+    const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
+    void getSelfHostedSyncRuntime().wake('manual-retry')
   }
 
   async function transferViewerConflict(conflict: ConflictRow) {

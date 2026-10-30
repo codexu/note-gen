@@ -4,6 +4,7 @@ import type { CanvasDocument } from '@/types/canvas'
 import { enqueueCanvasSnapshot } from './outbox'
 import { captureSelfHostedCollaboration, openCollaborativeObject } from './collaboration'
 import { addCanvasRecordObjectIds, localizeCanvasRecords } from './references'
+import { getSelfHostedSyncRuntime } from './runtime'
 
 const LOCAL_ORIGIN = Symbol('notegen-canvas-local')
 const REMOTE_ORIGIN = Symbol('notegen-canvas-remote')
@@ -66,16 +67,28 @@ export async function syncCanvasDocument(
   if (options.flush !== false) await session.transport.flush()
 }
 
-export async function closeCanvasCollaboration(canvasId: string) {
-  const session = await sessions.get(canvasId)
+export async function openCanvasCollaboration(canvasId: string, initial: CanvasDocument) {
+  await getCanvasSession(canvasId, initial)
+}
+
+export async function closeCanvasCollaboration(canvasId: string, options: { flush?: boolean } = {}) {
+  const pending = sessions.get(canvasId)
   sessions.delete(canvasId)
+  localActivity.delete(canvasId)
+  if (options.flush === false) {
+    // A session still opening may itself be waiting for the current runtime
+    // run. Cancel it without making inbox deletion await that same run.
+    void pending?.then(session => { if (session) disposeCanvasSession(session) })
+      .catch(error => console.warn('[self-hosted-sync] Unable to close deleted canvas session', error))
+    return
+  }
+  const session = await pending
   if (!session) return
   session.closing = true
   try {
     await persistCanvasUpdates(session)
     await session.transport.flush()
   } finally { disposeCanvasSession(session) }
-  localActivity.delete(canvasId)
 }
 
 function disposeCanvasSession(session: CanvasSession) {
@@ -131,7 +144,13 @@ async function getCanvasSession(canvasId: string, initial: CanvasDocument) {
     if (session) disposeCanvasSession(session)
     sessions.delete(canvasId)
   }
-  const created = createCanvasSession(canvasId, initial)
+  const created: Promise<CanvasSession | null> = createCanvasSession(canvasId, initial).then(session => {
+    if (sessions.get(canvasId) !== created) {
+      if (session) disposeCanvasSession(session)
+      return null
+    }
+    return session
+  })
   sessions.set(canvasId, created)
   void created.catch(() => { if (sessions.get(canvasId) === created) sessions.delete(canvasId) })
   return created
@@ -140,7 +159,7 @@ async function getCanvasSession(canvasId: string, initial: CanvasDocument) {
 async function createCanvasSession(canvasId: string, initial: CanvasDocument): Promise<CanvasSession | null> {
   const isActive = captureSelfHostedCollaboration()
   if (!isActive()) return null
-  const workspaceId = await enqueueCanvasSnapshot(canvasId)
+  const workspaceId = await enqueueCanvasSnapshot(canvasId, 'upsert', { onlyIfMissing: true })
   if (!workspaceId || !isActive()) return null
   const database = await getDb()
   const mappings = await database.select<Array<{ objectId: string }>>(
@@ -159,6 +178,20 @@ async function createCanvasSession(canvasId: string, initial: CanvasDocument): P
     )
   }
   if (!isActive()) return null
+  const accepted = await database.select<Array<{ found: number }>>(
+    'select 1 as found from self_hosted_revisions where workspace_id=$1 and object_id=$2 limit 1',
+    [workspaceId, objectId],
+  )
+  if (!accepted.length) {
+    // A document update cannot precede creation of its owning object.
+    await getSelfHostedSyncRuntime().wake('canvas-object-activation')
+    if (!isActive()) return null
+    const activated = await database.select<Array<{ found: number }>>(
+      'select 1 as found from self_hosted_revisions where workspace_id=$1 and object_id=$2 limit 1',
+      [workspaceId, objectId],
+    )
+    if (!activated.length) throw new Error('Canvas object activation is pending')
+  }
   const transport = await openCollaborativeObject(workspaceId, objectId, objectId, 'canvas')
   if (!isActive()) { transport.close(); return null }
   const document = new Y.Doc()
@@ -186,15 +219,19 @@ async function createCanvasSession(canvasId: string, initial: CanvasDocument): P
         console.warn('[self-hosted-sync] canvas.local-update-failed', { canvasId, error })
       })
   })
+  let receivedRemoteState = false
   try {
-    await transport.consume(update => Y.applyUpdate(document, update, REMOTE_ORIGIN))
+    await transport.consume(update => {
+      receivedRemoteState = true
+      Y.applyUpdate(document, update, REMOTE_ORIGIN)
+    })
   } catch (error) {
     disposeCanvasSession(session)
     if (!isActive()) return null
     throw error
   }
   if (!isActive()) { disposeCanvasSession(session); return null }
-  if (session.nodes.size === 0 && session.edges.size === 0) {
+  if (!receivedRemoteState) {
     try {
       await syncCanvasIntoSession(session, initial)
     } catch (error) {
@@ -295,7 +332,7 @@ async function materializeRemoteCanvas(
   session.knownNodeIds = new Set(next.nodes.map(node => node.id))
   session.knownEdgeIds = new Set(next.edges.map(edge => edge.id))
   if (JSON.stringify(current) !== JSON.stringify(next)) {
-    useCanvasStore.getState().updateDocument(canvasId, next)
+    await useCanvasStore.getState().applyRemoteDocument(canvasId, next)
   }
 }
 

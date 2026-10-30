@@ -228,6 +228,10 @@ export async function deleteStructuredObject(workspaceId: string, objectId: stri
       ).then(() => undefined)
     }
     if (domain === 'canvas') {
+      const { closeCanvasCollaboration } = await import('./canvas-collaboration')
+      // Inbox application already owns the runtime run; awaiting another
+      // wake here would wait on itself. Stop this deleted canvas's session.
+      await closeCanvasCollaboration(localKey, { flush: false })
       return database.execute(
         `update canvases set deletedAt = $1, updatedAt = $1 where id = $2`,
         [Date.now(), localKey]
@@ -289,6 +293,8 @@ async function applySettings(value: unknown) {
     if (local[key] !== nextValue) await store.set(key, nextValue)
   }
   await store.save()
+  const { default: useSettingStore } = await import('@/stores/setting')
+  await useSettingStore.getState().initSettingData({ hydrateOnly: true })
 }
 
 async function mappedNumericId(workspaceId: string, objectId: string, expectedDomain: string) {

@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { BaseDirectory, exists, mkdir, readFile, readTextFile, writeFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
-import { getDb } from '@/db'
+import { executeRecordTransaction, getDb } from '@/db'
 import { SelfHostedApiError } from './client'
 import {
   authenticatedClient, isSelfHostedAuthenticationError, reconcilePersonalWorkspaceObjects,
@@ -19,11 +19,13 @@ import { applyStructuredPayload, deleteStructuredObject } from './structured'
 import { enabledPersonalSyncKinds, isPersonalSyncKindEnabled } from './domains'
 import { hydratePersonalAssets } from './personal-assets'
 import { hasPendingPersonalMutation, pendingPersonalChangesForEvent } from './pending-personal'
+import { recoverPersonalRevisionConflicts } from './personal-recovery'
 import { ensureManagedWorkspaceKeys, getCurrentWorkspaceRoot, reconcileLibraryFiles } from './workspaces'
 import { bytesToBase64Url, downloadAsset, hashBytes } from './blob'
 import type { SyncBootstrapPage, SyncEvent, SyncObjectKind, SyncSession } from './protocol'
 import { applyConversationTombstones, type SelfHostedSnapshotObject } from './snapshot'
 import emitter from '@/lib/emitter'
+import useSyncStore from '@/stores/sync'
 import { withSelfHostedPrepareLock } from './prepare-lock'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import {
@@ -72,12 +74,34 @@ export class SelfHostedSyncRuntime {
   #wakeCompletion: Promise<void> | null = null
   #socket: WebSocket | null = null
   #socketWorkspaceSignature = ''
+  #socketGeneration = 0
+  #socketRetryTimer: ReturnType<typeof setTimeout> | null = null
+  #socketRetryDelay = 1_000
   #timer: ReturnType<typeof setTimeout> | null = null
   #realtimeListeners = new Set<(message: Record<string, unknown>) => void>()
   #documentSubscriptions = new Map<string, number>()
   #presence: Record<string, unknown> | null = null
   #presenceOwner: symbol | null = null
   #progressListeners = new Set<(progress: SwitchOperationProgress) => void>()
+  #conflictResolution: Promise<void> | null = null
+
+  async withConflictResolution<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.#conflictResolution
+    let release: () => void = () => {}
+    const pending = new Promise<void>(resolve => { release = resolve })
+    this.#conflictResolution = pending
+    try {
+      await previous
+      await this.#wakeCompletion
+      return await operation()
+    } finally {
+      release()
+      if (this.#conflictResolution === pending) {
+        this.#conflictResolution = null
+        if (!this.#stopped) void this.wake('conflict-resolved')
+      }
+    }
+  }
 
   start() {
     this.#stopped = false
@@ -108,6 +132,9 @@ export class SelfHostedSyncRuntime {
 
   stop() {
     this.#stopped = true
+    this.#socketGeneration++
+    if (this.#socketRetryTimer) clearTimeout(this.#socketRetryTimer)
+    this.#socketRetryTimer = null
     this.#socket?.close()
     this.#socket = null
     this.#socketWorkspaceSignature = ''
@@ -192,7 +219,19 @@ export class SelfHostedSyncRuntime {
 
   wake(reason: string): Promise<void> {
     if (reason === 'manual-retry') this.#manualRetryRequested = true
+    // A collaborative drain can request a wake while the editor resolver is
+    // waiting for that drain. Defer sending without making it await itself.
+    if (this.#conflictResolution) return Promise.resolve()
     if (this.#stopped) return Promise.resolve()
+    if (reason === 'foreground' || reason === 'network') {
+      // iOS may suspend a socket without changing its JS OPEN state.
+      // Rejoin the rooms and catch up over HTTP instead of trusting it.
+      this.#socketGeneration++
+      const socket = this.#socket
+      this.#socket = null
+      this.#socketWorkspaceSignature = ''
+      socket?.close()
+    }
     if (this.#timer) {
       clearTimeout(this.#timer)
       this.#timer = null
@@ -242,6 +281,9 @@ export class SelfHostedSyncRuntime {
             const session = await this.#syncBinding(binding, errors)
             if (session) sessions.push({ profileId: binding.profileId, session })
           } catch (error) {
+            if (error instanceof SelfHostedApiError && (error.status === 0 || error.status >= 500)) {
+              useSyncStore.getState().setSelfHostedServiceAvailable(false)
+            }
             if (isSelfHostedAuthenticationError(error)) throw error
             errors.add(error instanceof Error ? error.message : String(error))
             console.warn('[self-hosted-sync] Workspace synchronization failed', {
@@ -282,7 +324,7 @@ export class SelfHostedSyncRuntime {
       value: Partial<Omit<SwitchOperationProgress, 'phase' | 'kind' | 'startupTask'>> = {},
     ) => this.#reportProgress({ startupTask, source: 'remote', path: binding.localRoot ?? undefined, current: 0, total: 0, ...value })
     report('connect')
-    await assertNoUnresolvedRevisionCommands(binding.workspaceId)
+    if (binding.workspaceType !== 'account-data') await assertNoUnresolvedRevisionCommands(binding.workspaceId)
     const { profile, client } = await authenticatedClient(binding.profileId)
     if (this.#stopped) return null
     let session: SyncSession
@@ -293,6 +335,11 @@ export class SelfHostedSyncRuntime {
         binding.bindingState === 'epoch-changed' ? undefined : binding.syncEpoch ?? undefined,
       )
     } catch (error) {
+      if (!(error instanceof SelfHostedApiError)
+        || error.body.code === 'invalid_response'
+        || (error.body.code !== 'request_cancelled' && (error.status === 0 || error.status >= 500))) {
+        useSyncStore.getState().setSelfHostedServiceAvailable(false)
+      }
       if (error instanceof SelfHostedApiError && error.body.code === 'sync_epoch_changed') {
         await setBindingState(binding.workspaceId, 'epoch-changed')
         this.#rerun = true
@@ -306,15 +353,30 @@ export class SelfHostedSyncRuntime {
     }
     if (this.#stopped) return null
     if (!session.protocol.compatible) {
+      useSyncStore.getState().setSelfHostedServiceAvailable(false)
       await setBindingState(binding.workspaceId, 'protocol-incompatible')
       return null
     }
+    useSyncStore.getState().setSelfHostedServiceAvailable(true)
     await ensureManagedWorkspaceKeys(
       binding.profileId,
       binding.workspaceId,
       session.keyVersions.map(key => key.keyVersion),
     )
     if (this.#stopped) return null
+    if (await recoverPersonalRevisionConflicts(binding, session, errors)) this.#rerun = true
+    const pushAvailableOutbox = async (pathMovesOnly = false) => {
+      try {
+        return await pushOutbox(binding, session, pathMovesOnly, errors)
+      } catch (error) {
+        if (binding.workspaceType !== 'account-data' || !(error instanceof Error)
+          || error.message !== 'SELF_HOSTED_REVISION_CONFLICT') throw error
+        // Recover the existing queue as well as a rejection from this round.
+        // Retrying uses a fresh command id and a fresh server CAS base.
+        if (await recoverPersonalRevisionConflicts(binding, session, errors)) this.#rerun = true
+        return false
+      }
+    }
     if (
       session.bootstrap.required
       || binding.bindingState !== 'bound'
@@ -326,7 +388,7 @@ export class SelfHostedSyncRuntime {
       // the server. Do not enter bootstrap and replay the old paths meanwhile.
       if ((await pendingPathMovesForBinding(binding)).length > 0) {
         report('push')
-        if (await pushOutbox(binding, session, true, errors)) this.#rerun = true
+        if (await pushAvailableOutbox(true)) this.#rerun = true
         return session
       }
       if (binding.workspaceType === 'account-data') {
@@ -334,7 +396,7 @@ export class SelfHostedSyncRuntime {
         // is still waiting to be accepted. Send frozen commands first, then
         // capture subsequent edits against the accepted base.
         report('push')
-        if (await pushOutbox(binding, session, false, errors)) this.#rerun = true
+        if (await pushAvailableOutbox()) this.#rerun = true
         if (this.#stopped) return null
         let hasMore: boolean
         do {
@@ -348,7 +410,7 @@ export class SelfHostedSyncRuntime {
           hasMore = prepared.hasMore
           if (this.#stopped) return null
           report('push')
-          if (await pushOutbox(binding, session, false, errors)) this.#rerun = true
+          if (await pushAvailableOutbox()) this.#rerun = true
           if (this.#stopped) return null
         } while (hasMore)
       }
@@ -400,27 +462,38 @@ export class SelfHostedSyncRuntime {
     if (preparation.hasMore) this.#rerun = true
     if (this.#stopped) return null
     report('push')
-    if (await pushOutbox(binding, session, false, errors)) this.#rerun = true
+    if (await pushAvailableOutbox()) this.#rerun = true
     if (this.#stopped) return null
     report('pull')
     await pullEvents(binding, session, value => report('pull', value))
     if (this.#stopped) return null
     report('apply')
-    const appliedThrough = await applyInbox(
+    const application = await applyInbox(
       binding,
       profile.deviceId,
       objectId => this.#documentSubscriptions.has(`${binding.workspaceId}\0${objectId}`),
       value => report('apply', value),
       () => report('refresh', { source: 'local' }),
     )
+    const appliedThrough = application.through
     if (this.#stopped) return null
     for (const listener of this.#realtimeListeners) listener({
       type: 'inbox.applied', workspaceId: binding.workspaceId,
     })
-    if (BigInt(appliedThrough) > BigInt(binding.appliedSequence)) {
+    // Applying the inbox advances the local cursor before the HTTP ACK.
+    // Compare with the server's acknowledged cursor so a failed ACK is
+    // retried even when this run has no new events to apply.
+    if (BigInt(appliedThrough) > BigInt(session.cursor.acknowledged)) {
       await client.acknowledge(binding.workspaceId, appliedThrough, session.syncEpoch)
       await updateCursor(binding.workspaceId, appliedThrough, appliedThrough)
+    } else {
+      // The server may have accepted the previous ACK before its response
+      // was lost. Reconcile that result without claiming unapplied events.
+      const acknowledged = BigInt(session.cursor.acknowledged) > BigInt(appliedThrough)
+        ? appliedThrough : session.cursor.acknowledged
+      await updateCursor(binding.workspaceId, appliedThrough, acknowledged)
     }
+    if (application.error) throw application.error
     await pruneDurableSyncHistory(binding.workspaceId)
     emitter.emit('self-hosted-binding-ready', { workspaceId: binding.workspaceId })
     return session
@@ -433,12 +506,18 @@ export class SelfHostedSyncRuntime {
     if (this.#socket?.url === first.websocketUrl
       && this.#socketWorkspaceSignature === workspaceSignature
       && this.#socket.readyState <= WebSocket.OPEN) return
-    this.#socket?.close()
+    const generation = ++this.#socketGeneration
+    const previousSocket = this.#socket
+    this.#socket = null
+    previousSocket?.close()
     this.#socketWorkspaceSignature = workspaceSignature
     void authenticatedClient(profileId).then(async ({ accessToken }) => {
-      if (this.#stopped || this.#socketWorkspaceSignature !== workspaceSignature) return
+      if (this.#stopped || generation !== this.#socketGeneration || this.#socketWorkspaceSignature !== workspaceSignature) return
       const socket = new WebSocket(first.websocketUrl)
       this.#socket = socket
+      const authTimeout = setTimeout(() => {
+        if (this.#socket === socket) socket.close()
+      }, 10_000)
       socket.addEventListener('open', () => {
         socket.send(JSON.stringify({
           type: 'authenticate',
@@ -448,14 +527,22 @@ export class SelfHostedSyncRuntime {
         }))
       })
       socket.addEventListener('message', event => {
+        if (this.#socket !== socket) return
         const message = JSON.parse(String(event.data)) as { type?: string; workspaceId?: string }
         for (const listener of this.#realtimeListeners) listener(message)
         if (message.type === 'authenticated') {
+          clearTimeout(authTimeout)
+          this.#socketRetryDelay = 1_000
+          if (this.#socketRetryTimer) clearTimeout(this.#socketRetryTimer)
+          this.#socketRetryTimer = null
           for (const subscription of this.#documentSubscriptions.keys()) {
             const [workspaceId, documentId] = subscription.split('\0')
             socket.send(JSON.stringify({ type: 'document.subscribe', workspaceId, documentId }))
           }
           if (this.#presence) socket.send(JSON.stringify(this.#presence))
+          // Recover notifications sent between the HTTP pull and joining
+          // the realtime rooms, including deletes received while offline.
+          void this.wake('realtime-authenticated')
         } else if (message.type === 'workspace.changed' || message.type === 'workspace.members-changed') {
           void this.wake('websocket')
         } else if (message.type === 'workspace.access-revoked' && message.workspaceId) {
@@ -463,16 +550,29 @@ export class SelfHostedSyncRuntime {
         }
       })
       socket.addEventListener('close', () => {
+        clearTimeout(authTimeout)
         if (this.#socket === socket) {
           this.#socket = null
           this.#socketWorkspaceSignature = ''
+          this.#scheduleSocketReconnect()
         }
       })
     }).catch(error => {
+      if (generation !== this.#socketGeneration || this.#stopped) return
       if (!isSelfHostedAuthenticationError(error)) {
         console.warn('[self-hosted-sync] Unable to connect realtime channel', error)
+        this.#scheduleSocketReconnect()
       }
     })
+  }
+
+  #scheduleSocketReconnect() {
+    if (this.#stopped || this.#socketRetryTimer) return
+    this.#socketRetryTimer = setTimeout(() => {
+      this.#socketRetryTimer = null
+      void this.wake('realtime-reconnect')
+    }, this.#socketRetryDelay)
+    this.#socketRetryDelay = Math.min(this.#socketRetryDelay * 2, 15_000)
   }
 }
 
@@ -730,6 +830,29 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
     const row = rows.find(candidate => candidate.commandId === result.commandId)
     if (!row) continue
     if (result.code === 'revision_conflict' || (result.status === 'conflict' && !result.conflictId)) {
+      const command = JSON.parse(row.payload) as { type?: string; kind?: string }
+      const sourceIds = JSON.parse(row.sourceChangeIds) as number[]
+      const covered = command.type === 'upsert-object' && command.kind === 'note' && sourceIds.length > 0
+        ? await database.select<Array<{ id: number }>>(
+          `select id from self_hosted_local_changes where workspace_id=$1 and state='queued'
+           and reason='workspace:collaborative-snapshot' and id in (select value from json_each($2))`,
+          [binding.workspaceId, JSON.stringify(sourceIds)],
+        ) : []
+      if (covered.length === sourceIds.length && sourceIds.length > 0) {
+        // These exact snapshot bytes were already represented by durable Yjs
+        // updates when frozen. A competing materialization is not an editing
+        // conflict: retire only this snapshot, pull the new revision, and let
+        // reconciliation publish the latest merged text against that base.
+        const now = Date.now()
+        await executeRecordTransaction([
+          { sql: "update self_hosted_local_changes set state='superseded',updated_at=$1 where id in (select value from json_each($2))",
+            values: [now, JSON.stringify(sourceIds)] },
+          { sql: "update self_hosted_outbox set state='superseded',last_error_code='collaborative-snapshot-stale',updated_at=$1 where command_id=$2",
+            values: [now, row.commandId] },
+        ])
+        activatedCollaborativeObject = true
+        continue
+      }
       // A CAS rejection has not accepted this payload and has no durable
       // server conflict object. Keep it locally and stop before pulling a
       // snapshot that could overwrite the only remaining local edit.
@@ -768,6 +891,11 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
         // Keep the accepted server base durable before releasing the frozen
         // command. A retry can recover this cache write from the same ack.
         await recordAppliedCommandRevision(binding, command, result.revision, result.sequence)
+      } else if (result.status === 'applied' && !stalePersonalAck && binding.workspaceType === 'account-data'
+        && row.restoreLocalSnapshot === 1 && command.type === 'delete-object' && command.objectId && result.revision) {
+        // An already deleted object is acknowledged without an event sequence.
+        // Retain its revision too, so older inbox snapshots cannot revive it.
+        await recordRevision(binding.workspaceId, command.objectId, result.revision, binding.appliedSequence, command.ciphertextHash ?? '')
       }
       await database.execute(
         "update self_hosted_outbox set state = 'sent', updated_at = $1, last_error_code = null where command_id = $2",
@@ -874,7 +1002,7 @@ async function personalAckHasNewerRevision(workspaceId: string, objectId: string
 async function restoreAcceptedPersonalSnapshot(binding: Binding, row: OutboxRow, revision?: string) {
   if (binding.workspaceType !== 'account-data' || !revision || !/^\d+$/.test(revision)) return false
   const command = JSON.parse(row.payload) as Record<string, unknown>
-  if (command.type !== 'upsert-object' || typeof command.objectId !== 'string'
+  if (!['upsert-object', 'delete-object'].includes(String(command.type)) || typeof command.objectId !== 'string'
     || typeof command.kind !== 'string' || typeof command.keyVersion !== 'number'
     || typeof command.ciphertext !== 'string') return false
   const sourceIds = JSON.parse(row.sourceChangeIds) as number[]
@@ -886,6 +1014,10 @@ async function restoreAcceptedPersonalSnapshot(binding: Binding, row: OutboxRow,
   const context = { workspaceId: binding.workspaceId, objectId: command.objectId,
     kind: command.kind, revision, sourceIds, payload }
   if (!await restorePersonalSnapshotStillAllowed(context)) return false
+  if (command.type === 'delete-object') {
+    await applyRemoteDelete(binding, command.objectId)
+    return true
+  }
   if (payload.domain === 'mark' || payload.domain === 'message') {
     const profile = await getProfile(binding.profileId)
     if (!profile) return false
@@ -970,7 +1102,8 @@ async function restorePersonalSnapshotStillAllowed(input: {
 
 async function assertNoUnresolvedRevisionCommands(workspaceId: string) {
   const rows = await (await getDb()).select<Array<{ commandId: string }>>(
-    "select command_id as commandId from self_hosted_outbox where workspace_id = $1 and state = 'blocked' and last_error_code = 'revision_conflict' limit 1",
+    `select command_id as commandId from self_hosted_outbox where workspace_id = $1 and state = 'blocked'
+       and (last_error_code = 'revision_conflict' or last_error_code like 'editor-resolution:%') limit 1`,
     [workspaceId],
   )
   if (rows.length) throw new Error('SELF_HOSTED_REVISION_CONFLICT')
@@ -1084,11 +1217,11 @@ async function applyInbox(
   isDocumentSubscribed: (objectId: string) => boolean,
   onProgress?: (progress: SyncItemProgress) => void,
   onRefresh?: () => void,
-): Promise<string> {
+): Promise<{ through: string; error?: Error }> {
   const database = await getDb()
-  const rows = await database.select<Array<{ sequence: string; payload: string }>>(
-    `select sequence, payload from self_hosted_inbox
-     where workspace_id = $1 and state in ('pending', 'failed')
+  const rows = await database.select<Array<{ sequence: string; payload: string; state: string }>>(
+    `select sequence, payload, state from self_hosted_inbox
+     where workspace_id = $1 and state in ('pending', 'failed', 'applied')
        and cast(sequence as integer) > cast($2 as integer)
      order by cast(sequence as integer)`,
     [binding.workspaceId, binding.appliedSequence]
@@ -1111,12 +1244,24 @@ async function applyInbox(
   let through = binding.appliedSequence
   let coalesced = 0
   let bindingStoresChanged = false
-  let deferredLocalChange: PendingLocalChange | null = null
+  let applicationError: Error | undefined
+  let cursorBlocked = false
+  const blockedObjects = new Set<string>()
   onProgress?.({ current: 0, total: parsedRows.length })
   for (const [index, row] of parsedRows.entries()) {
     const event = row.event
     const path = event.objectId ?? undefined
     onProgress?.({ path, current: index, total: parsedRows.length })
+    if (row.state === 'applied') {
+      // A suspended/crashed process may have committed this row before it
+      // saved the applied cursor. Recover the contiguous applied prefix;
+      // pending or failed rows still pass through the normal apply gate.
+      if (!cursorBlocked) through = event.sequence
+      if (isCoalescibleSnapshot(event)) bindingStoresChanged = true
+      onProgress?.({ path, current: index + 1, total: parsedRows.length })
+      continue
+    }
+    if (event.objectId && blockedObjects.has(event.objectId)) continue
     try {
       const supersededSnapshot = isCoalescibleSnapshot(event)
         && latestSnapshotSequence.get(event.objectId!) !== row.sequence
@@ -1145,22 +1290,28 @@ async function applyInbox(
         "update self_hosted_inbox set state = 'applied', applied_at = $1, error_code = null where workspace_id = $2 and sequence = $3",
         [Date.now(), binding.workspaceId, event.sequence]
       )
-      through = event.sequence
+      if (!cursorBlocked) through = event.sequence
       onProgress?.({ path, current: index + 1, total: parsedRows.length })
     } catch (error) {
-      if (error instanceof PendingPathMove) break
-      if (error instanceof PendingLocalChange) {
+      if (error instanceof PendingPathMove || error instanceof PendingLocalChange) {
         await database.execute(
           "update self_hosted_inbox set state = 'pending', error_code = $1 where workspace_id = $2 and sequence = $3",
           [error.message, binding.workspaceId, event.sequence],
         )
-        deferredLocalChange = error
+        applicationError ??= error
+        cursorBlocked = true
+        if (event.objectId) blockedObjects.add(event.objectId)
+        if (binding.workspaceType === 'account-data') continue
         break
       }
       await database.execute(
         "update self_hosted_inbox set state = 'failed', error_code = $1 where workspace_id = $2 and sequence = $3",
         [String(error instanceof Error ? error.message : error).slice(0, 120), binding.workspaceId, event.sequence]
       )
+      applicationError ??= error instanceof Error ? error : new Error(String(error))
+      cursorBlocked = true
+      if (event.objectId) blockedObjects.add(event.objectId)
+      if (binding.workspaceType === 'account-data') continue
       break
     }
   }
@@ -1178,8 +1329,7 @@ async function applyInbox(
     onRefresh?.()
     await refreshBindingStores(binding)
   }
-  if (deferredLocalChange) throw deferredLocalChange
-  return through
+  return { through, error: applicationError }
 }
 
 function isCoalescibleSnapshot(event: SyncEvent): boolean {
@@ -1195,11 +1345,12 @@ async function refreshBindingStores(binding: Binding) {
     return
   }
   try {
-    const [{ default: useMarkStore }, { default: useTagStore }, { default: useCanvasStore }, { default: useChatStore }] = await Promise.all([
+    const [{ default: useMarkStore }, { default: useTagStore }, { default: useCanvasStore }, { default: useChatStore }, { default: useMemoriesStore }] = await Promise.all([
       import('@/stores/mark'),
       import('@/stores/tag'),
       import('@/stores/canvas'),
       import('@/stores/chat'),
+      import('@/stores/memories'),
     ])
     const markState = useMarkStore.getState()
     const chatState = useChatStore.getState()
@@ -1207,9 +1358,13 @@ async function refreshBindingStores(binding: Binding) {
     await useTagStore.getState().fetchTags()
     await Promise.all([
       markState.fetchAllMarks(),
-      markState.trashState ? markState.fetchAllTrashMarks() : markState.fetchMarks(),
+      markState.trashState ? markState.fetchAllTrashMarks()
+        : (await import('@/lib/check')).isMobileDevice() ? markState.fetchMarkPreviews(true) : markState.fetchMarks(),
       useCanvasStore.getState().loadProjects(),
       chatState.initConversations(),
+      useMemoriesStore.getState().loadMemories(),
+      useMemoriesStore.getState().loadStats(),
+      useMemoriesStore.getState().loadPolicy(),
     ])
     if (currentConversationId && useChatStore.getState().conversations.some(item => item.id === currentConversationId)) {
       await useChatStore.getState().switchConversation(currentConversationId)
@@ -1248,13 +1403,21 @@ async function applyRemoteEventRaw(binding: Binding, event: SyncEvent, beforeStr
   if (!await shouldApplyPersonalEvent(binding, event)) return
   const database = await getDb()
   if (event.type === 'conflict.created' || event.type === 'conflict.resolved') {
+    const conflictId = String(event.metadata.conflictId ?? event.eventId)
     if (event.type === 'conflict.created') {
-      const conflictId = String(event.metadata.conflictId ?? event.eventId)
       await recordProtocolConflict(binding.workspaceId, event.objectId ?? undefined, conflictId)
+    } else {
+      await database.execute(
+        "update self_hosted_conflicts set state = 'resolved', resolved_at = $1 where workspace_id = $2 and id = $3",
+        [Date.now(), binding.workspaceId, conflictId],
+      )
     }
     return
   }
   if (!event.objectId) return
+  if (binding.workspaceType === 'account-data' && isCoalescibleSnapshot(event)
+    && typeof event.metadata.revision === 'string'
+    && await personalAckHasNewerRevision(binding.workspaceId, event.objectId, event.metadata.revision)) return
   if (!beforeStructuredApply || event.type === 'object.deleted') await assertPersonalRemoteApplyAllowed(binding, event)
   if (binding.workspaceType === 'library') {
     if (event.metadata.kind === 'canvas') return
@@ -2341,7 +2504,7 @@ async function writeRemoteEditorSnapshot(
       // Keep the accepted editor snapshot adjacent to the serialized write.
       // The listeners update TipTap, the desktop tab cache, and mobile's
       // contentRef without scheduling a stale save back to disk.
-      emitter.emit('sync-content-updated', { path: relativePath, content: snapshot.content })
+      emitter.emit('sync-content-updated', { path: relativePath, content: snapshot.content, workspaceRoot: binding.localRoot! })
       appliedSnapshot = snapshot
       return true
     },
@@ -2349,6 +2512,25 @@ async function writeRemoteEditorSnapshot(
   if (!accepted) throw new Error('remote_file_local_activity')
   if (!appliedSnapshot) throw new Error('remote_file_snapshot_missing')
   return appliedSnapshot
+}
+
+export async function writeResolvedSelfHostedNoteSnapshot(input: {
+  workspaceId: string
+  objectId: string
+  relativePath: string
+  expectedContent: string | null
+  content: string
+  assertCurrent: () => void
+}) {
+  const binding = (await listBindings()).find(item => item.workspaceId === input.workspaceId)
+  if (!binding?.localRoot || binding.workspaceType !== 'library' || binding.bindingState !== 'bound') {
+    throw new Error('SELF_HOSTED_NOTE_CONFLICT_UNAVAILABLE')
+  }
+  await writeRemoteEditorSnapshot(binding, input.objectId, input.relativePath, async current => {
+    input.assertCurrent()
+    if (current !== input.expectedContent) throw new Error('SELF_HOSTED_NOTE_CONFLICT_CHANGED')
+    return { content: input.content, merged: false, conflict: null }
+  })
 }
 
 async function deleteRemoteEditorFile(

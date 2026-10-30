@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { toast } from '@/hooks/use-toast'
-import useArticleStore from '@/stores/article'
+import useArticleStore, { beginDeferredFileActivation, isDeferredFileActivationCurrent } from '@/stores/article'
+import { useSidebarStore } from '@/stores/sidebar'
 import { getSyncPushQueue } from '@/lib/sync/sync-push-queue'
 import emitter from '@/lib/emitter'
 import { formatSyncDataError } from '@/lib/sync/remote-file'
@@ -35,6 +36,12 @@ import { usePlatformSwitchStore, retryPlatformSwitch, restorePlatformSwitchRecov
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { SYNC_PLATFORM_INFO } from '@/types/sync'
 import { DocumentSyncPanel } from './document-sync-panel'
+import { useSelfHostedNoteConflicts } from '@/hooks/use-self-hosted-note-conflicts'
+import { useSelfHostedConflictStore } from '@/stores/self-hosted-conflicts'
+import type { SelfHostedNoteConflictSummary } from '@/lib/self-hosted-sync/conflicts'
+import { prepareActiveEditorDeactivationDurably, editorPathsReferToSameFile, workspaceRootsReferToSameLocation } from '@/lib/editor-deactivation'
+import { getCurrentWorkspaceRoot } from '@/lib/self-hosted-sync/workspaces'
+import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 
 type ItemStatus = 'idle' | 'syncing' | 'success' | 'failed'
 type SyncType = 'markdown' | AutoDataSyncDomain
@@ -62,6 +69,7 @@ export function UnifiedSyncStatus() {
   const t = useTranslations('syncOverview')
   const tSync = useTranslations('settings.sync')
   const p = useTranslations('settings.sync.switchPlan')
+  const tConflict = useTranslations('syncOverview.selfHostedConflict')
   const switchStep = usePlatformSwitchStore(state => state.platform ? state.step : null)
   const switchError = usePlatformSwitchStore(state => state.error)
   const switchSkipped = usePlatformSwitchStore(state => state.skipped)
@@ -94,12 +102,18 @@ export function UnifiedSyncStatus() {
   const [directoryError, setDirectoryError] = useState('')
   const [errorMessages, setErrorMessages] = useState<string[]>([])
   const [engineFailed, setEngineFailed] = useState(false)
+  const [engineProgress, setEngineProgress] = useState<SwitchOperationProgress | null>(null)
   const [retrying, setRetrying] = useState(false)
+  const [openingConflict, setOpeningConflict] = useState(false)
+  const openingConflictRef = useRef(false)
+  const { conflicts: noteConflicts } = useSelfHostedNoteConflicts()
   const retryingRef = useRef(false)
   const failedFiles = useRef(new Set<string>())
   const failedDirectories = useRef(new Map<string, string>())
   const activeFiles = useRef(new Set<string>())
   const notifiedErrors = useRef(new Set<string>())
+  const lastEngineErrors = useRef('')
+  const engineErrorMessages = useRef(new Set<string>())
   const failureToast = useRef<ReturnType<typeof toast> | null>(null)
   const retryAction = useRef<() => Promise<void>>(async () => {})
   const activeDomains = useRef<AutoDataSyncDomain[]>([])
@@ -136,17 +150,36 @@ export function UnifiedSyncStatus() {
     failedDirectories.current.clear()
     activeFiles.current.clear()
     notifiedErrors.current.clear()
+    lastEngineErrors.current = ''
+    engineErrorMessages.current.clear()
     setErrorMessages([])
     failureToast.current?.dismiss()
     failureToast.current = null
     setDirectoryError('')
     setEngineFailed(false)
+    setEngineProgress(null)
     setFileStatus('idle')
     setLastSuccess(null)
     setOpen(false)
     activeDomains.current = []
     lastCompletedAt.current = dataState.lastCompletedAt
   }, [method, workspacePath])
+
+  useEffect(() => {
+    if (!settingsReady || method !== 'selfHosted') return
+    let disposed = false
+    let unsubscribe: (() => void) | undefined
+    void import('@/lib/self-hosted-sync/runtime').then(({ getSelfHostedSyncRuntime }) => {
+      if (disposed) return
+      unsubscribe = getSelfHostedSyncRuntime().subscribeProgress(progress => {
+        if (!disposed) setEngineProgress(progress)
+      })
+    })
+    return () => {
+      disposed = true
+      unsubscribe?.()
+    }
+  }, [method, settingsReady, workspacePath])
 
   useEffect(() => {
     if (switchStep !== 'error') return
@@ -192,7 +225,20 @@ export function UnifiedSyncStatus() {
     }
     function engineCompleted({ provider, errors }: { provider: 'selfHosted'; errors: string[] }) {
       if (useSettingStore.getState().primaryBackupMethod !== provider) return
+      setEngineProgress(null)
+      if (!errors.length) setLastSuccess({ types: ['markdown'], at: Date.now() })
       setEngineFailed(errors.length > 0)
+      const signature = JSON.stringify([...errors].sort())
+      if (lastEngineErrors.current === signature) return
+      lastEngineErrors.current = signature
+      // A fresh engine result replaces its previous errors, including a
+      // revision conflict that has just been resolved in the editor.
+      for (const message of engineErrorMessages.current) notifiedErrors.current.delete(message)
+      engineErrorMessages.current = new Set(errors.flatMap(error => error.split('\n').filter(Boolean)
+        .map(message => formatSyncDataError(message, p))))
+      setErrorMessages([...notifiedErrors.current])
+      failureToast.current?.dismiss()
+      failureToast.current = null
       for (const error of errors) notifyFailure(error)
     }
     emitter.on('sync-engine-completed', engineCompleted)
@@ -207,7 +253,7 @@ export function UnifiedSyncStatus() {
       emitter.off('sync-push-completed', completed)
       emitter.off('sync-pulled', pulled)
     }
-  }, [notifyFailure, t])
+  }, [notifyFailure, p, t])
 
   useEffect(() => {
     if (dataState.phase === 'failed' || dataState.phase === 'conflict') {
@@ -219,6 +265,7 @@ export function UnifiedSyncStatus() {
     if (retryingRef.current) return
     retryingRef.current = true
     setRetrying(true)
+    lastEngineErrors.current = ''
     notifiedErrors.current.clear()
     setErrorMessages([])
     failureToast.current?.dismiss()
@@ -301,12 +348,15 @@ export function UnifiedSyncStatus() {
     lastCompletedAt.current = dataState.lastCompletedAt
   }, [dataState.phase, dataState.lastCompletedAt, dataState.affectedDomains])
 
-  const dataFailed = dataState.phase === 'failed' || dataState.phase === 'conflict'
-  const dataSyncing = dataState.phase === 'queued'
+  const dataFailed = method !== 'selfHosted' && (dataState.phase === 'failed' || dataState.phase === 'conflict')
+  const hasNoteConflicts = method === 'selfHosted' && noteConflicts.length > 0
+  const dataSyncing = method !== 'selfHosted' && (dataState.phase === 'queued'
     || dataState.phase === 'uploading'
     || dataState.phase === 'downloading'
-    || dataState.phase === 'checking_remote'
-  const hasFailure = switchStep === 'error' || fileStatus === 'failed' || dataFailed || Boolean(directoryError) || engineFailed
+    || dataState.phase === 'checking_remote')
+  const fileSyncing = method !== 'selfHosted' && fileStatus === 'syncing'
+  const engineSyncing = method === 'selfHosted' && engineProgress !== null
+  const hasFailure = switchStep === 'error' || (method !== 'selfHosted' && fileStatus === 'failed') || dataFailed || Boolean(directoryError) || engineFailed
     || currentDocument?.phase === 'error'
   const switchBusy = switchStep !== null && !['error', 'cancelled', 'review', 'confirm', 'completed'].includes(switchStep)
   useEffect(() => {
@@ -324,9 +374,9 @@ export function UnifiedSyncStatus() {
     : availability.status === 'not-configured' ? t('notConfigured')
     : availability.status === 'unavailable' ? t('unavailable')
       : hasFailure ? t('failed')
-        : currentDocument?.phase === 'conflict' ? t('document.conflict')
+        : currentDocument?.phase === 'conflict' || hasNoteConflicts ? t('document.conflict')
           : currentDocument?.phase === 'update-available' ? t('document.update')
-            : fileStatus === 'syncing' || dataSyncing || currentDocument?.phase === 'syncing' ? t('syncing')
+            : fileSyncing || dataSyncing || engineSyncing || currentDocument?.phase === 'syncing' ? t('syncing')
               : currentDocument?.phase === 'checking' ? t('checking')
                 : lastSuccess ? t('synced') : t('ready')
   const switchNeedsReview = switchStep === 'review' || switchStep === 'confirm'
@@ -335,8 +385,8 @@ export function UnifiedSyncStatus() {
     : missingRepository || availability.status === 'not-configured' ? 'warning'
     : retrying ? 'busy'
     : availability.status === 'unavailable' || hasFailure ? 'error'
-      : currentDocument?.phase === 'conflict' || currentDocument?.phase === 'update-available' ? 'warning'
-        : fileStatus === 'syncing' || dataSyncing || currentDocument?.phase === 'syncing' || currentDocument?.phase === 'checking' ? 'busy'
+      : currentDocument?.phase === 'conflict' || currentDocument?.phase === 'update-available' || hasNoteConflicts ? 'warning'
+        : fileSyncing || dataSyncing || engineSyncing || currentDocument?.phase === 'syncing' || currentDocument?.phase === 'checking' ? 'busy'
           : 'success'
   const appearance = STATUS_APPEARANCE[statusTone]
   const StatusIcon = appearance.icon
@@ -352,6 +402,42 @@ export function UnifiedSyncStatus() {
   function openSyncSettings() {
     setOpen(false)
     useSettingsDialogStore.getState().openSettings('sync')
+  }
+
+  async function openNoteConflict(conflict: SelfHostedNoteConflictSummary) {
+    if (openingConflictRef.current) return
+    openingConflictRef.current = true
+    setOpeningConflict(true)
+    const activationIntent = beginDeferredFileActivation()
+    let activated = false
+    const isCurrent = () => {
+      const settings = useSettingStore.getState()
+      return settings.primaryBackupMethod === 'selfHosted' && settings.workspacePath === workspacePath
+        && (activated || isDeferredFileActivationCurrent(activationIntent))
+    }
+    try {
+      const localRoot = await getCurrentWorkspaceRoot()
+      if (!isCurrent() || !workspaceRootsReferToSameLocation(localRoot, conflict.localRoot)) return
+      await useSidebarStore.getState().showCenterPanel()
+      if (!isCurrent()) return
+      const articles = useArticleStore.getState()
+      if (!editorPathsReferToSameFile(articles.activeFilePath, conflict.relativePath, localRoot)) {
+        if (!await prepareActiveEditorDeactivationDurably(articles.activeFilePath) || !isCurrent()) return
+        activated = true
+        await articles.setActiveFilePath(conflict.relativePath, false, { tabOpenMode: 'pinned', deactivationAlreadyPrepared: true })
+      }
+      if (!isCurrent() || !editorPathsReferToSameFile(
+        useArticleStore.getState().activeFilePath, conflict.relativePath, localRoot,
+      )) return
+      useSelfHostedConflictStore.getState().request(conflict.id)
+      setOpen(false)
+    } catch (error) {
+      if (isCurrent()) toast({ title: tConflict('failed'),
+        description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+    } finally {
+      openingConflictRef.current = false
+      setOpeningConflict(false)
+    }
   }
 
   return (
@@ -397,6 +483,13 @@ export function UnifiedSyncStatus() {
 
         {settingsReady && method === 'local' && <PopoverDescription>{t('localOnlyDescription')}</PopoverDescription>}
         {settingsReady && method === 'selfHosted' && <PopoverDescription>{t('selfHostedConnection')}</PopoverDescription>}
+        {settingsReady && method === 'selfHosted' && engineProgress?.startupTask && (
+          <div role="status" className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
+            <span>{p(`startupTasks.${engineProgress.startupTask}`)}</span>
+            {engineProgress.path && <span className="truncate" title={engineProgress.path}>{engineProgress.path}</span>}
+            {Boolean(engineProgress.total) && <span className="tabular-nums">{engineProgress.current ?? 0} / {engineProgress.total}</span>}
+          </div>
+        )}
 
         {errorMessages.length > 0 && (
           <Alert variant="destructive">
@@ -406,6 +499,24 @@ export function UnifiedSyncStatus() {
               <ol tabIndex={0} aria-label={t('failed')} className="flex max-h-36 list-decimal flex-col gap-2 overflow-y-auto overscroll-contain pl-5 whitespace-pre-wrap [overflow-wrap:anywhere]">
                 {errorMessages.map(error => <li key={error}>{error}</li>)}
               </ol>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {settingsReady && method === 'selfHosted' && noteConflicts.length > 0 && (
+          <Alert>
+            <CircleAlert aria-hidden="true" />
+            <AlertTitle>{tConflict('pendingCount', { count: new Set(noteConflicts.map(item => item.relativePath)).size })}</AlertTitle>
+            <AlertDescription className="flex min-w-0 flex-col gap-2">
+              {Array.from(new Map(noteConflicts.map(item => [item.relativePath, item])).values()).map(conflict => (
+                <Button key={conflict.id} type="button" variant="outline" size="sm"
+                  disabled={openingConflict} title={conflict.relativePath}
+                  aria-label={`${tConflict('openNote')}: ${conflict.relativePath}`}
+                  onClick={() => void openNoteConflict(conflict)}>
+                  <span className="min-w-0 flex-1 truncate">{conflict.relativePath}</span>
+                  <span>{tConflict('resolve')}</span>
+                </Button>
+              ))}
             </AlertDescription>
           </Alert>
         )}

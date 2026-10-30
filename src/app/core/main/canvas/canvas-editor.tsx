@@ -96,6 +96,7 @@ import {
 import useCanvasStore from '@/stores/canvas'
 import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
+import useSyncStore from '@/stores/sync'
 import useMarkStore from '@/stores/mark'
 import { useSidebarStore } from '@/stores/sidebar'
 import { insertMark, type Mark } from '@/db/marks'
@@ -336,6 +337,8 @@ function CanvasEditorInner({ canvasId, mobile = false, isActive = true }: Canvas
   const fileTree = useArticleStore(state => state.fileTree)
   const loadFileTree = useArticleStore(state => state.loadFileTree)
   const canvasGridVisible = useSettingStore(state => state.canvasGridVisible)
+  const syncMethod = useSettingStore(state => state.primaryBackupMethod)
+  const selfHostedReady = useSyncStore(state => state.selfHostedRuntimeReady)
   const canvasSnapToGrid = useSettingStore(state => state.canvasSnapToGrid)
   const canvasMinimapVisible = useSettingStore(state => state.canvasMinimapVisible)
   const canvasGridStyle = useSettingStore(state => state.canvasGridStyle)
@@ -676,6 +679,17 @@ function CanvasEditorInner({ canvasId, mobile = false, isActive = true }: Canvas
       void openProject(canvasId)
     }
   }, [canvasId, document, openProject])
+
+  const hasCanvasDocument = Boolean(document)
+  useEffect(() => {
+    if (!isActive || !hasCanvasDocument || syncMethod !== 'selfHosted' || !selfHostedReady) return
+    let cancelled = false
+    void import('@/lib/self-hosted-sync/canvas-collaboration').then(({ openCanvasCollaboration }) => {
+      const current = useCanvasStore.getState().documents[canvasId]
+      if (!cancelled && current) return openCanvasCollaboration(canvasId, current)
+    }).catch(error => console.warn('[self-hosted-sync] Unable to open canvas collaboration', { canvasId, error }))
+    return () => { cancelled = true }
+  }, [canvasId, hasCanvasDocument, isActive, syncMethod, selfHostedReady])
 
   useEffect(() => () => {
     endCanvasLocalInteraction(canvasId, 'drawing')

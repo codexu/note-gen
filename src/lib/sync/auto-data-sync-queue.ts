@@ -487,7 +487,7 @@ export function isAutoDataSyncApplyingRemote(): boolean {
 
 export function enqueueAutoDataSync(domain: AutoDataSyncDomain, reason = 'change', mode: 'auto' | 'manual' = 'auto') {
   if (useSettingStore.getState().primaryBackupMethod === 'local') return
-  if (applyingRemote || repositoryChangePauseDepth > 0) {
+  if (repositoryChangePauseDepth > 0 || (applyingRemote && useSettingStore.getState().primaryBackupMethod !== 'selfHosted')) {
     debugAutoDataSync('skip enqueue while applying remote data', { domain, reason, mode })
     return
   }

@@ -14,6 +14,7 @@ import { isDomainEnabled, isPersonalSyncKindEnabled } from './domains'
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
 import { withSelfHostedPrepareLock } from './prepare-lock'
 import { preparePersonalAssetsUpload } from './personal-assets'
+import { hasMarkdownCollaboration, persistedMarkdownMatches } from './markdown-state'
 
 interface PendingChange {
   id: number
@@ -180,10 +181,19 @@ export async function enqueuePathMove(oldPath: string, newPath: string) {
   }
 }
 
-export async function enqueueCanvasSnapshot(canvasId: string, operation: 'upsert' | 'delete' = 'upsert') {
+export async function enqueueCanvasSnapshot(canvasId: string, operation: 'upsert' | 'delete' = 'upsert', options: { onlyIfMissing?: boolean } = {}) {
   const database = await getDb()
   const workspaceId = await activeAccountDataWorkspaceId()
   if (!workspaceId) return null
+  if (options.onlyIfMissing) {
+    const accepted = await database.select<Array<{ found: number }>>(
+      `select 1 as found from self_hosted_object_mappings m
+       join self_hosted_revisions r on r.workspace_id=m.workspace_id and r.object_id=m.object_id
+       where m.workspace_id=$1 and m.kind='canvas' and m.local_identity=$2 and m.deleted_at is null limit 1`,
+      [workspaceId, `canvas:${canvasId}`],
+    )
+    if (accepted.length) return workspaceId
+  }
   const now = Date.now()
   await database.execute(
     `insert into self_hosted_local_changes(workspace_id, domain, local_key, operation, reason, created_at, updated_at)
@@ -435,9 +445,24 @@ async function materializeOutboxRaw(
       const mapping = await ensureObjectMapping(
         workspaceId, change.domain, change.localKey, kind, change.deterministicImport === 1,
       )
+      if (workspaceType === 'account-data') {
+        const blocked = await database.select<Array<{ found: number }>>(
+          `select 1 as found from self_hosted_outbox where workspace_id=$1 and state='blocked'
+           and coalesce(json_extract(payload,'$.objectId'), json_extract(payload,'$.objectResolution.objectId'),
+             json_extract(payload,'$.resolution.objectId'))=$2 limit 1`,
+          [workspaceId, mapping.objectId],
+        )
+        if (blocked.length) {
+          // Keep newer local edits pending behind the preserved conflict;
+          // do not freeze more commands against the same rejected base.
+          processedChanges--
+          continue
+        }
+      }
       const commandId = crypto.randomUUID()
       const aad = objectAssociatedData(workspaceId, mapping.objectId, kind)
       let command: Record<string, unknown>
+      let collaborativeSnapshot = false
       let stagingId: string | undefined
       const personalStagingIds: string[] = []
       if (change.operation === 'delete') {
@@ -492,6 +517,20 @@ async function materializeOutboxRaw(
         if (!payload) {
           await markChanges(sourceIds.map(item => item.id), 'superseded')
           continue
+        }
+        if (change.domain === 'file' && mapping.revision && 'content' in payload && typeof payload.content === 'string') {
+          collaborativeSnapshot = await persistedMarkdownMatches(workspaceId, mapping.objectId, payload.content)
+            .catch(error => {
+              console.warn('[self-hosted-sync] Unable to verify collaborative snapshot coverage', error)
+              return false
+            })
+          if (!collaborativeSnapshot && hasMarkdownCollaboration(workspaceId, mapping.objectId)) {
+            // The editor's CRDT persistence and its debounced file save can
+            // briefly describe different instants. Keep the source pending
+            // until they agree instead of publishing an unrelated snapshot.
+            processedChanges--
+            continue
+          }
         }
         let personalBlobRefs: string[] = []
         if (profileId && syncEpoch && (change.domain === 'mark' || change.domain === 'message')) {
@@ -562,6 +601,11 @@ async function materializeOutboxRaw(
          ) values ($1, $2, $3, $4, $5, 'pending', $6, $6)`,
         values: [commandId, workspaceId, JSON.stringify(sourceIds.map(item => item.id)), String(command.type), JSON.stringify(command), now],
       }]
+      if (collaborativeSnapshot) statements.push({
+        sql: `update self_hosted_local_changes set reason='workspace:collaborative-snapshot'
+          where id in (select value from json_each($1)) and state='pending'`,
+        values: [JSON.stringify(sourceIds.map(item => item.id))],
+      })
       if (command.type === 'upsert-object' && Array.isArray(command.blobRefs) && command.blobRefs.length > 0) {
         statements.push({
           sql: `update self_hosted_object_mappings set blob_refs = $1, updated_at = $2

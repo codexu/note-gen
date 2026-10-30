@@ -44,7 +44,7 @@ export function useSyncAvailability() {
     s3: state.s3Connected,
     webdav: state.webdavConnected,
     cloudFolder: state.cloudFolderConnected,
-    selfHosted: state.selfHostedConnected,
+    selfHosted: state.selfHostedServiceAvailable,
   })))
   const [state, setState] = useState<{
     configured: boolean
@@ -70,7 +70,7 @@ export function useSyncAvailability() {
     setConfigurationChecking(true)
     try {
       const next = await getSyncConfiguration()
-      if (checkConnection && next.configured && (next.platform === 's3' || next.platform === 'webdav' || next.platform === 'cloudFolder')) {
+      if (checkConnection && next.configured && (next.platform === 's3' || next.platform === 'webdav' || next.platform === 'cloudFolder' || next.platform === 'selfHosted')) {
         await checkSyncProviderStatus(next.platform)
       }
       if (configurationRequestRef.current === requestId && contextRef.current === requestContext) {

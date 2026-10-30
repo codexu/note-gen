@@ -6,6 +6,8 @@ import { getSelfHostedSyncRuntime } from './runtime'
 import { authenticatedClient, getProfile } from './profile'
 import { enqueueFileSnapshot } from './outbox'
 import { isPersonalSyncKindEnabled } from './domains'
+import emitter from '@/lib/emitter'
+import { trackMarkdownCollaboration } from './markdown-state'
 
 interface DocumentBinding {
   workspaceId: string
@@ -33,6 +35,21 @@ let collaborationGeneration = 0
 let collaborationPauseDepth = 0
 const operations = new Set<Promise<unknown>>()
 const pendingLocalPersistence = new Set<() => Promise<void>>()
+const pausedDocuments = new Map<string, { generation: number; depth: number }>()
+
+export function pauseSelfHostedDocumentCollaboration(workspaceId: string, objectId: string): () => void {
+  const key = `${workspaceId}\0${objectId}`
+  const state = pausedDocuments.get(key) ?? { generation: 0, depth: 0 }
+  state.generation++
+  state.depth++
+  pausedDocuments.set(key, state)
+  let resumed = false
+  return () => {
+    if (resumed) return
+    resumed = true
+    state.depth = Math.max(0, state.depth - 1)
+  }
+}
 
 export function pauseSelfHostedCollaboration(): () => void {
   collaborationGeneration++
@@ -107,11 +124,19 @@ export async function openCollaborativeObject(
 
 function openCollaborativeBinding(binding: DocumentBinding, generationActive: () => boolean) {
   let closed = false
-  const isActive = () => !closed && generationActive()
+  const documentKey = `${binding.workspaceId}\0${binding.objectId}`
+  const documentGeneration = pausedDocuments.get(documentKey)?.generation ?? 0
+  const isActive = () => {
+    const state = pausedDocuments.get(documentKey)
+    return !closed && generationActive() && (state?.depth ?? 0) === 0
+      && (state?.generation ?? 0) === documentGeneration
+  }
   const assertActive = requireActive(isActive)
   const runtime = getSelfHostedSyncRuntime()
   const presenceOwner = Symbol('collaboration-presence')
   const unsubscribeDocument = runtime.subscribeDocument(binding.workspaceId, binding.documentId)
+  const untrackMarkdown = binding.kind === 'note'
+    ? trackMarkdownCollaboration(binding.workspaceId, binding.objectId) : () => {}
   let consumedThrough = '0'
   const consumedLocalCommands = new Set<string>()
   let appendQueue: Promise<void> = Promise.resolve()
@@ -185,6 +210,7 @@ function openCollaborativeBinding(binding: DocumentBinding, generationActive: ()
            local_copy_path=excluded.local_copy_path, state='unresolved', resolved_at=null`,
         [input.id, binding.workspaceId, binding.objectId, input.local, input.remote, input.base, input.relativePath, Date.now()],
       )
+      emitter.emit('self-hosted-conflicts-changed', undefined)
       assertActive()
       return input.relativePath
     }),
@@ -245,6 +271,7 @@ function openCollaborativeBinding(binding: DocumentBinding, generationActive: ()
     close: () => {
       if (closed) return
       closed = true
+      untrackMarkdown()
       unsubscribeDocument()
       runtime.clearPresence(presenceOwner)
     },
@@ -518,6 +545,7 @@ async function consumeYjsUpdates(
   const local = await database.select<Array<{ commandId: string; payload: string }>>(
     `select o.command_id as commandId, o.payload from self_hosted_outbox o
      where o.workspace_id = $1 and o.command_type in ('append-update', 'commit-checkpoint')
+       and o.state <> 'superseded'
        and json_extract(o.payload, '$.documentId') = $2
        and not exists (
          select 1 from self_hosted_yjs_updates y where y.workspace_id = o.workspace_id

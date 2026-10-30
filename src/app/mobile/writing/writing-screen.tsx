@@ -7,7 +7,8 @@ import useArticleStore from '@/stores/article'
 import { cn } from '@/lib/utils'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { prepareActiveEditorDeactivation } from '@/lib/editor-deactivation'
+import { editorPathsReferToSameFile, prepareActiveEditorDeactivation } from '@/lib/editor-deactivation'
+import { useSelfHostedConflictStore } from '@/stores/self-hosted-conflicts'
 import useChatStore from '@/stores/chat'
 import useSettingStore from '@/stores/setting'
 import useFileDeletionStore from '@/stores/file-deletion'
@@ -24,6 +25,7 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
     state.workspacePath === workspacePath ? state.progress : null
   ))
   const activeFilePath = useArticleStore(state => state.activeFilePath)
+  const requestedConflictId = useSelfHostedConflictStore(state => state.requestedId)
   const initCollapsibleList = useArticleStore(state => state.initCollapsibleList)
   const initSortSettings = useArticleStore(state => state.initSortSettings)
   const [view, setView] = useState<WritingView>('files')
@@ -76,6 +78,17 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
       setView('files')
     }
   }, [activeFilePath])
+
+  useEffect(() => {
+    if (!requestedConflictId || !isWritingRoute) return
+    const state = useSelfHostedConflictStore.getState()
+    const conflict = state.conflicts.find(item => item.id === requestedConflictId)
+    if (state.workspacePath === workspacePath && conflict
+      && editorPathsReferToSameFile(activeFilePath, conflict.relativePath, conflict.localRoot)) {
+      setView('editor')
+      useChatStore.getState().setMobileActiveContexts({ articlePath: activeFilePath })
+    }
+  }, [activeFilePath, isWritingRoute, requestedConflictId, workspacePath])
 
   const closeEditor = useCallback(async () => {
     if (closingEditorRef.current) return

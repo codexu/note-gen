@@ -63,6 +63,7 @@ interface PreviousTargets {
 
 export default function AppStatus() {
   const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const selfHostedConnected = useSyncStore(state => state.selfHostedConnected)
   const {
     accessToken,
     giteeAccessToken,
@@ -84,6 +85,30 @@ export default function AppStatus() {
   const giteeCredential = JSON.stringify([giteeAccessToken])
   const gitlabCredential = JSON.stringify([gitlabAccessToken, gitlabInstanceType, gitlabCustomUrl])
   const giteaCredential = JSON.stringify([giteaAccessToken, giteaInstanceType, giteaCustomUrl])
+
+  useEffect(() => {
+    if (!settingsReady || !selfHostedConnected) return
+    let disposed = false
+    const check = () => {
+      if (document.visibilityState === 'hidden') return
+      void import('@/lib/sync/provider-status').then(({ checkSyncProviderStatus }) => {
+        if (!disposed) return checkSyncProviderStatus('selfHosted')
+      }).catch(error => console.warn('[self-hosted-sync] Service availability check failed', error))
+    }
+    const offline = () => useSyncStore.getState().setSelfHostedServiceAvailable(false)
+    check()
+    const timer = setInterval(check, 30_000)
+    window.addEventListener('online', check)
+    window.addEventListener('offline', offline)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      disposed = true
+      clearInterval(timer)
+      window.removeEventListener('online', check)
+      window.removeEventListener('offline', offline)
+      document.removeEventListener('visibilitychange', check)
+    }
+  }, [settingsReady, selfHostedConnected])
 
   useEffect(() => {
     if (!settingsReady) return

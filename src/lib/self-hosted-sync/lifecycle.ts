@@ -1,5 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { getDb } from '@/db'
 import useSyncStore from '@/stores/sync'
 import { getSelfHostedSyncRuntime } from './runtime'
@@ -22,8 +23,21 @@ function installRuntimeListeners(runtime: ReturnType<typeof getSelfHostedSyncRun
     }
   })
   window.addEventListener('online', () => void runtime.wake('network'))
+  let resumeTimer: ReturnType<typeof setTimeout> | null = null
+  const resume = () => {
+    if (resumeTimer) clearTimeout(resumeTimer)
+    resumeTimer = setTimeout(() => {
+      resumeTimer = null
+      void runtime.wake('foreground')
+    }, 150)
+  }
+  window.addEventListener('focus', resume)
+  window.addEventListener('pageshow', resume)
+  void listen('self-hosted-app-resumed', resume).catch(error => {
+    console.warn('[self-hosted-sync] Unable to listen for native resume', error)
+  })
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void runtime.wake('foreground')
+    if (document.visibilityState === 'visible') resume()
   })
 }
 

@@ -210,6 +210,7 @@ const platformSwitchErrorKeys: Record<string, string> = {
   SELF_HOSTED_SWITCH_COMMAND_REJECTED: 'nativeResultMismatch',
   SELF_HOSTED_SWITCH_PATH_MOVES_PENDING: 'nativePathMovesPending',
   SELF_HOSTED_REVISION_CONFLICT: 'nativeRevisionConflict',
+  SELF_HOSTED_PERSONAL_REVISION_CONFLICT: 'nativePersonalRevisionConflict',
   SELF_HOSTED_LOCAL_CHANGES_PENDING: 'nativeLocalChangesPending',
   personal_bootstrap_local_change_not_preserved: 'nativeLocalChangesPending',
   SELF_HOSTED_LOCAL_SNAPSHOT_RESTORE_PENDING: 'nativeLocalSnapshotPending',

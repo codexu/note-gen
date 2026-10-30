@@ -549,6 +549,11 @@ export function secureDelete(key: string) {
   return invoke<void>('self_hosted_secure_delete', { key })
 }
 
+export function isSelfHostedSecureStorageError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes('self-hosted-secure-storage-unavailable')
+}
+
 async function persistConnectedProfile(input: {
   profileId: string
   normalized: ReturnType<typeof normalizeServerUrl>

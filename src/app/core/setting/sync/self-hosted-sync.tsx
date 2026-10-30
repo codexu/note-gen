@@ -20,12 +20,15 @@ import { normalizeServerUrl } from '@/lib/self-hosted-sync/client'
 import useSyncStore from '@/stores/sync'
 import { reviewSelfHostedConnection, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 import { SelfHostedWorkspaces } from './self-hosted-workspaces'
+import emitter from '@/lib/emitter'
+import { formatSyncDataError } from '@/lib/sync/remote-file'
 
 let serverUrlDraftWrite: Promise<void> = Promise.resolve()
 
 export function SelfHostedSync() {
   const t = useTranslations('settings.sync.selfHosted')
   const p = useTranslations('settings.sync.switchPlan')
+  const tStatus = useTranslations('syncOverview')
   const locale = useLocale()
   const websiteLocale = locale.toLocaleLowerCase().startsWith('zh') ? 'cn' : 'en'
   const deploymentGuideUrl = `https://notegen.top/${websiteLocale}/self-hosted`
@@ -48,7 +51,34 @@ export function SelfHostedSync() {
   const [reauthenticationRequired, setReauthenticationRequired] = useState(false)
   const [workspaceRevision, setWorkspaceRevision] = useState(0)
   const [experimentalAcknowledged, setExperimentalAcknowledged] = useState<boolean | null>(null)
-  const { selfHostedConnected, setSelfHostedConnected } = useSyncStore()
+  const { selfHostedConnected, setSelfHostedConnected, selfHostedServiceAvailable, providerChecks } = useSyncStore()
+  const checkingService = providerChecks.selfHosted === 'checking' || selfHostedServiceAvailable === null
+  const [syncErrors, setSyncErrors] = useState<string[]>([])
+
+  useEffect(() => {
+    setSyncErrors([])
+    if (!profileId) return
+    let disposed = false
+    let resultVersion = 0
+    const completed = (event: { provider: 'selfHosted'; errors: string[] }) => {
+      resultVersion++
+      if (!disposed) setSyncErrors(event.errors)
+    }
+    emitter.on('sync-engine-completed', completed)
+    void getDb().then(database => database.select<Array<{ workspaceType: string; code: string }>>(
+      `select distinct b.workspace_type as workspaceType,o.last_error_code as code
+       from self_hosted_outbox o join self_hosted_workspace_bindings b on b.workspace_id=o.workspace_id
+       where b.profile_id=$1 and o.state='blocked' and o.last_error_code is not null`, [profileId],
+    )).then(rows => {
+      if (!disposed && resultVersion === 0) setSyncErrors([...new Set(rows.map(row => row.code === 'revision_conflict'
+        ? row.workspaceType === 'account-data' ? 'SELF_HOSTED_PERSONAL_REVISION_CONFLICT' : 'SELF_HOSTED_REVISION_CONFLICT'
+        : row.code))])
+    }).catch(error => console.warn('[self-hosted-sync] Unable to read blocked sync state', error))
+    return () => {
+      disposed = true
+      emitter.off('sync-engine-completed', completed)
+    }
+  }, [profileId])
 
   useEffect(() => {
     void Store.load('store.json')
@@ -296,6 +326,16 @@ export function SelfHostedSync() {
             </Alert>
           ) : null}
 
+          {selfHostedConnected && syncErrors.length > 0 && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertTriangle aria-hidden="true" />
+              <AlertTitle>{tStatus('failed')}</AlertTitle>
+              <AlertDescription className="flex flex-col gap-2">
+                {syncErrors.map(error => <p key={error}>{formatSyncDataError(error, p)}</p>)}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {selfHostedConnected && connectionReviewRequired && <Alert className="mt-4" variant="warning">
             <ListChecks /><AlertTitle>{p('nativeReviewAction')}</AlertTitle>
             <AlertDescription>{p('nativeReviewRequired')}</AlertDescription>
@@ -321,9 +361,9 @@ export function SelfHostedSync() {
         <CardFooter className="flex-wrap gap-2">
           {selfHostedConnected ? (
             <>
-              <Button variant="secondary" disabled>
+              <Button variant={selfHostedServiceAvailable === false && !checkingService ? 'destructive' : 'secondary'} disabled>
                 <Server data-icon="inline-start" />
-                {t('connected')}
+                {checkingService ? tStatus('checking') : selfHostedServiceAvailable ? t('connected') : tStatus('unavailable')}
               </Button>
               <Button variant="outline" disabled={!profileId || connecting || disconnecting} onClick={() => void reviewConnection()}>
                 <ListChecks data-icon="inline-start" />{p('nativeReviewAction')}

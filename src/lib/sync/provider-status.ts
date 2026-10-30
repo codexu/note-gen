@@ -8,6 +8,7 @@ import { testCloudFolderConnection } from '@/lib/sync/cloud-folder'
 import useSyncStore from '@/stores/sync'
 import type { CloudFolderConfig, S3Config, SyncPlatform, WebDAVConfig } from '@/types/sync'
 import { getDb, initAllDatabases } from '@/db'
+import { SELF_HOSTED_PROTOCOL_VERSION } from '@/lib/self-hosted-sync/protocol'
 
 type GitSyncPlatform = 'github' | 'gitee' | 'gitlab' | 'gitea'
 
@@ -47,8 +48,9 @@ async function isProviderCheckTargetCurrent(
 async function getSelfHostedCheckTarget() {
   await initAllDatabases()
   const database = await getDb()
-  return database.select<Array<{ id: string; state: string }>>(
-    'select id, state from self_hosted_sync_profiles order by id'
+  return database.select<Array<{ id: string; state: string; serverUrl: string; instanceId: string; accountId: string | null; deviceId: string | null }>>(
+    `select id, state, server_url as serverUrl, instance_id as instanceId,
+       account_id as accountId, device_id as deviceId from self_hosted_sync_profiles order by id`
   )
 }
 
@@ -70,7 +72,7 @@ function failProviderCheck(platform: SyncPlatform) {
     case 's3': syncStore.setS3Connected(false); break
     case 'webdav': syncStore.setWebDAVConnected(false); break
     case 'cloudFolder': syncStore.setCloudFolderConnected(false); break
-    case 'selfHosted': syncStore.setSelfHostedConnected(false); break
+    case 'selfHosted': syncStore.setSelfHostedServiceAvailable(false); break
   }
 }
 
@@ -250,8 +252,29 @@ async function checkCloudFolderStatus(store: Store) {
 
 async function checkSelfHostedStatus() {
   const target = await getSelfHostedCheckTarget()
-  if (JSON.stringify(await getSelfHostedCheckTarget()) !== JSON.stringify(target)) return
-  useSyncStore.getState().setSelfHostedConnected(target.some(profile => profile.state === 'connected'))
+  const current = async () => JSON.stringify(await getSelfHostedCheckTarget()) === JSON.stringify(target)
+  const profile = target.find(item => item.state === 'connected')
+  if (!profile) {
+    if (await current()) useSyncStore.getState().setSelfHostedConnected(false)
+    return
+  }
+  let available = false
+  try {
+    const { authenticatedClient } = await import('@/lib/self-hosted-sync/profile')
+    const { client } = await authenticatedClient(profile.id)
+    const capabilities = await client.capabilities()
+    if (capabilities.instanceId === profile.instanceId
+      && capabilities.protocol.minimum <= SELF_HOSTED_PROTOCOL_VERSION && capabilities.protocol.maximum >= SELF_HOSTED_PROTOCOL_VERSION) {
+      // An open health endpoint alone does not establish usable sync access.
+      await client.workspaces()
+      available = true
+    }
+  } finally {
+    if (await current()) {
+      useSyncStore.getState().setSelfHostedConnected(true)
+      useSyncStore.getState().setSelfHostedServiceAvailable(available)
+    }
+  }
 }
 
 async function runProviderStatusCheck(store: Store, platform: SyncPlatform) {

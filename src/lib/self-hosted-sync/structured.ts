@@ -139,9 +139,7 @@ export async function applyStructuredPayload(
       relatedTagIds.push(await mappedNumericId(workspaceId, reference, 'tag'))
     }
   }
-  if ('tagId' in row && typeof references.tag === 'string') {
-    row.tagId = await mappedNumericId(workspaceId, references.tag, 'tag')
-  }
+  let hasConversation = false
   if ('conversationId' in row && typeof references.conversation === 'string') {
     const syncId = await mappingLocalKey(workspaceId, references.conversation, 'conversation')
     if (!syncId) throw new Error('structured_dependency_missing:conversation')
@@ -151,6 +149,16 @@ export async function applyStructuredPayload(
     )
     if (!conversations[0]) throw new Error('structured_dependency_missing:conversation')
     row.conversationId = conversations[0].id
+    hasConversation = true
+  }
+  if ('tagId' in row && typeof references.tag === 'string') {
+    const deletedTags = typedDomain === 'message' && hasConversation
+      ? await database.select<Array<{ objectId: string }>>(
+        `select object_id as objectId from self_hosted_object_mappings
+         where workspace_id = $1 and object_id = $2 and kind = 'tag' and deleted_at is not null limit 1`,
+        [workspaceId, references.tag],
+      ) : []
+    row.tagId = deletedTags.length ? 0 : await mappedNumericId(workspaceId, references.tag, 'tag')
   }
 
   const existing = await mappingLocalKey(workspaceId, objectId, typedDomain)

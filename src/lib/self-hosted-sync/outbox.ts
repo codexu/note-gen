@@ -866,7 +866,8 @@ export async function structuredPayload(
       }
     }
   }
-  if ((domain === 'mark' || domain === 'note' || domain === 'message') && row.tagId != null) {
+  if ((domain === 'mark' || domain === 'note' || domain === 'message') && row.tagId != null
+    && !(domain === 'message' && row.tagId === 0)) {
     references.tag = await referenceId('tag', String(row.tagId), 'tag')
   }
   if (domain === 'message' && row.conversationId != null) {

@@ -58,6 +58,10 @@ export function mapCanvasRecordIds(content: string, resolve: CanvasRecordResolve
 /** Normalize complete, decrypted snapshots before review and before applying.
  * A legacy source number is usable only when exactly one server object owns it. */
 export function normalizeStructuredReferences<T extends SelfHostedSnapshotObject>(entries: T[]): T[] {
+  const deletedTags = new Set(entries.filter(entry => entry.object.kind === 'tag' && entry.object.deletedAt !== null)
+    .map(entry => entry.object.objectId))
+  const liveConversations = new Set(entries.filter(entry => entry.object.kind === 'conversation' && entry.object.deletedAt === null)
+    .map(entry => entry.object.objectId))
   const records = new Map<number, string[]>()
   const liveRecordIds = new Set<string>()
   for (const entry of entries) {
@@ -68,6 +72,17 @@ export function normalizeStructuredReferences<T extends SelfHostedSnapshotObject
   }
   return entries.map(entry => {
     if (!isRecord(entry.payload.value)) return entry
+    // Conversation messages may retain a legacy tag after that tag was
+    // deleted. Only an explicit tombstone and a live conversation make this
+    // optional association safe to remove; unknown missing parents still fail.
+    if (entry.object.kind === 'message' && entry.object.deletedAt === null && isRecord(entry.payload.references)) {
+      const { tag, conversation, ...references } = entry.payload.references
+      if (typeof tag === 'string' && deletedTags.has(tag)
+        && typeof conversation === 'string' && liveConversations.has(conversation)) {
+        return { ...entry, payload: { ...entry.payload, references: { ...references, conversation },
+          value: { ...entry.payload.value, tagId: 0 } } }
+      }
+    }
     if (entry.object.kind === 'mark' && !entry.payload.value.sourceId) {
       return { ...entry, payload: { ...entry.payload, value: { ...entry.payload.value, sourceId: entry.object.objectId } } }
     }

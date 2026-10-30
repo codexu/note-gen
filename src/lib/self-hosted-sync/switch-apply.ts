@@ -187,7 +187,9 @@ async function validateDependencies(input: ReplacementInput, enabled: Set<string
         && (typeof value.updatedAt !== 'number' || !Number.isFinite(value.updatedAt))) throw new Error('SELF_HOSTED_PREVIEW_CONTENT_REQUIRED')
       if (domain === 'memory' && ['created_at', 'updated_at'].some(key => typeof value[key] !== 'number' || !Number.isFinite(value[key]))) throw new Error('SELF_HOSTED_PREVIEW_CONTENT_REQUIRED')
       const references = record(entry.payload.references)
-      if ((domain === 'mark' || domain === 'message') && value.tagId != null && typeof references.tag !== 'string') throw new Error('SELF_HOSTED_SWITCH_REMOTE_DEPENDENCY_MISSING')
+      if ((domain === 'mark' || domain === 'message') && value.tagId != null
+        && !(domain === 'message' && value.tagId === 0)
+        && typeof references.tag !== 'string') throw new Error('SELF_HOSTED_SWITCH_REMOTE_DEPENDENCY_MISSING')
       for (const dependency of Object.values(references)) {
         if (typeof dependency === 'string' && !available.has(dependency)) throw new Error('SELF_HOSTED_SWITCH_REMOTE_DEPENDENCY_MISSING')
       }

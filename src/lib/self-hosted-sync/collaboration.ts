@@ -122,7 +122,33 @@ export async function openCollaborativeObject(
   })
 }
 
-function openCollaborativeBinding(binding: DocumentBinding, generationActive: () => boolean) {
+async function resolvePresenceIdentity(workspaceId: string) {
+  const database = await getDb()
+  const [row] = await database.select<Array<{ profileId: string }>>(
+    `select profile_id as profileId from self_hosted_workspace_bindings where workspace_id = $1 limit 1`,
+    [workspaceId],
+  )
+  const profile = row ? await getProfile(row.profileId) : null
+  const names = new Map<string, string>()
+  if (profile) {
+    try {
+      const { client } = await authenticatedClient(profile.id)
+      const members = await client.members(workspaceId)
+      for (const member of members) names.set(member.accountId, member.login)
+    } catch (error) {
+      console.warn('[self-hosted-sync] Unable to resolve collaborator name:', error)
+    }
+  }
+  return (message: Record<string, unknown>) => {
+    const accountId = typeof message.accountId === 'string' ? message.accountId : null
+    const deviceLabel = message.label === '桌面端' ? 'PC 端' : message.label
+    // Older servers do not identify the account in presence messages.
+    if (!accountId || accountId === profile?.accountId) return deviceLabel
+    return names.get(accountId) || accountId.replaceAll('-', '').slice(0, 8)
+  }
+}
+
+async function openCollaborativeBinding(binding: DocumentBinding, generationActive: () => boolean) {
   let closed = false
   const documentKey = `${binding.workspaceId}\0${binding.objectId}`
   const documentGeneration = pausedDocuments.get(documentKey)?.generation ?? 0
@@ -132,6 +158,8 @@ function openCollaborativeBinding(binding: DocumentBinding, generationActive: ()
       && (state?.generation ?? 0) === documentGeneration
   }
   const assertActive = requireActive(isActive)
+  const presenceLabel = await resolvePresenceIdentity(binding.workspaceId)
+  assertActive()
   const runtime = getSelfHostedSyncRuntime()
   const presenceOwner = Symbol('collaboration-presence')
   const unsubscribeDocument = runtime.subscribeDocument(binding.workspaceId, binding.documentId)
@@ -244,7 +272,7 @@ function openCollaborativeBinding(binding: DocumentBinding, generationActive: ()
         binding.documentId,
         anchor,
         head,
-        label,
+        label === '桌面端' ? 'PC 端' : label,
         coordinateSpace,
         presenceOwner,
       )
@@ -265,7 +293,11 @@ function openCollaborativeBinding(binding: DocumentBinding, generationActive: ()
       return runtime.subscribeRealtime(message => {
         if (isActive() && message.workspaceId === binding.workspaceId
           && (message.documentId === binding.documentId || message.type === 'workspace.changed'
-            || message.type === 'inbox.applied')) listener(message)
+            || message.type === 'inbox.applied')) {
+          listener(message.type === 'presence.updated'
+            ? { ...message, label: presenceLabel(message) }
+            : message)
+        }
       })
     },
     close: () => {

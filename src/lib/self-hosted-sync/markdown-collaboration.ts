@@ -49,6 +49,9 @@ export async function openMarkdownCollaboration(
   let consumeQueue = Promise.resolve()
   let appendQueue = Promise.resolve()
   let setupConflict: { id: string; relativePath: string } | null = null
+  let publishedMarkdown = initialMarkdown
+  let remoteNotificationPending = false
+  let hydrating = true
 
   async function checkpoint() {
     if (closed) return
@@ -102,12 +105,33 @@ export async function openMarkdownCollaboration(
             receivedRemoteUpdate = true
             const previousMarkdown = currentMarkdown()
             applyRemoteUpdate(update)
-            const nextMarkdown = currentMarkdown()
-            if (!closed && nextMarkdown !== previousMarkdown) onRemoteMarkdown(nextMarkdown)
+            if (hydrating) {
+              remoteNotificationPending = true
+            } else {
+              // A live controller can receive local edits between asynchronous
+              // reads. Keep its visible text aligned with each applied update.
+              const nextMarkdown = currentMarkdown()
+              if (!closed && nextMarkdown !== previousMarkdown) {
+                publishedMarkdown = nextMarkdown
+                onRemoteMarkdown(nextMarkdown)
+              }
+            }
           })
         } catch (error) {
           if (strict && !receivedRemoteUpdate) throw error
           console.warn('[self-hosted-sync] Unable to pull collaborative update', error)
+        }
+        // A checkpoint is only the start of a replay. Publish after server
+        // increments and durable local updates have all been applied, so an
+        // intermediate historical version cannot enter the editor/save queue.
+        if (hydrating && !closed && remoteNotificationPending
+          && !document.store.pendingStructs && !document.store.pendingDs) {
+          const nextMarkdown = currentMarkdown()
+          remoteNotificationPending = false
+          if (nextMarkdown !== publishedMarkdown) {
+            publishedMarkdown = nextMarkdown
+            onRemoteMarkdown(nextMarkdown)
+          }
         }
         return receivedRemoteUpdate
       })
@@ -138,6 +162,11 @@ export async function openMarkdownCollaboration(
       }
     }
 
+    if (document.store.pendingStructs || document.store.pendingDs) {
+      throw new Error('SELF_HOSTED_NOTE_CONFLICT_INITIALIZING')
+    }
+    hydrating = false
+
     stopRealtime = transport.subscribePresence(message => {
       if (message.type === 'document.sync-request' || message.type === 'workspace.changed'
         || message.type === 'inbox.applied') {
@@ -150,6 +179,9 @@ export async function openMarkdownCollaboration(
       markLocalActivity() {},
       applyLocal(markdown) {
         if (closed) return
+        // Local edits are already visible. Compare future remote batches with
+        // this version, including a legitimate empty authoritative document.
+        publishedMarkdown = markdown
         const shared = sharedText()
         if (markdown === shared.toString()) return
         const previous = shared.toString()

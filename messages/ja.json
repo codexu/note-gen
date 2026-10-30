@@ -679,6 +679,12 @@
       "enableDesc": "启用后，AI 可以调用配置的 MCP 服务器提供的工具。"
     },
     "editor": {
+      "htmlExport": {
+        "title": "HTML エクスポート",
+        "desc": "エクスポートした HTML に CSS と JavaScript を追加します。JavaScript はファイルを開くと実行されます。エディターと PDF エクスポートには影響しません。",
+        "css": "カスタム CSS",
+        "javascript": "カスタム JavaScript"
+      },
       "title": "エディター設定",
       "desc": "ここでは、エディターをカスタマイズして、より適した書き込み体験を提供できます。",
       "layout": {

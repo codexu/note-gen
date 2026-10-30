@@ -1176,6 +1176,12 @@
       }
     },
     "editor": {
+      "htmlExport": {
+        "title": "HTML-Export",
+        "desc": "Füge exportierten HTML-Dateien CSS und JavaScript hinzu. JavaScript wird beim Öffnen der Datei ausgeführt. Editor und PDF-Export bleiben unverändert.",
+        "css": "Eigenes CSS",
+        "javascript": "Eigenes JavaScript"
+      },
       "title": "Editor-Einstellungen",
       "desc": "Hier kannst du den Editor anpassen und dir ein Schreiberlebnis nach deinen Bedürfnissen schaffen.",
       "layout": {

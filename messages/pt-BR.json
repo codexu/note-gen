@@ -679,6 +679,12 @@
       "enableDesc": "Quando ativado, a IA pode chamar as ferramentas fornecidas pelos servidores MCP configurados."
     },
     "editor": {
+      "htmlExport": {
+        "title": "Exportação HTML",
+        "desc": "Adicione CSS e JavaScript aos arquivos HTML exportados. O JavaScript é executado ao abrir o arquivo. Estas configurações não afetam o editor nem a exportação PDF.",
+        "css": "CSS personalizado",
+        "javascript": "JavaScript personalizado"
+      },
       "title": "Configurações do Editor",
       "desc": "Aqui, você pode personalizar o editor, criando uma experiência de escrita adaptada às suas necessidades.",
       "layout": {

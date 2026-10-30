@@ -2747,6 +2747,8 @@
       "actionFailed": "接続操作に失敗しました"
     },
     "ai": {
+      "audioEndpoint": "音声エンドポイント（任意）",
+      "audioEndpointDesc": "OpenAI 互換 HTTP 音声 API の完全な URL。空の場合はプロバイダーの URL に標準の音声パスを追加します。リアルタイム WebSocket API には対応していません。",
       "title": "モデルプラットフォーム",
       "menuTitle": "モデルサービス",
       "desc": "AI モデルプラットフォーム、認証情報、会話・整理・知識庫・音声機能に使うモデルを一元管理します。",

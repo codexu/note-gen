@@ -154,6 +154,7 @@ export interface ModelConfig {
   temperature?: number
   topP?: number
   voice?: string
+  audioEndpoint?: string
   enableStream?: boolean
   maxTokens?: number
   contextWindow?: number
@@ -189,6 +190,7 @@ export interface AiConfig {
   topP?: number
   modelType?: ModelType
   voice?: string
+  audioEndpoint?: string
   speed?: number
   enableStream?: boolean
   maxTokens?: number

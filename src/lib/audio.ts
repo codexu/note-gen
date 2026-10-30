@@ -1,3 +1,4 @@
+import { resolveSpeechRequestTarget } from '@/lib/speech/request-target'
 import useSettingStore from '@/stores/setting'
 import { resolvePreferredSpeechEngine } from '@/lib/speech/runtime.ts'
 import type { SpeechTask } from '@/lib/speech/types.ts'
@@ -106,7 +107,8 @@ export async function fetchAudioSpeech(text: string, customVoice?: string, custo
           temperature: targetModel.temperature,
           topP: targetModel.topP,
           voice: targetModel.voice,
-          enableStream: targetModel.enableStream
+          enableStream: targetModel.enableStream,
+          audioEndpoint: targetModel.audioEndpoint
         }
         break
       }
@@ -123,7 +125,7 @@ export async function fetchAudioSpeech(text: string, customVoice?: string, custo
     throw new Error('未找到音频模型配置')
   }
 
-  if (!audioConfig.baseURL || !audioConfig.apiKey) {
+  if ((!audioConfig.baseURL && !audioConfig.audioEndpoint) || !audioConfig.apiKey) {
     throw new Error('音频模型配置不完整')
   }
 
@@ -141,8 +143,7 @@ export async function fetchAudioSpeech(text: string, customVoice?: string, custo
 
   try {
     return await invokeAiBinary({
-      config: await resolveAiRequestConfig(audioConfig),
-      path: '/audio/speech',
+      ...resolveSpeechRequestTarget(await resolveAiRequestConfig(audioConfig), audioConfig.audioEndpoint, '/audio/speech'),
       method: 'POST',
       body: requestBody,
     })
@@ -415,7 +416,8 @@ export async function fetchAudioTranscription(audioBlob: Blob): Promise<string> 
         sttConfig = {
           ...config,
           model: targetModel.model,
-          modelType: targetModel.modelType
+          modelType: targetModel.modelType,
+          audioEndpoint: targetModel.audioEndpoint
         }
         break
       }
@@ -432,14 +434,13 @@ export async function fetchAudioTranscription(audioBlob: Blob): Promise<string> 
     throw new Error('未找到语音识别模型配置')
   }
 
-  if (!sttConfig.baseURL || !sttConfig.apiKey) {
+  if ((!sttConfig.baseURL && !sttConfig.audioEndpoint) || !sttConfig.apiKey) {
     throw new Error('语音识别模型配置不完整')
   }
 
   try {
     const result = await invokeAiMultipart<AudioTranscriptionResponse>({
-      config: await resolveAiRequestConfig(sttConfig),
-      path: '/audio/transcriptions',
+      ...resolveSpeechRequestTarget(await resolveAiRequestConfig(sttConfig), sttConfig.audioEndpoint, '/audio/transcriptions'),
       fileFieldName: 'file',
       fields: {
         model: sttConfig.model || 'FunAudioLLM/SenseVoiceSmall'

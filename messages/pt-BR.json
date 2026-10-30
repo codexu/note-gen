@@ -2772,6 +2772,8 @@
       "actionFailed": "Falha na ação da conexão"
     },
     "ai": {
+      "audioEndpoint": "Endpoint de áudio (opcional)",
+      "audioEndpointDesc": "URL completa de uma API HTTP de áudio compatível com OpenAI. Deixe em branco para usar a URL do provedor com o caminho padrão de áudio. APIs WebSocket em tempo real não são suportadas aqui.",
       "title": "Plataformas de Modelos",
       "menuTitle": "Serviços de modelos",
       "desc": "Gerencie plataformas, credenciais e modelos de IA para conversa, organização, base de conhecimento e voz em um só lugar.",

@@ -3142,6 +3142,8 @@
       }
     },
     "ai": {
+      "audioEndpoint": "Sprach-Endpunkt (optional)",
+      "audioEndpointDesc": "Vollständige URL einer OpenAI-kompatiblen HTTP-Sprach-API. Ohne Angabe wird der Standard-Audiopfad an die Anbieter-URL angehängt. Echtzeit-WebSocket-APIs werden hier nicht unterstützt.",
       "title": "Modellplattformen",
       "menuTitle": "Modelldienste",
       "desc": "Verwalte KI-Modellplattformen, Anmeldeinformationen und Modelle für Chat, Organisation, Wissensdatenbank und Sprachfunktionen an einem Ort.",

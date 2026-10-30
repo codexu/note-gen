@@ -1,11 +1,12 @@
 import { invoke } from '@tauri-apps/api/core'
 import { exists, readFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
+import { Store } from '@tauri-apps/plugin-store'
 import { getDb } from '@/db'
 import { SelfHostedApiError } from './client'
 import {
   authenticatedClient, isSelfHostedAuthenticationError, reconcilePersonalWorkspaceObjects,
-  markProfileReauthenticationRequired, secureDelete,
+  markProfileReauthenticationRequired, secureDelete, getProfile,
 } from './profile'
 import { decryptPackedJson, encodeUtf8Base64Url, loadWorkspaceKey, objectAssociatedData } from './crypto'
 import {
@@ -15,10 +16,11 @@ import {
   materializeOutbox,
 } from './outbox'
 import { applyStructuredPayload, deleteStructuredObject } from './structured'
-import { ensureManagedWorkspaceKeys, reconcileLibraryFiles } from './workspaces'
+import { ensureManagedWorkspaceKeys, getCurrentWorkspaceRoot, reconcileLibraryFiles } from './workspaces'
 import { bytesToBase64Url, downloadAsset, hashBytes } from './blob'
 import type { SyncBootstrapPage, SyncEvent, SyncObjectKind, SyncSession } from './protocol'
 import emitter from '@/lib/emitter'
+import { withSelfHostedPrepareLock } from './prepare-lock'
 import {
   editorPathsReferToSameFile,
   getEditorPathMutationRevision,
@@ -27,6 +29,10 @@ import {
   prepareActiveEditorPathMutationDurably,
   runEditorPathWriteTransaction,
 } from '@/lib/editor-deactivation'
+
+class PendingPathMove extends Error {
+  constructor() { super('remote_path_move_pending') }
+}
 
 interface Binding {
   workspaceId: string
@@ -265,6 +271,12 @@ export class SelfHostedSyncRuntime {
       || await hasCoveredFailedInbox(binding)
       || await hasAmbiguousTombstonedLibraryFile(binding)
     ) {
+      // A pending rename owns its local paths until its frozen commands reach
+      // the server. Do not enter bootstrap and replay the old paths meanwhile.
+      if ((await pendingPathMovesForBinding(binding)).length > 0) {
+        if (await pushOutbox(binding, session, true)) this.#rerun = true
+        return session
+      }
       await setBindingState(binding.workspaceId, 'bootstrapping')
       await bootstrapBinding(binding, session)
       await refreshBindingStores(binding)
@@ -534,7 +546,7 @@ async function listBindings(): Promise<Binding[]> {
   `)
 }
 
-async function pushOutbox(binding: Binding, session: SyncSession) {
+async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly = false) {
   const database = await getDb()
   const rows = await database.select<OutboxRow[]>(
     `select command_id as commandId, source_change_ids as sourceChangeIds,
@@ -544,6 +556,12 @@ async function pushOutbox(binding: Binding, session: SyncSession) {
        on m.workspace_id = o.workspace_id
       and m.object_id = json_extract(o.payload, '$.objectId')
      where o.workspace_id = $1 and o.state in ('pending', 'retry') and o.next_attempt_at <= $2
+       and ($4 = 0 or o.command_type = 'path-move')
+       and not exists (
+         select 1 from self_hosted_sync_profiles p where p.id = $5
+           and json_extract(p.domain_toggles, '$.settings') = 0
+           and (json_extract(o.payload, '$.kind') = 'setting' or m.kind = 'setting')
+       )
      order by
        case when json_extract(o.payload, '$.type') = 'delete-object' and m.kind = 'folder' then 2
             when m.kind = 'folder' then 0 else 1 end,
@@ -552,7 +570,7 @@ async function pushOutbox(binding: Binding, session: SyncSession) {
            * (length(m.relative_path) - length(replace(m.relative_path, '/', '')))
          else 0 end,
        o.created_at, o.rowid limit $3`,
-    [binding.workspaceId, Date.now(), session.limits.maxCommandsPerBatch]
+    [binding.workspaceId, Date.now(), session.limits.maxCommandsPerBatch, pathMovesOnly ? 1 : 0, binding.profileId]
   )
   if (rows.length === 0) return false
   let activatedCollaborativeObject = false
@@ -773,6 +791,7 @@ async function applyInbox(
       )
       through = event.sequence
     } catch (error) {
+      if (error instanceof PendingPathMove) break
       await database.execute(
         "update self_hosted_inbox set state = 'failed', error_code = $1 where workspace_id = $2 and sequence = $3",
         [String(error instanceof Error ? error.message : error).slice(0, 120), binding.workspaceId, event.sequence]
@@ -850,6 +869,18 @@ async function refreshLibraryFileTree(binding: Binding) {
 }
 
 async function applyRemoteEvent(binding: Binding, event: SyncEvent) {
+  if (binding.workspaceType === 'library') {
+    return withSelfHostedPrepareLock(binding.workspaceId, () => applyRemoteEventRaw(binding, event))
+  }
+  return applyRemoteEventRaw(binding, event)
+}
+
+async function applyRemoteEventRaw(binding: Binding, event: SyncEvent) {
+  if (binding.workspaceType === 'account-data' && event.metadata.kind === 'setting') {
+    const profile = await getProfile(binding.profileId)
+    if (!profile) throw new Error('自托管同步配置不存在')
+    if (profile.domainToggles.settings === false) return
+  }
   const database = await getDb()
   if (event.type === 'conflict.created' || event.type === 'conflict.resolved') {
     if (event.type === 'conflict.created') {
@@ -896,6 +927,9 @@ async function applyRemoteEvent(binding: Binding, event: SyncEvent) {
     key, event.ciphertext, objectAssociatedData(binding.workspaceId, event.objectId, kind),
   )
   if (binding.workspaceType === 'library' && payload.domain === 'canvas') return
+  if (binding.workspaceType === 'library' && typeof payload.relativePath === 'string') {
+    await assertNoPendingPathMove(binding, payload.relativePath)
+  }
   if (payload.domain === 'file' && binding.localRoot) {
     await applyRemoteFile(binding, event, payload)
     return
@@ -1117,7 +1151,9 @@ async function applyRemoteAsset(binding: Binding, event: SyncEvent, payload: Rec
     blobId,
     relativePath,
     keyVersion: event.keyVersion ?? 1,
+    associatedData: typeof payload.associatedData === 'string' ? payload.associatedData : undefined,
   })
+  await assertNoPendingPathMove(binding, relativePath)
   await convergeRemotePortableMapping(binding, event, 'asset', 'asset', portable)
   const database = await getDb()
   const mappings = await database.select<Array<{ contentHash: string | null }>>(
@@ -1214,6 +1250,7 @@ async function applyRemoteDelete(binding: Binding, objectId: string) {
   )
   const mapping = mappings[0]
   if (mapping?.relativePath && binding.localRoot) {
+    await assertNoPendingPathMove(binding, mapping.relativePath)
     const absolutePath = await join(binding.localRoot, mapping.relativePath)
     const pathExists = await exists(absolutePath)
     const fileExists = mapping.kind !== 'folder' && pathExists
@@ -1313,6 +1350,7 @@ async function cleanupDeletedFolders(binding: Binding) {
   const { default: useArticleStore } = await import('@/stores/article')
   for (const folder of folders) {
     try {
+      await assertNoPendingPathMove(binding, folder.relativePath)
       const articleState = useArticleStore.getState()
       if (!await prepareActiveEditorPathMutationDurably(
         articleState.activeFilePath,
@@ -1327,7 +1365,8 @@ async function cleanupDeletedFolders(binding: Binding) {
         workspaceRoot: binding.localRoot,
         relativePath: folder.relativePath,
       })
-    } catch {
+    } catch (error) {
+      if (error instanceof PendingPathMove) continue
       const existing = await database.select<Array<{ id: string }>>(
         `select id from self_hosted_conflicts where workspace_id = $1 and object_id = $2
            and conflict_type = 'remote-delete-local-edit' and state = 'unresolved' limit 1`,
@@ -1354,6 +1393,7 @@ async function applyRemoteFile(binding: Binding, event: SyncEvent, payload: Reco
     blobId,
     relativePath,
     keyVersion: event.keyVersion ?? 1,
+    associatedData: typeof payload.associatedData === 'string' ? payload.associatedData : undefined,
   }) : null
   const content = downloaded ? new TextDecoder().decode(downloaded.bytes) : String(payload.content ?? '')
   const portable = await invoke<PortableMappingPath>('self_hosted_portable_path', { relativePath })
@@ -1478,147 +1518,158 @@ async function applyRemoteFile(binding: Binding, event: SyncEvent, payload: Reco
 
 async function bootstrapBinding(binding: Binding, session: SyncSession) {
   const { client } = await authenticatedClient(binding.profileId)
-  let bootstrapId: string | undefined
-  let afterObjectId: string | undefined
-  let snapshotSequence = '0'
-  const objects: SyncBootstrapPage['objects'] = []
-  const conflicts: Array<Record<string, unknown>> = []
-  do {
-    const page = await client.bootstrap(
-      binding.workspaceId,
-      session.syncEpoch,
-      bootstrapId,
-      afterObjectId,
-      session.limits.maxBootstrapObjectsPerPage,
-    )
-    bootstrapId = page.bootstrapId
-    snapshotSequence = page.snapshotSequence
-    objects.push(...page.objects)
-    conflicts.push(...page.conflicts)
-    afterObjectId = page.nextObjectId ?? undefined
-  } while (afterObjectId)
-  const priority: Partial<Record<SyncObjectKind, number>> = {
-    tag: 0, conversation: 0, folder: 0,
-    mark: 1, note: 1, message: 1, asset: 1, canvas: 1,
-  }
-  objects.sort((left, right) => {
-    const deletionOrder = Number(left.deletedAt === null) - Number(right.deletedAt === null)
-    if (deletionOrder !== 0) return deletionOrder
-    return (priority[left.kind] ?? 2) - (priority[right.kind] ?? 2)
-  })
-  let skippedObjects = 0
-  for (const object of objects) {
-    const event: SyncEvent = {
-      eventId: `bootstrap:${bootstrapId}:${object.objectId}`,
-      sequence: snapshotSequence,
-      commandId: `bootstrap:${object.objectId}`,
-      sourceDeviceId: '',
-      type: object.deletedAt ? 'object.deleted' : 'object.upserted',
-      objectId: object.objectId,
-      documentId: object.document?.documentId ?? null,
-      documentSequence: object.document?.latestDocumentSequence ?? null,
-      keyVersion: object.keyVersion,
-      ciphertext: object.ciphertext,
-      ciphertextHash: object.ciphertextHash,
-      metadata: { kind: object.kind, revision: object.currentRevision },
-      createdAt: new Date().toISOString(),
+  return client.withBootstrapSnapshot(binding.workspaceId, session.syncEpoch, async readPage => {
+    let bootstrapId: string | undefined
+    let afterObjectId: string | undefined
+    let snapshotSequence = '0'
+    const objects: SyncBootstrapPage['objects'] = []
+    const conflicts: Array<Record<string, unknown>> = []
+    do {
+      const page = await readPage(
+        bootstrapId,
+        afterObjectId,
+        session.limits.maxBootstrapObjectsPerPage,
+      )
+      bootstrapId = page.bootstrapId
+      snapshotSequence = page.snapshotSequence
+      objects.push(...page.objects)
+      conflicts.push(...page.conflicts)
+      afterObjectId = page.nextObjectId ?? undefined
+    } while (afterObjectId)
+    const priority: Partial<Record<SyncObjectKind, number>> = {
+      tag: 0, conversation: 0, folder: 0,
+      mark: 1, note: 1, message: 1, asset: 1, canvas: 1,
     }
-    try {
-      await applyRemoteEvent(binding, event)
-    } catch (error) {
-      skippedObjects += 1
-      try {
-        await recordBootstrapApplyFailure(binding.workspaceId, object.objectId, object.kind, error)
-      } catch (recordError) {
-        console.warn('[self-hosted-sync] Unable to record bootstrap object failure', {
-          workspaceId: binding.workspaceId,
-          objectId: object.objectId,
-          recordError,
-        })
-      }
-      console.warn('[self-hosted-sync] Bootstrap object could not be applied', {
-        workspaceId: binding.workspaceId,
-        workspaceType: binding.workspaceType,
+    objects.sort((left, right) => {
+      const deletionOrder = Number(left.deletedAt === null) - Number(right.deletedAt === null)
+      if (deletionOrder !== 0) return deletionOrder
+      return (priority[left.kind] ?? 2) - (priority[right.kind] ?? 2)
+    })
+    let skippedObjects = 0
+    const appliedObjectIds: string[] = []
+    for (const object of objects) {
+      const event: SyncEvent = {
+        eventId: `bootstrap:${bootstrapId}:${object.objectId}`,
+        sequence: snapshotSequence,
+        commandId: `bootstrap:${object.objectId}`,
+        sourceDeviceId: '',
+        type: object.deletedAt ? 'object.deleted' : 'object.upserted',
         objectId: object.objectId,
-        kind: object.kind,
-        error,
-      })
-      continue
+        documentId: object.document?.documentId ?? null,
+        documentSequence: object.document?.latestDocumentSequence ?? null,
+        keyVersion: object.keyVersion,
+        ciphertext: object.ciphertext,
+        ciphertextHash: object.ciphertextHash,
+        metadata: { kind: object.kind, revision: object.currentRevision },
+        createdAt: new Date().toISOString(),
+      }
+      try {
+        await applyRemoteEvent(binding, event)
+      } catch (error) {
+        if (error instanceof PendingPathMove) throw error
+        skippedObjects += 1
+        try {
+          await recordBootstrapApplyFailure(binding.workspaceId, object.objectId, object.kind, error)
+        } catch (recordError) {
+          console.warn('[self-hosted-sync] Unable to record bootstrap object failure', {
+            workspaceId: binding.workspaceId,
+            objectId: object.objectId,
+            recordError,
+          })
+        }
+        console.warn('[self-hosted-sync] Bootstrap object could not be applied', {
+          workspaceId: binding.workspaceId,
+          workspaceType: binding.workspaceType,
+          objectId: object.objectId,
+          kind: object.kind,
+          error,
+        })
+        continue
+      }
+      await recordRevision(
+        binding.workspaceId,
+        object.objectId,
+        object.currentRevision,
+        snapshotSequence,
+        object.ciphertextHash,
+      )
+      if (object.document?.checkpointCiphertext) {
+        await (await getDb()).execute(
+            `insert or replace into self_hosted_yjs_updates(
+               workspace_id, document_id, document_sequence, object_id, key_version,
+               event_type, update_id, payload, applied, created_at
+             ) values ($1, $2, $3, $4, $5, 'checkpoint', $6, $7, 0, $8)`,
+            [
+              binding.workspaceId,
+              object.document.documentId,
+              object.document.checkpointDocumentSequence,
+              object.objectId,
+              object.document.checkpointKeyVersion,
+              object.document.checkpointId,
+              object.document.checkpointCiphertext,
+              Date.now(),
+            ]
+        )
+      }
+      appliedObjectIds.push(object.objectId)
     }
-    await recordRevision(
-      binding.workspaceId,
-      object.objectId,
-      object.currentRevision,
-      snapshotSequence,
-      object.ciphertextHash,
-    )
-    if (object.document?.checkpointCiphertext) {
+    if (appliedObjectIds.length > 0) {
       await (await getDb()).execute(
-          `insert or replace into self_hosted_yjs_updates(
-             workspace_id, document_id, document_sequence, object_id, key_version,
-             event_type, update_id, payload, applied, created_at
-           ) values ($1, $2, $3, $4, $5, 'checkpoint', $6, $7, 0, $8)`,
-          [
-            binding.workspaceId,
-            object.document.documentId,
-            object.document.checkpointDocumentSequence,
-            object.objectId,
-            object.document.checkpointKeyVersion,
-            object.document.checkpointId,
-            object.document.checkpointCiphertext,
-            Date.now(),
-          ]
+        `update self_hosted_conflicts set state = 'resolved', resolved_at = $1
+         where workspace_id = $2 and conflict_type = 'bootstrap-apply-failed'
+           and state = 'unresolved' and object_id in (select value from json_each($3))`,
+        [Date.now(), binding.workspaceId, JSON.stringify(appliedObjectIds)],
       )
     }
-  }
-  if (skippedObjects > 0) {
-    console.warn('[self-hosted-sync] Bootstrap completed with isolated object failures', {
-      workspaceId: binding.workspaceId,
-      workspaceType: binding.workspaceType,
-      skippedObjects,
-      totalObjects: objects.length,
-    })
-  }
-  const isolatedFailureLimit = Math.max(3, Math.ceil(objects.length * 0.1))
-  if (skippedObjects > isolatedFailureLimit) {
-    throw new Error(
-      `bootstrap_apply_failure_limit_exceeded:${skippedObjects}/${objects.length}`,
+    if (skippedObjects > 0) {
+      console.warn('[self-hosted-sync] Bootstrap completed with isolated object failures', {
+        workspaceId: binding.workspaceId,
+        workspaceType: binding.workspaceType,
+        skippedObjects,
+        totalObjects: objects.length,
+      })
+    }
+    const isolatedFailureLimit = Math.max(3, Math.ceil(objects.length * 0.1))
+    if (skippedObjects > isolatedFailureLimit) {
+      throw new Error(
+        `bootstrap_apply_failure_limit_exceeded:${skippedObjects}/${objects.length}`,
+      )
+    }
+    for (const conflict of conflicts) {
+      await recordProtocolConflict(
+        binding.workspaceId,
+        typeof conflict.objectId === 'string' ? conflict.objectId : undefined,
+        typeof conflict.conflictId === 'string' ? conflict.conflictId : crypto.randomUUID(),
+      )
+    }
+    await recoverUncoveredTombstonedPortableFiles(
+      binding,
+      new Set(objects.map(object => object.objectId)),
     )
-  }
-  for (const conflict of conflicts) {
-    await recordProtocolConflict(
+    await cleanupDeletedFolders(binding)
+    await (await getDb()).execute(
+      `update self_hosted_inbox set state = 'applied', applied_at = $1, error_code = null
+       where workspace_id = $2 and state in ('pending', 'failed')
+         and cast(sequence as integer) <= cast($3 as integer)`,
+      [Date.now(), binding.workspaceId, snapshotSequence]
+    )
+    // No pull runs concurrently with bootstrap. Rows beyond the authoritative
+    // snapshot can only belong to the superseded cursor branch (for example
+    // after a server restore), so they must not replay over the new snapshot.
+    await (await getDb()).execute(
+      `delete from self_hosted_inbox
+       where workspace_id = $1 and cast(sequence as integer) > cast($2 as integer)`,
+      [binding.workspaceId, snapshotSequence],
+    )
+    await client.acknowledge(binding.workspaceId, snapshotSequence, session.syncEpoch)
+    await updatePulledCursor(binding.workspaceId, snapshotSequence)
+    await updateCursor(binding.workspaceId, snapshotSequence, snapshotSequence)
+    await updateBindingSession(
       binding.workspaceId,
-      typeof conflict.objectId === 'string' ? conflict.objectId : undefined,
-      typeof conflict.conflictId === 'string' ? conflict.conflictId : crypto.randomUUID(),
+      session.syncEpoch,
+      session.workspace.capabilities.includes('content.update'),
     )
-  }
-  await recoverUncoveredTombstonedPortableFiles(
-    binding,
-    new Set(objects.map(object => object.objectId)),
-  )
-  await cleanupDeletedFolders(binding)
-  await (await getDb()).execute(
-    `update self_hosted_inbox set state = 'applied', applied_at = $1, error_code = null
-     where workspace_id = $2 and state in ('pending', 'failed')
-       and cast(sequence as integer) <= cast($3 as integer)`,
-    [Date.now(), binding.workspaceId, snapshotSequence]
-  )
-  // No pull runs concurrently with bootstrap. Rows beyond the authoritative
-  // snapshot can only belong to the superseded cursor branch (for example
-  // after a server restore), so they must not replay over the new snapshot.
-  await (await getDb()).execute(
-    `delete from self_hosted_inbox
-     where workspace_id = $1 and cast(sequence as integer) > cast($2 as integer)`,
-    [binding.workspaceId, snapshotSequence],
-  )
-  await client.acknowledge(binding.workspaceId, snapshotSequence, session.syncEpoch)
-  await updatePulledCursor(binding.workspaceId, snapshotSequence)
-  await updateCursor(binding.workspaceId, snapshotSequence, snapshotSequence)
-  await updateBindingSession(
-    binding.workspaceId,
-    session.syncEpoch,
-    session.workspace.capabilities.includes('content.update'),
-  )
+  })
 }
 
 async function recordBootstrapApplyFailure(
@@ -1738,6 +1789,8 @@ async function writeRemoteEditorSnapshot(
       ) {
         return false
       }
+
+      await assertNoPendingPathMove(binding, relativePath)
 
       try {
         if (snapshot.conflict) {
@@ -1881,6 +1934,7 @@ async function deleteRemoteEditorFile(
 }
 
 async function writeBytesJournaled(binding: Binding, objectId: string, relativePath: string, content: Uint8Array) {
+  await assertNoPendingPathMove(binding, relativePath)
   await invoke('self_hosted_atomic_write', {
     workspaceId: binding.workspaceId,
     objectId,
@@ -1889,6 +1943,29 @@ async function writeBytesJournaled(binding: Binding, objectId: string, relativeP
     contents: bytesToBase64Url(content),
     expectedHash: await hashBytes(content),
   })
+}
+
+async function pendingPathMovesForBinding(binding: Binding): Promise<Array<{ source: string; target: string }>> {
+  if (binding.workspaceType !== 'library' || !binding.localRoot) return []
+  const normalize = (path: string) => path.normalize('NFC').replaceAll('\\', '/').replace(/\/+$/, '')
+  if (normalize(binding.localRoot) !== normalize(await getCurrentWorkspaceRoot())) return []
+  if (await (await Store.load('store.json')).get<string>('primaryBackupMethod') !== 'selfHosted') return []
+  const { getPendingWorkspacePathMoves } = await import('@/lib/sync/workspace-path-moves')
+  return getPendingWorkspacePathMoves()
+}
+
+async function assertNoPendingPathMove(binding: Binding, relativePath: string) {
+  const normalize = (path: string) => path.normalize('NFC').replaceAll('\\', '/').replace(/\/+$/, '')
+  const path = normalize(relativePath).toLowerCase()
+  const moves = await pendingPathMovesForBinding(binding)
+  if (moves.some(move => [move.source, move.target].some(value => {
+    const root = normalize(value).toLowerCase()
+    return path === root || path.startsWith(`${root}/`) || root.startsWith(`${path}/`)
+  }))) {
+    // Keep the inbox event and cursor pending. A remote snapshot must not
+    // recreate a locally renamed source or apply an intermediate chain path.
+    throw new PendingPathMove()
+  }
 }
 
 async function recordEventRevision(workspaceId: string, event: SyncEvent) {

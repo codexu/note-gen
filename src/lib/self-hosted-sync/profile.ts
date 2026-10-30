@@ -18,6 +18,13 @@ export interface SelfHostedProfile {
   accessExpiresAt: number | null
 }
 
+export class SelfHostedInstanceChangedError extends Error {
+  constructor(readonly serverUrl: string, readonly instanceId: string) {
+    super('服务器实例身份已变化，请先确认服务器是否被重置或替换')
+    this.name = 'SelfHostedInstanceChangedError'
+  }
+}
+
 interface DeviceKeyPair {
   privateKey: string
   publicKey: string
@@ -54,6 +61,7 @@ export async function connectWithPassword(input: {
   password: string
   totpCode?: string
   deviceName: string
+  confirmedInstanceId?: string
 }): Promise<SelfHostedProfile> {
   const { normalized, client: unauthenticated, capabilities } = await resolveServerConnection(input.serverUrl)
   if (capabilities.protocol.minimum > 1 || capabilities.protocol.maximum < 1) {
@@ -61,9 +69,8 @@ export async function connectWithPassword(input: {
   }
 
   const existing = await profileForServer(normalized.url)
-  if (existing?.instanceId && existing.instanceId !== capabilities.instanceId) {
-    throw new Error('服务器实例身份已变化，请先确认服务器是否被重置或替换')
-  }
+  assertServerInstance(normalized.url, existing?.instanceId, capabilities.instanceId, input.confirmedInstanceId)
+  const instanceChanged = Boolean(existing?.instanceId && existing.instanceId !== capabilities.instanceId)
   const profileId = existing?.id ?? crypto.randomUUID()
   let keyPair = await getOrCreateDeviceIdentity(existing?.deviceId ?? undefined)
   let session: ClientSession
@@ -74,7 +81,7 @@ export async function connectWithPassword(input: {
     keyPair = await rotateDeviceIdentity(keyPair.deviceId)
     session = await loginWithDeviceIdentity(unauthenticated, input, keyPair)
   }
-  await prepareProfileAccount(profileId, existing?.accountId ?? null, session.accountId)
+  await prepareProfileAccount(profileId, existing?.accountId ?? null, session.accountId, instanceChanged)
 
   await Promise.all([
     secureSet(secretKey(profileId, 'access-token'), session.accessToken),
@@ -82,6 +89,7 @@ export async function connectWithPassword(input: {
     secureDelete(secretKey(profileId, 'refresh-request-id')).catch(() => undefined),
   ])
 
+  await requireConnectionReview(profileId)
   const database = await getDb()
   const now = Date.now()
   await database.execute(
@@ -114,15 +122,15 @@ export async function connectWithPassword(input: {
 export async function connectWithBrowser(input: {
   serverUrl: string
   deviceName: string
+  confirmedInstanceId?: string
 }): Promise<SelfHostedProfile> {
   const { normalized, client, capabilities } = await resolveServerConnection(input.serverUrl)
   if (capabilities.protocol.minimum > 1 || capabilities.protocol.maximum < 1) {
     throw new Error('服务器与当前 NoteGen 同步协议不兼容')
   }
   const existing = await profileForServer(normalized.url)
-  if (existing?.instanceId && existing.instanceId !== capabilities.instanceId) {
-    throw new Error('服务器实例身份已变化，请先确认服务器是否被重置或替换')
-  }
+  assertServerInstance(normalized.url, existing?.instanceId, capabilities.instanceId, input.confirmedInstanceId)
+  const instanceChanged = Boolean(existing?.instanceId && existing.instanceId !== capabilities.instanceId)
   const profileId = existing?.id ?? crypto.randomUUID()
   let keyPair = await getOrCreateDeviceIdentity(existing?.deviceId ?? undefined)
   for (let identityAttempt = 0; identityAttempt < 2; identityAttempt++) {
@@ -139,7 +147,7 @@ export async function connectWithBrowser(input: {
         await wait(authorization.interval * 1_000)
         try {
           const session = await client.exchangeDeviceAuthorization(authorization.deviceCode)
-          await prepareProfileAccount(profileId, existing?.accountId ?? null, session.accountId)
+          await prepareProfileAccount(profileId, existing?.accountId ?? null, session.accountId, instanceChanged)
           await persistConnectedProfile({
             profileId,
             normalized,
@@ -424,6 +432,17 @@ export async function updateDomainToggle(profileId: string, domain: string, enab
     'update self_hosted_sync_profiles set domain_toggles = $1, updated_at = $2 where id = $3',
     [JSON.stringify(domainToggles), Date.now(), profileId]
   )
+  clearAuthenticatedSession(profileId)
+  if (domain === 'settings' && profile.domainToggles.settings !== enabled) {
+    // Re-enabling settings must revisit the authoritative snapshot, including
+    // settings events intentionally acknowledged while this domain was off.
+    await database.execute(
+      `update self_hosted_workspace_bindings set binding_state = 'epoch-changed', updated_at = $1
+       where profile_id = $2 and workspace_type = 'account-data'
+         and binding_state in ('bound', 'bootstrapping', 'epoch-changed')`,
+      [Date.now(), profileId],
+    )
+  }
   return domainToggles
 }
 
@@ -448,6 +467,17 @@ export async function disconnectProfile(profileId: string) {
     "update self_hosted_sync_profiles set state = 'disconnected', updated_at = $1 where id = $2",
     [Date.now(), profileId]
   )
+  const store = await Store.load('store.json')
+  if (await store.get<string>('selfHostedConnectionReviewProfileId') === profileId) {
+    await store.delete('selfHostedConnectionReviewProfileId')
+    await store.save()
+  }
+}
+
+export async function requireConnectionReview(profileId: string) {
+  const store = await Store.load('store.json')
+  await store.set('selfHostedConnectionReviewProfileId', profileId)
+  await store.save()
 }
 
 export function workspaceSecretKey(workspaceId: string, keyVersion: number) {
@@ -481,6 +511,7 @@ async function persistConnectedProfile(input: {
     secureSet(secretKey(input.profileId, 'refresh-token'), input.session.refreshToken),
     secureDelete(secretKey(input.profileId, 'refresh-request-id')).catch(() => undefined),
   ])
+  await requireConnectionReview(input.profileId)
   const database = await getDb()
   const now = Date.now()
   await database.execute(
@@ -657,8 +688,20 @@ async function profileForServer(serverUrl: string) {
   return rows[0] ?? null
 }
 
-async function prepareProfileAccount(profileId: string, previousAccountId: string | null, nextAccountId: string) {
-  if (!previousAccountId || previousAccountId === nextAccountId) return
+function assertServerInstance(serverUrl: string, previousInstanceId: string | null | undefined, instanceId: string, confirmedInstanceId?: string) {
+  if ((confirmedInstanceId && confirmedInstanceId !== instanceId)
+    || (previousInstanceId && previousInstanceId !== instanceId && confirmedInstanceId !== instanceId)) {
+    throw new SelfHostedInstanceChangedError(serverUrl, instanceId)
+  }
+}
+
+async function prepareProfileAccount(profileId: string, previousAccountId: string | null, nextAccountId: string, instanceChanged = false) {
+  if (!instanceChanged && (!previousAccountId || previousAccountId === nextAccountId)) return
+  if (instanceChanged) {
+    const { getSelfHostedSyncRuntime } = await import('./runtime')
+    getSelfHostedSyncRuntime().stop()
+    await disconnectProfile(profileId)
+  }
   const database = await getDb()
   const keys = await database.select<Array<{ secureStorageKey: string }>>(
     `select k.secure_storage_key as secureStorageKey from self_hosted_workspace_keys k
@@ -668,9 +711,9 @@ async function prepareProfileAccount(profileId: string, previousAccountId: strin
   )
   await Promise.all(keys.map(key => secureDelete(key.secureStorageKey)))
   await database.execute(
-    `update self_hosted_workspace_bindings set binding_state = 'account-changed',
+    `update self_hosted_workspace_bindings set binding_state = $3,
        access_mode = 'read-only', updated_at = $1 where profile_id = $2`,
-    [Date.now(), profileId]
+    [Date.now(), profileId, instanceChanged ? 'instance-changed' : 'account-changed']
   )
   await database.execute(
     `delete from self_hosted_workspace_keys where workspace_id in (

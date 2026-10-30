@@ -28,12 +28,36 @@ pub fn self_hosted_portable_path(relative_path: String) -> Result<PortablePath, 
 }
 
 #[tauri::command]
+pub fn self_hosted_move_source_path(relative_path: String) -> Result<String, String> {
+    normalize_relative_path(&relative_path, cfg!(target_os = "windows"))
+}
+
+#[tauri::command]
 pub fn self_hosted_import_object_id(
     workspace_id: String,
     relative_path: String,
 ) -> Result<String, String> {
     let namespace = Uuid::parse_str(&workspace_id).map_err(|_| "Workspace ID is invalid".to_string())?;
     let normalized = validate_relative_path(&relative_path)?;
+    Ok(Uuid::new_v5(&namespace, normalized.as_bytes()).to_string())
+}
+
+#[tauri::command]
+pub fn self_hosted_structured_object_id(
+    workspace_id: String,
+    domain: String,
+    local_key: String,
+) -> Result<String, String> {
+    let namespace = Uuid::parse_str(&workspace_id).map_err(|_| "Workspace ID is invalid".to_string())?;
+    if !matches!(domain.as_str(), "tag" | "mark" | "conversation" | "message" | "memory" | "canvas" | "setting")
+        || local_key.is_empty()
+    {
+        return Err("Structured object identity is invalid".to_string());
+    }
+    let identity = format!("{domain}/{local_key}").nfc().collect::<String>();
+    // Preserve UUIDs produced by the original importer for portable keys.
+    // Logical keys such as quick-record:<uuid> never become filesystem paths.
+    let normalized = validate_relative_path(&identity).unwrap_or(identity);
     Ok(Uuid::new_v5(&namespace, normalized.as_bytes()).to_string())
 }
 
@@ -263,7 +287,10 @@ pub async fn self_hosted_move_path(
     source_relative_path: String,
     target_relative_path: String,
 ) -> Result<(), String> {
-    let source_relative_path = validate_relative_path(&source_relative_path)?;
+    // Existing macOS/Linux files may predate portable-name enforcement. Allow
+    // renaming those sources into a portable target, while retaining traversal
+    // and symlink protection. Windows sources still reject alternate streams.
+    let source_relative_path = self_hosted_move_source_path(source_relative_path)?;
     let target_relative_path = validate_relative_path(&target_relative_path)?;
     let root = safe_workspace_root(&workspace_root)?;
     let source = safe_target(&root, &source_relative_path)?;
@@ -488,6 +515,10 @@ fn reject_symlink_path(root: &Path, target: &Path) -> Result<(), String> {
 }
 
 fn validate_relative_path(value: &str) -> Result<String, String> {
+    normalize_relative_path(value, true)
+}
+
+fn normalize_relative_path(value: &str, require_portable: bool) -> Result<String, String> {
     let nfc = value.nfc().collect::<String>().replace('\\', "/");
     let path = Path::new(&nfc);
     if nfc.is_empty() || path.is_absolute() {
@@ -499,7 +530,9 @@ fn validate_relative_path(value: &str) -> Result<String, String> {
             return Err("Workspace path contains an unsafe component".to_string());
         };
         let name = name.to_str().ok_or_else(|| "Workspace path is not valid UTF-8".to_string())?;
-        validate_portable_name(name)?;
+        if require_portable {
+            validate_portable_name(name)?;
+        }
         normalized.push(name);
     }
     Ok(normalized.join("/"))

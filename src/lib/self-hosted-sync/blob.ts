@@ -91,15 +91,23 @@ export async function downloadAsset(input: {
   blobId: string
   relativePath: string
   keyVersion: number
+  associatedData?: string
 }) {
   const { client } = await authenticatedClient(input.profileId)
   const ciphertext = await client.downloadBlob(input.workspaceId, input.blobId)
   if (await hashBytes(ciphertext) !== input.blobId) throw new Error('blob_ciphertext_hash_mismatch')
   const key = await loadWorkspaceKey(input.workspaceId, input.keyVersion)
+  const associatedData = input.associatedData ?? assetAssociatedData(input.workspaceId, input.relativePath)
+  const prefix = `notegen:blob:v1:${input.workspaceId}:`
+  if (!associatedData.startsWith(prefix) || associatedData.length === prefix.length) {
+    throw new Error('blob_associated_data_invalid')
+  }
   const plaintext = await invoke<string>('self_hosted_decrypt_packed_bytes', {
     key,
     packedCiphertext: bytesToBase64Url(ciphertext),
-    associatedData: assetAssociatedData(input.workspaceId, input.relativePath),
+    // Renames keep the original blob bytes, so authentication must use the
+    // path recorded at encryption time rather than the current display path.
+    associatedData,
   })
   const bytes = base64UrlToBytes(plaintext)
   return { bytes, hash: await hashBytes(bytes) }
@@ -128,6 +136,6 @@ export async function hashBytes(value: Uint8Array) {
   return bytesToBase64Url(digest)
 }
 
-function assetAssociatedData(workspaceId: string, relativePath: string) {
+export function assetAssociatedData(workspaceId: string, relativePath: string) {
   return `notegen:blob:v1:${workspaceId}:${relativePath}`
 }

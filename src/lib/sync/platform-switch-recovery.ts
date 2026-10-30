@@ -8,6 +8,7 @@ export interface PlatformSwitchRecovery {
   commitPlatform?: SyncPlatform
   backupPath?: string
   backupPaths?: string[]
+  selfHostedBackupPath?: string
   startedAt?: number
   workspace?: string
   targetFingerprint?: string

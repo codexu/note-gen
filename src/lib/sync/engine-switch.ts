@@ -1,6 +1,7 @@
 import { getDb } from '@/db'
 import { getSelfHostedSyncRuntime } from '@/lib/self-hosted-sync/runtime'
 import type { SyncPlatform } from '@/types/sync'
+import type { SelfHostedSwitchPreview } from '@/lib/self-hosted-sync/switch-preview'
 
 export interface SyncEngineSwitchReview {
   current: SyncPlatform
@@ -10,6 +11,7 @@ export interface SyncEngineSwitchReview {
   currentRemoteObjects: number
   nextRemoteObjects: number
   requiresReview: boolean
+  selfHostedPreview?: SelfHostedSwitchPreview
 }
 
 export type SyncEngineInspectionStep = 'local' | 'currentRemote' | 'nextRemote'
@@ -18,8 +20,9 @@ export async function inspectSyncEngineSwitch(
   current: SyncPlatform,
   next: SyncPlatform,
   onProgress?: (step: SyncEngineInspectionStep, listing?: { path: string; files: number }) => void,
+  assertActive: () => void = () => {},
 ): Promise<SyncEngineSwitchReview> {
-  if (current === next) {
+  if (current === next && next !== 'selfHosted') {
     return {
       current, next, pendingLocalChanges: 0, pendingCommands: 0,
       currentRemoteObjects: 0, nextRemoteObjects: 0, requiresReview: false,
@@ -33,6 +36,16 @@ export async function inspectSyncEngineSwitch(
   const [commands] = await database.select<Array<{ total: number }>>(
     "select count(*) as total from self_hosted_outbox where state in ('pending', 'retry')"
   )
+  if (next === 'selfHosted') {
+    onProgress?.('nextRemote')
+    const { inspectSelfHostedSwitch } = await import('@/lib/self-hosted-sync/switch-preview')
+    const selfHostedPreview = await inspectSelfHostedSwitch(assertActive)
+    return {
+      current, next, pendingLocalChanges: changes?.total ?? 0, pendingCommands: commands?.total ?? 0,
+      currentRemoteObjects: -1, nextRemoteObjects: selfHostedPreview.modules.reduce((sum, row) => sum + row.remote, 0),
+      requiresReview: true, selfHostedPreview,
+    }
+  }
   const remoteObjectCount = async (platform: SyncPlatform, step: SyncEngineInspectionStep) => {
     onProgress?.(step)
     if (platform === 'local') return 0

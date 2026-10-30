@@ -184,6 +184,7 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'workspaceHistory',
   'selfHostedDeferredWorkspacePaths',
   'selfHostedServerUrlDraft',
+  'selfHostedConnectionReviewProfileId',
   'selfHostedExperimentalAcknowledged',
   'assetsPath',
   'workspaceSyncRepos',

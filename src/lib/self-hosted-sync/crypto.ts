@@ -14,6 +14,10 @@ export function objectAssociatedData(workspaceId: string, objectId: string, kind
   return `notegen:sync:v1:${workspaceId}:${objectId}:${kind}`
 }
 
+export function structuredObjectId(workspaceId: string, domain: string, localKey: string) {
+  return invoke<string>('self_hosted_structured_object_id', { workspaceId, domain, localKey })
+}
+
 export async function encryptJson(key: string, value: unknown, associatedData: string) {
   return invoke<EncryptedPayload>('self_hosted_encrypt', {
     key,

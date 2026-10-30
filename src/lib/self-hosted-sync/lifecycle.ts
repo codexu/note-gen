@@ -37,6 +37,13 @@ export async function refreshSelfHostedSyncRuntime(target?: SyncPlatform) {
   const profiles = await (await getDb()).select<Array<{ id: string }>>(
     "select id from self_hosted_sync_profiles where state = 'connected' limit 1"
   )
+  const pendingConnectionReview = await store.get<string>('selfHostedConnectionReviewProfileId')
+  if (pendingConnectionReview && target !== 'selfHosted') {
+    activeLibraryWorkspaceId = null
+    runtime.stop()
+    useSyncStore.getState().setSelfHostedConnected(profiles.length > 0)
+    return
+  }
   if (!selected || profiles.length === 0) {
     activeLibraryWorkspaceId = null
     console.info('[self-hosted-sync] runtime.stopped', {

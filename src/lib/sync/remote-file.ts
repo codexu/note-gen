@@ -190,6 +190,8 @@ export function sanitizeSyncErrorMessage(error: unknown): string {
 export function formatSyncDataError(message: string, translate: (key: string, values: { path: string }) => string): string {
   message = sanitizeSyncErrorMessage(message)
   if (message.includes('\n')) return message.split('\n').map(line => formatSyncDataError(line, translate)).join('\n')
+  const selfHostedResponse = /^SELF_HOSTED_API_(INVALID_RESPONSE|AUTH_REQUIRED): ([^\n]+)$/.exec(message)
+  if (selfHostedResponse) return translate(selfHostedResponse[1] === 'AUTH_REQUIRED' ? 'selfHostedAuthenticationRequired' : 'selfHostedInvalidResponse', { path: selfHostedResponse[2] })
   const giteeRequest = /^SYNC_GITEE_(CONNECTION|REQUEST)_FAILED: ([^\n]+)$/.exec(message)
   if (giteeRequest) return translate(giteeRequest[1] === 'CONNECTION' ? 'giteeConnectionFailed' : 'giteeRequestFailed', { path: giteeRequest[2] })
   // Old recovery records may contain native errors with credentials in URLs.

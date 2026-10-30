@@ -30,11 +30,13 @@ import {
   type SwitchOperationProgress, type SwitchResolution, type SwitchStrategy,
 } from '@/lib/sync/platform-switch-plan'
 import { cn } from '@/lib/utils'
+import type { SelfHostedSwitchPreview } from '@/lib/self-hosted-sync/switch-preview'
 import useSettingStore from '@/stores/setting'
 import {
   cancelPlatformSwitch, choosePlatformSwitchStrategy, confirmPlatformSwitch, dismissPlatformSwitch,
   editPlatformSwitchChoice, holdPlatformSwitchCompletion, resolvePlatformSwitchConflict,
   restorePlatformSwitchRecovery, retryPlatformSwitch, selectPlatformSwitchModule, skipPlatformSwitchError, usePlatformSwitchStore,
+  continueSelfHostedSwitchWithoutSettings,
 } from '@/stores/sync-platform-switch'
 import { SYNC_PLATFORM_INFO, type SyncPlatform } from '@/types/sync'
 
@@ -70,12 +72,12 @@ function useSwitchStage(state: ReturnType<typeof usePlatformSwitchStore.getState
   return !platform || inspecting ? stage : Math.max(highest, stage)
 }
 
-function SwitchSteps({ active, failed, completed, nativeEngine }: { active: number; failed: boolean; completed: boolean; nativeEngine: boolean }) {
+function SwitchSteps({ active, failed, completed }: { active: number; failed: boolean; completed: boolean }) {
   const p = useTranslations('settings.sync.switchPlan')
-  const stages = switchStages.map((stage, index) => ({ stage, index })).filter(item => !nativeEngine || item.stage !== 'backup')
-  const activeStage = nativeEngine && active === 2 ? 3 : active
+  const stages = switchStages.map((stage, index) => ({ stage, index }))
+  const activeStage = active
   return <nav aria-label={p('stepsLabel')}>
-    <ol className={cn('grid gap-2', nativeEngine ? 'grid-cols-4' : 'grid-cols-5')}>
+    <ol className="grid grid-cols-5 gap-2">
       {stages.map(({ stage, index }, position) => {
         const done = completed || index < activeStage
         const current = !completed && index === activeStage
@@ -228,6 +230,43 @@ function SwitchConflicts({ conflicts, resolutions, remoteName }: {
   </section>
 }
 
+function SelfHostedSwitchOverview({ preview }: { preview: SelfHostedSwitchPreview }) {
+  const p = useTranslations('settings.sync.switchPlan')
+  return <section className="flex min-w-0 flex-col gap-4" aria-label={p('comparison')}>
+    <Alert><GitMerge /><AlertTitle>{p('nativeMode')}</AlertTitle><AlertDescription className="flex flex-col gap-2">
+      <p className="break-all">{preview.serverUrl}</p>
+      <p>{p('nativePreviewHint')}</p>
+      <p>{p('nativeEngine')}</p>
+    </AlertDescription></Alert>
+    {preview.settingsPaused && <Alert variant="warning"><AlertTriangle /><AlertDescription>{p('nativeSettingsPaused')}</AlertDescription></Alert>}
+    <Table aria-label={p('moduleDetails')}>
+      <TableHeader><TableRow><TableHead>{p('module')}</TableHead><TableHead>{p('localSide')}</TableHead><TableHead>{p('sources.remote')}</TableHead><TableHead>{p('differences')}</TableHead></TableRow></TableHeader>
+      <TableBody>{preview.modules.map(row => <TableRow key={row.id}>
+        <TableCell>{p(`modules.${row.id}`)}</TableCell>
+        <TableCell className="tabular-nums">{row.local}</TableCell><TableCell className="tabular-nums">{row.remote}</TableCell>
+        <TableCell className="min-w-48 whitespace-normal"><div className="flex flex-wrap gap-1.5">
+          <Badge variant="secondary">{p('sameCount', { count: row.same })}</Badge>
+          <Badge variant={row.localOnly ? 'warning' : 'secondary'}>{p('localOnlyCount', { count: row.localOnly })}</Badge>
+          <Badge variant={row.remoteOnly ? 'info' : 'secondary'}>{p('remoteOnlyCount', { count: row.remoteOnly })}</Badge>
+          <Badge variant={row.changed ? 'warning' : 'secondary'}>{p('nativeChangedCount', { count: row.changed })}</Badge>
+          <Badge variant={row.deleted ? 'destructive' : 'secondary'}>{p('nativeDeletedCount', { count: row.deleted })}</Badge>
+        </div></TableCell>
+      </TableRow>)}</TableBody>
+    </Table>
+    {preview.details.length > 0 && <section className="flex flex-col gap-2" aria-label={p('viewDifference')}>
+      <h3 className="text-sm font-medium">{p('viewDifference')}</h3>
+      <p className="text-xs text-muted-foreground">{p('nativeDetailLimit', { shown: preview.details.length, total: preview.differenceCount })}</p>
+      <ItemGroup className="gap-1">{preview.details.map((item, index) => <Item key={`${item.module}:${index}`} variant="muted" size="sm">
+        <ItemContent className="min-w-0"><ItemTitle className="block truncate" title={item.label}>{item.module === 'settings' ? p('modules.settings') : item.label}</ItemTitle><ItemDescription>{p(`modules.${item.module}`)}</ItemDescription></ItemContent>
+        <ItemActions><Badge variant={item.difference === 'deleted' ? 'destructive' : 'secondary'}>{p(`nativeDifferences.${item.difference}`)}</Badge></ItemActions>
+      </Item>)}</ItemGroup>
+    </section>}
+    <Alert variant="warning"><AlertTriangle /><AlertTitle>{p('nativeHandlingTitle')}</AlertTitle><AlertDescription className="flex flex-col gap-2">
+      <p>{p('nativeHandlingFiles')}</p><p>{p('nativeHandlingPersonal')}</p><p>{p('nativeHandlingDeletions')}</p><p>{p('nativeBackupHint')}</p>
+    </AlertDescription></Alert>
+  </section>
+}
+
 export function PlatformSwitchProgress() {
   const t = useTranslations()
   const p = useTranslations('settings.sync.switchPlan')
@@ -278,6 +317,15 @@ export function PlatformSwitchProgress() {
     SYNC_SWITCH_UNAVAILABLE_REMOTE_DATA: 'unavailableRemoteData', SYNC_SWITCH_CONDITIONAL_UNSUPPORTED: 'conditionalUnsupported',
     SYNC_SWITCH_RECOVERY_CHANGED: 'recoveryChanged',
     SYNC_SWITCH_CANCELLED: 'cancelledError',
+    SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED: 'nativeConnectionRequired',
+    SELF_HOSTED_PREVIEW_INSTANCE_CHANGED: 'nativeInstanceChanged',
+    SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED: 'nativeLibraryRequired',
+    SELF_HOSTED_PREVIEW_KEY_REQUIRED: 'nativeKeyRequired',
+    SELF_HOSTED_PREVIEW_DECRYPTION_FAILED: 'nativeDecryptionFailed',
+    SELF_HOSTED_PREVIEW_SETTING_DECRYPTION_FAILED: 'nativeDecryptionFailed',
+    SELF_HOSTED_BOOTSTRAP_CAPACITY_EXCEEDED: 'nativeSnapshotCapacity',
+    SELF_HOSTED_PREVIEW_CONTENT_REQUIRED: 'nativeContentRequired',
+    SELF_HOSTED_PREVIEW_DUPLICATE_IDENTITY: 'nativeDuplicateIdentity',
   }
   const errorMessage = error && errorKeys[error] ? p(errorKeys[error]) : formatSyncDataError(error || p('failed'), p)
   useEffect(() => {
@@ -345,7 +393,7 @@ export function PlatformSwitchProgress() {
           <Button type="button" variant="ghost" size="icon-sm" aria-label={p(step === 'completed' ? 'done' : 'minimize')} title={p(step === 'completed' ? 'done' : 'minimize')} onClick={closeDetails}>{step === 'completed' ? <Check /> : <Minimize2 />}</Button>
         </div>
         <DialogDescription className="sr-only">{p('currentPrimary', { platform: platformName(primary) })}</DialogDescription>
-        {skipped ? <Badge variant="secondary" className="self-start">{p('skipped')}</Badge> : <SwitchSteps active={stage} failed={step === 'error'} completed={step === 'completed'} nativeEngine={nativeEngine} />}
+        {skipped ? <Badge variant="secondary" className="self-start">{p('skipped')}</Badge> : <SwitchSteps active={stage} failed={step === 'error'} completed={step === 'completed'} />}
       </DialogHeader>
       <Separator />
       <ScrollArea ref={scroller} className="min-h-0 flex-1">
@@ -367,13 +415,7 @@ export function PlatformSwitchProgress() {
             </FieldSet>
             <SwitchDataOverview plan={plan} selected={selected} remoteName={name} />
           </>}
-          {step === 'review' && nativeEngine && <Alert><ListChecks /><AlertTitle>{p('nativeMode')}</AlertTitle><AlertDescription>
-            {state.review && <p className="whitespace-pre-wrap">{p('nativeSummary', {
-              changes: state.review.pendingLocalChanges, commands: state.review.pendingCommands,
-              currentRemote: state.review.currentRemoteObjects < 0 ? '?' : state.review.currentRemoteObjects,
-              nextRemote: state.review.nextRemoteObjects < 0 ? '?' : state.review.nextRemoteObjects,
-            })}</p>}
-          </AlertDescription></Alert>}
+          {choosing && nativeEngine && state.review?.selfHostedPreview && <SelfHostedSwitchOverview preview={state.review.selfHostedPreview} />}
           {step === 'confirm' && <>
             <section className="flex flex-col gap-3" aria-label={p('operationSummary')}>
               <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-medium">{p('operationSummary')}</h3><Badge variant="secondary">{nativeEngine ? p('nativeMode') : p(`strategies.${strategy || 'merge'}`)}</Badge></div>
@@ -388,10 +430,14 @@ export function PlatformSwitchProgress() {
           {step === 'error' && <>
             <Alert variant="destructive"><AlertTriangle /><AlertTitle>{p('failed')}</AlertTitle><AlertDescription className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{errorMessage}</AlertDescription></Alert>
             <p className="text-sm text-muted-foreground">{p(mutated ? 'partialFailure' : 'failureBeforeWrite')}</p>
+            {error === 'SELF_HOSTED_PREVIEW_SETTING_DECRYPTION_FAILED' && !mutated && <Alert>
+              <ListChecks /><AlertDescription>{p('nativeSkipSettingsHint')}</AlertDescription>
+            </Alert>}
           </>}
           {step === 'cancelled' && <Alert><CircleX /><AlertTitle>{p('cancelled')}</AlertTitle><AlertDescription>{p(mutated ? 'cancelledPartialHint' : 'cancelledHint')}</AlertDescription></Alert>}
           {skipped && <Alert variant="warning"><AlertTriangle /><AlertTitle>{p('skipped')}</AlertTitle><AlertDescription className="flex flex-col gap-2"><p>{p('skippedHint', { platform: name })}</p>{error && <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{errorMessage}</p>}</AlertDescription></Alert>}
           {step === 'completed' && !skipped && <Empty><EmptyHeader><EmptyMedia variant="icon"><Check /></EmptyMedia><EmptyTitle>{p(state.recovered ? 'recoveryCompleted' : 'completed')}</EmptyTitle></EmptyHeader></Empty>}
+          {state.selfHostedBackupPath && <Alert><HardDrive /><AlertTitle>{p('nativeBackupTitle')}</AlertTitle><AlertDescription className="break-all">{p('nativeBackupLocation', { path: state.selfHostedBackupPath })}</AlertDescription></Alert>}
         </div>
       </ScrollArea>
       <Separator />
@@ -420,6 +466,9 @@ export function PlatformSwitchProgress() {
             }}>{p('continue')}<ArrowRight data-icon="inline-end" /></Button>}
             {step === 'confirm' && <Button type="button" disabled={!canConfirm} aria-describedby={unresolved > 0 ? `${acknowledgeId}-hint` : undefined} onClick={confirmPlatformSwitch}>{p('confirmExecute')}<ArrowRight data-icon="inline-end" /></Button>}
             {stopped && <Button type="button" variant="outline" onClick={() => setConfirmation('skip')}><SkipForward data-icon="inline-start" />{p(step === 'cancelled' ? 'confirmSkip' : 'skipError')}</Button>}
+            {step === 'error' && error === 'SELF_HOSTED_PREVIEW_SETTING_DECRYPTION_FAILED' && !mutated && <Button type="button" variant="outline" onClick={() => {
+              void continueSelfHostedSwitchWithoutSettings().catch(failure => toast({ title: p('failed'), description: failure instanceof Error ? failure.message : String(failure), variant: 'destructive' }))
+            }}>{p('nativeContinueWithoutSettings')}<ArrowRight data-icon="inline-end" /></Button>}
             {(stopped || skipped) && <Button type="button" onClick={() => void retryPlatformSwitch()}><RefreshCcw data-icon="inline-start" />{p(skipped ? 'verifySkipped' : 'rescanRetry')}</Button>}
             {step === 'cancelled' && !mutated && <Button type="button" variant="outline" onClick={() => void dismissPlatformSwitch()}>{p('done')}</Button>}
             {step === 'completed' && <Button type="button" onClick={() => void dismissPlatformSwitch()}><Check data-icon="inline-start" />{p('done')}</Button>}

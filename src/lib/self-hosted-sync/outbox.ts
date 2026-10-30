@@ -4,7 +4,7 @@ import { join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
 import { getDb } from '@/db'
 import { filterSyncData } from '@/config/sync-exclusions'
-import { encryptJson, loadWorkspaceKey, objectAssociatedData } from './crypto'
+import { encryptJson, loadWorkspaceKey, objectAssociatedData, structuredObjectId } from './crypto'
 import type { SyncObjectKind, WorkspaceType } from './protocol'
 import { base64UrlByteLength, uploadAsset } from './blob'
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
@@ -234,13 +234,38 @@ async function enqueueParentFolderChanges(
   }
 }
 
-const STRUCTURED_DOMAINS: Record<string, { table: string; keyColumn: string; kind: SyncObjectKind }> = {
+export const STRUCTURED_DOMAINS: Record<string, { table: string; keyColumn: string; kind: SyncObjectKind }> = {
   tag: { table: 'tags', keyColumn: 'id', kind: 'tag' },
   mark: { table: 'marks', keyColumn: 'sourceId', kind: 'mark' },
   conversation: { table: 'conversations', keyColumn: 'syncId', kind: 'conversation' },
   message: { table: 'chats', keyColumn: 'syncId', kind: 'message' },
   memory: { table: 'memories', keyColumn: 'id', kind: 'memory' },
   canvas: { table: 'canvases', keyColumn: 'id', kind: 'canvas' },
+}
+
+/** Numeric database keys are device-local. Reuse an owned mapping, but never
+ * claim a deterministic import ID already mapped to a different local row. */
+export async function resolveStructuredObjectId(workspaceId: string, domain: string, localKey: string) {
+  const database = await getDb()
+  const localIdentity = `${domain}:${localKey}`
+  const existing = await database.select<Array<{ objectId: string }>>(
+    'select object_id as objectId from self_hosted_object_mappings where workspace_id = $1 and local_identity = $2 limit 1',
+    [workspaceId, localIdentity],
+  )
+  if (existing[0]) return existing[0].objectId
+  let candidate = await structuredObjectId(workspaceId, domain, localKey)
+  let deviceId: string | undefined
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const owners = await database.select<Array<{ localIdentity: string }>>(
+      'select local_identity as localIdentity from self_hosted_object_mappings where workspace_id = $1 and object_id = $2 limit 1',
+      [workspaceId, candidate],
+    )
+    if (!owners[0] || owners[0].localIdentity === localIdentity) return candidate
+    deviceId ??= await (await Store.load('store.json')).get<string>('selfHostedDeviceId')
+    if (!deviceId) throw new Error('自托管设备身份不可用，请重新授权')
+    candidate = await structuredObjectId(workspaceId, domain, JSON.stringify({ localKey, deviceId, attempt }))
+  }
+  throw new Error('SELF_HOSTED_PREVIEW_DUPLICATE_IDENTITY')
 }
 
 export async function materializeOutbox(
@@ -618,10 +643,11 @@ function isMissingPathError(error: unknown) {
   return message.includes('No such file or directory') || message.includes('(os error 2)')
 }
 
-async function structuredPayload(
+export async function structuredPayload(
   workspaceId: string,
   domain: string,
   localKey: string,
+  readOnly = false,
 ): Promise<Record<string, unknown> | null> {
   if (domain === 'setting') {
     const store = await Store.load('store.json')
@@ -651,6 +677,10 @@ async function structuredPayload(
   }
   const row = rows[0]
   if (!row) return null
+  const referenceId = async (domain: string, key: string, kind: SyncObjectKind) => {
+    if (!readOnly) return (await ensureObjectMapping(workspaceId, domain, key, kind)).objectId
+    return resolveStructuredObjectId(workspaceId, domain, key)
+  }
   const references: Record<string, string> = {}
   if (domain === 'mark' && typeof row.id === 'number') {
     const { getMarkById } = await import('@/db/marks')
@@ -659,12 +689,12 @@ async function structuredPayload(
       row.tagIds = mark.tagIds
       row.tagUpdatedAt = mark.tagUpdatedAt ?? 0
       for (const tagId of mark.tagIds) {
-        references[`tag:${tagId}`] = (await ensureObjectMapping(workspaceId, 'tag', String(tagId), 'tag')).objectId
+        references[`tag:${tagId}`] = await referenceId('tag', String(tagId), 'tag')
       }
     }
   }
   if ((domain === 'mark' || domain === 'note' || domain === 'message') && row.tagId != null) {
-    references.tag = (await ensureObjectMapping(workspaceId, 'tag', String(row.tagId), 'tag')).objectId
+    references.tag = await referenceId('tag', String(row.tagId), 'tag')
   }
   if (domain === 'message' && row.conversationId != null) {
     const conversations = await database.select<Array<{ syncId: string }>>(
@@ -672,9 +702,7 @@ async function structuredPayload(
       [row.conversationId]
     )
     if (conversations[0]?.syncId) {
-      references.conversation = (
-        await ensureObjectMapping(workspaceId, 'conversation', conversations[0].syncId, 'conversation')
-      ).objectId
+      references.conversation = await referenceId('conversation', conversations[0].syncId, 'conversation')
     }
   }
   return {
@@ -805,8 +833,9 @@ async function ensureObjectMapping(
     )
   }
   const stablePersonalIdentity = domain === 'setting' || domain in STRUCTURED_DOMAINS
-  const objectId = existing?.objectId ?? (canUseDeterministicImport || stablePersonalIdentity
-    ? await invoke<string>('self_hosted_import_object_id', {
+  const objectId = existing?.objectId ?? (stablePersonalIdentity
+    ? await resolveStructuredObjectId(workspaceId, domain, normalizedLocalKey)
+    : canUseDeterministicImport ? await invoke<string>('self_hosted_import_object_id', {
         workspaceId,
         relativePath: `${domain}/${normalizedLocalKey}`,
       })

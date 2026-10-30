@@ -60,6 +60,12 @@ async function loadDatabase(): Promise<Database> {
   }
   // Keep legacy writers (plugins, older clients and structured sync) compatible.
   // A primary-tag move replaces only that tag; all additional tags survive.
+  const tagMoveTriggers = await nextDatabase.select<Array<{ sql: string }>>(
+    "select sql from sqlite_master where type = 'trigger' and name = 'record_tags_move'"
+  )
+  if (tagMoveTriggers[0] && /insert\s+or\s+ignore\s+into\s+record_tag_metadata/i.test(tagMoveTriggers[0].sql)) {
+    await nextDatabase.execute('drop trigger record_tags_move')
+  }
   await nextDatabase.execute(`
     create trigger if not exists record_tags_move after update of tagId on marks
     when OLD.tagId != NEW.tagId
@@ -70,8 +76,9 @@ async function loadDatabase(): Promise<Database> {
           union select NEW.tagId
         )
       ), updatedAt = cast((julianday('now') - 2440587.5) * 86400000 as integer) where markId = NEW.id;
-      insert or ignore into record_tag_metadata (markId, tagIds, updatedAt)
-      values (NEW.id, json_array(NEW.tagId), cast((julianday('now') - 2440587.5) * 86400000 as integer));
+      insert into record_tag_metadata (markId, tagIds, updatedAt)
+      select NEW.id, json_array(NEW.tagId), cast((julianday('now') - 2440587.5) * 86400000 as integer)
+      where not exists (select 1 from record_tag_metadata where markId = NEW.id);
     end
   `)
   await nextDatabase.execute(`

@@ -1,4 +1,3 @@
-import { parseSyncJson, syncDataError } from '@/lib/sync/remote-file'
 import { fetch } from '@tauri-apps/plugin-http'
 import type {
   ApiErrorBody, ClientSession, ServerCapabilities, SyncCommandResult,
@@ -48,6 +47,7 @@ export function normalizeServerUrl(value: string): NormalizedServerUrl {
 }
 
 export class SelfHostedClient {
+  private bootstrapReleaseSupported: boolean | undefined
   readonly baseUrl: string
 
   constructor(
@@ -58,18 +58,42 @@ export class SelfHostedClient {
     this.baseUrl = normalizeServerUrl(serverUrl).url
   }
 
-  capabilities() {
-    return this.request<ServerCapabilities>('/v1/capabilities')
+  async capabilities() {
+    const capabilities = await this.request<ServerCapabilities>('/v1/capabilities')
+    this.bootstrapReleaseSupported = capabilities.features.bootstrapRelease === true
+    return capabilities
   }
 
   login(input: { login: string; password: string; totpCode?: string; deviceId: string; deviceName: string; platform: string; encryptionPublicKey?: string }) {
     return this.request<ClientSession>('/v1/auth/login', { method: 'POST', body: input })
   }
 
-  refresh(refreshToken: string, deviceId: string, refreshRequestId: string) {
-    return this.request<ClientSession>('/v1/auth/refresh', {
-      method: 'POST', body: { refreshToken, deviceId, refreshRequestId },
-    })
+  async refresh(refreshToken: string, deviceId: string, refreshRequestId: string) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const session = await this.request<unknown>('/v1/auth/refresh', {
+          method: 'POST', body: { refreshToken, deviceId, refreshRequestId },
+        })
+        if (!session || typeof session !== 'object'
+          || !('accountId' in session) || typeof session.accountId !== 'string' || !session.accountId
+          || !('deviceId' in session) || session.deviceId !== deviceId
+          || !('accessToken' in session) || typeof session.accessToken !== 'string' || !session.accessToken
+          || !('refreshToken' in session) || typeof session.refreshToken !== 'string' || !session.refreshToken
+          || !('accessTokenExpiresIn' in session) || typeof session.accessTokenExpiresIn !== 'number'
+          || !Number.isFinite(session.accessTokenExpiresIn) || session.accessTokenExpiresIn <= 0) {
+          throw new SelfHostedApiError({ code: 'invalid_response',
+            message: 'SELF_HOSTED_API_INVALID_RESPONSE: HTTP 200 /v1/auth/refresh',
+            requestId: '', retryable: true }, 200)
+        }
+        return session as ClientSession
+      } catch (error) {
+        // Reuse both the token and request ID: the server can recover a rotation
+        // whose response was lost without treating it as token reuse.
+        if (attempt !== 0 || !(error instanceof SelfHostedApiError)
+          || error.body.code !== 'invalid_response' || !error.body.retryable) throw error
+        console.warn('[self-hosted-sync] Retrying malformed refresh response', { status: error.status })
+      }
+    }
   }
 
   createDeviceAuthorization(input: {
@@ -281,7 +305,7 @@ export class SelfHostedClient {
     return new Uint8Array(await response.arrayBuffer())
   }
 
-  bootstrap(
+  private bootstrap(
     workspaceId: string,
     expectedSyncEpoch: string,
     bootstrapId?: string,
@@ -292,6 +316,49 @@ export class SelfHostedClient {
     if (bootstrapId) query.set('bootstrapId', bootstrapId)
     if (afterObjectId) query.set('afterObjectId', afterObjectId)
     return this.request<SyncBootstrapPage>(`/v1/workspaces/${workspaceId}/sync/bootstrap?${query}`)
+  }
+
+  async withBootstrapSnapshot<T>(
+    workspaceId: string,
+    expectedSyncEpoch: string,
+    operation: (readPage: (bootstrapId?: string, afterObjectId?: string, limit?: number) => Promise<SyncBootstrapPage>) => Promise<T>,
+  ): Promise<T> {
+    const supportsRelease = this.bootstrapReleaseSupported
+      ?? (await this.capabilities()).features.bootstrapRelease === true
+    let snapshotId: string | undefined
+    const readPage = async (bootstrapId?: string, afterObjectId?: string, limit?: number) => {
+      if (bootstrapId !== snapshotId) throw new Error('bootstrap_snapshot_mismatch')
+      let page: SyncBootstrapPage
+      try {
+        page = await this.bootstrap(workspaceId, expectedSyncEpoch, bootstrapId, afterObjectId, limit)
+      } catch (error) {
+        if (error instanceof SelfHostedApiError && error.body.code === 'bootstrap_capacity_exceeded') {
+          throw new Error('SELF_HOSTED_BOOTSTRAP_CAPACITY_EXCEEDED')
+        }
+        throw error
+      }
+      if (snapshotId && page.bootstrapId !== snapshotId) throw new Error('bootstrap_snapshot_mismatch')
+      snapshotId = page.bootstrapId
+      if (page.syncEpoch !== expectedSyncEpoch) throw new Error('bootstrap_epoch_mismatch')
+      return page
+    }
+    try {
+      return await operation(readPage)
+    } finally {
+      if (supportsRelease && snapshotId) {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5_000)
+        try {
+          await this.request<null>(`/v1/workspaces/${workspaceId}/sync/bootstrap/${encodeURIComponent(snapshotId)}?expectedSyncEpoch=${encodeURIComponent(expectedSyncEpoch)}`, {
+            method: 'DELETE', signal: controller.signal,
+          })
+        } catch (error) {
+          console.warn('[self-hosted-sync] Bootstrap snapshot release failed', {
+            workspaceId, snapshotId, code: error instanceof SelfHostedApiError ? error.body.code : 'release_failed',
+          })
+        } finally { clearTimeout(timeout) }
+      }
+    }
   }
 
   documentUpdates(
@@ -333,9 +400,11 @@ export class SelfHostedClient {
     method?: string
     body?: unknown
     headers?: Record<string, string>
+    signal?: AbortSignal
   } = {}): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: options.method ?? 'GET',
+      signal: options.signal,
       headers: {
         accept: 'application/json',
         ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -348,11 +417,12 @@ export class SelfHostedClient {
     let value: unknown = null
     if (response.status !== 204) {
       const content = await response.text()
-      try { value = parseSyncJson<unknown>(content, `selfHosted / ${path.split('?')[0]}`) }
-      catch (error) {
-        if (response.ok) throw error
-        throw new SelfHostedApiError({ code: 'invalid_response', message: error instanceof Error ? error.message : syncDataError('INVALID_JSON', 'selfHosted').message,
-          requestId: '', retryable: response.status >= 500 }, response.status)
+      try { value = JSON.parse(content.replace(/^\uFEFF/, '')) as unknown }
+      catch {
+        throw new SelfHostedApiError({ code: 'invalid_response',
+          message: `${response.status === 401 ? 'SELF_HOSTED_API_AUTH_REQUIRED' : 'SELF_HOSTED_API_INVALID_RESPONSE'}: HTTP ${response.status} ${path.split('?')[0]}`,
+          requestId: response.headers.get('x-request-id') ?? '',
+          retryable: response.ok || response.status >= 500 }, response.status)
       }
     }
     if (!response.ok) {

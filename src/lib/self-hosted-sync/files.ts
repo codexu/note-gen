@@ -4,6 +4,7 @@ import { getDb } from '@/db'
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
 import { enqueueAssetSnapshot, enqueueFileSnapshot, enqueueFolderSnapshot } from './outbox'
 import { getSelfHostedSyncRuntime } from './runtime'
+import { withSelfHostedPrepareLock } from './prepare-lock'
 
 function normalizeSlashes(path: string) {
   return path.normalize('NFC').replaceAll('\\', '/').replace(/\/{2,}/g, '/').replace(/\/$/, '')
@@ -38,12 +39,12 @@ export async function moveSelfHostedWorkspacePath(sourceRelativePath: string, ta
   const normalizedSourcePath = workspaceRelativePath(sourceRelativePath, workspaceRoot)
   const normalizedTargetPath = workspaceRelativePath(targetRelativePath, workspaceRoot)
   if (!normalizedSourcePath || !normalizedTargetPath) return false
-  await invoke('self_hosted_move_path', {
+  await withSelfHostedPrepareLock(workspaceId, () => invoke('self_hosted_move_path', {
     workspaceId,
     workspaceRoot,
     sourceRelativePath: normalizedSourcePath,
     targetRelativePath: normalizedTargetPath,
-  })
+  }))
   return true
 }
 

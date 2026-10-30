@@ -7,6 +7,7 @@ import { decryptPackedJson, encryptJson, loadWorkspaceKey, objectAssociatedData 
 import { getSelfHostedSyncRuntime } from './runtime'
 import type { SyncBootstrapPage } from './protocol'
 import { withSelfHostedPrepareLock } from './prepare-lock'
+import { assetAssociatedData } from './blob'
 
 class ExistingUploadPending extends Error {
   constructor() { super('自托管已有文件上传尚未完成，重命名待办已保留') }
@@ -142,7 +143,7 @@ export async function moveSelfHostedRemotePath(
     || within(source.toLowerCase(), target.toLowerCase()) || within(target.toLowerCase(), source.toLowerCase())) {
     throw new Error('自托管重命名源路径和目标路径无效或互相包含')
   }
-  source = (await invoke<{ normalized: string }>('self_hosted_portable_path', { relativePath: source })).normalized
+  source = await invoke<string>('self_hosted_move_source_path', { relativePath: source })
   target = (await invoke<{ normalized: string }>('self_hosted_portable_path', { relativePath: target })).normalized
   const binding = await activeBinding()
   if (!binding) throw new Error('自托管工作区未绑定或已断开')
@@ -163,46 +164,47 @@ export async function moveSelfHostedRemotePath(
     const session = await client.syncSession(binding.workspaceId, '0', syncEpoch)
     if (session.syncEpoch !== syncEpoch || !session.protocol.compatible
       || !session.workspace.capabilities.includes('content.update')) throw new Error('自托管工作区版本或写入权限已变化')
-    type Remote = SyncBootstrapPage['objects'][number] & { path: string; casefold: string; payload: Record<string, unknown> }
-    const remote: Remote[] = []
-    const ids = new Set<string>()
-    const paths = new Set<string>()
-    const pages = new Set<string>()
-    let bootstrapId: string | undefined
-    let after: string | undefined
-    let sequence: string | undefined
-    for (;;) {
-      await current()
-      const page = await client.bootstrap(binding.workspaceId, session.syncEpoch, bootstrapId, after, 200)
-      if (page.syncEpoch !== session.syncEpoch || !page.bootstrapId
-        || (bootstrapId && bootstrapId !== page.bootstrapId) || (sequence && sequence !== page.snapshotSequence)) {
-        throw new Error('自托管重命名读取到不完整的远端快照')
-      }
-      bootstrapId = page.bootstrapId
-      sequence = page.snapshotSequence
-      for (const object of page.objects) {
-        if (ids.has(object.objectId) || ids.size >= 100_000) throw new Error('自托管远端快照成员重复或数量过多')
-        ids.add(object.objectId)
-        if (object.deletedAt || !['note', 'asset', 'folder'].includes(object.kind)) continue
-        const key = await loadWorkspaceKey(binding.workspaceId, object.keyVersion)
-        const payload = await decryptPackedJson<Record<string, unknown>>(
-          key, object.ciphertext, objectAssociatedData(binding.workspaceId, object.objectId, object.kind),
-        )
-        if (payload.domain !== domain(object.kind as PathKind) || typeof payload.relativePath !== 'string') {
-          throw new Error('自托管远端路径载荷无效')
+    return client.withBootstrapSnapshot(binding.workspaceId, session.syncEpoch, async readPage => {
+      type Remote = SyncBootstrapPage['objects'][number] & { path: string; casefold: string; payload: Record<string, unknown> }
+      const remote: Remote[] = []
+      const ids = new Set<string>()
+      const paths = new Set<string>()
+      const pages = new Set<string>()
+      let bootstrapId: string | undefined
+      let after: string | undefined
+      let sequence: string | undefined
+      for (;;) {
+        await current()
+        const page = await readPage(bootstrapId, after, 200)
+        if (page.syncEpoch !== session.syncEpoch || !page.bootstrapId
+          || (bootstrapId && bootstrapId !== page.bootstrapId) || (sequence && sequence !== page.snapshotSequence)) {
+          throw new Error('自托管重命名读取到不完整的远端快照')
         }
-        const portable = await invoke<{ normalized: string; caseFolded: string }>(
-          'self_hosted_portable_path', { relativePath: payload.relativePath },
-        )
-        if (paths.has(portable.caseFolded)) throw new Error('自托管远端路径存在大小写冲突')
-        paths.add(portable.caseFolded)
-        remote.push({ ...object, path: portable.normalized, casefold: portable.caseFolded, payload })
+        bootstrapId = page.bootstrapId
+        sequence = page.snapshotSequence
+        for (const object of page.objects) {
+          if (ids.has(object.objectId) || ids.size >= 100_000) throw new Error('自托管远端快照成员重复或数量过多')
+          ids.add(object.objectId)
+          if (object.deletedAt || !['note', 'asset', 'folder'].includes(object.kind)) continue
+          const key = await loadWorkspaceKey(binding.workspaceId, object.keyVersion)
+          const payload = await decryptPackedJson<Record<string, unknown>>(
+            key, object.ciphertext, objectAssociatedData(binding.workspaceId, object.objectId, object.kind),
+          )
+          if (payload.domain !== domain(object.kind as PathKind) || typeof payload.relativePath !== 'string') {
+            throw new Error('自托管远端路径载荷无效')
+          }
+          const path = await invoke<string>('self_hosted_move_source_path', { relativePath: payload.relativePath })
+          const casefold = path.toLowerCase()
+          if (paths.has(casefold)) throw new Error('自托管远端路径存在大小写冲突')
+          paths.add(casefold)
+          remote.push({ ...object, path, casefold, payload })
+        }
+        if (!page.hasMore) return { remote, keyVersion: Math.max(1, ...session.keyVersions.map(key => key.keyVersion)) }
+        if (!page.nextObjectId || pages.has(page.nextObjectId)) throw new Error('自托管远端快照分页无效')
+        pages.add(page.nextObjectId)
+        after = page.nextObjectId
       }
-      if (!page.hasMore) return { remote, keyVersion: Math.max(1, ...session.keyVersions.map(key => key.keyVersion)) }
-      if (!page.nextObjectId || pages.has(page.nextObjectId)) throw new Error('自托管远端快照分页无效')
-      pages.add(page.nextObjectId)
-      after = page.nextObjectId
-    }
+    })
   }
   let snapshot = expected === undefined ? undefined : readSnapshot(expected, context, source, target)
   const prepareMove = async (): Promise<'missing' | 'moved' | 'queued'> => {
@@ -265,7 +267,14 @@ export async function moveSelfHostedRemotePath(
       ) => {
         const portable = await invoke<{ normalized: string; caseFolded: string }>('self_hosted_portable_path', { relativePath: newPath })
         const key = await loadWorkspaceKey(binding.workspaceId, keyVersion)
-        const encrypted = await encryptJson(key, { ...payload, relativePath: portable.normalized }, objectAssociatedData(binding.workspaceId, objectId, kind))
+        const movedPayload = { ...payload, relativePath: portable.normalized }
+        if (oldPath !== null && typeof payload.blobId === 'string') {
+          Object.assign(movedPayload, {
+            associatedData: typeof payload.associatedData === 'string'
+              ? payload.associatedData : assetAssociatedData(binding.workspaceId, oldPath),
+          })
+        }
+        const encrypted = await encryptJson(key, movedPayload, objectAssociatedData(binding.workspaceId, objectId, kind))
         const commandId = crypto.randomUUID()
         const parent = newPath.includes('/') ? newPath.slice(0, newPath.lastIndexOf('/')) : ''
         const command = {

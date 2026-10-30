@@ -2,28 +2,30 @@
 
 import { useEffect, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
-import { AlertTriangle, Loader2, LogIn, LogOut, Server } from 'lucide-react'
+import { AlertTriangle, ListChecks, Loader2, LogIn, LogOut, Server } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { OpenBroswer } from '@/components/open-broswer'
 import { getDb } from '@/db'
-import { connectWithBrowser, connectWithPassword, disconnectProfile } from '@/lib/self-hosted-sync/profile'
+import { connectWithBrowser, connectWithPassword, disconnectProfile, SelfHostedInstanceChangedError } from '@/lib/self-hosted-sync/profile'
 import { refreshSelfHostedSyncRuntime } from '@/lib/self-hosted-sync/lifecycle'
 import { normalizeServerUrl } from '@/lib/self-hosted-sync/client'
-import { ensureDefaultLibraryForCurrentWorkspace } from '@/lib/self-hosted-sync/workspaces'
 import useSyncStore from '@/stores/sync'
+import { reviewSelfHostedConnection, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 import { SelfHostedWorkspaces } from './self-hosted-workspaces'
 
 let serverUrlDraftWrite: Promise<void> = Promise.resolve()
 
 export function SelfHostedSync() {
   const t = useTranslations('settings.sync.selfHosted')
+  const p = useTranslations('settings.sync.switchPlan')
   const locale = useLocale()
   const websiteLocale = locale.toLocaleLowerCase().startsWith('zh') ? 'cn' : 'en'
   const deploymentGuideUrl = `https://notegen.top/${websiteLocale}/self-hosted`
@@ -33,8 +35,16 @@ export function SelfHostedSync() {
   const [totpCode, setTotpCode] = useState('')
   const [showPasswordLogin, setShowPasswordLogin] = useState(false)
   const [connecting, setConnecting] = useState(false)
+  const [instanceChange, setInstanceChange] = useState<{
+    mode: 'browser' | 'password'
+    serverUrl: string
+    instanceId: string
+  } | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
   const [insecureHttp, setInsecureHttp] = useState(false)
   const [profileId, setProfileId] = useState<string | null>(null)
+  const [connectionReviewRequired, setConnectionReviewRequired] = useState(false)
+  const switchStep = usePlatformSwitchStore(state => state.step)
   const [reauthenticationRequired, setReauthenticationRequired] = useState(false)
   const [workspaceRevision, setWorkspaceRevision] = useState(0)
   const [experimentalAcknowledged, setExperimentalAcknowledged] = useState<boolean | null>(null)
@@ -46,6 +56,14 @@ export function SelfHostedSync() {
       .then(acknowledged => setExperimentalAcknowledged(acknowledged === true))
       .catch(() => setExperimentalAcknowledged(false))
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void Store.load('store.json').then(store => store.get<string>('selfHostedConnectionReviewProfileId'))
+      .then(pending => { if (!cancelled) setConnectionReviewRequired(Boolean(profileId && pending === profileId)) })
+      .catch(error => console.warn('[self-hosted-sync] Failed to read pending connection review', error))
+    return () => { cancelled = true }
+  }, [profileId, switchStep])
 
   useEffect(() => {
     if (experimentalAcknowledged !== true) return
@@ -80,7 +98,8 @@ export function SelfHostedSync() {
       if (profiles[0]?.state === 'connected') {
         setServerUrl(profiles[0].serverUrl)
         setInsecureHttp(normalizeServerUrl(profiles[0].serverUrl).insecureHttp)
-        await ensureDefaultLibraryForCurrentWorkspace(profiles[0].id, t('newLibraryDefaultName'))
+        // Restore local connection controls before preparing the runtime, which
+        // may need an unavailable server (for example after a LAN IP change).
         setProfileId(profiles[0].id)
         setSelfHostedConnected(true)
         setReauthenticationRequired(false)
@@ -111,20 +130,22 @@ export function SelfHostedSync() {
     }
   }
 
-  async function connect(mode: 'browser' | 'password') {
+  async function connect(mode: 'browser' | 'password', confirmation?: { serverUrl: string; instanceId: string }) {
     setConnecting(true)
     try {
-      await persistServerUrlDraft(serverUrl)
+      const connectionUrl = confirmation?.serverUrl ?? serverUrl
+      await persistServerUrlDraft(connectionUrl)
       let connectedProfileId: string
       let connectedServerUrl: string
       if (mode === 'browser') {
-        const profile = await connectWithBrowser({ serverUrl, deviceName: 'NoteGen' })
+        const profile = await connectWithBrowser({ serverUrl: connectionUrl, deviceName: 'NoteGen', confirmedInstanceId: confirmation?.instanceId })
         connectedProfileId = profile.id
         connectedServerUrl = profile.serverUrl
         await persistServerUrlDraft(profile.serverUrl)
       } else {
         const profile = await connectWithPassword({
-          serverUrl, login, password,
+          serverUrl: connectionUrl, login, password,
+          confirmedInstanceId: confirmation?.instanceId,
           ...(totpCode.trim() ? { totpCode: totpCode.trim() } : {}),
           deviceName: 'NoteGen',
         })
@@ -132,28 +153,50 @@ export function SelfHostedSync() {
         connectedServerUrl = profile.serverUrl
         await persistServerUrlDraft(profile.serverUrl)
       }
-      await ensureDefaultLibraryForCurrentWorkspace(connectedProfileId, t('newLibraryDefaultName'))
       setProfileId(connectedProfileId)
       setServerUrl(connectedServerUrl)
       setSelfHostedConnected(true)
       setReauthenticationRequired(false)
       setWorkspaceRevision(revision => revision + 1)
-      await refreshSelfHostedSyncRuntime()
       toast.success(t('connectedToast'))
+      await reviewSelfHostedConnection()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('connectionFailed'))
+      if (error instanceof SelfHostedInstanceChangedError) {
+        setInstanceChange({ mode, serverUrl: error.serverUrl, instanceId: error.instanceId })
+      } else {
+        toast.error(error instanceof Error ? error.message : t('connectionFailed'))
+      }
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  async function reviewConnection() {
+    setConnecting(true)
+    try {
+      await reviewSelfHostedConnection()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('operationFailed'))
     } finally {
       setConnecting(false)
     }
   }
 
   async function disconnect() {
-    if (!profileId) return
-    await disconnectProfile(profileId)
-    setProfileId(null)
-    setSelfHostedConnected(false)
-    await refreshSelfHostedSyncRuntime()
-    toast.success(t('disconnectedToast'))
+    if (!profileId || disconnecting) return
+    setDisconnecting(true)
+    try {
+      await disconnectProfile(profileId)
+      setProfileId(null)
+      setSelfHostedConnected(false)
+      setReauthenticationRequired(false)
+      await refreshSelfHostedSyncRuntime()
+      toast.success(t('disconnectedToast'))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('operationFailed'))
+    } finally {
+      setDisconnecting(false)
+    }
   }
 
   async function acknowledgeExperimentalRisk() {
@@ -231,7 +274,7 @@ export function SelfHostedSync() {
                 value={serverUrl}
                 onChange={event => updateServerUrl(event.target.value)}
                 placeholder="https://sync.example.com"
-                disabled={connecting || selfHostedConnected}
+                disabled={connecting || disconnecting || selfHostedConnected}
               />
               <FieldDescription>{t('httpsNoDowngrade')}</FieldDescription>
             </Field>
@@ -252,6 +295,11 @@ export function SelfHostedSync() {
               <AlertDescription>{t('reauthenticationDescription')}</AlertDescription>
             </Alert>
           ) : null}
+
+          {selfHostedConnected && connectionReviewRequired && <Alert className="mt-4" variant="warning">
+            <ListChecks /><AlertTitle>{p('nativeReviewAction')}</AlertTitle>
+            <AlertDescription>{p('nativeReviewRequired')}</AlertDescription>
+          </Alert>}
 
           {showPasswordLogin && !selfHostedConnected ? (
             <FieldGroup className="mt-4">
@@ -277,18 +325,22 @@ export function SelfHostedSync() {
                 <Server data-icon="inline-start" />
                 {t('connected')}
               </Button>
-              <Button variant="outline" onClick={() => void disconnect()}>
-                <LogOut data-icon="inline-start" />{t('disconnect')}
+              <Button variant="outline" disabled={!profileId || connecting || disconnecting} onClick={() => void reviewConnection()}>
+                <ListChecks data-icon="inline-start" />{p('nativeReviewAction')}
+              </Button>
+              <Button variant="outline" disabled={!profileId || disconnecting} onClick={() => void disconnect()}>
+                {disconnecting ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <LogOut data-icon="inline-start" />}
+                {t('disconnect')}
               </Button>
             </>
           ) : (
             <>
-              <Button disabled={connecting || !serverUrl.trim()} onClick={() => void connect('browser')}>
+              <Button disabled={connecting || disconnecting || !serverUrl.trim()} onClick={() => void connect('browser')}>
                 {connecting ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <LogIn data-icon="inline-start" />}
                 {t('browserAuthorization')}
               </Button>
               {showPasswordLogin ? (
-                <Button variant="outline" disabled={connecting || !login.trim() || !password} onClick={() => void connect('password')}>
+                <Button variant="outline" disabled={connecting || disconnecting || !login.trim() || !password} onClick={() => void connect('password')}>
                   {t('passwordLogin')}
                 </Button>
               ) : (
@@ -301,6 +353,23 @@ export function SelfHostedSync() {
       {selfHostedConnected && profileId ? (
         <SelfHostedWorkspaces key={`${profileId}:${workspaceRevision}`} profileId={profileId} />
       ) : null}
+      <AlertDialog open={instanceChange !== null} onOpenChange={open => { if (!open) setInstanceChange(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('instanceChangeTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('instanceChangeDescription', { server: instanceChange?.serverUrl ?? '' })}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('instanceChangeCancel')}</AlertDialogCancel>
+            <AlertDialogAction disabled={connecting || disconnecting} onClick={() => {
+              if (!instanceChange) return
+              const confirmation = instanceChange
+              setInstanceChange(null)
+              void connect(confirmation.mode, confirmation)
+            }}>{t('instanceChangeConfirm')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

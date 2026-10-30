@@ -1574,10 +1574,12 @@ const useSettingStore = create<SettingState>((set, get) => ({
         if (pendingRecovery && (!recovery || recovery.startedAt !== pendingRecovery.startedAt || recovery.platform !== pendingRecovery.platform)) throw syncStaleError({ stage: 'verify', path: 'platformSwitchRecovery', check: 'configuration' })
         assertActive?.()
         const completesSwitch = (recovery?.commitPlatform ?? recovery?.platform) === method
+        const pendingConnectionReview = await store.get<string>('selfHostedConnectionReviewProfileId')
         let changed = false
         try {
           await store.set('primaryBackupMethod', method)
           changed = true
+          if (method === 'selfHosted') await store.delete('selfHostedConnectionReviewProfileId')
           if (completesSwitch) await store.delete('platformSwitchRecovery')
           assertActive?.()
           await store.save()
@@ -1587,6 +1589,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
         } catch (error) {
           if (changed) {
             await store.set('primaryBackupMethod', previous)
+            if (pendingConnectionReview) await store.set('selfHostedConnectionReviewProfileId', pendingConnectionReview)
             if (completesSwitch && recovery) await store.set('platformSwitchRecovery', recovery)
             await store.save()
             set({ primaryBackupMethod: previous })

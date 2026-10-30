@@ -5,7 +5,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb } from '@/db'
 import { SelfHostedApiError } from './client'
 import {
-  authenticatedClient, isSelfHostedAuthenticationError, reconcilePersonalWorkspaceObjects,
+  authenticatedClient, isSelfHostedAuthenticationError, isSelfHostedSecureStorageError, reconcilePersonalWorkspaceObjects,
   markProfileReauthenticationRequired, secureDelete, getProfile,
 } from './profile'
 import { decryptPackedJson, encodeUtf8Base64Url, loadWorkspaceKey, objectAssociatedData } from './crypto'
@@ -71,6 +71,7 @@ export class SelfHostedSyncRuntime {
   #running = false
   #rerun = false
   #stopped = true
+  #secureStoragePaused = false
   #wakeCompletion: Promise<void> | null = null
   #socket: WebSocket | null = null
   #socketWorkspaceSignature = ''
@@ -104,8 +105,13 @@ export class SelfHostedSyncRuntime {
   }
 
   start() {
+    if (this.#secureStoragePaused) return
     this.#stopped = false
     void this.wake('startup')
+  }
+
+  allowSecureStorageRetry() {
+    this.#secureStoragePaused = false
   }
 
   waitForCurrentRun(): Promise<void> {
@@ -142,6 +148,11 @@ export class SelfHostedSyncRuntime {
     this.#presenceOwner = null
     if (this.#timer) clearTimeout(this.#timer)
     this.#timer = null
+  }
+
+  #pauseForSecureStorage() {
+    this.#secureStoragePaused = true
+    this.stop()
   }
 
   async stopAndWait() {
@@ -218,6 +229,7 @@ export class SelfHostedSyncRuntime {
   }
 
   wake(reason: string): Promise<void> {
+    if (this.#secureStoragePaused) return Promise.resolve()
     if (reason === 'manual-retry') this.#manualRetryRequested = true
     // A collaborative drain can request a wake while the editor resolver is
     // waiting for that drain. Defer sending without making it await itself.
@@ -284,7 +296,7 @@ export class SelfHostedSyncRuntime {
             if (error instanceof SelfHostedApiError && (error.status === 0 || error.status >= 500)) {
               useSyncStore.getState().setSelfHostedServiceAvailable(false)
             }
-            if (isSelfHostedAuthenticationError(error)) throw error
+            if (isSelfHostedAuthenticationError(error) || isSelfHostedSecureStorageError(error)) throw error
             errors.add(error instanceof Error ? error.message : String(error))
             console.warn('[self-hosted-sync] Workspace synchronization failed', {
               reason,
@@ -298,7 +310,9 @@ export class SelfHostedSyncRuntime {
       } while (this.#rerun && !this.#stopped)
     } catch (error) {
       errors.add(error instanceof Error ? error.message : String(error))
-      if (isSelfHostedAuthenticationError(error)) {
+      if (isSelfHostedSecureStorageError(error)) {
+        this.#pauseForSecureStorage()
+      } else if (isSelfHostedAuthenticationError(error)) {
         const bindings = await listBindings()
         await Promise.all(bindings.map(binding => markProfileReauthenticationRequired(binding.profileId)))
         this.#stopped = true
@@ -559,6 +573,13 @@ export class SelfHostedSyncRuntime {
       })
     }).catch(error => {
       if (generation !== this.#socketGeneration || this.#stopped) return
+      if (isSelfHostedSecureStorageError(error)) {
+        this.#pauseForSecureStorage()
+        emitter.emit('sync-engine-completed', {
+          provider: 'selfHosted', errors: [error instanceof Error ? error.message : String(error)],
+        })
+        return
+      }
       if (!isSelfHostedAuthenticationError(error)) {
         console.warn('[self-hosted-sync] Unable to connect realtime channel', error)
         this.#scheduleSocketReconnect()

@@ -14,7 +14,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { OpenBroswer } from '@/components/open-broswer'
 import { getDb } from '@/db'
-import { connectWithBrowser, connectWithPassword, disconnectProfile, SelfHostedInstanceChangedError } from '@/lib/self-hosted-sync/profile'
+import { connectWithBrowser, connectWithPassword, disconnectProfile, isSelfHostedSecureStorageError, retrySecureStorageAccess, SelfHostedInstanceChangedError } from '@/lib/self-hosted-sync/profile'
 import { refreshSelfHostedSyncRuntime } from '@/lib/self-hosted-sync/lifecycle'
 import { normalizeServerUrl } from '@/lib/self-hosted-sync/client'
 import useSyncStore from '@/stores/sync'
@@ -145,10 +145,10 @@ export function SelfHostedSync() {
         setReauthenticationRequired(profiles[0]?.state === 'reauthentication-required')
       }
     })().catch(error => {
-      toast.error(error instanceof Error ? error.message : t('operationFailed'))
+      toast.error(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? error.message : t('operationFailed'))
     })
     return () => window.removeEventListener('self-hosted-profile-state-changed', handleProfileStateChange)
-  }, [experimentalAcknowledged, setSelfHostedConnected, t])
+  }, [experimentalAcknowledged, setSelfHostedConnected, t, p])
 
   function updateServerUrl(value: string) {
     setServerUrl(value)
@@ -194,7 +194,7 @@ export function SelfHostedSync() {
       if (error instanceof SelfHostedInstanceChangedError) {
         setInstanceChange({ mode, serverUrl: error.serverUrl, instanceId: error.instanceId })
       } else {
-        toast.error(error instanceof Error ? error.message : t('connectionFailed'))
+        toast.error(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? error.message : t('connectionFailed'))
       }
     } finally {
       setConnecting(false)
@@ -206,7 +206,7 @@ export function SelfHostedSync() {
     try {
       await reviewSelfHostedConnection()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('operationFailed'))
+      toast.error(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? error.message : t('operationFailed'))
     } finally {
       setConnecting(false)
     }
@@ -216,6 +216,7 @@ export function SelfHostedSync() {
     if (!profileId || disconnecting) return
     setDisconnecting(true)
     try {
+      await retrySecureStorageAccess()
       await disconnectProfile(profileId)
       setProfileId(null)
       setSelfHostedConnected(false)
@@ -223,7 +224,7 @@ export function SelfHostedSync() {
       await refreshSelfHostedSyncRuntime()
       toast.success(t('disconnectedToast'))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('operationFailed'))
+      toast.error(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? error.message : t('operationFailed'))
     } finally {
       setDisconnecting(false)
     }

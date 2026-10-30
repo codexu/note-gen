@@ -2474,6 +2474,7 @@
         "invalidJsonFile": "Die Remotedaten „{path}“ enthalten ungültiges oder abgeschnittenes JSON. Die Synchronisierung wurde gestoppt. Repariere die Datei und versuche es erneut; beschädigte Inhalte gelten nicht als leere Daten.",
         "selfHostedInvalidResponse": "Die selbst gehostete API hat eine leere oder ungültige Antwort gesendet ({path}). Prüfe, ob der Server läuft und die Adresse auf den API-Dienst verweist, und versuche es erneut.",
         "selfHostedAuthenticationRequired": "Deine Sitzung ist abgelaufen ({path}). Autorisiere dich erneut in den Self-Hosting-Einstellungen und versuche es noch einmal.",
+        "selfHostedSecureStorageUnavailable": "Der Zugriff auf den Anmeldedatenspeicher des Systems ist fehlgeschlagen. Die automatische Synchronisierung wurde pausiert. Klicke auf „Erneut versuchen“, um den Zugriff erneut zu erlauben.",
         "emptyJsonFile": "Die Remotedaten „{path}“ sind leer. Die Synchronisierung wurde gestoppt. Prüfe die Datei oder Netzwerkantwort und versuche es erneut.",
         "invalidSchemaFile": "Die Remotedaten „{path}“ haben eine ungültige Struktur. Die Synchronisierung wurde gestoppt. Repariere die Datei und versuche es erneut; lokale Daten werden nicht gelöscht.",
         "conditionalUnsupported": "Dieser Anbieter oder diese Dateiversion unterstützt keine zuverlässigen bedingten Schreibzugriffe. Der Vorgang wurde gestoppt. Wählen Sie „Remote verwenden“ zum Lesen oder einen Anbieter mit Versionsbedingungen.",

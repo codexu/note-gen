@@ -284,6 +284,11 @@ export function UnifiedSyncStatus() {
         return
       }
       if (method === 'local') return
+      if (method === 'selfHosted') {
+        const { retrySecureStorageAccess } = await import('@/lib/self-hosted-sync/profile')
+        await retrySecureStorageAccess()
+        if (!isCurrent()) return
+      }
       const document = useDocumentSyncStore.getState().document
       const configuration = await availability.refresh()
       if (!isCurrent()) return
@@ -294,6 +299,9 @@ export function UnifiedSyncStatus() {
         if (!isCurrent()) return
       }
       if (method === 'selfHosted') {
+        const { refreshSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/lifecycle')
+        await refreshSelfHostedSyncRuntime()
+        if (!isCurrent()) return
         const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
         if (isCurrent()) await getSelfHostedSyncRuntime().wake('manual-retry')
         return

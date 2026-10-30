@@ -2609,6 +2609,7 @@
         "invalidJsonFile": "远端数据“{path}”不是完整有效的 JSON，已停止本次同步。请检查文件是否损坏或被截断，修复后点击重试；不会将损坏内容当作空数据覆盖本地。",
         "selfHostedInvalidResponse": "自托管接口响应为空或格式异常（{path}）。请确认服务端正常运行、地址指向 API 服务后重试。",
         "selfHostedAuthenticationRequired": "自托管登录已失效（{path}），请在自托管设置中重新授权后重试。",
+        "selfHostedSecureStorageUnavailable": "系统凭据存储访问失败，自动同步已暂停。请点击“重试”重新授权。",
         "emptyJsonFile": "远端数据“{path}”返回了空内容，已停止本次同步。请检查文件内容或网络响应后点击重试。",
         "invalidSchemaFile": "远端数据“{path}”的结构不符合要求，已停止本次同步。请修复文件后点击重试，本地数据不会因此被清空。",
         "conditionalUnsupported": "当前平台或文件版本不支持可靠的条件写入，已停止操作。可选择“使用远端”只读取数据，或改用支持版本条件的平台。",

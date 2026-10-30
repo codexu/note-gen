@@ -5,7 +5,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { getDb } from '@/db'
 import { decryptText } from './crypto'
 import { SelfHostedApiError } from './client'
-import { authenticatedClient, secureSet, workspaceSecretKey } from './profile'
+import { authenticatedClient, secureGet, secureSet, workspaceSecretKey } from './profile'
 import { enqueueAssetSnapshot, enqueueFileSnapshot, enqueueFolderSnapshot } from './outbox'
 import { bytesToBase64Url } from './blob'
 import type { WorkspaceSummary } from './protocol'
@@ -451,12 +451,14 @@ export async function ensureManagedWorkspaceKey(profileId: string, workspaceId: 
 }
 
 async function loadManagedWorkspaceKey(profileId: string, workspaceId: string, keyVersion: number) {
+  const secureStorageKey = workspaceSecretKey(workspaceId, keyVersion)
+  const existing = await secureGet(secureStorageKey)
+  if (existing) return existing
   const { client } = await authenticatedClient(profileId)
   const keys = await client.workspaceKeys(workspaceId)
   const managedKey = keys.find(item => item.keyVersion === keyVersion)?.envelopes
     .find(envelope => envelope.type === 'managed')?.wrappedKey
   if (!managedKey) throw new Error('该工作区没有可用的 managed key')
-  const secureStorageKey = workspaceSecretKey(workspaceId, keyVersion)
   await secureSet(secureStorageKey, managedKey)
   return managedKey
 }

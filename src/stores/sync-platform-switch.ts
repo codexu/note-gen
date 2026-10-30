@@ -411,6 +411,8 @@ export function holdPlatformSwitchCompletion() {
 }
 export async function reviewSelfHostedConnection(): Promise<boolean> {
   await restorePlatformSwitchRecovery()
+  const { retrySecureStorageAccess } = await import('@/lib/self-hosted-sync/profile')
+  await retrySecureStorageAccess()
   const state = usePlatformSwitchStore.getState()
   const database = await import('@/db').then(module => module.getDb())
   const profiles = await database.select<Array<{ id: string }>>("select id from self_hosted_sync_profiles where state = 'connected' order by updated_at desc limit 1")
@@ -725,6 +727,10 @@ export async function skipPlatformSwitchError() {
 export async function retryPlatformSwitch() {
   const { platform, step } = usePlatformSwitchStore.getState()
   if (!platform || (!['error', 'cancelled'].includes(step) && !(step === 'completed' && usePlatformSwitchStore.getState().skipped)) || running || cancelling || dismissing) return
+  if (platform === 'selfHosted') {
+    const { retrySecureStorageAccess } = await import('@/lib/self-hosted-sync/profile')
+    await retrySecureStorageAccess()
+  }
   if (usePlatformSwitchStore.getState().selfHostedSafetyBackupPath) return recoverSelfHostedSwitchBackup()
   // Always rescan a partially completed operation; never silently repeat a destructive decision.
   await switchSyncPlatform(platform, true)

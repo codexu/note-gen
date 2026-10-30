@@ -304,6 +304,7 @@ pub fn run() {
             self_hosted_security::self_hosted_secure_set,
             self_hosted_security::self_hosted_secure_get,
             self_hosted_security::self_hosted_secure_delete,
+            self_hosted_security::self_hosted_secure_retry_access,
             self_hosted_files::self_hosted_portable_path,
             self_hosted_files::self_hosted_move_source_path,
             self_hosted_files::self_hosted_import_object_id,

@@ -5,30 +5,96 @@ use tauri::{AppHandle, Manager};
 
 const STORE_FILE: &str = "self-hosted-secrets.json";
 const MIGRATION_KEY: &str = "self-hosted-sync.legacy-migration-v1";
-static STORE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+const STORAGE_UNAVAILABLE: &str = "self-hosted-secure-storage-unavailable";
+static STORE_STATE: tokio::sync::Mutex<SecureStoreState> = tokio::sync::Mutex::const_new(SecureStoreState {
+    migration_complete: false,
+    values: BTreeMap::new(),
+    blocked_error: None,
+});
+
+struct SecureStoreState {
+    migration_complete: bool,
+    // Only successful native reads/writes are cached, including a missing entry.
+    // Secrets stay in process memory and are never written to a plaintext store.
+    values: BTreeMap<String, Option<String>>,
+    blocked_error: Option<String>,
+}
+
+impl SecureStoreState {
+    fn finish<T>(&mut self, result: Result<T, String>) -> Result<T, String> {
+        result.map_err(|error| {
+            let error = format!("{STORAGE_UNAVAILABLE}: {error}");
+            self.values.clear();
+            self.blocked_error = Some(error.clone());
+            error
+        })
+    }
+}
 
 #[tauri::command]
 pub async fn self_hosted_secure_set(app_handle: AppHandle, key: String, value: String) -> Result<(), String> {
     let key = namespaced_key(&key)?;
-    let _guard = STORE_LOCK.lock().await;
-    migrate_legacy(&app_handle).await?;
-    platform_set(&app_handle, &key, &value).await
+    let mut state = STORE_STATE.lock().await;
+    prepare_store(&app_handle, &mut state).await?;
+    let existing = cached_get(&app_handle, &mut state, &key).await?;
+    if existing.as_deref() == Some(value.as_str()) {
+        return Ok(());
+    }
+    let result = platform_set(&app_handle, &key, &value).await;
+    state.finish(result)?;
+    state.values.insert(key, Some(value));
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn self_hosted_secure_get(app_handle: AppHandle, key: String) -> Result<Option<String>, String> {
     let key = namespaced_key(&key)?;
-    let _guard = STORE_LOCK.lock().await;
-    migrate_legacy(&app_handle).await?;
-    platform_get(&app_handle, &key).await
+    let mut state = STORE_STATE.lock().await;
+    prepare_store(&app_handle, &mut state).await?;
+    cached_get(&app_handle, &mut state, &key).await
 }
 
 #[tauri::command]
 pub async fn self_hosted_secure_delete(app_handle: AppHandle, key: String) -> Result<(), String> {
     let key = namespaced_key(&key)?;
-    let _guard = STORE_LOCK.lock().await;
-    migrate_legacy(&app_handle).await?;
-    platform_delete(&app_handle, &key).await
+    let mut state = STORE_STATE.lock().await;
+    prepare_store(&app_handle, &mut state).await?;
+    if matches!(state.values.get(&key), Some(None)) {
+        return Ok(());
+    }
+    let result = platform_delete(&app_handle, &key).await;
+    state.finish(result)?;
+    state.values.insert(key, None);
+    Ok(())
+}
+
+// Only an explicit user retry should reopen native credential access. All
+// requests queued behind a failed operation otherwise fail without another UI.
+#[tauri::command]
+pub async fn self_hosted_secure_retry_access() {
+    STORE_STATE.lock().await.blocked_error = None;
+}
+
+async fn prepare_store(app: &AppHandle, state: &mut SecureStoreState) -> Result<(), String> {
+    if let Some(error) = &state.blocked_error {
+        return Err(error.clone());
+    }
+    if !state.migration_complete {
+        let result = migrate_legacy(app, &mut state.values).await;
+        state.finish(result)?;
+        state.migration_complete = true;
+    }
+    Ok(())
+}
+
+async fn cached_get(app: &AppHandle, state: &mut SecureStoreState, key: &str) -> Result<Option<String>, String> {
+    if let Some(value) = state.values.get(key) {
+        return Ok(value.clone());
+    }
+    let result = platform_get(app, key).await;
+    let value = state.finish(result)?;
+    state.values.insert(key.to_string(), value.clone());
+    Ok(value)
 }
 
 fn namespaced_key(key: &str) -> Result<String, String> {
@@ -54,8 +120,11 @@ fn legacy_paths(app: &AppHandle) -> Result<[PathBuf; 2], String> {
  * readback, then set a native completion marker before deleting legacy files.
  * A crash or unavailable/locked keychain leaves the original recoverable. The
  * marker prevents a leftover Windows staging file from resurrecting old keys. */
-async fn migrate_legacy(app: &AppHandle) -> Result<(), String> {
+async fn migrate_legacy(app: &AppHandle, cache: &mut BTreeMap<String, Option<String>>) -> Result<(), String> {
     let paths = legacy_paths(app)?;
+    if !paths.iter().any(|path| path.exists()) {
+        return Ok(());
+    }
     if platform_get(app, MIGRATION_KEY).await?.as_deref() != Some("complete") {
         let source = if paths[0].exists() { Some(&paths[0]) } else if paths[1].exists() { Some(&paths[1]) } else { None };
         if let Some(path) = source {
@@ -71,6 +140,7 @@ async fn migrate_legacy(app: &AppHandle) -> Result<(), String> {
                 if platform_get(app, key).await?.as_deref() != Some(value.as_str()) {
                     return Err("System sync credential verification failed; original secrets have been retained".to_string());
                 }
+                cache.insert(key.clone(), Some(value.clone()));
             }
         }
         platform_set(app, MIGRATION_KEY, "complete").await?;

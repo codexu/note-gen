@@ -2609,6 +2609,7 @@
         "invalidJsonFile": "Remote data “{path}” contains invalid or truncated JSON. Sync stopped. Repair the file and retry; corrupt content will not be treated as empty data.",
         "selfHostedInvalidResponse": "The self-hosted API returned an empty or invalid response ({path}). Check that the server is running and the address points to the API service, then retry.",
         "selfHostedAuthenticationRequired": "Your self-hosted session has expired ({path}). Authorize again in self-hosted settings, then retry.",
+        "selfHostedSecureStorageUnavailable": "Could not access the system credential store. Automatic sync is paused. Click “Retry” to authorize access again.",
         "emptyJsonFile": "Remote data “{path}” returned empty content. Sync stopped. Check the file or network response and retry.",
         "invalidSchemaFile": "Remote data “{path}” has an invalid structure. Sync stopped. Repair the file and retry; local data will not be cleared.",
         "conditionalUnsupported": "This provider or file version cannot support reliable conditional writes. The operation stopped. Choose “Use remote” to read only, or use a provider with version conditions.",

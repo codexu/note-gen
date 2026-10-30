@@ -2105,6 +2105,7 @@
         "invalidJsonFile": "Os dados remotos “{path}” contêm JSON inválido ou truncado. A sincronização foi interrompida. Corrija o arquivo e tente novamente; conteúdo corrompido não será tratado como dados vazios.",
         "selfHostedInvalidResponse": "A API auto-hospedada retornou uma resposta vazia ou inválida ({path}). Verifique se o servidor está em execução e se o endereço aponta para a API e tente novamente.",
         "selfHostedAuthenticationRequired": "Sua sessão auto-hospedada expirou ({path}). Autorize novamente nas configurações de auto-hospedagem e tente de novo.",
+        "selfHostedSecureStorageUnavailable": "Não foi possível acessar o armazenamento de credenciais do sistema. A sincronização automática foi pausada. Clique em “Tentar novamente” para autorizar o acesso novamente.",
         "emptyJsonFile": "Os dados remotos “{path}” retornaram conteúdo vazio. A sincronização foi interrompida. Verifique o arquivo ou a resposta da rede e tente novamente.",
         "invalidSchemaFile": "Os dados remotos “{path}” têm uma estrutura inválida. A sincronização foi interrompida. Corrija o arquivo e tente novamente; os dados locais não serão apagados.",
         "conditionalUnsupported": "Este provedor ou versão do arquivo não oferece gravações condicionais confiáveis. A operação foi interrompida. Escolha “Usar remoto” para apenas ler ou um provedor com condições de versão.",

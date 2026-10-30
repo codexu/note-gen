@@ -2080,6 +2080,7 @@
         "invalidJsonFile": "遠端資料「{path}」不是完整有效的 JSON，已停止本次同步。請檢查檔案是否損壞或被截斷，修復後點擊重試；不會將損壞內容當作空資料覆蓋本機。",
         "selfHostedInvalidResponse": "自託管介面回應為空或格式異常（{path}）。請確認伺服器正常執行、位址指向 API 服務後重試。",
         "selfHostedAuthenticationRequired": "自託管登入已失效（{path}），請在自託管設定中重新授權後重試。",
+        "selfHostedSecureStorageUnavailable": "系統憑證儲存空間存取失敗，自動同步已暫停。請點擊「重試」重新授權。",
         "emptyJsonFile": "遠端資料「{path}」傳回空內容，已停止本次同步。請檢查檔案內容或網路回應後點擊重試。",
         "invalidSchemaFile": "遠端資料「{path}」的結構不符合要求，已停止本次同步。請修復檔案後點擊重試，本機資料不會因此被清空。",
         "conditionalUnsupported": "目前平台或檔案版本不支援可靠的條件寫入，已停止操作。可選擇「使用遠端」僅讀取資料，或改用支援版本條件的平台。",

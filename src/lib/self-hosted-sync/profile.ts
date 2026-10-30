@@ -73,6 +73,7 @@ export async function connectWithPassword(input: {
   assertServerInstance(normalized.url, existing?.instanceId, capabilities.instanceId, input.confirmedInstanceId)
   const instanceChanged = Boolean(existing?.instanceId && existing.instanceId !== capabilities.instanceId)
   const profileId = existing?.id ?? crypto.randomUUID()
+  await retrySecureStorageAccess()
   let keyPair = await getOrCreateDeviceIdentity(existing?.deviceId ?? undefined)
   let session: ClientSession
   try {
@@ -133,6 +134,7 @@ export async function connectWithBrowser(input: {
   assertServerInstance(normalized.url, existing?.instanceId, capabilities.instanceId, input.confirmedInstanceId)
   const instanceChanged = Boolean(existing?.instanceId && existing.instanceId !== capabilities.instanceId)
   const profileId = existing?.id ?? crypto.randomUUID()
+  await retrySecureStorageAccess()
   let keyPair = await getOrCreateDeviceIdentity(existing?.deviceId ?? undefined)
   for (let identityAttempt = 0; identityAttempt < 2; identityAttempt++) {
     const authorization = await client.createDeviceAuthorization({
@@ -552,6 +554,14 @@ export function secureDelete(key: string) {
 export function isSelfHostedSecureStorageError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
   return message.includes('self-hosted-secure-storage-unavailable')
+}
+
+// Background preparation must never reset the native failure latch. Only
+// explicit login, connection review and retry actions may request access again.
+export async function retrySecureStorageAccess() {
+  await invoke<void>('self_hosted_secure_retry_access')
+  const { getSelfHostedSyncRuntime } = await import('./runtime')
+  getSelfHostedSyncRuntime().allowSecureStorageRetry()
 }
 
 async function persistConnectedProfile(input: {

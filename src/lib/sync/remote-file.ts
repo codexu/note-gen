@@ -230,6 +230,7 @@ export function formatSyncDataError(message: string, translate: (key: string, va
   if (incompleteBootstrap) return translate('nativeBootstrapIncomplete', { path: incompleteBootstrap[1] })
   if (message.includes('SELF_HOSTED_API_REQUEST_TIMEOUT')) return translate('selfHostedRequestTimeout', { path: '' })
   if (message.includes('SELF_HOSTED_API_REQUEST_CANCELLED')) return translate('selfHostedRequestCancelled', { path: '' })
+  if (message.includes('self-hosted-secure-storage-unavailable')) return translate('selfHostedSecureStorageUnavailable', { path: '' })
   const selfHostedResponse = /^SELF_HOSTED_API_(INVALID_RESPONSE|AUTH_REQUIRED): ([^\n]+)$/.exec(message)
   if (selfHostedResponse) return translate(selfHostedResponse[1] === 'AUTH_REQUIRED' ? 'selfHostedAuthenticationRequired' : 'selfHostedInvalidResponse', { path: selfHostedResponse[2] })
   const giteeRequest = /^SYNC_GITEE_(CONNECTION|REQUEST)_FAILED: ([^\n]+)$/.exec(message)

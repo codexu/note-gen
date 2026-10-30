@@ -2281,6 +2281,15 @@
         "ok": "O serviço está em execução, por favor, garanta que a hospedagem de imagens do PicGo esteja configurada.",
         "error": "O serviço não está em execução, por favor, garanta que o PicGo (v2.2.0+) esteja em execução, caso contrário, o upload de imagens falhará."
       },
+      "gitea": {
+        "title": "Hospedagem de imagens no Gitea",
+        "description": "Use um repositório público no seu servidor Gitea. O token precisa de permissão de escrita. Deixe a branch vazia para usar a padrão.",
+        "baseUrl": "URL do servidor",
+        "repository": "Repositório (proprietário/nome)",
+        "branch": "Branch (opcional)",
+        "pathPrefix": "Pasta (opcional)",
+        "token": "Token de acesso"
+      },
       "github": {
         "title": "Hospedagem de Imagens do GitHub",
         "description": "Use o repositório do GitHub como serviço de armazenamento de imagens",

@@ -2785,6 +2785,15 @@
         "ok": "Service is running, please ensure PicGo image hosting is configured.",
         "error": "Service is not running, please ensure PicGo (v2.2.0+) is running, otherwise image upload will fail."
       },
+      "gitea": {
+        "title": "Gitea Image Hosting",
+        "description": "Use a public repository on your Gitea server. The token needs write access. Leave the branch blank to use the repository default.",
+        "baseUrl": "Server URL",
+        "repository": "Repository (owner/name)",
+        "branch": "Branch (optional)",
+        "pathPrefix": "Folder (optional)",
+        "token": "Access token"
+      },
       "github": {
         "title": "GitHub Image Hosting",
         "description": "Use GitHub repository as image storage service",

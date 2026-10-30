@@ -2651,6 +2651,15 @@
         "ok": "Dienst läuft, bitte stelle sicher, dass PicGo Bildhosting konfiguriert ist.",
         "error": "Dienst läuft nicht, bitte stelle sicher, dass PicGo (v2.2.0+) läuft, andernfalls schlägt der Bilder-Upload fehl."
       },
+      "gitea": {
+        "title": "Gitea-Bildhosting",
+        "description": "Verwende ein öffentliches Repository auf deinem Gitea-Server. Das Token benötigt Schreibzugriff. Ohne Branch wird der Standardbranch verwendet.",
+        "baseUrl": "Server-URL",
+        "repository": "Repository (Besitzer/Name)",
+        "branch": "Branch (optional)",
+        "pathPrefix": "Ordner (optional)",
+        "token": "Zugriffstoken"
+      },
       "github": {
         "title": "GitHub Bildhosting",
         "description": "GitHub-Repository als Bildspeicherdienst nutzen",

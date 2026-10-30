@@ -41,7 +41,11 @@ function installRuntimeListeners(runtime: ReturnType<typeof getSelfHostedSyncRun
   })
 }
 
-export async function refreshSelfHostedSyncRuntime(target?: SyncPlatform, onProgress?: (progress: SwitchOperationProgress) => void) {
+export async function refreshSelfHostedSyncRuntime(
+  target?: SyncPlatform,
+  onProgress?: (progress: SwitchOperationProgress) => void,
+  reason: 'startup' | 'manual-retry' = 'startup',
+) {
   const report = (startupTask: NonNullable<SwitchOperationProgress['startupTask']>) => {
     onProgress?.({ phase: 'start', kind: 'item', startupTask, current: 0, total: 0 })
   }
@@ -95,7 +99,7 @@ export async function refreshSelfHostedSyncRuntime(target?: SyncPlatform, onProg
   report('recover')
   await invoke<number>('self_hosted_recover_file_journal')
   report('connect')
-  runtime.start()
+  runtime.start(reason)
   useSyncStore.getState().setSelfHostedConnected(true)
   if (!await runtime.bindingIsReady(libraryWorkspaceId)) {
     console.warn('[self-hosted-sync] runtime.not-ready', {

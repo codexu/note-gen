@@ -300,10 +300,10 @@ export function UnifiedSyncStatus() {
       }
       if (method === 'selfHosted') {
         const { refreshSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/lifecycle')
-        await refreshSelfHostedSyncRuntime()
+        await refreshSelfHostedSyncRuntime(undefined, undefined, 'manual-retry')
         if (!isCurrent()) return
         const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
-        if (isCurrent()) await getSelfHostedSyncRuntime().wake('manual-retry')
+        if (isCurrent()) await getSelfHostedSyncRuntime().waitForCurrentRun()
         return
       }
       const { retryWorkspacePathMoves } = await import('@/lib/sync/workspace-path-moves')

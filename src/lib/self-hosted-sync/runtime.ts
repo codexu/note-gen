@@ -104,10 +104,10 @@ export class SelfHostedSyncRuntime {
     }
   }
 
-  start() {
+  start(reason: 'startup' | 'manual-retry' = 'startup') {
     if (this.#secureStoragePaused) return
     this.#stopped = false
-    void this.wake('startup')
+    void this.wake(reason)
   }
 
   allowSecureStorageRetry() {
@@ -263,6 +263,9 @@ export class SelfHostedSyncRuntime {
     try {
       do {
         this.#rerun = false
+        // A rerun visits every binding again. Report its final outcome instead
+        // of retaining failures that an earlier pass has already recovered.
+        errors.clear()
         const manualRetry = this.#manualRetryRequested
         this.#manualRetryRequested = false
         const bindings = await listBindings()

@@ -1,6 +1,6 @@
 import { flattenExtensions, getExtensionField, type Editor, type JSONContent, type MarkdownTokenizer, type RawCommands } from '@tiptap/core'
 import { Markdown, type MarkdownExtensionOptions } from '@tiptap/markdown'
-import { Fragment, type Node as ProseMirrorNode, type Schema } from '@tiptap/pm/model'
+import { Fragment, Mark, type Node as ProseMirrorNode, type Schema } from '@tiptap/pm/model'
 import { createIsolatedMarkdownLexer, MARKDOWN_TOKENIZER_NAMES } from './markdown-tokenizers'
 import type { PreparedMarkdownTokens } from './markdown-lexer-async'
 
@@ -40,7 +40,12 @@ function normalizeMarkdownNode(json: JSONContent, schema: Schema): ProseMirrorNo
     throw new Error(`Unknown Markdown node type: ${json.type ?? '(missing)'}`)
   }
 
-  const marks = json.marks?.map(mark => schema.markFromJSON(mark)) ?? []
+  // Markdown can nest mutually exclusive marks (for example, italic around
+  // inline code). Apply schema exclusions and deduplicate before doc.check().
+  const marks = (json.marks ?? []).reduce<readonly Mark[]>(
+    (set, mark) => schema.markFromJSON(mark).addToSet(set),
+    Mark.none,
+  )
   if (type.isText) {
     if (typeof json.text !== 'string' || json.content?.length) {
       throw new Error('Invalid Markdown text node')

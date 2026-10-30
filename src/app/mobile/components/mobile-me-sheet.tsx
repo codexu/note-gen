@@ -3,6 +3,7 @@
 import { UserRound } from "lucide-react"
 import { animate, motion, useMotionValue, useReducedMotion, type PanInfo } from "framer-motion"
 import { useTranslations } from "next-intl"
+import { usePathname } from "next/navigation"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { MobileMePage } from "@/app/mobile/setting/components/mobile-me-page"
@@ -34,7 +35,8 @@ const MOBILE_ME_RESTORE_OPEN_KEY = "mobile-me-restore-open"
 const MOBILE_ME_RESTORE_INSTANT_KEY = "mobile-me-restore-open-instant"
 const SYNC_INDICATOR_HIDE_DELAY = 500
 
-export function MobileMeSheet() {
+export function MobileMeSheet({ active = true }: { active?: boolean }) {
+  const pathname = usePathname()
   const reduceMotion = useReducedMotion()
   const tNavigation = useTranslations("navigation")
   const tSync = useTranslations("settings.sync.selfHosted")
@@ -139,6 +141,7 @@ export function MobileMeSheet() {
   }, [primaryBackupMethod, syncing])
 
   useLayoutEffect(() => {
+    if (!active || pathname.startsWith('/mobile/setting')) return
     if (window.sessionStorage.getItem(MOBILE_ME_RESTORE_OPEN_KEY) !== "true") {
       return
     }
@@ -148,6 +151,7 @@ export function MobileMeSheet() {
     )
     window.sessionStorage.removeItem(MOBILE_ME_RESTORE_OPEN_KEY)
     window.sessionStorage.removeItem(MOBILE_ME_RESTORE_INSTANT_KEY)
+    window.sessionStorage.removeItem('mobile-me-return-url')
 
     if (restoreInstantly) {
       surfaceX.set(0)
@@ -158,7 +162,7 @@ export function MobileMeSheet() {
     }
 
     openSheet()
-  }, [])
+  }, [active, pathname])
 
   function getSurfaceWidth() {
     return swipeSurfaceRef.current?.offsetWidth
@@ -197,6 +201,8 @@ export function MobileMeSheet() {
   }
 
   function closeSheetBeforeNavigation() {
+    window.sessionStorage.setItem('mobile-me-return-url', window.location.pathname + window.location.search)
+    window.sessionStorage.setItem(MOBILE_ME_RESTORE_OPEN_KEY, 'true')
     setOpen(false)
     surfaceX.set(0)
   }

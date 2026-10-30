@@ -1000,7 +1000,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     <div className="flex h-full min-h-0 w-full flex-col bg-background">
       <header className="mobile-page-header flex w-full items-center gap-2 border-b bg-background px-2 text-sm">
         <div className="flex shrink-0 items-center">
-          <MobileMeSheet />
+          <MobileMeSheet active={active} />
         </div>
         <div className="min-w-0 flex-1 truncate text-left font-medium" title={currentDirLabel}>
           {currentDirLabel}

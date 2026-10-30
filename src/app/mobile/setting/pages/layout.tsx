@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { SwipeBack, type SwipeBackHandle } from "@/components/ui/swipe-back";
 import { MobileSettingActionOutlet, SettingLayoutProvider } from "@/app/core/setting/components/setting-base";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { MobileBackButton } from "@/components/mobile-back-button";
 
 export default function RootLayout({
@@ -24,18 +24,21 @@ export default function RootLayout({
     ? settingsT('ai.menuTitle')
     : settingsT(`${anchor}.title`)
 
-  function handleSwipeBack() {
-    router.push('/mobile/setting')
-  }
+  const handleSwipeBack = useCallback(() => {
+    const returnUrl = window.sessionStorage.getItem('mobile-me-return-url')
+    const restoreSheet = window.sessionStorage.getItem('mobile-me-restore-open') === 'true'
+    if (restoreSheet && returnUrl?.startsWith('/mobile/') && !returnUrl.startsWith('/mobile/setting')) {
+      window.sessionStorage.setItem('mobile-me-restore-open-instant', 'true')
+      router.replace(returnUrl)
+      return
+    }
+    router.replace('/mobile/setting')
+  }, [router])
 
   useEffect(() => {
-    function handleHistoryBack() {
-      router.push('/mobile/setting')
-    }
-
-    window.addEventListener('popstate', handleHistoryBack)
-    return () => window.removeEventListener('popstate', handleHistoryBack)
-  }, [router])
+    window.addEventListener('popstate', handleSwipeBack)
+    return () => window.removeEventListener('popstate', handleSwipeBack)
+  }, [handleSwipeBack])
 
   return (
     <SettingLayoutProvider mobile>

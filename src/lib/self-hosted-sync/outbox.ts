@@ -1021,13 +1021,38 @@ async function ensureObjectMapping(
     )
   }
   const stablePersonalIdentity = domain === 'setting' || domain in STRUCTURED_DOMAINS
-  const objectId = existing?.objectId ?? (stablePersonalIdentity
+  let objectId = existing?.objectId ?? (stablePersonalIdentity
     ? await resolveStructuredObjectId(workspaceId, domain, normalizedLocalKey)
     : canUseDeterministicImport ? await invoke<string>('self_hosted_import_object_id', {
         workspaceId,
         relativePath: `${domain}/${normalizedLocalKey}`,
       })
     : crypto.randomUUID())
+  if (!existing && portable && canUseDeterministicImport) {
+    const owners = await database.select<Array<{
+      objectId: string
+      kind: SyncObjectKind
+      blobRefs: string
+      localIdentity: string
+      relativePath: string | null
+      pathCasefold: string | null
+      deletedAt: number | null
+    }>>(
+      `select object_id as objectId, kind, blob_refs as blobRefs,
+         local_identity as localIdentity, relative_path as relativePath,
+         path_casefold as pathCasefold, deleted_at as deletedAt
+       from self_hosted_object_mappings where workspace_id = $1 and object_id = $2 limit 1`,
+      [workspaceId, objectId],
+    )
+    const owner = owners[0]
+    if (owner && owner.kind === kind && owner.localIdentity === localIdentity && owner.deletedAt === null) {
+      existing = owner
+    } else if (owner) {
+      // Retired and renamed objects keep their original IDs for delayed events.
+      // Reimporting the old path must create a new object instead of claiming it.
+      objectId = crypto.randomUUID()
+    }
+  }
   if (!existing) {
     await database.execute(
       `insert into self_hosted_object_mappings(
@@ -1061,6 +1086,23 @@ async function ensureObjectMapping(
     blobRefs: JSON.parse(existing?.blobRefs ?? '[]') as string[],
     documentSequence: documents[0]?.sequence ?? '0',
   }
+}
+
+export function ensureLibraryObjectMapping(
+  workspaceId: string,
+  domain: 'file' | 'asset' | 'folder',
+  relativePath: string,
+  options: { deterministicImport?: boolean; assertActive?: () => void } = {},
+) {
+  return withSelfHostedPrepareLock(workspaceId, async () => {
+    options.assertActive?.()
+    const mapping = await ensureObjectMapping(
+      workspaceId, domain, relativePath, domain === 'file' ? 'note' : domain,
+      options.deterministicImport,
+    )
+    options.assertActive?.()
+    return mapping
+  })
 }
 
 async function parentFolderObjectId(workspaceId: string, relativePath: string) {

@@ -40,11 +40,12 @@ interface PlatformSwitchState {
   recoveringSelfHostedBackup: boolean
   recovered: boolean
   cancelRequested: boolean
+  cancelledHidden: boolean
   skipped: boolean
 }
 const initialState: PlatformSwitchState = {
   platform: null, step: 'local', failedStep: null, review: null, plan: null, progress: null, error: null,
-  listing: null, strategy: null, selected: [], resolutions: {}, automatic: false, mutated: false, backupPath: null, selfHostedBackupPath: null, selfHostedSafetyBackupPath: null, recoveringSelfHostedBackup: false, recovered: false, cancelRequested: false, skipped: false,
+  listing: null, strategy: null, selected: [], resolutions: {}, automatic: false, mutated: false, backupPath: null, selfHostedBackupPath: null, selfHostedSafetyBackupPath: null, recoveringSelfHostedBackup: false, recovered: false, cancelRequested: false, cancelledHidden: false, skipped: false,
 }
 export const usePlatformSwitchStore = create<PlatformSwitchState>(() => initialState)
 interface Decision { strategy: SwitchStrategy; selected: SwitchModule[]; resolutions: Record<string, SwitchResolution> }
@@ -147,6 +148,7 @@ export async function restorePlatformSwitchRecovery() {
       mutated: saved.mutated ?? (Boolean(saved.backupPath) || !saved.workspaceSetup), backupPath: saved.backupPath || null, selfHostedBackupPath: saved.selfHostedBackupPath || null,
       selfHostedSafetyBackupPath: saved.selfHostedSafetyBackupPath || null,
       error: sanitizeSyncErrorMessage(saved.error || 'SYNC_SWITCH_INTERRUPTED'), skipped: saved.resolution === 'skipped',
+      cancelledHidden: saved.resolution === 'cancelled',
     })
   })()
   try { await restoringRecovery }
@@ -205,6 +207,10 @@ export async function dismissPlatformSwitch() {
       }
     }
   } finally { dismissing = false }
+}
+export function setPlatformSwitchRecoveryVisible(visible: boolean) {
+  const state = usePlatformSwitchStore.getState()
+  if (state.platform && state.step === 'cancelled') usePlatformSwitchStore.setState({ cancelledHidden: !visible })
 }
 export function choosePlatformSwitchStrategy(strategy: SwitchStrategy) {
   const state = usePlatformSwitchStore.getState()
@@ -292,7 +298,7 @@ async function clearCancelledPlatformSwitch(store: Store, recovery: PlatformSwit
     await store.save()
     pauseSyncEngine('selfHosted')
     reviewDecision = null
-    usePlatformSwitchStore.setState({ step: 'cancelled', failedStep: state.step, error: 'SYNC_SWITCH_CANCELLED', cancelRequested: false, mutated: true })
+    usePlatformSwitchStore.setState({ step: 'cancelled', failedStep: state.step, error: 'SYNC_SWITCH_CANCELLED', cancelRequested: false, cancelledHidden: true, mutated: true })
     return false
   }
   // No content was changed, or workspace setup was fully undone. Only this
@@ -310,7 +316,7 @@ export async function cancelPlatformSwitch() {
   if (!state.platform || state.step === 'completed' || cancelling || dismissing) return
   if (state.selfHostedSafetyBackupPath) return
   if (running) {
-    usePlatformSwitchStore.setState({ cancelRequested: true })
+    usePlatformSwitchStore.setState({ cancelRequested: true, cancelledHidden: true })
     if (state.platform === 'selfHosted' || useSettingStore.getState().primaryBackupMethod === 'selfHosted') {
       await import('@/lib/self-hosted-sync/client').then(module => module.cancelSelfHostedRequests())
     }
@@ -320,7 +326,7 @@ export async function cancelPlatformSwitch() {
     return
   }
   cancelling = true
-  usePlatformSwitchStore.setState({ cancelRequested: true })
+  usePlatformSwitchStore.setState({ cancelRequested: true, cancelledHidden: true })
   try {
     const store = await Store.load('store.json')
     const recovery = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')

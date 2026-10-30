@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
-import { AlertTriangle, ListChecks, Loader2, LogIn, LogOut, Server } from 'lucide-react'
+import { AlertTriangle, ListChecks, Loader2, LogIn, LogOut, RefreshCw, Server } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -18,6 +20,8 @@ import { connectWithBrowser, connectWithPassword, disconnectProfile, isSelfHoste
 import { refreshSelfHostedSyncRuntime } from '@/lib/self-hosted-sync/lifecycle'
 import { normalizeServerUrl } from '@/lib/self-hosted-sync/client'
 import useSyncStore from '@/stores/sync'
+import useSettingStore from '@/stores/setting'
+import { cn } from '@/lib/utils'
 import { reviewSelfHostedConnection, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 import { SelfHostedWorkspaces } from './self-hosted-workspaces'
 import emitter from '@/lib/emitter'
@@ -54,6 +58,9 @@ export function SelfHostedSync() {
   const { selfHostedConnected, setSelfHostedConnected, selfHostedServiceAvailable, providerChecks } = useSyncStore()
   const checkingService = providerChecks.selfHosted === 'checking' || selfHostedServiceAvailable === null
   const [syncErrors, setSyncErrors] = useState<string[]>([])
+  const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState(false)
+  const primaryBackupMethod = useSettingStore(state => state.primaryBackupMethod)
 
   useEffect(() => {
     setSyncErrors([])
@@ -161,6 +168,7 @@ export function SelfHostedSync() {
   }
 
   async function connect(mode: 'browser' | 'password', confirmation?: { serverUrl: string; instanceId: string }) {
+    setConnectionError(null)
     setConnecting(true)
     try {
       const connectionUrl = confirmation?.serverUrl ?? serverUrl
@@ -187,6 +195,7 @@ export function SelfHostedSync() {
       setServerUrl(connectedServerUrl)
       setSelfHostedConnected(true)
       setReauthenticationRequired(false)
+      setConnectionReviewRequired(true)
       setWorkspaceRevision(revision => revision + 1)
       toast.success(t('connectedToast'))
       await reviewSelfHostedConnection()
@@ -194,7 +203,7 @@ export function SelfHostedSync() {
       if (error instanceof SelfHostedInstanceChangedError) {
         setInstanceChange({ mode, serverUrl: error.serverUrl, instanceId: error.instanceId })
       } else {
-        toast.error(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? error.message : t('connectionFailed'))
+        setConnectionError(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? formatSyncDataError(error.message, p) : t('connectionFailed'))
       }
     } finally {
       setConnecting(false)
@@ -227,6 +236,22 @@ export function SelfHostedSync() {
       toast.error(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? error.message : t('operationFailed'))
     } finally {
       setDisconnecting(false)
+    }
+  }
+
+  async function retrySynchronization() {
+    if (retrying || primaryBackupMethod !== 'selfHosted') return
+    setRetrying(true)
+    setConnectionError(null)
+    try {
+      await retrySecureStorageAccess()
+      await refreshSelfHostedSyncRuntime(undefined, undefined, 'manual-retry')
+      const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
+      await getSelfHostedSyncRuntime().waitForCurrentRun()
+    } catch (error) {
+      setConnectionError(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? formatSyncDataError(error.message, p) : t('operationFailed'))
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -282,7 +307,7 @@ export function SelfHostedSync() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <Card>
         <CardHeader>
           <CardTitle>{t('connectionTitle')}</CardTitle>
@@ -307,7 +332,7 @@ export function SelfHostedSync() {
                 placeholder="https://sync.example.com"
                 disabled={connecting || disconnecting || selfHostedConnected}
               />
-              <FieldDescription>{t('httpsNoDowngrade')}</FieldDescription>
+              <FieldDescription>{t('serverUrlHint')}</FieldDescription>
             </Field>
           </FieldGroup>
 
@@ -327,19 +352,42 @@ export function SelfHostedSync() {
             </Alert>
           ) : null}
 
+          {connectionError && <Alert className="mt-4" variant="destructive">
+            <AlertTriangle />
+            <AlertTitle>{t('connectionFailed')}</AlertTitle>
+            <AlertDescription className="break-words [overflow-wrap:anywhere]">{connectionError}</AlertDescription>
+          </Alert>}
+
           {selfHostedConnected && syncErrors.length > 0 && (
             <Alert variant="destructive" className="mt-4">
               <AlertTriangle aria-hidden="true" />
               <AlertTitle>{tStatus('failed')}</AlertTitle>
               <AlertDescription className="flex flex-col gap-2">
-                {syncErrors.map(error => <p key={error}>{formatSyncDataError(error, p)}</p>)}
+                <p>{t('syncNeedsAttention')}</p>
+                {primaryBackupMethod === 'selfHosted' && <Button className="w-fit" variant="outline" disabled={retrying || disconnecting} onClick={() => void retrySynchronization()}>
+                  <RefreshCw data-icon="inline-start" className={cn(retrying && 'animate-spin')} />{tStatus('retry')}
+                </Button>}
+                <Accordion type="single" collapsible className="w-full min-w-0">
+                  <AccordionItem value="errors">
+                    <AccordionTrigger>{t('technicalDetails')}</AccordionTrigger>
+                    <AccordionContent className="flex flex-col gap-2 break-words [overflow-wrap:anywhere]">
+                      {syncErrors.map(error => <p key={error}>{formatSyncDataError(error, p)}</p>)}
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               </AlertDescription>
             </Alert>
           )}
 
           {selfHostedConnected && connectionReviewRequired && <Alert className="mt-4" variant="warning">
-            <ListChecks /><AlertTitle>{p('nativeReviewAction')}</AlertTitle>
-            <AlertDescription>{p('nativeReviewRequired')}</AlertDescription>
+            <ListChecks /><AlertTitle>{t('setupReview')}</AlertTitle>
+            <AlertDescription className="flex flex-col items-start gap-3">
+              <p>{p('nativeReviewRequired')}</p>
+              <Button disabled={!profileId || connecting || disconnecting} onClick={() => void reviewConnection()}>
+                {connecting ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <ListChecks data-icon="inline-start" />}
+                {t('continueSetup')}
+              </Button>
+            </AlertDescription>
           </Alert>}
 
           {showPasswordLogin && !selfHostedConnected ? (
@@ -359,16 +407,19 @@ export function SelfHostedSync() {
             </FieldGroup>
           ) : null}
         </CardContent>
-        <CardFooter className="flex-wrap gap-2">
+        <CardFooter className="flex-wrap gap-2 [&>button]:max-w-full [&>button]:whitespace-normal">
           {selfHostedConnected ? (
             <>
-              <Button variant={selfHostedServiceAvailable === false && !checkingService ? 'destructive' : 'secondary'} disabled>
-                <Server data-icon="inline-start" />
-                {checkingService ? tStatus('checking') : selfHostedServiceAvailable ? t('connected') : tStatus('unavailable')}
-              </Button>
-              <Button variant="outline" disabled={!profileId || connecting || disconnecting} onClick={() => void reviewConnection()}>
+              <Badge variant={selfHostedServiceAvailable === false && !checkingService ? 'destructive' : 'secondary'}>
+                <Server aria-hidden="true" />
+                {checkingService ? tStatus('checking') : selfHostedServiceAvailable ? t('authorized') : tStatus('unavailable')}
+              </Badge>
+              {selfHostedServiceAvailable === false && primaryBackupMethod === 'selfHosted' && syncErrors.length === 0 && <Button variant="outline" disabled={retrying || disconnecting} onClick={() => void retrySynchronization()}>
+                <RefreshCw data-icon="inline-start" className={cn(retrying && 'animate-spin')} />{tStatus('retry')}
+              </Button>}
+              {!connectionReviewRequired && <Button variant="outline" disabled={!profileId || connecting || disconnecting} onClick={() => void reviewConnection()}>
                 <ListChecks data-icon="inline-start" />{p('nativeReviewAction')}
-              </Button>
+              </Button>}
               <Button variant="outline" disabled={!profileId || disconnecting} onClick={() => void disconnect()}>
                 {disconnecting ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <LogOut data-icon="inline-start" />}
                 {t('disconnect')}

@@ -11,6 +11,9 @@ import {
   ResponsiveDialogFooter as DialogFooter,
 } from '@/components/responsive-dialog'
 import { Button } from '@/components/ui/button'
+import { SyncContentComparison } from '@/components/sync-content-comparison'
+import { Spinner } from '@/components/ui/spinner'
+import { X } from 'lucide-react'
 import { setLocalRecordedSha } from '@/lib/sync/auto-sync'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -44,49 +47,6 @@ interface ConflictDialogProps {
   onResolved: () => void
 }
 
-// 简单的 diff 计算
-function computeDiff(oldText: string, newText: string): { type: 'equal' | 'add' | 'remove', text: string }[] {
-  const oldLines = oldText.split('\n')
-  const newLines = newText.split('\n')
-  const result: { type: 'equal' | 'add' | 'remove', text: string }[] = []
-
-  // 简单的行对比
-  const maxLen = Math.max(oldLines.length, newLines.length)
-  let oldIdx = 0
-  let newIdx = 0
-
-  while (oldIdx < maxLen || newIdx < maxLen) {
-    const oldLine = oldLines[oldIdx]
-    const newLine = newLines[newIdx]
-
-    if (oldLine === newLine) {
-      if (oldLine !== undefined) {
-        result.push({ type: 'equal', text: oldLine })
-      }
-      oldIdx++
-      newIdx++
-    } else if (oldLine === undefined) {
-      // 新增行
-      if (newLine !== undefined) {
-        result.push({ type: 'add', text: newLine })
-      }
-      newIdx++
-    } else if (newLine === undefined) {
-      // 删除行
-      result.push({ type: 'remove', text: oldLine })
-      oldIdx++
-    } else {
-      // 不相同，认为是修改
-      result.push({ type: 'remove', text: oldLine })
-      result.push({ type: 'add', text: newLine })
-      oldIdx++
-      newIdx++
-    }
-  }
-
-  return result
-}
-
 export function ConflictDialog({
   open,
   onOpenChange,
@@ -100,6 +60,7 @@ export function ConflictDialog({
   onResolved,
 }: ConflictDialogProps) {
   const t = useTranslations('syncOverview.document')
+  const c = useTranslations('syncOverview.selfHostedConflict')
   const [preview, setPreview] = useState<{
     content: string
     version: string
@@ -249,64 +210,38 @@ export function ConflictDialog({
 
   const localContent = preview?.localContent ?? ''
   const remoteContent = preview?.content ?? ''
-  const diff = preview ? computeDiff(localContent, remoteContent) : []
-
-  // 统计变化
-  const addCount = diff.filter(d => d.type === 'add').length
-  const removeCount = diff.filter(d => d.type === 'remove').length
-
   return (
     <Dialog open={open} onOpenChange={nextOpen => { if (!operationRef.current) onOpenChange(nextOpen) }}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>文件冲突</DialogTitle>
-          <DialogDescription>
-            检测到远程文件与本地文件存在冲突。请选择要保留的版本。
-          </DialogDescription>
+      <DialogContent
+        showCloseButton={false}
+        className="flex min-h-0 min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl [&>[data-slot=drawer-scroll-area]]:overflow-hidden"
+        style={{ height: 'min(46rem, calc(var(--mobile-viewport-height, 100dvh) - env(safe-area-inset-top) - 1rem))', maxHeight: 'calc(var(--mobile-viewport-height, 100dvh) - env(safe-area-inset-top) - 1rem)' }}
+      >
+        <DialogHeader className="max-h-[40%] shrink-0 gap-2 overflow-y-auto overscroll-contain p-4 text-left">
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle>{c('title')}</DialogTitle>
+            <Button type="button" variant="ghost" size="icon-sm" disabled={operationRef.current} aria-label={c('close')} onClick={() => onOpenChange(false)}><X /></Button>
+          </div>
+          <DialogDescription>{c('versionDescription')}</DialogDescription>
+          <p className="line-clamp-2 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]" title={activeFilePath ?? undefined}>{activeFilePath}</p>
         </DialogHeader>
-
-        <div className="flex-1 overflow-hidden flex gap-4 min-h-[300px]">
-          {/* 本地版本 */}
-          <div className="flex-1 flex flex-col overflow-hidden border rounded-md">
-            <div className="bg-muted px-3 py-2 text-sm font-medium border-b">
-              本地版本
-            </div>
-            <div className="flex-1 overflow-auto p-3 font-mono text-xs whitespace-pre-wrap">
-              {preview ? localContent : '加载中...'}
-            </div>
-          </div>
-
-          {/* 远程版本 */}
-          <div className="flex-1 flex flex-col overflow-hidden border rounded-md">
-            <div className="bg-muted px-3 py-2 text-sm font-medium border-b">
-              远程版本
-            </div>
-            <div className="flex-1 overflow-auto p-3 font-mono text-xs whitespace-pre-wrap">
-              {preview ? remoteContent : '加载中...'}
-            </div>
-          </div>
+        <div data-vaul-no-drag className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+          {isLoading && !preview ? <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground" role="status"><Spinner />{c('loading')}</div> : null}
+          {preview ? <SyncContentComparison key={activeFilePath} localContent={localContent} remoteContent={remoteContent} localLabel={c('local')} remoteLabel={c('remote')} /> : null}
         </div>
-
-        {/* 变化统计 */}
-        <div className="text-sm text-muted-foreground">
-          <span className="text-green-500">+{addCount} 新增</span>
-          {' / '}
-          <span className="text-red-500">-{removeCount} 删除</span>
-        </div>
-
-        <DialogFooter>
+        <DialogFooter className="m-0 grid max-h-[40%] shrink-0 grid-cols-2 gap-2 overflow-y-auto overscroll-contain border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex sm:flex-row sm:flex-wrap [&>button]:h-auto [&>button]:min-h-9 [&>button]:min-w-0 [&>button]:whitespace-normal [&>button]:[overflow-wrap:anywhere]">
           <Button
             variant="outline"
             onClick={handleKeepLocal}
             disabled={isLoading || !preview}
           >
-            保留本地
+            {c('keepLocal')}
           </Button>
           <Button
             onClick={handleKeepRemote}
             disabled={isLoading || !preview}
           >
-            保留远程
+            {c('keepRemote')}
           </Button>
         </DialogFooter>
       </DialogContent>

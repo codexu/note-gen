@@ -66,6 +66,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -327,7 +328,7 @@ export default function SyncPage() {
   function renderStatusBadge(state: SyncStateEnum) {
     const isChecking = state === SyncStateEnum.checking || state === SyncStateEnum.creating
     const label = state === SyncStateEnum.success
-      ? t('settings.sync.status.connected')
+      ? t(platform === 'selfHosted' ? 'settings.sync.selfHosted.authorized' : 'settings.sync.status.connected')
       : state === SyncStateEnum.checking
         ? t('settings.sync.checking')
         : state === SyncStateEnum.creating
@@ -428,7 +429,7 @@ export default function SyncPage() {
 
         <div className="flex min-w-0 flex-col gap-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="min-w-0 max-sm:has-data-[slot=card-action]:grid-cols-1">
               <div className="flex min-w-0 items-center gap-3">
                 <SyncPlatformIcon platform={platform} />
                 <div className="min-w-0 flex-1">
@@ -443,11 +444,11 @@ export default function SyncPage() {
                       </Badge>
                     ) : null}
                   </CardTitle>
-                  {platform !== 'local' ? <CardDescription>{t('settings.sync.platformDesc')}</CardDescription> : null}
+                  {platform !== 'local' ? <CardDescription>{t(platform === 'selfHosted' ? 'settings.sync.selfHosted.connectionDescription' : 'settings.sync.platformDesc')}</CardDescription> : null}
                 </div>
               </div>
-              <CardAction>
-                <div className="flex items-center gap-2">
+              <CardAction className="max-sm:col-start-1 max-sm:row-start-auto max-sm:row-span-1 max-sm:justify-self-start">
+                <div className="flex flex-wrap items-center gap-2">
                   {platform !== 'local' ? renderStatusBadge(currentSyncState) : null}
                   <UsePlatformButton
                     platform={platform}
@@ -489,7 +490,11 @@ export default function SyncPage() {
             </TabsContent>
 
             <TabsContent value="options" className="flex flex-col gap-4">
-              <Card>
+              {platform === 'selfHosted' ? <Alert>
+                <RefreshCcw />
+                <AlertTitle>{t('settings.sync.selfHosted.automaticSyncTitle')}</AlertTitle>
+                <AlertDescription>{t('settings.sync.selfHosted.automaticSyncDescription')}</AlertDescription>
+              </Alert> : <Card>
                 <CardHeader>
                   <CardTitle>{t('settings.sync.noteSettings')}</CardTitle>
                   <CardDescription>{t('settings.sync.noteSettingsDesc')}</CardDescription>
@@ -545,7 +550,7 @@ export default function SyncPage() {
 
                   </ItemGroup>
                 </CardContent>
-              </Card>
+              </Card>}
 
               {platform === 'selfHosted' ? (
                 <SelfHostedPersonalDataOptions />

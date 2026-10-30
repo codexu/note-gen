@@ -13,6 +13,7 @@ import { GiteaSync } from '@/app/core/setting/sync/gitea-sync'
 import { S3Sync } from '@/app/core/setting/sync/s3-sync'
 import { WebDAVSync } from '@/app/core/setting/sync/webdav-sync'
 import { SelfHostedSync } from '@/app/core/setting/sync/self-hosted-sync'
+import { SelfHostedPersonalDataOptions } from '@/app/core/setting/sync/self-hosted-personal-data-options'
 import { UsePlatformButton } from '@/app/core/setting/sync/components/use-platform-button'
 import { restorePlatformSwitchRecovery, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 import { PlatformSwitchProgress } from '@/app/core/setting/sync/components/platform-switch-progress'
@@ -24,6 +25,7 @@ import { ICloudFolderSync } from '@/app/mobile/setting/pages/sync/ios-cloud-fold
 import { RecordSyncStatusBanner } from '@/components/record-sync-status-banner'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Switch } from '@/components/ui/switch'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { RepoNames, SyncStateEnum } from '@/lib/sync/github.types'
 import { hasConfiguredSelfHostedSync } from '@/lib/diagnostics/self-hosted'
 import type { SyncRepoPlatform, WorkspaceSyncRepos } from '@/lib/sync/workspace-repos'
@@ -301,7 +303,7 @@ export default function SyncPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold">{t('settings.sync.platformSettings')}</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <MobileSelectDrawer
               title={t('settings.sync.selectPlatform')}
@@ -315,7 +317,7 @@ export default function SyncPage() {
               }))}
             />
           </div>
-          <div className="shrink-0 [&>button]:h-11">
+          <div className="shrink-0 [&>button]:h-auto [&>button]:min-h-11 [&>button]:w-full [&>button]:whitespace-normal sm:[&>button]:w-auto">
             <UsePlatformButton
               platform={selectedSyncPlatform}
               disabled={currentSyncState !== SyncStateEnum.success}
@@ -335,7 +337,13 @@ export default function SyncPage() {
         ) : null}
       </section>
 
-      {tab !== 'local' ? <section className="flex flex-col gap-3">
+      {tab === 'selfHosted' && <Alert>
+        <RefreshCcw />
+        <AlertTitle>{t('settings.sync.selfHosted.automaticSyncTitle')}</AlertTitle>
+        <AlertDescription>{t('settings.sync.selfHosted.automaticSyncDescription')}</AlertDescription>
+      </Alert>}
+
+      {tab !== 'local' && tab !== 'selfHosted' ? <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold">{t('settings.sync.noteSettings')}</h2>
 
         <Item variant="outline">
@@ -384,7 +392,7 @@ export default function SyncPage() {
 
       </section> : null}
 
-      {tab !== 'local' ? <DataSyncOverview
+      {tab === 'selfHosted' ? <SelfHostedPersonalDataOptions /> : tab !== 'local' ? <DataSyncOverview
         mobile
         autoRecordSyncEnabled={autoRecordSyncEnabled}
         autoSettingsSyncEnabled={autoSettingsSyncEnabled}
@@ -395,7 +403,7 @@ export default function SyncPage() {
         onConversationSyncChange={setAutoConversationSyncEnabled}
         onSensitiveConfigChange={handleExcludeSensitiveConfigChange}
       /> : null}
-      {tab !== 'local' && autoRecordSyncEnabled ? <RecordSyncStatusBanner showWaitingProvider /> : null}
+      {tab !== 'local' && tab !== 'selfHosted' && autoRecordSyncEnabled ? <RecordSyncStatusBanner showWaitingProvider /> : null}
     </div>
   )
 }

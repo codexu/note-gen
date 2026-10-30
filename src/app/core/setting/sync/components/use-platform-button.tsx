@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import useSettingStore from '@/stores/setting'
 import type { SyncPlatform } from '@/types/sync'
-import { switchSyncPlatform, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
+import { setPlatformSwitchRecoveryVisible, switchSyncPlatform, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 
 interface UsePlatformButtonProps {
   platform: SyncPlatform
@@ -26,6 +26,8 @@ export function UsePlatformButton({
   const switchingPlatform = usePlatformSwitchStore(state => state.platform)
   const step = usePlatformSwitchStore(state => state.step)
   const skipped = usePlatformSwitchStore(state => state.skipped)
+  const cancelledHidden = usePlatformSwitchStore(state => state.cancelledHidden)
+  const canResume = switchingPlatform === platform && step === 'cancelled' && cancelledHidden
   const isSaving = switchingPlatform === platform && !['error', 'cancelled', 'review', 'confirm', 'completed'].includes(step)
   const isCurrent = primaryBackupMethod === platform
   const pendingLabel = step === 'cancelled' ? p('cancelled') : step === 'error' ? p('failed') : step === 'review' || step === 'confirm' ? p('waitingChoice') : p('working')
@@ -42,17 +44,17 @@ export function UsePlatformButton({
     <Button
       ref={buttonRef}
       type="button"
-      variant={isCurrent ? 'secondary' : 'default'}
+      variant={canResume ? 'outline' : isCurrent ? 'secondary' : 'default'}
       size={size}
-      disabled={disabled || isCurrent || (switchingPlatform !== null && !(step === 'completed' && skipped))}
-      onClick={() => void switchSyncPlatform(platform)}
+      disabled={!canResume && (disabled || isCurrent || (switchingPlatform !== null && !(step === 'completed' && skipped)))}
+      onClick={() => { if (canResume) setPlatformSwitchRecoveryVisible(true); else void switchSyncPlatform(platform) }}
     >
       {isSaving ? (
         <Loader2 data-icon="inline-start" className="animate-spin" />
-      ) : isCurrent ? (
+      ) : isCurrent && !canResume ? (
         <Check data-icon="inline-start" />
       ) : null}
-      {isCurrent
+      {canResume ? p('resumeReview') : isCurrent
         ? t('settings.sync.currentPlatform')
         : switchingPlatform === platform ? pendingLabel : t('settings.sync.setCurrentPlatform')}
     </Button>

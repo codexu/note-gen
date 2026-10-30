@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 
 import { MobileMePage } from "@/app/mobile/setting/components/mobile-me-page"
+import { UnifiedSyncStatus } from "@/app/core/main/unified-sync-status"
+import { useSelfHostedSyncStatus } from "@/hooks/use-self-hosted-sync-status"
 import { getMobilePlatform } from "@/app/mobile/components/mobile-update-prompt"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -35,6 +37,7 @@ const SYNC_INDICATOR_HIDE_DELAY = 500
 export function MobileMeSheet() {
   const reduceMotion = useReducedMotion()
   const tNavigation = useTranslations("navigation")
+  const tSync = useTranslations("settings.sync.selfHosted")
   const [open, setOpen] = useState(false)
   const [instantRestore, setInstantRestore] = useState(false)
   const [autoDataSyncState, setAutoDataSyncState] = useState<AutoDataSyncState>(
@@ -43,6 +46,7 @@ export function MobileMeSheet() {
   const [syncingFiles, setSyncingFiles] = useState<Set<string>>(() => new Set())
   const [showSyncIndicator, setShowSyncIndicator] = useState(false)
   const primaryBackupMethod = useSettingStore(state => state.primaryBackupMethod)
+  const selfHostedStatus = useSelfHostedSyncStatus()
   const autoRecordSyncEnabled = useSettingStore(state => state.autoRecordSyncEnabled)
   const autoConversationSyncEnabled = useSettingStore(state => state.autoConversationSyncEnabled)
   const mobileUpdate = useUpdateStore(state => state.mobileUpdate)
@@ -86,14 +90,19 @@ export function MobileMeSheet() {
   }, [])
 
   const syncing = useMemo(() => (
-    primaryBackupMethod !== 'selfHosted' && primaryBackupMethod !== 'local'
-    && (syncingFiles.size > 0
+    primaryBackupMethod === 'selfHosted' ? selfHostedStatus.progress !== null
+      : primaryBackupMethod !== 'local' && (syncingFiles.size > 0
       || autoDataSyncState.phase === 'uploading'
       || autoDataSyncState.phase === 'downloading')
-  ), [autoDataSyncState.phase, primaryBackupMethod, syncingFiles])
+  ), [autoDataSyncState.phase, primaryBackupMethod, selfHostedStatus.progress, syncingFiles])
   const indicator = useMemo(() => {
     if (hasMobileUpdate) return true
-    if (primaryBackupMethod === 'selfHosted' || primaryBackupMethod === 'local') return false
+    if (primaryBackupMethod === 'local') return false
+    if (primaryBackupMethod === 'selfHosted') return selfHostedStatus.error
+      || selfHostedStatus.reauthenticationRequired || selfHostedStatus.reviewRequired
+      || selfHostedStatus.offline || selfHostedStatus.serviceAvailable === false
+      || selfHostedStatus.blockedCount > 0 || selfHostedStatus.conflictCount > 0
+      || selfHostedStatus.engineErrors.length > 0 || selfHostedStatus.loaded && selfHostedStatus.bindingRequired
     const recordProblem = autoRecordSyncEnabled
       && (autoDataSyncState.phase === 'waiting_provider'
         || (autoDataSyncState.affectedDomains.includes('records')
@@ -109,10 +118,11 @@ export function MobileMeSheet() {
     autoRecordSyncEnabled,
     hasMobileUpdate,
     primaryBackupMethod,
+    selfHostedStatus,
   ])
 
   useEffect(() => {
-    if (primaryBackupMethod === 'selfHosted' || primaryBackupMethod === 'local') {
+    if (primaryBackupMethod === 'local') {
       setShowSyncIndicator(false)
       return
     }
@@ -306,13 +316,19 @@ export function MobileMeSheet() {
             <SheetTitle className="sr-only">{tNavigation("me")}</SheetTitle>
             <SheetDescription className="sr-only">{tNavigation("me")}</SheetDescription>
 
-            <div className="relative min-h-0 flex-1 pt-[env(safe-area-inset-top)]">
-              <MobileMePage
-                embedded
-                animateEntrance={!instantRestore}
-                refreshOnMount={!instantRestore}
-                onNavigate={closeSheetBeforeNavigation}
-              />
+            <div className="relative flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
+              {primaryBackupMethod === 'selfHosted' && <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2 px-4 pt-3">
+                <span className="text-sm text-muted-foreground">{tSync('title')}</span>
+                <UnifiedSyncStatus mobile onNavigate={closeSheetBeforeNavigation} />
+              </div>}
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <MobileMePage
+                  embedded
+                  animateEntrance={!instantRestore}
+                  refreshOnMount={!instantRestore}
+                  onNavigate={closeSheetBeforeNavigation}
+                />
+              </div>
             </div>
           </motion.div>
         </SheetContent>

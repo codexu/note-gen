@@ -3,23 +3,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { exists, readFile } from '@tauri-apps/plugin-fs'
-import { join } from '@tauri-apps/api/path'
+import { appDataDir, join } from '@tauri-apps/api/path'
 import { invoke } from '@tauri-apps/api/core'
-import { Check, Link2, Loader2, Plus, RefreshCw, Trash2, UserPlus } from 'lucide-react'
+import { openPath } from '@tauri-apps/plugin-opener'
+import { Check, FolderOpen, Link2, Loader2, MoreHorizontal, Plus, RefreshCw, Trash2, UserPlus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { getDb } from '@/db'
 import { refreshSelfHostedSyncRuntime } from '@/lib/self-hosted-sync/lifecycle'
@@ -68,6 +70,8 @@ interface ConflictRow {
   conflictType: string
   localCopyPath: string | null
   createdAt: number
+  relativePath: string | null
+  localRoot: string | null
 }
 
 export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
@@ -97,9 +101,13 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
       authenticatedClient(profileId),
       listLibraries(profileId),
       (await getDb()).select<ConflictRow[]>(
-        `select id, workspace_id as workspaceId, conflict_type as conflictType,
-           local_copy_path as localCopyPath, created_at as createdAt
-         from self_hosted_conflicts where state = 'unresolved' order by created_at desc`
+        `select c.id, c.workspace_id as workspaceId, c.conflict_type as conflictType,
+           c.local_copy_path as localCopyPath, c.created_at as createdAt,
+           m.relative_path as relativePath, b.local_root as localRoot
+         from self_hosted_conflicts c
+         join self_hosted_workspace_bindings b on b.workspace_id = c.workspace_id
+         left join self_hosted_object_mappings m on m.workspace_id = c.workspace_id and m.object_id = c.object_id
+         where c.state = 'unresolved' and b.profile_id = $1 order by c.created_at desc`, [profileId]
       ),
       getCurrentWorkspaceRoot(),
     ])
@@ -311,6 +319,21 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
     void getSelfHostedSyncRuntime().wake('manual-retry')
   }
 
+  async function openConflictCopy(conflict: ConflictRow) {
+    if (!conflict.localCopyPath || conflict.conflictType === 'symlink-ignored') return
+    try {
+      const portable = await invoke<{ normalized: string }>('self_hosted_portable_path', { relativePath: conflict.localCopyPath })
+      const backup = /^self-hosted-conflict-backups\/[a-f0-9-]+\.json$/.test(portable.normalized)
+      const root = backup ? await appDataDir() : conflict.localRoot
+      if (!root) throw new Error(t('conflictCopyUnavailable'))
+      const path = await join(root, portable.normalized)
+      if (!await exists(path)) throw new Error(t('conflictCopyUnavailable'))
+      await openPath(path)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('operationFailed'))
+    }
+  }
+
   async function transferViewerConflict(conflict: ConflictRow) {
     if (!conflict.localCopyPath || !conflictTargetId) return
     const source = libraries.find(library => library.id === conflict.workspaceId)
@@ -353,6 +376,18 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
     setCapabilities(ROLE_CAPABILITIES[nextRole])
   }
 
+  async function runMemberAction(action: () => Promise<void>) {
+    if (busy) return
+    setBusy(true)
+    try {
+      await action()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('operationFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function conflictLabel(conflictType: string) {
     const translationKey = CONFLICT_TRANSLATION_KEYS[conflictType]
     return translationKey ? t(`conflictTypes.${translationKey}`) : conflictType
@@ -376,7 +411,7 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
   }
 
   return (
-    <Accordion type="multiple" className="gap-4">
+    <Accordion type="multiple" defaultValue={['workspaces']} className="min-w-0 gap-4">
       <AccordionItem value="workspaces" className="not-last:border-b-0">
         <Card>
           <CardHeader>
@@ -388,48 +423,62 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
             </AccordionTrigger>
           </CardHeader>
           <AccordionContent className="pb-0">
-            <CardContent className="flex flex-col gap-4 pb-(--card-spacing)">
+            <CardContent className="flex min-w-0 flex-col gap-4 pb-(--card-spacing)">
+              {currentLibrary && <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="min-w-0 break-words font-medium [overflow-wrap:anywhere]">{currentLibrary.name}</span>
+                <Badge variant="secondary">{currentLibrary.accessMode === 'read-only' ? t('readOnly') : t('readWrite')}</Badge>
+              </div>}
               <Field>
-                <FieldLabel>{t('currentWorkspaceLibrary')}</FieldLabel>
+                <FieldLabel>{t('switchWorkspace')}</FieldLabel>
                 <Select
                   value={currentLibrary?.id ?? ''}
                   disabled={busy || libraries.length === 0}
                   onValueChange={value => void selectLibrary(value)}
                 >
-                  <SelectTrigger className="w-full"><SelectValue placeholder={t('notBound')} /></SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0 [&_[data-slot=select-value]]:min-w-0"><SelectValue placeholder={t('notBound')} /></SelectTrigger>
                   <SelectContent>
-                    {libraries.map(library => (
-                      <SelectItem key={library.id} value={library.id}>{libraryLabel(library)}</SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {libraries.map(library => (
+                        <SelectItem key={library.id} value={library.id}>{libraryLabel(library)}</SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
-                <FieldDescription>{t('currentWorkspacePath', { path: currentLocalRoot })}</FieldDescription>
+                <FieldDescription className="break-all">{t('currentWorkspacePath', { path: currentLocalRoot })}</FieldDescription>
               </Field>
-              <Field>
-                <FieldLabel htmlFor="self-hosted-library-name">{t('newLibraryName')}</FieldLabel>
-                <Input
-                  id="self-hosted-library-name"
-                  value={libraryName}
-                  onChange={event => setLibraryName(event.target.value)}
-                  placeholder={t('newLibraryDefaultName')}
-                />
-              </Field>
+              <Accordion type="single" collapsible>
+                <AccordionItem value="create">
+                  <AccordionTrigger>{t('createWorkspaceSection')}</AccordionTrigger>
+                  <AccordionContent>
+                    <FieldGroup>
+                      <Field>
+                        <FieldLabel htmlFor="self-hosted-library-name">{t('newLibraryName')}</FieldLabel>
+                        <Input id="self-hosted-library-name" value={libraryName} onChange={event => setLibraryName(event.target.value)} placeholder={t('newLibraryDefaultName')} />
+                        <FieldDescription>{t(currentLibrary ? 'createSeparateWorkspaceHint' : 'createFromCurrentHint')}</FieldDescription>
+                      </Field>
+                      <Button className="h-auto min-h-9 w-full whitespace-normal sm:w-fit" disabled={busy} onClick={() => void createNewLibrary()}>
+                        {busy ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Plus data-icon="inline-start" />}
+                        {t('createLibrary')}
+                      </Button>
+                    </FieldGroup>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </CardContent>
             <CardFooter className="flex-wrap gap-2">
-              <Button disabled={busy} onClick={() => void createNewLibrary()}>
-                {busy ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Plus data-icon="inline-start" />}
-                {t('createLibrary')}
-              </Button>
-              <Button variant="outline" onClick={() => void refresh()}>
+              <Button variant="outline" disabled={busy} onClick={() => void refresh().catch(error => toast.error(error instanceof Error ? error.message : t('operationFailed')))}>
                 <RefreshCw data-icon="inline-start" />{t('refresh')}
               </Button>
               {canDeleteCurrent && currentLibrary ? (
                 <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button className="sm:ml-auto" variant="destructive" disabled={busy}>
-                      <Trash2 data-icon="inline-start" />{t('deleteWorkspace')}
-                    </Button>
-                  </AlertDialogTrigger>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button className="ml-auto" variant="ghost" size="icon-sm" disabled={busy} aria-label={t('workspaceActions')}><MoreHorizontal /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuGroup><DropdownMenuItem variant="destructive" onSelect={() => setDeleteOpen(true)}><Trash2 />{t('deleteWorkspace')}</DropdownMenuItem></DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>{t('deleteWorkspaceTitle')}</AlertDialogTitle>
@@ -463,24 +512,26 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
             <AccordionContent className="pb-0">
               <CardContent className="flex flex-col gap-4">
                 {members.map(member => (
-                  <div key={member.accountId} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                    <div>
-                      <p className="text-sm font-medium">{member.login}</p>
-                      <p className="text-xs text-muted-foreground">{member.role}</p>
+                  <div key={member.accountId} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                    <div className="min-w-0">
+                      <p className="break-all text-sm font-medium">{member.login}</p>
+                      <p className="text-xs text-muted-foreground">{t(`roles.${member.role}`)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {member.role !== 'owner' && selected.capabilities.includes('member.update') ? (
-                        <Select value={member.role} onValueChange={value => void changeMemberRole(member, value as 'viewer' | 'editor' | 'manager')}>
+                        <Select value={member.role} disabled={busy} onValueChange={value => void runMemberAction(() => changeMemberRole(member, value as 'viewer' | 'editor' | 'manager'))}>
                           <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="editor">Editor</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectGroup>
+                              <SelectItem value="viewer">{t('roles.viewer')}</SelectItem>
+                              <SelectItem value="editor">{t('roles.editor')}</SelectItem>
+                              <SelectItem value="manager">{t('roles.manager')}</SelectItem>
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                       ) : null}
                       {member.role !== 'owner' && selected.capabilities.includes('member.remove') ? (
-                        <Button size="icon-sm" variant="ghost" aria-label={t('removeMember')} onClick={() => void removeMember(member.accountId)}>
+                        <Button size="icon-sm" variant="ghost" disabled={busy} aria-label={t('removeMember')} onClick={() => void runMemberAction(() => removeMember(member.accountId))}>
                           <Trash2 />
                         </Button>
                       ) : null}
@@ -507,10 +558,10 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
             <AccordionContent className="pb-0">
               <CardContent className="flex flex-col gap-4">
                 {pendingInvitations.map(invitation => (
-                  <div key={invitation.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div key={invitation.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{t('invitedBy', { login: invitation.inviterLogin ?? '' })}</p>
-                      <p className="text-xs text-muted-foreground">{t('invitationRole', { role: invitation.role })}</p>
+                      <p className="text-xs text-muted-foreground">{t('invitationRole', { role: t(`roles.${invitation.role}`) })}</p>
                     </div>
                     <Button size="sm" disabled={busy} onClick={() => void accept(invitation.id)}>
                       <Check data-icon="inline-start" />{t('accept')}
@@ -528,40 +579,49 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
                       <Select value={role} onValueChange={value => changeRole(value as typeof role)}>
                         <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="viewer">Viewer</SelectItem>
-                          <SelectItem value="editor">Editor</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
+                          <SelectGroup>
+                            <SelectItem value="viewer">{t('roles.viewer')}</SelectItem>
+                            <SelectItem value="editor">{t('roles.editor')}</SelectItem>
+                            <SelectItem value="manager">{t('roles.manager')}</SelectItem>
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                     </Field>
-                    <Field>
-                      <FieldLabel>{t('capabilities')}</FieldLabel>
-                      <FieldGroup className="grid gap-2 sm:grid-cols-2">
-                        {CAPABILITIES.map(capability => (
-                          <Field key={capability} orientation="horizontal" className="rounded-md border px-3 py-2">
-                            <FieldLabel htmlFor={`self-hosted-capability-${capability}`}>
-                              {t(`capabilityDescriptions.${capability}`)}
-                            </FieldLabel>
-                            <Switch
-                              id={`self-hosted-capability-${capability}`}
-                              checked={capabilities.includes(capability)}
-                              onCheckedChange={enabled => setCapabilities(current => enabled
-                                ? [...new Set([...current, capability])]
-                                : current.filter(item => item !== capability))}
-                            />
-                          </Field>
-                        ))}
-                      </FieldGroup>
-                    </Field>
+                    <Accordion type="single" collapsible>
+                      <AccordionItem value="permissions">
+                        <AccordionTrigger>{t('capabilities')}</AccordionTrigger>
+                        <AccordionContent>
+                          <FieldSet>
+                            <FieldLegend className="sr-only">{t('capabilities')}</FieldLegend>
+                            <FieldGroup className="grid gap-2 sm:grid-cols-2">
+                              {CAPABILITIES.map(capability => (
+                                <Field key={capability} orientation="horizontal" className="rounded-md border px-3 py-2">
+                                  <FieldLabel htmlFor={`self-hosted-capability-${capability}`}>
+                                    {t(`capabilityDescriptions.${capability}`)}
+                                  </FieldLabel>
+                                  <Switch
+                                    id={`self-hosted-capability-${capability}`}
+                                    checked={capabilities.includes(capability)}
+                                    onCheckedChange={enabled => setCapabilities(current => enabled
+                                      ? [...new Set([...current, capability])]
+                                      : current.filter(item => item !== capability))}
+                                  />
+                                </Field>
+                              ))}
+                            </FieldGroup>
+                          </FieldSet>
+                        </AccordionContent>
+                      </AccordionItem>
+                    </Accordion>
                   </FieldGroup>
                 ) : null}
               </CardContent>
               {selected?.capabilities.includes('member.invite') ? (
-                <CardFooter className="flex-wrap gap-2">
-                  <Button disabled={!inviteLogin.trim() || busy} onClick={() => void inviteAccount()}>
+                <CardFooter className="flex-wrap gap-2 [&>button]:h-auto [&>button]:min-h-9 [&>button]:whitespace-normal">
+                  <Button disabled={!inviteLogin.trim() || busy} onClick={() => void runMemberAction(inviteAccount)}>
                     <UserPlus data-icon="inline-start" />{t('inviteAccount')}
                   </Button>
-                  <Button variant="outline" disabled={busy} onClick={() => void createLink()}>
+                  <Button variant="outline" disabled={busy} onClick={() => void runMemberAction(createLink)}>
                     <Link2 data-icon="inline-start" />{t('copyInviteLink')}
                   </Button>
                 </CardFooter>
@@ -576,40 +636,48 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
           <CardHeader>
             <AccordionTrigger className="p-0 hover:no-underline">
               <div className="flex flex-col gap-1">
-                <CardTitle>{t('conflictsTitle')}</CardTitle>
+                <CardTitle className="flex flex-wrap items-center gap-2">{t('conflictsTitle')}{conflicts.length > 0 && <Badge variant="secondary">{conflicts.length}</Badge>}</CardTitle>
                 <CardDescription>{t('conflictsDescription')}</CardDescription>
               </div>
             </AccordionTrigger>
           </CardHeader>
           <AccordionContent className="pb-0">
             <CardContent className="flex flex-col gap-3">
-              {libraries.some(library => library.owner && library.localRoot && library.accessMode === 'read-write') ? (
+              {conflicts.some(conflict => conflict.conflictType === 'viewer-local-edit') && libraries.some(library => library.owner && library.localRoot && library.accessMode === 'read-write') ? (
                 <Select value={conflictTargetId} onValueChange={setConflictTargetId}>
                   <SelectTrigger className="w-full"><SelectValue placeholder={t('transferTarget')} /></SelectTrigger>
                   <SelectContent>
-                    {libraries.filter(library => library.owner && library.localRoot && library.accessMode === 'read-write').map(library => (
-                      <SelectItem key={library.id} value={library.id}>{library.name}</SelectItem>
-                    ))}
+                    <SelectGroup>
+                      {libraries.filter(library => library.owner && library.localRoot && library.accessMode === 'read-write').map(library => (
+                        <SelectItem key={library.id} value={library.id}>{library.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               ) : null}
               {conflicts.length === 0 ? <p className="text-sm text-muted-foreground">{t('noConflicts')}</p> : null}
               {conflicts.map(conflict => (
-                <div key={conflict.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{conflictLabel(conflict.conflictType)}</p>
-                    <p className="truncate text-xs text-muted-foreground">{conflict.localCopyPath ?? new Date(conflict.createdAt).toLocaleString()}</p>
+                <div key={conflict.id} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="break-all text-sm font-medium">{conflict.relativePath ?? conflict.localCopyPath?.split('/').pop() ?? conflictLabel(conflict.conflictType)}</p>
+                    <p className="break-words text-xs text-muted-foreground">{libraries.find(library => library.id === conflict.workspaceId)?.name ?? t('personalDataTitle')} · {new Date(conflict.createdAt).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">{conflictLabel(conflict.conflictType)}</p>
+                    {conflict.localCopyPath && <p className="break-all text-xs text-muted-foreground">{conflict.localCopyPath}</p>}
                   </div>
-                  <div className="flex shrink-0 gap-2">
+                  <div className="flex flex-wrap gap-2 [&>button]:h-auto [&>button]:min-h-8 [&>button]:whitespace-normal">
+                    {conflict.localCopyPath && conflict.conflictType !== 'symlink-ignored' && <Button size="sm" variant="outline" onClick={() => void openConflictCopy(conflict)}>
+                      <FolderOpen data-icon="inline-start" />{t('openConflictCopy')}
+                    </Button>}
                     {conflict.conflictType === 'viewer-local-edit' ? (
                       <Button size="sm" disabled={!conflictTargetId} onClick={() => void transferViewerConflict(conflict)}>
                         {t('transferToLibrary')}
                       </Button>
                     ) : null}
-                    <Button size="sm" variant="outline" onClick={() => void resolveConflict(conflict.id)}>
-                      <Check data-icon="inline-start" />{t('keepLocalCopy')}
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => void runMemberAction(() => resolveConflict(conflict.id))}>
+                      <Check data-icon="inline-start" />{t('markConflictResolved')}
                     </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">{t('conflictCopyRetained')}</p>
                 </div>
               ))}
             </CardContent>

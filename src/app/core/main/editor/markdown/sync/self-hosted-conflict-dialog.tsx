@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { CircleAlert, RefreshCw } from 'lucide-react'
+import { CircleAlert, RefreshCw, X } from 'lucide-react'
 
 import {
   ResponsiveDialog,
@@ -14,9 +14,10 @@ import {
 } from '@/components/responsive-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { SyncContentComparison } from '@/components/sync-content-comparison'
 
 interface SelfHostedConflictDialogProps {
   open: boolean
@@ -90,20 +91,24 @@ export function SelfHostedConflictDialog({
       <ResponsiveDialogContent
         ref={contentRef}
         tabIndex={-1}
-        className="flex max-h-[88dvh] flex-col gap-4 overflow-hidden p-0 sm:max-w-5xl"
-        showCloseButton={!working}
+        className="flex min-h-0 min-w-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl [&>[data-slot=drawer-scroll-area]]:overflow-hidden"
+        style={{ height: 'min(54rem, calc(var(--mobile-viewport-height, 100dvh) - env(safe-area-inset-top) - 1rem))', maxHeight: 'calc(var(--mobile-viewport-height, 100dvh) - env(safe-area-inset-top) - 1rem)' }}
+        showCloseButton={false}
         onOpenAutoFocus={event => {
           event.preventDefault()
           contentRef.current?.focus({ preventScroll: true })
         }}
       >
-        <ResponsiveDialogHeader className="shrink-0 px-4 pt-4">
-          <ResponsiveDialogTitle>{t('title')}</ResponsiveDialogTitle>
+        <ResponsiveDialogHeader className="max-h-[40%] shrink-0 gap-2 overflow-y-auto overscroll-contain p-4 text-left">
+          <div className="flex items-center justify-between gap-3">
+            <ResponsiveDialogTitle>{t('title')}</ResponsiveDialogTitle>
+            <Button type="button" variant="ghost" size="icon-sm" disabled={working} aria-label={t('close')} onClick={() => onOpenChange(false)}><X /></Button>
+          </div>
           <ResponsiveDialogDescription>{t('description')}</ResponsiveDialogDescription>
-          <p className="truncate text-sm text-muted-foreground" title={relativePath}>{relativePath}</p>
+          <p className="line-clamp-2 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]" title={relativePath}>{relativePath}</p>
         </ResponsiveDialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4">
+        <div data-vaul-no-drag className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-4">
           {loading ? (
             <div role="status" aria-live="polite" className="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner aria-hidden="true" />
@@ -118,29 +123,14 @@ export function SelfHostedConflictDialog({
             </Alert>
           ) : null}
 
-          <FieldGroup>
-            <FieldGroup className="grid min-w-0 gap-4 md:grid-cols-2">
-              <Field className="min-w-0">
-                <FieldLabel htmlFor={`${fieldId}-local`}>{t('local')}</FieldLabel>
-                <Textarea
-                  id={`${fieldId}-local`}
-                  value={localContent}
-                  readOnly
-                  className="h-36 min-h-36 resize-none [field-sizing:fixed]"
-                />
-              </Field>
-              <Field className="min-w-0">
-                <FieldLabel htmlFor={`${fieldId}-remote`}>{t('remote')}</FieldLabel>
-                <Textarea
-                  id={`${fieldId}-remote`}
-                  value={remoteContent}
-                  readOnly
-                  className="h-36 min-h-36 resize-none [field-sizing:fixed]"
-                />
-              </Field>
-            </FieldGroup>
-
-            <Field data-disabled={disabled}>
+          <SyncContentComparison
+            key={relativePath}
+            localContent={localContent}
+            remoteContent={remoteContent}
+            localLabel={t('local')}
+            remoteLabel={t('remote')}
+            mergeLabel={t('merged')}
+            mergePanel={<Field data-disabled={disabled} className="min-w-0">
               <FieldLabel htmlFor={`${fieldId}-merged`}>{t('merged')}</FieldLabel>
               <FieldDescription id={`${fieldId}-merge-description`}>{t('mergeDescription')}</FieldDescription>
               <Textarea
@@ -149,13 +139,13 @@ export function SelfHostedConflictDialog({
                 onChange={event => setMergedContent(event.target.value)}
                 disabled={disabled}
                 aria-describedby={`${fieldId}-merge-description`}
-                className="h-44 min-h-44 resize-none [field-sizing:fixed]"
+                className="h-[clamp(10rem,32dvh,24rem)] min-h-40 resize-none [field-sizing:fixed]"
               />
-            </Field>
-          </FieldGroup>
+            </Field>}
+          />
         </div>
 
-        <ResponsiveDialogFooter className="m-0 shrink-0 gap-2 p-4">
+        <ResponsiveDialogFooter className="m-0 grid max-h-[40%] shrink-0 grid-cols-2 gap-2 overflow-y-auto overscroll-contain border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex sm:flex-row sm:flex-wrap [&>button]:h-auto [&>button]:min-h-9 [&>button]:min-w-0 [&>button]:whitespace-normal [&>button]:[overflow-wrap:anywhere]">
           <Button type="button" variant="ghost" disabled={loading || working} onClick={() => {
             setResolutionError('')
             onRefresh()

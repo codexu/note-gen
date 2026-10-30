@@ -18,11 +18,11 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empt
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from '@/components/ui/field'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Progress } from '@/components/ui/progress'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { SyncContentComparison } from '@/components/sync-content-comparison'
 import { toast } from '@/hooks/use-toast'
 import { formatSyncDataError } from '@/lib/sync/remote-file'
 import {
@@ -35,7 +35,7 @@ import useSettingStore from '@/stores/setting'
 import {
   cancelPlatformSwitch, choosePlatformSwitchStrategy, confirmPlatformSwitch, dismissPlatformSwitch,
   editPlatformSwitchChoice, holdPlatformSwitchCompletion, resolvePlatformSwitchConflict,
-  restorePlatformSwitchRecovery, retryPlatformSwitch, selectPlatformSwitchModule, skipPlatformSwitchError, usePlatformSwitchStore,
+  restorePlatformSwitchRecovery, retryPlatformSwitch, selectPlatformSwitchModule, setPlatformSwitchRecoveryVisible, skipPlatformSwitchError, usePlatformSwitchStore,
   continueSelfHostedSwitchWithoutSettings, recoverSelfHostedSwitchBackup,
 } from '@/stores/sync-platform-switch'
 import { SYNC_PLATFORM_INFO, type SyncPlatform } from '@/types/sync'
@@ -175,7 +175,19 @@ function SwitchDataOverview({ plan, selected, remoteName }: { plan: PlatformSwit
     </div>
     <SwitchDifferenceBadges counts={totals} />
     <h4 className="text-sm font-medium">{p('moduleDetails')}</h4>
-    <Table aria-label={p('moduleDetails')}>
+    <div className="flex min-w-0 flex-col gap-3 md:hidden">
+      {plan.modules.map(row => <Card key={row.id} size="sm" className="min-w-0">
+        <CardHeader><Field orientation="horizontal"><Checkbox id={`switch-module-mobile-${row.id}`} checked={selected.includes(row.id)} disabled={!plan.available.includes(row.id)} onCheckedChange={value => selectPlatformSwitchModule(row.id, value === true)} /><FieldLabel htmlFor={`switch-module-mobile-${row.id}`}>{p(`modules.${row.id}`)}</FieldLabel></Field></CardHeader>
+        <CardContent className="flex min-w-0 flex-col gap-3">
+          <dl className="grid min-w-0 grid-cols-2 gap-3">
+            <div className="min-w-0"><dt className="break-words text-xs text-muted-foreground">{p('localSide')}</dt><dd className="tabular-nums">{row.local} · {formatBytes(row.localBytes)}</dd>{row.id === 'conversations' && <dd className="text-xs text-muted-foreground">{p('messages', { count: row.localMessages })}</dd>}</div>
+            <div className="min-w-0"><dt className="break-words text-xs text-muted-foreground">{remoteName}</dt><dd className="tabular-nums">{plan.unavailableModules.includes(row.id) ? p('unreadableSnapshot') : `${row.remote} · ${formatBytes(row.remoteBytes)}`}</dd>{row.id === 'conversations' && <dd className="text-xs text-muted-foreground">{p('messages', { count: row.remoteMessages })}</dd>}</div>
+          </dl>
+          {plan.unavailableModules.includes(row.id) ? <p className="text-xs text-muted-foreground">{p('cannotCompare')}</p> : <SwitchDifferenceBadges counts={row} />}
+        </CardContent>
+      </Card>)}
+    </div>
+    <div className="hidden min-w-0 md:block"><Table aria-label={p('moduleDetails')}>
       <TableHeader><TableRow><TableHead>{p('module')}</TableHead><TableHead>{p('localSide')}</TableHead><TableHead>{remoteName}</TableHead><TableHead>{p('differences')}</TableHead></TableRow></TableHeader>
       <TableBody>{plan.modules.map(row => <TableRow key={row.id}>
         <TableCell><Field orientation="horizontal"><Checkbox id={`switch-module-${row.id}`} checked={selected.includes(row.id)} disabled={!plan.available.includes(row.id)} onCheckedChange={value => selectPlatformSwitchModule(row.id, value === true)} /><FieldLabel htmlFor={`switch-module-${row.id}`}>{p(`modules.${row.id}`)}</FieldLabel></Field></TableCell>
@@ -183,7 +195,7 @@ function SwitchDataOverview({ plan, selected, remoteName }: { plan: PlatformSwit
         <TableCell className="tabular-nums">{plan.unavailableModules.includes(row.id) ? p('unreadableSnapshot') : row.remote}<p className="text-xs text-muted-foreground">{formatBytes(row.remoteBytes)}</p>{row.id === 'conversations' && <p className="text-xs text-muted-foreground">{p('messages', { count: row.remoteMessages })}</p>}</TableCell>
         <TableCell className="min-w-48 whitespace-normal">{plan.unavailableModules.includes(row.id) ? <p className="text-xs text-muted-foreground">{p('cannotCompare')}</p> : <SwitchDifferenceBadges counts={row} />}</TableCell>
       </TableRow>)}</TableBody>
-    </Table>
+    </Table></div>
     <p className="text-xs text-muted-foreground">{p('linkedModules')}</p>
     <p className="text-xs text-muted-foreground">{p('incrementalReads', { cached: plan.readSummary.cachedFiles, downloaded: plan.readSummary.downloadedFiles })}</p>
   </section>
@@ -220,16 +232,11 @@ function SwitchConflicts({ conflicts, resolutions, remoteName }: {
         <Button variant="outline" size="icon-sm" disabled={position === conflicts.length - 1} aria-label={p('nextConflict')} onClick={() => setIndex(position + 1)}><ChevronRight /></Button>
       </div>
     </div>
-    <div className="grid gap-3 sm:grid-cols-2">
-      {(['local', 'remote'] as const).map(side => <Card key={`${conflict.id}:${side}`} size="sm">
-        <CardHeader><CardTitle>{side === 'local' ? p('localSide') : remoteName}</CardTitle></CardHeader>
-        <CardContent><ScrollArea className="h-40"><pre className="whitespace-pre-wrap break-words pr-3 font-mono text-xs [overflow-wrap:anywhere]">{conflict[side]}</pre></ScrollArea></CardContent>
-      </Card>)}
-    </div>
+    <SyncContentComparison key={conflict.id} localContent={conflict.local} remoteContent={conflict.remote} localLabel={p('localSide')} remoteLabel={remoteName} />
     <FieldSet><FieldLegend variant="label">{p('choose')}</FieldLegend>
-      <ToggleGroup type="single" variant="outline" value={resolutions[conflict.id] || ''} className="flex-wrap" onValueChange={value => { if (value) resolvePlatformSwitchConflict(conflict.id, value as SwitchResolution) }} aria-label={conflict.label}>
-        <ToggleGroupItem value="local">{p('useLocalVersion')}</ToggleGroupItem><ToggleGroupItem value="remote">{p('useRemoteVersion')}</ToggleGroupItem>
-        {conflict.allowBoth && <ToggleGroupItem value="both">{p('keepBoth')}</ToggleGroupItem>}
+      <ToggleGroup type="single" variant="outline" value={resolutions[conflict.id] || ''} className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3" onValueChange={value => { if (value) resolvePlatformSwitchConflict(conflict.id, value as SwitchResolution) }} aria-label={conflict.label}>
+        <ToggleGroupItem className="h-auto min-h-10 min-w-0 whitespace-normal" value="local">{p('useLocalVersion')}</ToggleGroupItem><ToggleGroupItem className="h-auto min-h-10 min-w-0 whitespace-normal" value="remote">{p('useRemoteVersion')}</ToggleGroupItem>
+        {conflict.allowBoth && <ToggleGroupItem className="h-auto min-h-10 min-w-0 whitespace-normal" value="both">{p('keepBoth')}</ToggleGroupItem>}
       </ToggleGroup>
     </FieldSet>
   </section>
@@ -253,6 +260,13 @@ function selfHostedSwitchImpact(preview: SelfHostedSwitchPreview, strategy: Swit
 
 function SelfHostedSwitchOverview({ preview, strategy }: { preview: SelfHostedSwitchPreview; strategy: SwitchStrategy | null }) {
   const p = useTranslations('settings.sync.switchPlan')
+  const differences = (row: SelfHostedSwitchPreview['modules'][number]) => <div className="flex min-w-0 flex-wrap gap-1.5 [&>[data-slot=badge]]:h-auto [&>[data-slot=badge]]:max-w-full [&>[data-slot=badge]]:whitespace-normal [&>[data-slot=badge]]:[overflow-wrap:anywhere]">
+    <Badge variant="secondary">{p('sameCount', { count: row.same })}</Badge>
+    <Badge variant={row.localOnly ? 'warning' : 'secondary'}>{p('localOnlyCount', { count: row.localOnly })}</Badge>
+    <Badge variant={row.remoteOnly ? 'info' : 'secondary'}>{p('remoteOnlyCount', { count: row.remoteOnly })}</Badge>
+    <Badge variant={row.changed ? 'warning' : 'secondary'}>{p('nativeChangedCount', { count: row.changed })}</Badge>
+    <Badge variant={row.deleted ? 'destructive' : 'secondary'}>{p('nativeDeletedCount', { count: row.deleted })}</Badge>
+  </div>
   return <section className="flex min-w-0 flex-col gap-4" aria-label={p('comparison')}>
     <Alert><ListChecks /><AlertTitle>{p('nativeReviewAction')}</AlertTitle><AlertDescription className="flex flex-col gap-2">
       <p className="break-all">{preview.serverUrl}</p>
@@ -260,20 +274,26 @@ function SelfHostedSwitchOverview({ preview, strategy }: { preview: SelfHostedSw
       <p>{p('nativeEngine')}</p>
     </AlertDescription></Alert>
     {preview.settingsPaused && <Alert variant="warning"><AlertTriangle /><AlertDescription>{p('nativeSettingsPaused')}</AlertDescription></Alert>}
-    <Table aria-label={p('moduleDetails')}>
+    <div className="flex min-w-0 flex-col gap-3 md:hidden">
+      {preview.modules.map(row => <Card key={row.id} size="sm" className="min-w-0">
+        <CardHeader><CardTitle>{p(`modules.${row.id}`)}</CardTitle></CardHeader>
+        <CardContent className="flex min-w-0 flex-col gap-3">
+          <dl className="grid grid-cols-2 gap-3">
+            <div className="min-w-0"><dt className="text-xs text-muted-foreground">{p('localSide')}</dt><dd className="tabular-nums">{row.local}</dd></div>
+            <div className="min-w-0"><dt className="text-xs text-muted-foreground">{p('sources.remote')}</dt><dd className="tabular-nums">{row.remote}</dd></div>
+          </dl>
+          {differences(row)}
+        </CardContent>
+      </Card>)}
+    </div>
+    <div className="hidden min-w-0 md:block"><Table aria-label={p('moduleDetails')}>
       <TableHeader><TableRow><TableHead>{p('module')}</TableHead><TableHead>{p('localSide')}</TableHead><TableHead>{p('sources.remote')}</TableHead><TableHead>{p('differences')}</TableHead></TableRow></TableHeader>
       <TableBody>{preview.modules.map(row => <TableRow key={row.id}>
         <TableCell>{p(`modules.${row.id}`)}</TableCell>
         <TableCell className="tabular-nums">{row.local}</TableCell><TableCell className="tabular-nums">{row.remote}</TableCell>
-        <TableCell className="min-w-48 whitespace-normal"><div className="flex flex-wrap gap-1.5">
-          <Badge variant="secondary">{p('sameCount', { count: row.same })}</Badge>
-          <Badge variant={row.localOnly ? 'warning' : 'secondary'}>{p('localOnlyCount', { count: row.localOnly })}</Badge>
-          <Badge variant={row.remoteOnly ? 'info' : 'secondary'}>{p('remoteOnlyCount', { count: row.remoteOnly })}</Badge>
-          <Badge variant={row.changed ? 'warning' : 'secondary'}>{p('nativeChangedCount', { count: row.changed })}</Badge>
-          <Badge variant={row.deleted ? 'destructive' : 'secondary'}>{p('nativeDeletedCount', { count: row.deleted })}</Badge>
-        </div></TableCell>
+        <TableCell className="min-w-48 whitespace-normal">{differences(row)}</TableCell>
       </TableRow>)}</TableBody>
-    </Table>
+    </Table></div>
     {preview.details.length > 0 && <section className="flex flex-col gap-2" aria-label={p('viewDifference')}>
       <h3 className="text-sm font-medium">{p('viewDifference')}</h3>
       <p className="text-xs text-muted-foreground">{p('nativeDetailLimit', { shown: preview.details.length, total: preview.differenceCount })}</p>
@@ -303,6 +323,7 @@ export function PlatformSwitchProgress() {
   const [confirmation, setConfirmation] = useState<'cancel' | 'skip' | 'restore' | null>(null)
   const [skipAcknowledged, setSkipAcknowledged] = useState(false)
   const [draftStrategy, setDraftStrategy] = useState<SwitchStrategy | null>(null)
+  const hideCancelled = state.cancelledHidden && (state.cancelRequested || step === 'cancelled')
   const strategyHintId = useId()
   const acknowledgeId = useId()
   const skipId = useId()
@@ -312,25 +333,25 @@ export function PlatformSwitchProgress() {
   const failureToast = useRef<ReturnType<typeof toast> | null>(null)
   useEffect(() => { void restorePlatformSwitchRecovery() }, [])
   useEffect(() => {
-    setOpen(Boolean(platform))
+    setOpen(Boolean(platform) && !hideCancelled)
     if (platform) setOrigin(useSettingStore.getState().primaryBackupMethod)
-  }, [platform])
+  }, [platform, hideCancelled])
   useEffect(() => {
     // Retrying an intentionally skipped target starts a new attempt even when
     // the target ID is unchanged; its current primary is now the origin.
     if (platform && step === 'local') setOrigin(useSettingStore.getState().primaryBackupMethod)
   }, [platform, step])
   useEffect(() => {
-    if (platform && (state.recoveringSelfHostedBackup || ['review', 'confirm', 'error', 'cancelled'].includes(step))) setOpen(true)
+    if (platform && !hideCancelled && (state.recoveringSelfHostedBackup || ['review', 'confirm', 'error'].includes(step))) setOpen(true)
     setSkipAcknowledged(false)
-  }, [platform, step, state.recoveringSelfHostedBackup])
+  }, [platform, step, state.recoveringSelfHostedBackup, hideCancelled])
   useEffect(() => { setConfirmation(null) }, [platform])
   useEffect(() => { if (step === 'completed' || step === 'cancelled') setConfirmation(null) }, [step])
   useEffect(() => { setAcknowledged(false) }, [step, strategy, plan, resolutions])
   useEffect(() => { setDraftStrategy(strategy) }, [platform, step, strategy, plan])
   useEffect(() => {
     if (!open) return
-    scroller.current?.querySelector('[data-slot="scroll-area-viewport"]')?.scrollTo({ top: 0 })
+    scroller.current?.scrollTo({ top: 0 })
     heading.current?.focus()
   }, [step, open])
 
@@ -377,9 +398,10 @@ export function PlatformSwitchProgress() {
     if (usePlatformSwitchStore.getState().step === 'completed') void dismissPlatformSwitch()
   }, [])
 
-  if (!platform) return null
+  if (!platform || hideCancelled) return null
   const platformName = (value: SyncPlatform) => value === 'local' ? t('settings.sync.local.title')
-    : value === 'cloudFolder' ? t('settings.sync.cloudFolder.title') : SYNC_PLATFORM_INFO[value].name
+    : value === 'cloudFolder' ? t('settings.sync.cloudFolder.title')
+      : value === 'selfHosted' ? t('settings.sync.selfHosted.title') : SYNC_PLATFORM_INFO[value].name
   const name = platformName(state.recovered ? primary : platform)
   const originName = platformName(origin)
   const nativeEngine = platform === 'selfHosted'
@@ -403,23 +425,24 @@ export function PlatformSwitchProgress() {
   const closeDetails = () => {
     if (state.recoveringSelfHostedBackup) return
     if (step === 'completed') void dismissPlatformSwitch()
+    else if (step === 'cancelled') setPlatformSwitchRecoveryVisible(false)
     else setOpen(false)
   }
 
   return <Dialog open={open} onOpenChange={next => { if (next) setOpen(true); else closeDetails() }}>
-    <Item variant="outline" size="sm" className="mb-4" role="region" aria-label={p('panelTitle', { platform: name })}>
+    <Item variant="outline" size="sm" className="mb-4 min-w-0 flex-wrap" role="region" aria-label={p('panelTitle', { platform: name })}>
       <ItemMedia variant="icon">{step === 'error' || skipped ? <AlertTriangle /> : step === 'cancelled' ? <CircleX /> : step === 'completed' ? <Check /> : busy ? <Spinner /> : <ListChecks />}</ItemMedia>
       <ItemContent className="min-w-0"><ItemTitle>{name} · {title}</ItemTitle><ItemDescription>{busy ? activity : p('currentPrimary', { platform: platformName(primary) })}</ItemDescription></ItemContent>
-      <ItemActions>
+      <ItemActions className="flex-wrap">
         <Button ref={launcher} type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>{p(choosing || stopped ? 'resumeReview' : 'viewProgress')}<ChevronRight data-icon="inline-end" /></Button>
         {step === 'completed' && <Button type="button" size="sm" onClick={() => void dismissPlatformSwitch()}>{p('done')}</Button>}
       </ItemActions>
     </Item>
-    <DialogContent showCloseButton={false} className="flex h-[min(760px,calc(100dvh-2rem))] min-h-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+    <DialogContent showCloseButton={false} className="flex h-[min(760px,calc(100dvh-2rem))] min-h-0 min-w-0 flex-col gap-0 overflow-hidden p-0 max-sm:top-[env(safe-area-inset-top)] max-sm:left-0 max-sm:h-[calc(var(--mobile-viewport-height,100dvh)-env(safe-area-inset-top))] max-sm:w-full max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none sm:min-w-0 sm:max-w-4xl"
       onEscapeKeyDown={event => { event.stopPropagation(); if (state.recoveringSelfHostedBackup) event.preventDefault() }}
       onOpenAutoFocus={event => { event.preventDefault(); heading.current?.focus() }}
       onCloseAutoFocus={event => { if (launcher.current) { event.preventDefault(); launcher.current.focus() } }}>
-      <DialogHeader className="shrink-0 gap-4 px-5 py-5 sm:px-6">
+      <DialogHeader className="shrink-0 gap-3 px-4 py-3 sm:gap-4 sm:px-6 sm:py-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-2">
             <DialogTitle ref={heading} tabIndex={-1}>{p('flowTitle')}</DialogTitle>
@@ -431,8 +454,8 @@ export function PlatformSwitchProgress() {
         {skipped ? <Badge variant="secondary" className="self-start">{p('skipped')}</Badge> : <SwitchSteps active={stage} failed={step === 'error'} completed={step === 'completed'} />}
       </DialogHeader>
       <Separator />
-      <ScrollArea ref={scroller} className="min-h-0 flex-1">
-        <div className="flex min-w-0 flex-col gap-6 px-5 py-5 sm:px-6">
+      <div ref={scroller} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="flex min-w-0 flex-col gap-5 px-4 py-4 sm:gap-6 sm:px-6 sm:py-5">
           {busy && <SwitchCurrentOperation progress={progress} listing={['local', 'currentRemote', 'nextRemote'].includes(step) || progress?.phase === 'list' ? state.listing : null} activity={activity} />}
           {choosing && unavailableRemote && <Alert variant="warning"><AlertTriangle /><AlertTitle>{p('unreadableSnapshot')}</AlertTitle><AlertDescription>{p('emptyLegacyFiles', { paths: plan?.emptyRemoteFiles.join('、') || '' })}</AlertDescription></Alert>}
           {step === 'review' && (plan || state.review?.selfHostedPreview) && <>
@@ -482,10 +505,6 @@ export function PlatformSwitchProgress() {
               await openPath(await join(await appDataDir(), state.selfHostedBackupPath!))
             })().catch(failure => toast({ title: p('failed'), description: String(failure), variant: 'destructive' }))}><FolderOpen data-icon="inline-start" />{p('nativeOpenBackup')}</Button>
           </AlertDescription></Alert>}
-        </div>
-      </ScrollArea>
-      <Separator />
-      <footer className="flex shrink-0 flex-col gap-3 bg-muted/30 px-5 py-4 sm:px-6">
         {step === 'confirm' && <FieldGroup>
           <FieldLabel htmlFor={acknowledgeId} tone={canConfirm ? 'success' : 'warning'} className={cn('has-focus-visible:ring-2 has-focus-visible:ring-ring', unresolved > 0 ? 'cursor-not-allowed' : 'cursor-pointer')}>
             <Field orientation="horizontal" data-disabled={unresolved > 0} className="min-h-14 gap-3">
@@ -499,9 +518,13 @@ export function PlatformSwitchProgress() {
             </Field>
           </FieldLabel>
         </FieldGroup>}
+        </div>
+      </div>
+      <Separator />
+      <footer className="flex max-h-[45dvh] shrink-0 flex-col gap-3 overflow-y-auto overscroll-contain bg-muted/30 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="min-w-0 text-xs text-muted-foreground" role="status">{p('currentPrimary', { platform: platformName(primary) })}</p>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end [&>button]:h-auto [&>button]:min-h-9 [&>button]:min-w-0 [&>button]:whitespace-normal [&>button]:[overflow-wrap:anywhere]">
             {step !== 'completed' && step !== 'cancelled' && !state.selfHostedSafetyBackupPath && <Button type="button" variant="outline" disabled={state.cancelRequested} onClick={() => { if (mutated) setConfirmation('cancel'); else void cancelPlatformSwitch() }}>{state.cancelRequested ? <Spinner data-icon="inline-start" /> : <X data-icon="inline-start" />}{p(state.cancelRequested ? 'cancelling' : 'cancelSwitch')}</Button>}
             {step === 'confirm' && <Button type="button" variant="outline" onClick={editPlatformSwitchChoice}><ChevronLeft data-icon="inline-start" />{p('back')}</Button>}
             {step === 'review' && <Button type="button" disabled={!(plan || state.review?.selfHostedPreview) || !canChoose} aria-describedby={draftStrategy === null ? strategyHintId : undefined} onClick={() => {
@@ -516,13 +539,12 @@ export function PlatformSwitchProgress() {
             {(stopped || skipped) && <Button type="button" onClick={() => void retryPlatformSwitch()}><RefreshCcw data-icon="inline-start" />{p(skipped ? 'verifySkipped' : 'rescanRetry')}</Button>}
             {step === 'cancelled' && !mutated && <Button type="button" variant="outline" onClick={() => void dismissPlatformSwitch()}>{p('done')}</Button>}
             {step === 'completed' && <Button type="button" onClick={() => void dismissPlatformSwitch()}><Check data-icon="inline-start" />{p('done')}</Button>}
-            {(busy || stopped && mutated) && !state.recoveringSelfHostedBackup && <Button type="button" variant="outline" onClick={() => setOpen(false)}><Minimize2 data-icon="inline-start" />{p('minimize')}</Button>}
           </div>
         </div>
       </footer>
     </DialogContent>
     <AlertDialog open={confirmation !== null} onOpenChange={next => { if (!next) { setConfirmation(null); setSkipAcknowledged(false) } }}>
-      <AlertDialogContent onCloseAutoFocus={event => { event.preventDefault(); heading.current?.focus() }}>
+      <AlertDialogContent className="max-h-[calc(var(--mobile-viewport-height,100dvh)-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] min-w-0 overflow-y-auto overscroll-contain [&_button]:h-auto [&_button]:min-h-9 [&_button]:whitespace-normal" onCloseAutoFocus={event => { event.preventDefault(); heading.current?.focus() }}>
         <AlertDialogHeader>
           <AlertDialogTitle>{p(confirmation === 'restore' ? 'nativeRestoreBackup' : confirmation === 'skip' ? 'skipTitle' : 'cancelTitle')}</AlertDialogTitle>
           <AlertDialogDescription>{confirmation === 'restore' ? p('nativeRestoreDescription') : confirmation === 'skip' ? p('skipDescription', { platform: name }) : p('cancelDescription')}</AlertDialogDescription>
@@ -530,7 +552,13 @@ export function PlatformSwitchProgress() {
         {confirmation === 'skip' && <Field orientation="horizontal"><Checkbox id={skipId} checked={skipAcknowledged} onCheckedChange={value => setSkipAcknowledged(value === true)} /><FieldLabel htmlFor={skipId}>{p('skipAcknowledge')}</FieldLabel></Field>}
         <AlertDialogFooter>
           <AlertDialogCancel>{p(confirmation === 'skip' ? 'cancel' : 'keepSwitching')}</AlertDialogCancel>
-          <AlertDialogAction disabled={confirmation === 'skip' && (!skipAcknowledged || !stopped)} onClick={() => { if (confirmation === 'restore') void recoverSelfHostedSwitchBackup(); else if (confirmation === 'skip') void skipPlatformSwitchError(); else void cancelPlatformSwitch() }}>{p(confirmation === 'restore' ? 'nativeRestoreBackup' : confirmation === 'skip' ? 'confirmSkip' : 'confirmCancel')}</AlertDialogAction>
+          <AlertDialogAction disabled={confirmation === 'skip' && (!skipAcknowledged || !stopped)} onClick={() => {
+            const action = confirmation
+            setConfirmation(null)
+            if (action === 'restore') void recoverSelfHostedSwitchBackup()
+            else if (action === 'skip') void skipPlatformSwitchError()
+            else void cancelPlatformSwitch()
+          }}>{p(confirmation === 'restore' ? 'nativeRestoreBackup' : confirmation === 'skip' ? 'confirmSkip' : 'confirmCancel')}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

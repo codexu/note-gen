@@ -216,6 +216,12 @@ export class SelfHostedClient {
     return this.request<null>(`/v1/workspaces/${workspaceId}`, { method: 'DELETE' })
   }
 
+  renameWorkspace(workspaceId: string, nameCiphertext: string) {
+    return this.request<{ id: string; nameCiphertext: string; updatedAt: string }>(
+      `/v1/workspaces/${workspaceId}`, { method: 'PATCH', body: { nameCiphertext } },
+    )
+  }
+
   workspaceKeys(workspaceId: string) {
     return this.request<Array<{
       keyVersion: number

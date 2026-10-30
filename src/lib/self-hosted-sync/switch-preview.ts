@@ -1,8 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
-import { exists, readDir, readFile } from '@tauri-apps/plugin-fs'
+import { readDir, readFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { getDb } from '@/db'
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
+import { ensureWorkspaceDirectory } from '@/lib/managed-workspace'
 import { stableSyncValue, type SwitchModule, type SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import { syncStaleError } from '@/lib/sync/sync-stale-error'
 import { authenticatedClient, secureGet } from './profile'
@@ -181,7 +182,7 @@ export async function inspectSelfHostedSwitch(
   const localPaths = new Map<string, Map<string, 'file' | 'folder'>>()
   let scannedLocalEntries = 0
   async function scan(directory: string, scope: string, prefix = '') {
-    if (!prefix && !await exists(directory)) return
+    if (!prefix) await ensureWorkspaceDirectory(directory)
     for (const entry of await readDir(directory)) {
       assertActive()
       if (entry.isSymlink || entry.name === '.notegen' || entry.name === '.DS_Store' || entry.name.endsWith('.tmp')) continue

@@ -42,7 +42,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { getDefaultArticleAbsolutePath } from '@/lib/workspace'
-import { getWorkspaceDisplayName } from '@/lib/workspace-name'
+import { useWorkspaceDisplayName } from '@/hooks/use-workspace-display-name'
 import { RepoNames } from '@/lib/sync/github.types'
 import useArticleStore from '@/stores/article'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
@@ -84,10 +84,11 @@ export function FileFooter() {
   const [switchingWorkspace, setSwitchingWorkspace] = useState(false)
   const [defaultWorkspacePath, setDefaultWorkspacePath] = useState('')
 
+  const getWorkspaceDisplayName = useWorkspaceDisplayName()
   const defaultWorkspaceName = tFile('workspace.defaultPath')
   const currentWorkspaceName = useMemo(
     () => getWorkspaceDisplayName(workspacePath, defaultWorkspaceName),
-    [defaultWorkspaceName, workspacePath]
+    [defaultWorkspaceName, workspacePath, getWorkspaceDisplayName]
   )
   const currentWorkspacePath = workspacePath
     || defaultWorkspacePath
@@ -345,7 +346,7 @@ export function FileFooter() {
               {hasOtherWorkspaces && <CommandSeparator />}
               {hasOtherWorkspaces && <CommandGroup heading={tFile('workspace.list')}>
                 {workspacePath && <CommandItem
-                  value={`${defaultWorkspaceName} ${defaultWorkspacePath}`}
+                  value={`${getWorkspaceDisplayName('', defaultWorkspaceName)} ${defaultWorkspacePath}`}
                   disabled={switchingWorkspace}
                   onSelect={() => void switchWorkspace('')}
                   className="items-start [&>svg:last-child]:hidden"
@@ -353,7 +354,7 @@ export function FileFooter() {
                   <FolderOpen className="mt-0.5" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">
-                      {defaultWorkspaceName}
+                      {getWorkspaceDisplayName('', defaultWorkspaceName)}
                     </span>
                     {defaultWorkspacePath && (
                       <Tooltip>

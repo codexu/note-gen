@@ -64,7 +64,7 @@ import { cn } from '@/lib/utils'
 import { getCachedRepositoryCheck, subscribeRepositoryChecks, type RepositoryCheckResult } from '@/lib/sync/repository-check'
 import { SyncStateEnum } from '@/lib/sync/github.types'
 import type { SyncRepoPlatform, WorkspaceSyncRepos } from '@/lib/sync/workspace-repos'
-import { getWorkspaceDisplayName } from '@/lib/workspace-name'
+import { useWorkspaceDisplayName } from '@/hooks/use-workspace-display-name'
 import useSettingStore from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
 
@@ -98,6 +98,7 @@ export function WorkspaceRepoMapping({
   onRepoChange,
 }: WorkspaceRepoMappingProps) {
   const t = useTranslations()
+  const getWorkspaceDisplayName = useWorkspaceDisplayName()
   const defaultWorkspaceName = t('settings.file.workspace.defaultPath')
   const isActivePlatform = useSettingStore(state => state.primaryBackupMethod === platform)
   const accessToken = useSettingStore(state => {

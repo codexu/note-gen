@@ -588,6 +588,10 @@ async function persistChangedSettings(
 const useSettingStore = create<SettingState>((set, get) => ({
   initSettingData: (options) => withSettingsHydration(async () => {
     const store = await Store.load('store.json');
+    if (!options?.hydrateOnly) {
+      const { restoreManagedWorkspaceSettings } = await import('@/lib/managed-workspace')
+      await restoreManagedWorkspaceSettings(store)
+    }
     await restoreInterruptedPrimaryPlatform(store)
     if (options?.hydrateOnly) {
       // Platform switching has already normalized and persisted its snapshot.

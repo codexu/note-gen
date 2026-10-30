@@ -1,7 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { getDb } from '@/db'
+import { getDb, initAllDatabases } from '@/db'
 import useSyncStore from '@/stores/sync'
 import { getSelfHostedSyncRuntime } from './runtime'
 import emitter from '@/lib/emitter'
@@ -46,6 +46,9 @@ export async function refreshSelfHostedSyncRuntime(
   onProgress?: (progress: SwitchOperationProgress) => void,
   reason: 'startup' | 'manual-retry' = 'startup',
 ) {
+  // Complete path recovery before exact local-root lookups can create or bind
+  // another cloud workspace for a stale iOS container path.
+  await initAllDatabases()
   const report = (startupTask: NonNullable<SwitchOperationProgress['startupTask']>) => {
     onProgress?.({ phase: 'start', kind: 'item', startupTask, current: 0, total: 0 })
   }

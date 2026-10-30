@@ -16,6 +16,7 @@ import {
   ResponsivePopoverTrigger,
 } from "@/components/responsive-popover"
 import { useState } from "react"
+import { useWorkspaceDisplayName } from "@/hooks/use-workspace-display-name"
 import { Field, FieldDescription, FieldTitle } from "@/components/ui/field"
 import { toast } from "@/hooks/use-toast"
 import { prepareActiveEditorDeactivationDurably } from "@/lib/editor-deactivation"
@@ -39,6 +40,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
   const {loadWorkspaceCollapsibleList, loadFileTree, setActiveFilePath} = useArticleStore()
   const { refreshSkills } = useSkillsStore()
   const t = useTranslations('settings.file')
+  const getWorkspaceDisplayName = useWorkspaceDisplayName()
   const [open, setOpen] = useState(false)
   const [switchingWorkspace, setSwitchingWorkspace] = useState(false)
 
@@ -214,7 +216,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <FolderOpen className="w-4 h-4 flex-shrink-0" />
                   <span className="truncate text-sm">
-                    {workspacePath || t('workspace.default')}
+                    {getWorkspaceDisplayName(workspacePath, t('workspace.default'))}
                   </span>
                 </div>
                 {switchingWorkspace ? (
@@ -265,6 +267,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
                   {workspaceHistory.map((path, index) => (
                     <CommandItem
                       key={index}
+                      value={`${getWorkspaceDisplayName(path, t('workspace.default'))} ${path}`}
                       disabled={switchingWorkspace}
                       onSelect={() => {
                         setOpen(false)
@@ -275,7 +278,7 @@ export function WorkspaceSwitcher({ compact = false }: { compact?: boolean }) {
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <FolderOpen className="h-4 w-4 flex-shrink-0" />
                           <span className="truncate" title={path}>
-                            {path}
+                            {getWorkspaceDisplayName(path, t('workspace.default'))}
                           </span>
                         </div>
                         <Button

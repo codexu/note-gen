@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { ensureWorkspaceDirectory } from '@/lib/managed-workspace'
 import { appDataDir, dirname, join } from '@tauri-apps/api/path'
 import { BaseDirectory, exists, mkdir, readDir, readFile, writeFile } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
@@ -84,7 +85,7 @@ export async function captureSelfHostedSwitchBackup(input: {
   const files: BackupManifest['files'] = []
   const directories: BackupManifest['directories'] = []
   async function copy(root: string, library: number, prefix = '') {
-    if (!prefix && !await exists(root)) return
+    if (!prefix) await ensureWorkspaceDirectory(root)
     for (const entry of await readDir(root)) {
       input.assertActive()
       if (entry.isSymlink || excluded(entry.name)) continue

@@ -1,6 +1,7 @@
 import { BaseDirectory } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
+import { resolveManagedWorkspacePath } from '@/lib/managed-workspace'
 
 function normalizeFsPath(path: string): string {
   return path.trim().replace(/\\/g, '/').replace(/\/+/g, '/')
@@ -44,7 +45,7 @@ export async function getWorkspacePath(): Promise<{ path: string, isCustom: bool
   // 如果设置了自定义工作区路径，则使用自定义路径
   if (workspacePath) {
     return {
-      path: workspacePath,
+      path: await resolveManagedWorkspacePath(workspacePath),
       isCustom: true
     }
   }

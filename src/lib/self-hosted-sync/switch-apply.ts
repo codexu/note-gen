@@ -9,6 +9,7 @@ import emitter from '@/lib/emitter'
 import { syncStaleError } from '@/lib/sync/sync-stale-error'
 import { normalizeSettingsSnapshot } from '@/lib/sync/settings-snapshot'
 import { normalizeTagBoolean } from '@/lib/tag-sync'
+import { ensureWorkspaceDirectory } from '@/lib/managed-workspace'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import { bytesToBase64Url, downloadAsset, hashBytes } from './blob'
 import { authenticatedClient } from './profile'
@@ -202,7 +203,7 @@ async function validateLocalFiles(input: ReplacementInput, workspace: SelfHosted
     .map(file => [file.relativePath, file.hash]))
   let count = 0
   async function scan(directory: string, prefix = '') {
-    if (!prefix && !await exists(directory)) return
+    if (!prefix) await ensureWorkspaceDirectory(directory)
     for (const entry of await readDir(directory)) {
       input.assertActive()
       if (entry.isSymlink || excluded(entry.name)) continue
@@ -221,6 +222,7 @@ async function validateLocalFiles(input: ReplacementInput, workspace: SelfHosted
 
 async function replaceLibrary(input: ReplacementInput, workspace: SelfHostedReplacementWorkspace) {
   const root = workspace.localRoot!
+  await ensureWorkspaceDirectory(root)
   const desired = workspace.objects.filter(entry => entry.object.deletedAt === null
     && ['file', 'asset', 'folder'].includes(String(entry.payload.domain))).sort((left, right) =>
     Number(left.payload.domain !== 'folder') - Number(right.payload.domain !== 'folder')

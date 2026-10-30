@@ -20,13 +20,14 @@ import { enabledPersonalSyncKinds, isPersonalSyncKindEnabled } from './domains'
 import { hydratePersonalAssets } from './personal-assets'
 import { hasPendingPersonalMutation, pendingPersonalChangesForEvent } from './pending-personal'
 import { recoverPersonalRevisionConflicts } from './personal-recovery'
-import { ensureManagedWorkspaceKeys, getCurrentWorkspaceRoot, reconcileLibraryFiles } from './workspaces'
+import { discoverLibraryWorkspaces, ensureManagedWorkspaceKeys, getCurrentWorkspaceRoot, reconcileLibraryFiles } from './workspaces'
 import { bytesToBase64Url, downloadAsset, hashBytes } from './blob'
 import type { SyncBootstrapPage, SyncEvent, SyncObjectKind, SyncSession } from './protocol'
 import { applyConversationTombstones, type SelfHostedSnapshotObject } from './snapshot'
 import emitter from '@/lib/emitter'
 import useSyncStore from '@/stores/sync'
 import { withSelfHostedPrepareLock } from './prepare-lock'
+import { ensureWorkspaceDirectory } from '@/lib/managed-workspace'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import {
   editorPathsReferToSameFile,
@@ -85,6 +86,7 @@ export class SelfHostedSyncRuntime {
   #presenceOwner: symbol | null = null
   #progressListeners = new Set<(progress: SwitchOperationProgress) => void>()
   #conflictResolution: Promise<void> | null = null
+  #lastLibraryDiscoveryAt = 0
 
   async withConflictResolution<T>(operation: () => Promise<T>): Promise<T> {
     const previous = this.#conflictResolution
@@ -138,6 +140,7 @@ export class SelfHostedSyncRuntime {
 
   stop() {
     this.#stopped = true
+    this.#lastLibraryDiscoveryAt = 0
     this.#socketGeneration++
     if (this.#socketRetryTimer) clearTimeout(this.#socketRetryTimer)
     this.#socketRetryTimer = null
@@ -261,11 +264,14 @@ export class SelfHostedSyncRuntime {
   async #runWake(reason: string) {
     const errors = new Set<string>()
     try {
+      const discoveryErrors = new Set<string>()
+      await this.#discoverLibraries(reason, discoveryErrors)
       do {
         this.#rerun = false
         // A rerun visits every binding again. Report its final outcome instead
         // of retaining failures that an earlier pass has already recovered.
         errors.clear()
+        for (const error of discoveryErrors) errors.add(error)
         const manualRetry = this.#manualRetryRequested
         this.#manualRetryRequested = false
         const bindings = await listBindings()
@@ -335,7 +341,34 @@ export class SelfHostedSyncRuntime {
     }
   }
 
+  async #discoverLibraries(reason: string, errors: Set<string>) {
+    const force = ['startup', 'foreground', 'network', 'manual-retry'].includes(reason)
+    if (this.#stopped || (!force && Date.now() - this.#lastLibraryDiscoveryAt < 30_000)) return
+    this.#lastLibraryDiscoveryAt = Date.now()
+    const profiles = await (await getDb()).select<Array<{ id: string }>>(
+      "select id from self_hosted_sync_profiles where state = 'connected'",
+    )
+    const reportError = (profileId: string, workspaceId: string | null, error: unknown) => {
+      if (isSelfHostedAuthenticationError(error) || isSelfHostedSecureStorageError(error)) throw error
+      errors.add(error instanceof Error ? error.message : String(error))
+      console.warn('[self-hosted-sync] Workspace discovery failed', { profileId, workspaceId, error })
+    }
+    for (const profile of profiles) {
+      if (this.#stopped) return
+      try {
+        const discovered = await discoverLibraryWorkspaces(profile.id, () => !this.#stopped,
+          (workspaceId, error) => reportError(profile.id, workspaceId, error))
+        if (discovered > 0) emitter.emit('self-hosted-workspaces-discovered', { profileId: profile.id })
+      } catch (error) {
+        reportError(profile.id, null, error)
+      }
+    }
+  }
+
   async #syncBinding(binding: Binding, errors: Set<string>) {
+    if (binding.workspaceType === 'library' && binding.localRoot) {
+      await ensureWorkspaceDirectory(binding.localRoot)
+    }
     const report = (
       startupTask: NonNullable<SwitchOperationProgress['startupTask']>,
       value: Partial<Omit<SwitchOperationProgress, 'phase' | 'kind' | 'startupTask'>> = {},
@@ -560,6 +593,10 @@ export class SelfHostedSyncRuntime {
           // Recover notifications sent between the HTTP pull and joining
           // the realtime rooms, including deletes received while offline.
           void this.wake('realtime-authenticated')
+        } else if (message.type === 'workspace.metadata-changed') {
+          this.#lastLibraryDiscoveryAt = 0
+          emitter.emit('self-hosted-workspaces-discovered', { profileId })
+          void this.wake('websocket')
         } else if (message.type === 'workspace.changed' || message.type === 'workspace.members-changed') {
           void this.wake('websocket')
         } else if (message.type === 'workspace.access-revoked' && message.workspaceId) {

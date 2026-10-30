@@ -9,6 +9,7 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { Check, FolderOpen, Link2, Loader2, MoreHorizontal, Plus, RefreshCw, Trash2, UserPlus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
+import emitter from '@/lib/emitter'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -130,6 +131,17 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
     })
   }, [refresh, t])
 
+  useEffect(() => {
+    const discovered = (event: { profileId: string }) => {
+      if (event.profileId !== profileId) return
+      void refresh().catch(error => {
+        console.warn('[self-hosted-sync] Unable to refresh discovered workspaces', error)
+      })
+    }
+    emitter.on('self-hosted-workspaces-discovered', discovered)
+    return () => emitter.off('self-hosted-workspaces-discovered', discovered)
+  }, [profileId, refresh])
+
   async function prepareWorkspaceSwitch() {
     const articleState = useArticleStore.getState()
     if (!await prepareActiveEditorDeactivationDurably(articleState.activeFilePath)) return false
@@ -182,10 +194,11 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
     setBusy(true)
     try {
       const currentIsBound = libraries.some(library => library.localRoot === localRoot)
+      if (currentIsBound && !libraryName.trim()) return
       if (currentIsBound && !await prepareWorkspaceSwitch()) return
       const workspaceId = await createLibrary(
         profileId,
-        libraryName || t('newLibraryDefaultName'),
+        libraryName.trim(),
         currentIsBound ? null : localRoot,
       )
       const targetRoot = await ensureLibraryLocalWorkspace(profileId, workspaceId)
@@ -453,10 +466,10 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
                     <FieldGroup>
                       <Field>
                         <FieldLabel htmlFor="self-hosted-library-name">{t('newLibraryName')}</FieldLabel>
-                        <Input id="self-hosted-library-name" value={libraryName} onChange={event => setLibraryName(event.target.value)} placeholder={t('newLibraryDefaultName')} />
+                        <Input id="self-hosted-library-name" value={libraryName} onChange={event => setLibraryName(event.target.value)} placeholder={t('newLibraryName')} />
                         <FieldDescription>{t(currentLibrary ? 'createSeparateWorkspaceHint' : 'createFromCurrentHint')}</FieldDescription>
                       </Field>
-                      <Button className="h-auto min-h-9 w-full whitespace-normal sm:w-fit" disabled={busy} onClick={() => void createNewLibrary()}>
+                      <Button className="h-auto min-h-9 w-full whitespace-normal sm:w-fit" disabled={busy || (Boolean(currentLibrary) && !libraryName.trim())} onClick={() => void createNewLibrary()}>
                         {busy ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Plus data-icon="inline-start" />}
                         {t('createLibrary')}
                       </Button>

@@ -5,6 +5,7 @@ import type { CanvasDocument } from '@/types/canvas'
 
 // 定义事件类型
 interface Events {
+  'self-hosted-workspaces-discovered': { profileId: string };
   'self-hosted-conflicts-changed': undefined;
   'self-hosted-conflict-resolved': { workspaceRoot: string; path: string };
   'self-hosted-note-collaboration-reset': { workspaceRoot: string; path: string };

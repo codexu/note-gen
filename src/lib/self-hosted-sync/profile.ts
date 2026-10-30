@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { platform } from '@tauri-apps/plugin-os'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { Store } from '@tauri-apps/plugin-store'
-import { getDb } from '@/db'
+import { executeRecordTransaction, getDb } from '@/db'
 import { SelfHostedApiError, SelfHostedClient, normalizeServerUrl } from './client'
 import type { ClientSession } from './protocol'
 
@@ -52,6 +52,7 @@ const DEFAULT_DOMAIN_TOGGLES = {
 const tokenRefreshes = new Map<string, Promise<string>>()
 const authenticatedSessions = new Map<string, { profile: SelfHostedProfile; accessToken: string }>()
 const authenticatedSessionLoads = new Map<string, Promise<{ profile: SelfHostedProfile; accessToken: string }>>()
+const domainToggleUpdates = new Map<string, Promise<void>>()
 const DEVICE_ID_STORE_KEY = 'selfHostedDeviceId'
 let deviceIdentityLoad: Promise<DeviceIdentity> | null = null
 
@@ -305,6 +306,13 @@ export async function reconcilePersonalWorkspaceObjects(workspaceId: string) {
        )`,
     [workspaceId, now]
   )
+  const profiles = await database.select<Array<{ domainToggles: string }>>(`select p.domain_toggles as domainToggles
+    from self_hosted_workspace_bindings b join self_hosted_sync_profiles p on p.id = b.profile_id
+    where b.workspace_id = $1 limit 1`, [workspaceId])
+  if (profiles[0]) {
+    const { enqueuePersonalAssetBackfill } = await import('./personal-assets')
+    await enqueuePersonalAssetBackfill(workspaceId, JSON.parse(profiles[0].domainToggles) as Record<string, boolean>)
+  }
 }
 
 export async function authenticatedClient(profileId: string) {
@@ -423,27 +431,68 @@ export async function getProfile(profileId: string): Promise<SelfHostedProfile |
   }
 }
 
-export async function updateDomainToggle(profileId: string, domain: string, enabled: boolean) {
+export function updateDomainToggle(profileId: string, domain: string, enabled: boolean) {
+  const previous = domainToggleUpdates.get(profileId) ?? Promise.resolve()
+  const update = previous.then(() => updateDomainToggleRaw(profileId, domain, enabled))
+  const settled = update.then(() => undefined, () => undefined)
+  domainToggleUpdates.set(profileId, settled)
+  void settled.then(() => {
+    if (domainToggleUpdates.get(profileId) === settled) domainToggleUpdates.delete(profileId)
+  })
+  return update
+}
+
+async function updateDomainToggleRaw(profileId: string, domain: string, enabled: boolean) {
+  if (!Object.hasOwn(DEFAULT_DOMAIN_TOGGLES, domain)) throw new Error('不支持的个人数据同步领域')
   const profile = await getProfile(profileId)
   if (!profile) throw new Error('自托管同步配置不存在')
-  const domainToggles = { ...profile.domainToggles, [domain]: enabled }
-  const database = await getDb()
-  await database.execute(
-    'update self_hosted_sync_profiles set domain_toggles = $1, updated_at = $2 where id = $3',
-    [JSON.stringify(domainToggles), Date.now(), profileId]
-  )
-  clearAuthenticatedSession(profileId)
-  if (domain === 'settings' && profile.domainToggles.settings !== enabled) {
-    // Re-enabling settings must revisit the authoritative snapshot, including
-    // settings events intentionally acknowledged while this domain was off.
-    await database.execute(
-      `update self_hosted_workspace_bindings set binding_state = 'epoch-changed', updated_at = $1
-       where profile_id = $2 and workspace_type = 'account-data'
-         and binding_state in ('bound', 'bootstrapping', 'epoch-changed')`,
-      [Date.now(), profileId],
-    )
+  if ((profile.domainToggles[domain] !== false) === enabled) return profile.domainToggles
+  // Drain the current sender before changing policy. Once this call returns,
+  // queued commands from a disabled domain cannot still be sent by that run.
+  const { getSelfHostedSyncRuntime } = await import('./runtime')
+  const { pauseSelfHostedCollaboration, waitForSelfHostedCollaborationIdle } = await import('./collaboration')
+  // Generate the final debounced deltas while the current collaboration
+  // generation still accepts them, then wait for their local persistence.
+  const [{ default: canvases }, { default: articles }, { prepareActiveEditorDeactivationDurably }] = await Promise.all([
+    import('@/stores/canvas'), import('@/stores/article'), import('@/lib/editor-deactivation'),
+  ])
+  const canvasState = canvases.getState()
+  for (const [id, document] of Object.entries(canvasState.documents)) {
+    const persisted = canvasState.projects.find(project => project.id === id)?.document
+    if (JSON.stringify(document) !== JSON.stringify(persisted)) await canvases.getState().saveProject(id)
   }
-  return domainToggles
+  const article = articles.getState()
+  if (!await prepareActiveEditorDeactivationDurably(article.activeFilePath)) {
+    throw new Error('请先完成当前编辑，再修改同步范围')
+  }
+  await article.flushAllPendingArticleSaves()
+  const resume = pauseSelfHostedCollaboration()
+  try {
+    await getSelfHostedSyncRuntime().stopAndWait()
+    await waitForSelfHostedCollaborationIdle()
+    const domainToggles = { ...profile.domainToggles, [domain]: enabled }
+    const now = Date.now()
+    await executeRecordTransaction([
+      { sql: 'update self_hosted_sync_profiles set domain_toggles = $1, updated_at = $2 where id = $3',
+        values: [JSON.stringify(domainToggles), now, profileId] },
+      // Disabled events are intentionally acknowledged. Revisit an authoritative
+      // snapshot for every policy change, including domains resumed indirectly
+      // when their tag/conversation dependency is turned back on.
+      { sql: `update self_hosted_workspace_bindings set binding_state = 'epoch-changed', updated_at = $1
+          where profile_id = $2 and workspace_type = 'account-data'
+            and binding_state in ('bound', 'bootstrapping', 'epoch-changed')`,
+        values: [now, profileId] },
+    ])
+    clearAuthenticatedSession(profileId)
+    return domainToggles
+  } catch (error) {
+    resume()
+    const { refreshSelfHostedSyncRuntime } = await import('./lifecycle')
+    await refreshSelfHostedSyncRuntime().catch(restartError => {
+      console.warn('[self-hosted-sync] Unable to restart after a domain policy update failed', restartError)
+    })
+    throw error
+  } finally { resume() }
 }
 
 export async function disconnectProfile(profileId: string) {

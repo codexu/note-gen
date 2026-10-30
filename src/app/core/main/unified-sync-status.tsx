@@ -150,8 +150,7 @@ export function UnifiedSyncStatus() {
 
   useEffect(() => {
     if (switchStep !== 'error') return
-    const special = switchError === 'SYNC_SWITCH_STALE' ? 'stale' : switchError === 'SYNC_SWITCH_INTERRUPTED' ? 'interrupted' : switchError === 'SYNC_SWITCH_EDITOR_BUSY' ? 'editorBusy' : switchError === 'SYNC_SWITCH_CHAT_BUSY' ? 'chatBusy' : switchError === 'SYNC_SWITCH_MISSING_REFERENCE' ? 'missingReference' : switchError === 'SYNC_SWITCH_UNAVAILABLE_REMOTE_DATA' ? 'unavailableRemoteData' : null
-    notifyFailure(special ? p(special) : switchError || p('failed'))
+    notifyFailure(switchError || p('failed'))
   }, [switchStep, switchError, method, workspacePath, notifyFailure, p])
 
   useEffect(() => {

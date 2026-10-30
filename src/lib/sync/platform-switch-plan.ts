@@ -11,7 +11,7 @@ import emitter from '@/lib/emitter'
 import { markEditorPathMutation, prepareActiveEditorPathMutationDurably } from '@/lib/editor-deactivation'
 import { filterSyncData, shouldExcludeFromSync } from '@/config/sync-exclusions'
 import { getFilePathOptions } from '@/lib/workspace'
-import { normalizeTagSnapshot } from '@/lib/tag-sync'
+import { normalizeTagSnapshot, remapRemoteProtectedTags, projectConversationTagsForRemote, invalidateLocalTagSyncIdentity } from '@/lib/tag-sync'
 import { recordTagIds } from '@/lib/record-tags'
 import { validateRecordSnapshot } from '@/db/record-snapshot'
 import type { Mark } from '@/db/marks'
@@ -31,7 +31,7 @@ import {
 import {
   CONVERSATION_SYNC_INDEX_PATH, LEGACY_CHATS_SYNC_PATH, getPlatformSwitchConversationItems,
   getMessageImageReferences, legacyChatsToItems, parseConversationSyncIndex,
-  parseConversationSyncItem, replacePlatformSwitchConversations, acceptPlatformSwitchConversationVersions, type ConversationSyncItem,
+  parseConversationSyncItem, replacePlatformSwitchConversations, acceptPlatformSwitchConversationVersions, acceptPlatformSwitchConversationTagIds, getConversationSyncTagIds, getConversationSyncTagIdentity, type ConversationSyncItem,
 } from './conversation-sync'
 import { getMarkLocalAssetPaths } from './record-assets'
 import { acceptPlatformSwitchTargetData, completePlatformSwitchData, parseAutoDataSyncMeta, parseMemorySyncData, type AutoDataSyncDomain } from './auto-data-sync-queue'
@@ -104,17 +104,21 @@ export interface PlatformSwitchPlan {
   conversationTombstones: ConversationSyncTombstone[]
   localConversationTombstones: ConversationSyncTombstone[]
   canvasPurged: Array<{ id: string; purgedAt: number }>
+  remoteTagIdMap?: Record<string, number>
+  excludeSensitiveConfig?: boolean
 }
 export interface SwitchOperationProgress {
-  phase: 'list' | 'scan' | 'compare' | 'validate' | 'backup' | 'apply' | 'verify'
+  phase: 'list' | 'scan' | 'compare' | 'validate' | 'backup' | 'apply' | 'verify' | 'start'
   source?: 'local' | 'remote'
-  kind?: 'directory' | 'file' | 'module'
+  kind?: 'directory' | 'file' | 'module' | 'item'
   activeFiles?: string[]
   fileSize?: number
   processedBytes?: number
   totalBytes?: number
   cachedFiles?: number
   downloadedFiles?: number
+  documentProgress?: { current: string; total: string }
+  startupTask?: 'refresh' | 'workspace' | 'recover' | 'connect' | 'scanFiles' | 'scanData' | 'prepare' | 'push' | 'pull' | 'apply' | 'bootstrap' | 'save'
   module?: SwitchModule
   path?: string
   current: number
@@ -315,18 +319,19 @@ function markEntry(mark: Mark) {
   })
 }
 function tagEntry(tag: Tag) {
-  const value = { id: tag.id, name: tag.name, isLocked: Boolean(tag.isLocked), isPin: Boolean(tag.isPin), sortOrder: tag.sortOrder ?? 0 }
-  return valueEntry(String(tag.id), tag.name, value)
+  const normalized = normalizeTagSnapshot([tag])[0]
+  const value = { id: normalized.id, name: normalized.name, isLocked: normalized.isLocked ?? false, isPin: normalized.isPin ?? false, sortOrder: normalized.sortOrder ?? 0 }
+  return valueEntry(String(normalized.id), normalized.name, value)
 }
 function conversationEntry(item: ConversationSyncItem) {
   const normalized = parseConversationSyncItem(JSON.stringify(item))
   if (!normalized) throw syncDataError('INVALID_SCHEMA', `${CONVERSATION_SYNC_INDEX_PATH}: ${item.syncId}`)
   return valueEntry(normalized.syncId, `${normalized.title} (${normalized.messages.length})`, normalized)
 }
-async function settingsEntries(values: Record<string, unknown>) {
+async function settingsEntries(values: Record<string, unknown>, excludeSensitiveConfig = true) {
   const settings = (await import('@/stores/setting')).default
   let normalized: Record<string, unknown>
-  try { normalized = normalizeSettingsSnapshot(values, Object.fromEntries(Object.entries(settings.getInitialState()))) }
+  try { normalized = normalizeSettingsSnapshot(values, Object.fromEntries(Object.entries(settings.getInitialState())), { excludeSensitiveConfig }) }
   catch { throw syncDataError('INVALID_SCHEMA', '.data/settings.json') }
   return Promise.all(Object.entries(normalized).map(([key, value]) => valueEntry(key, key, value)))
 }
@@ -381,7 +386,7 @@ async function targetLabel(platform: SyncPlatform) {
   if (/^https?:\/\//i.test(address)) { const url = new URL(address); address = `${url.origin}${url.pathname}` }
   return [address, config.bucket, config.pathPrefix].filter(Boolean).join(' / ')
 }
-async function collectLocal(onProgress: OnProgress, includeFiles = true, requested?: SwitchModule[]): Promise<Snapshot> {
+async function collectLocal(onProgress: OnProgress, includeFiles = true, requested?: SwitchModule[], excludeSensitiveConfig = true): Promise<Snapshot> {
   const result = blank()
   const store = await Store.load('store.json')
   const files = includeFiles ? await listLocalLibraryFiles({ includeStaticAssets: true }) : []
@@ -389,14 +394,15 @@ async function collectLocal(onProgress: OnProgress, includeFiles = true, request
     file => fileEntry({ path: file.path, scope: 'workspace', source: 'workspace' }), onProgress)
   for (const entry of entries) result[/\.md$/i.test(entry.id) ? 'notes' : 'assets'].push(entry)
   const state = (await import('@/stores/setting')).default.getState()
-  if (requested ? requested.some(id => ['records', 'tags', 'canvases'].includes(id)) : state.autoRecordSyncEnabled) {
+  const includeRecords = requested ? requested.some(id => ['records', 'canvases'].includes(id)) : state.autoRecordSyncEnabled
+  const includeTags = includeRecords || (requested ? requested.some(id => ['tags', 'conversations'].includes(id)) : state.autoConversationSyncEnabled)
+  if (includeTags) result.tags = await Promise.all((await import('@/db/tags').then(module => module.getTags())).map(tagEntry))
+  if (includeRecords) {
     onProgress({ phase: 'scan', source: 'local', kind: 'module', module: 'records', current: 0, total: 0 })
     const { getAllMarks } = await import('@/db/marks')
-    const { getTags } = await import('@/db/tags')
     const { getCanvasProjects } = await import('@/db/canvases')
     const marks = await getAllMarks()
     result.records = await Promise.all(marks.map(markEntry))
-    result.tags = await Promise.all((await getTags()).map(tagEntry))
     result.canvases = await Promise.all((await getCanvasProjects({ includeDeleted: true })).map(project => valueEntry(project.id, project.title, projectToSyncValue(project))))
     const paths = new Set(marks.flatMap(getMarkLocalAssetPaths))
     if (includeFiles) result.dataAssets.push(...await mapSwitchEntries([...paths], path => ({ source: 'local', module: 'dataAssets', path }),
@@ -405,7 +411,7 @@ async function collectLocal(onProgress: OnProgress, includeFiles = true, request
   if (requested ? requested.some(id => ['settings', 'memories'].includes(id)) : state.autoSettingsSyncEnabled) {
     onProgress({ phase: 'scan', source: 'local', kind: 'module', module: 'settings', current: 0, total: 0 })
     await import('@/stores/setting').then(module => module.flushChangedSyncableSettingsPersist())
-    result.settings = await settingsEntries(Object.fromEntries(await store.entries()))
+    result.settings = await settingsEntries(Object.fromEntries(await store.entries()), excludeSensitiveConfig)
     const { getMemorySyncData } = await import('@/db/memories')
     const data = await getMemorySyncData()
     result.memories = await Promise.all(data.memories.map(memory => valueEntry(memory.id, memory.content.slice(0, 80), memory)))
@@ -422,8 +428,9 @@ async function collectLocal(onProgress: OnProgress, includeFiles = true, request
   return result
 }
 
-async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, scanCachePath: string, identity: string, local: Snapshot, reuse?: PlatformSwitchPlan) {
+async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, scanCachePath: string, identity: string, local: Snapshot, reuse?: PlatformSwitchPlan, excludeSensitiveConfig = true) {
   const result = blank()
+  let remoteTagIdMap: Record<string, number> = {}
   const workspaceFiles = await withSwitchStaleContext(() => listRemoteLibraryFiles({ platform, includeStaticAssets: true, onListProgress: (path, files) => onProgress({ phase: 'list', source: 'remote', kind: 'directory', path, current: files, total: 0 }) }), { stage: 'scan', source: 'remote', path: 'workspace', check: 'inventory' })
   const dataFiles = await withSwitchStaleContext(() => listRemoteLibraryFiles({ platform, scope: 'data', onListProgress: (path, files) => onProgress({ phase: 'list', source: 'remote', kind: 'directory', path, current: files, total: 0 }) }), { stage: 'scan', source: 'remote', path: 'data', check: 'inventory' })
   const contentCache = await openRemoteContentCache(identity)
@@ -548,24 +555,35 @@ async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, sca
       file => remoteFile(file, 'workspace'), report)
     for (const entry of workspaceEntries) result[/\.md$/i.test(entry.id) ? 'notes' : 'assets'].push(entry)
     const state = (await import('@/stores/setting')).default.getState()
-    if (state.autoRecordSyncEnabled) {
-      const marks = await json('.data/marks.json') || []
-      try { validateRecordSnapshot(marks) }
-      catch { throw syncDataError('INVALID_SCHEMA', `${platform} / .data/marks.json`) }
+    if (state.autoRecordSyncEnabled || state.autoConversationSyncEnabled) {
       let tags: Tag[]
       try { tags = normalizeTagSnapshot(await json('.data/tags.json') || []) }
       catch (error) {
         if (error instanceof Error && error.message.startsWith('SYNC_DATA_')) throw error
         throw syncDataError('INVALID_SCHEMA', `${platform} / .data/tags.json`)
       }
-      result.records = await Promise.all(marks.map(markEntry))
-      // The database deliberately preserves protected default tags. Compare
-      // against that same result rather than expecting an immutable tag rename.
-      const protectedTags = (await import('@/db/tags').then(module => module.getTags())).filter(tag => tag.isLocked)
-      const protectedIds = new Set(protectedTags.map(tag => tag.id))
-      if (tags.some(tag => tag.isLocked && !protectedIds.has(tag.id))) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
-      tags = [...tags.filter(tag => !protectedIds.has(tag.id)), ...protectedTags]
-      result.tags = await Promise.all(tags.map(tagEntry))
+      // SQLite keeps this device's default tags immutable. Translate remote
+      // IDs and all their references together instead of requiring providers
+      // to have allocated identical numeric IDs for those defaults.
+      const localTags = local.tags.map(entry => entry.value) as Tag[]
+      const reconciled = remapRemoteProtectedTags(tags, localTags, reuse?.remoteTagIdMap || await getConversationSyncTagIds(platform), await getConversationSyncTagIdentity(platform))
+      remoteTagIdMap = reconciled.ids
+      // Conversation-only imports add dependencies without deleting labels used
+      // by local records outside the selected synchronization scope.
+      const dependencies = state.autoRecordSyncEnabled ? reconciled.tags : [...new Map([
+        ...reconciled.tags.map(tag => [tag.id, tag] as const), ...localTags.map(tag => [tag.id, tag] as const),
+      ]).values()]
+      result.tags = await Promise.all(dependencies.map(tagEntry))
+    }
+    if (state.autoRecordSyncEnabled) {
+      const marks = await json('.data/marks.json') || []
+      try { validateRecordSnapshot(marks) }
+      catch { throw syncDataError('INVALID_SCHEMA', `${platform} / .data/marks.json`) }
+      if (marks.some(mark => recordTagIds(mark).some(id => remoteTagIdMap[String(id)] === undefined))) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
+      result.records = await Promise.all(marks.map(mark => markEntry({ ...mark,
+        tagId: remoteTagIdMap[String(mark.tagId)] ?? mark.tagId,
+        tagIds: mark.tagIds?.map(id => remoteTagIdMap[String(id)] ?? id),
+      })))
       const indexValue = await json(CANVAS_SYNC_PATH)
       const index = indexValue ? parseCanvasSyncIndex(JSON.stringify(indexValue)) : null
       if (indexValue && !index) throw syncDataError('INVALID_SCHEMA', `${platform} / ${CANVAS_SYNC_PATH}`)
@@ -590,7 +608,7 @@ async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, sca
       })
     }
     if (state.autoSettingsSyncEnabled) {
-      result.settings = await settingsEntries(record(await json('.data/settings.json') || {}))
+      result.settings = await settingsEntries(record(await json('.data/settings.json') || {}), excludeSensitiveConfig)
       const value = await json('.data/memories.json')
       const data = value ? parseMemorySyncData(JSON.stringify(value)) : null
       if (value && !data) throw syncDataError('INVALID_SCHEMA', `${platform} / .data/memories.json`)
@@ -616,12 +634,25 @@ async function collectRemote(platform: SyncPlatform, onProgress: OnProgress, sca
         if (!item || item.syncId !== id) throw syncDataError('INVALID_SCHEMA', `${platform} / ${path}`)
         return conversationEntry(item)
       })
+      result.conversations = await Promise.all(result.conversations.map(async entry => {
+        const item = entry.value as ConversationSyncItem
+        if (item.messages.some(message => message.tagId != null && message.tagId !== 0
+          && remoteTagIdMap[String(message.tagId)] === undefined)) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
+        return { ...entry, ...await conversationEntry({ ...item, messages: item.messages.map(message => ({ ...message,
+          tagId: message.tagId === undefined ? undefined : remoteTagIdMap[String(message.tagId)] ?? message.tagId,
+        })) }) }
+      }))
+      if (!state.autoRecordSyncEnabled) {
+        const needed = new Set([...local.tags.map(entry => Number(entry.id)), ...result.conversations.flatMap(entry =>
+          (entry.value as ConversationSyncItem).messages.flatMap(message => message.tagId ? [message.tagId] : []))])
+        result.tags = result.tags.filter(entry => needed.has(Number(entry.id)))
+      }
     }
     const assets = dataFiles.filter(file => (state.autoRecordSyncEnabled && file.path.startsWith('.data/assets/records/')) || (state.autoConversationSyncEnabled && file.path.startsWith('.data/assets/conversations/')))
     result.dataAssets = await mapSwitchEntries(assets, file => ({ source: 'remote', module: 'dataAssets', path: file.path, fileSize: file.size }), file => remoteFile(file, 'data'), report)
     const canvasIndex = state.autoRecordSyncEnabled ? await json(CANVAS_SYNC_PATH) : null
     if (byPath.has('.data/meta.json')) await json('.data/meta.json')
-    return { snapshot: result, inventory, files: workspaceFiles.length + dataFiles.length, readSummary: { cachedFiles, downloadedFiles }, rawFiles: [...rawFiles.values()], emptyRemoteFiles, unavailableModules, tombstones: index?.deleted || [], purged: canvasIndex ? parseCanvasSyncIndex(JSON.stringify(canvasIndex))?.purged || [] : [] }
+    return { snapshot: result, inventory, files: workspaceFiles.length + dataFiles.length, readSummary: { cachedFiles, downloadedFiles }, rawFiles: [...rawFiles.values()], emptyRemoteFiles, unavailableModules, tombstones: index?.deleted || [], purged: canvasIndex ? parseCanvasSyncIndex(JSON.stringify(canvasIndex))?.purged || [] : [], remoteTagIdMap }
   } finally { await contentCache.commit() }
 }
 
@@ -658,11 +689,12 @@ export async function inspectPlatformSwitchPlan(platform: SyncPlatform, onProgre
   const target = await targetIdentity(platform)
   const label = await targetLabel(platform)
   const workspace = await store.get<string>('workspacePath') || ''
+  const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
   const scanCachePath = reuse?.scanCachePath || `sync-platform-scans/${crypto.randomUUID()}`
   await mkdir(scanCachePath, { baseDir: BaseDirectory.AppData, recursive: true })
   try {
-    const local = await collectLocal(onProgress)
-    const remote = await collectRemote(platform, onProgress, scanCachePath, JSON.stringify([target, workspace]), local, reuse)
+    const local = await collectLocal(onProgress, true, undefined, excludeSensitiveConfig)
+    const remote = await collectRemote(platform, onProgress, scanCachePath, JSON.stringify([target, workspace]), local, reuse, excludeSensitiveConfig)
     const localConversationTombstones = await import('@/db/conversation-sync-state').then(module => module.getConversationSyncTombstones())
     // Deletions are compared explicitly, rather than resurrecting deleted objects as "unique" content.
     for (const tombstone of remote.tombstones.filter(item => item.entityType === 'conversation')) {
@@ -678,7 +710,8 @@ export async function inspectPlatformSwitchPlan(platform: SyncPlatform, onProgre
     const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
     const workspaceSupported = platform !== 'cloudFolder' || Boolean(config && supportsCloudFolderWorkspace(config))
     const available: SwitchModule[] = workspaceSupported ? ['notes', 'assets'] : []
-    if (state.autoRecordSyncEnabled) available.push('records', 'tags', 'canvases')
+    if (state.autoRecordSyncEnabled || state.autoConversationSyncEnabled) available.push('tags')
+    if (state.autoRecordSyncEnabled) available.push('records', 'canvases')
     if (state.autoConversationSyncEnabled) available.push('conversations')
     if (state.autoRecordSyncEnabled || state.autoConversationSyncEnabled) available.push('dataAssets')
     if (state.autoSettingsSyncEnabled) available.push('settings', 'memories')
@@ -704,7 +737,7 @@ export async function inspectPlatformSwitchPlan(platform: SyncPlatform, onProgre
       modules: available.map(id => summary(local[id], remote.snapshot[id], id)), conflicts, available,
       remoteEmpty: remote.files === 0, remoteFiles: remote.files, remoteInventory: remote.inventory, readSummary: remote.readSummary, remoteDataFiles: remote.rawFiles,
       emptyRemoteFiles: remote.emptyRemoteFiles, unavailableModules: remote.unavailableModules,
-      conversationTombstones: remote.tombstones, localConversationTombstones, canvasPurged: remote.purged,
+      conversationTombstones: remote.tombstones, localConversationTombstones, canvasPurged: remote.purged, remoteTagIdMap: remote.remoteTagIdMap, excludeSensitiveConfig,
     }
   } catch (error) {
     if (!reuse) await disposePlatformSwitchPlan({ scanCachePath })
@@ -782,6 +815,7 @@ export async function revalidatePlatformSwitchPlan(plan: PlatformSwitchPlan, onP
   if (fresh.target !== plan.target) throw syncStaleError({ stage: 'validate', path: 'syncTarget', check: 'configuration' })
   if (fresh.workspace !== plan.workspace) throw syncStaleError({ stage: 'validate', source: 'local', path: 'workspace', check: 'configuration' })
   if (fresh.available.join() !== plan.available.join()) throw syncStaleError({ stage: 'validate', path: 'availableModules', check: 'configuration' })
+  if ((fresh.excludeSensitiveConfig !== false) !== (plan.excludeSensitiveConfig !== false)) throw syncStaleError({ stage: 'validate', path: 'excludeSensitiveConfig', check: 'configuration' })
   if (inventoryFingerprint(fresh.remoteInventory) !== inventoryFingerprint(plan.remoteInventory)) {
     throw syncStaleError(inventoryDifference(plan.remoteInventory, fresh.remoteInventory, 'validate') || { stage: 'validate', source: 'remote', check: 'inventory' })
   }
@@ -836,12 +870,35 @@ export async function backupPlatformSwitchPlan(plan: PlatformSwitchPlan, onProgr
   }
 }
 
-async function applyLocalData(snapshot: Snapshot, selected: SwitchModule[], tombstones: ConversationSyncTombstone[]) {
+async function applyLocalData(snapshot: Snapshot, selected: SwitchModule[], tombstones: ConversationSyncTombstone[], excludeSensitiveConfig = true) {
   if (selected.includes('records')) {
     const marks = snapshot.records.map(entry => entry.value) as Mark[]
     const tags = snapshot.tags.map(entry => entry.value) as Tag[]
     validateRecordSnapshot(marks)
     await import('@/db/record-snapshot').then(module => module.replaceRecordSnapshot(marks, normalizeTagSnapshot(tags)))
+  } else if (selected.includes('tags')) {
+    const { tagSnapshotStatements } = await import('@/db/record-snapshot')
+    const { getDb, executeRecordTransaction } = await import('@/db')
+    const tags = normalizeTagSnapshot(snapshot.tags.map(entry => entry.value))
+    const ids = tags.map(tag => tag.id)
+    const db = await getDb()
+    const removed = await db.select<Array<{ id: number }>>(`select id from tags where id not in (select value from json_each($1))
+      and lower(trim(cast(isLocked as text))) not in ('1','true')`, [JSON.stringify(ids)])
+    const removedIds = JSON.stringify(removed.map(tag => tag.id))
+    const referenced = await db.select<Array<{ count: number }>>(`select count(*) as count from (
+      select id from marks where tagId in (select value from json_each($1)) or exists (
+        select 1 from record_tag_metadata metadata, json_each(metadata.tagIds) related
+        where metadata.markId = marks.id and related.value in (select value from json_each($1)))
+      union all select id from chats where tagId in (select value from json_each($1)))`, [removedIds])
+    if (referenced[0]?.count) throw new Error('SYNC_SWITCH_RECOVERY_CHANGED')
+    // Avoid the tag-deletion trigger for retained labels: even re-inserting an
+    // identical tag would first trash records outside this selected scope.
+    await executeRecordTransaction([...tagSnapshotStatements(tags, true, false),
+      { sql: `delete from tags where id in (select value from json_each($1)) and isLocked = false
+          and not exists (select 1 from marks where marks.tagId = tags.id or exists (
+            select 1 from record_tag_metadata metadata, json_each(metadata.tagIds) related
+            where metadata.markId = marks.id and related.value = tags.id))
+          and not exists (select 1 from chats where chats.tagId = tags.id)`, values: [removedIds], expectedRows: removed.length }])
   }
   if (selected.includes('canvases')) {
     const projects = snapshot.canvases.map(entry => normalizeRemoteCanvasProject(entry.value))
@@ -852,8 +909,8 @@ async function applyLocalData(snapshot: Snapshot, selected: SwitchModule[], tomb
   const store = await Store.load('store.json')
   if (selected.includes('settings')) {
     const all = Object.fromEntries(await store.entries())
-    const values = filterSyncData(Object.fromEntries(snapshot.settings.map(entry => [entry.id, entry.value])), { excludeSensitiveConfig: true })
-    for (const key of Object.keys(filterSyncData(all, { excludeSensitiveConfig: true }))) if (!(key in values)) await store.delete(key)
+    const values = filterSyncData(Object.fromEntries(snapshot.settings.map(entry => [entry.id, entry.value])), { excludeSensitiveConfig })
+    for (const key of Object.keys(filterSyncData(all, { excludeSensitiveConfig }))) if (!(key in values)) await store.delete(key)
     for (const [key, value] of Object.entries(values)) await store.set(key, value)
     await store.save()
     await import('@/stores/setting').then(module => module.default.getState().initSettingData({ hydrateOnly: true }))
@@ -871,7 +928,14 @@ async function wireFiles(snapshot: Snapshot, selected: SwitchModule[], plan: Pla
   const files = new Map<string, Uint8Array>()
   const put = (path: string, value: unknown) => files.set(path, encoder.encode(JSON.stringify(value)))
   if (selected.includes('records')) put('.data/marks.json', snapshot.records.map(entry => entry.value))
-  if (selected.includes('tags')) put('.data/tags.json', snapshot.tags.map(entry => entry.value))
+  const tagProjection = selected.includes('tags')
+    ? projectConversationTagsForRemote(snapshot.tags.map(entry => entry.value) as Tag[],
+      plan.remoteDataFiles.find(entry => entry.id === '.data/tags.json')?.value as Tag[] || [], plan.remoteTagIdMap || {}, selected.includes('records')) : null
+  if (selected.includes('records') && tagProjection) put('.data/marks.json', (snapshot.records.map(entry => entry.value) as Mark[]).map(mark => ({
+    ...mark, tagId: tagProjection.localToRemote[String(mark.tagId)],
+    tagIds: mark.tagIds?.map(id => tagProjection.localToRemote[String(id)]),
+  })))
+  if (selected.includes('tags')) put('.data/tags.json', tagProjection?.tags || snapshot.tags.map(entry => entry.value))
   if (selected.includes('settings')) put('.data/settings.json', Object.fromEntries(snapshot.settings.map(entry => [entry.id, entry.value])))
   if (selected.includes('memories')) {
     const policy = snapshot.memories.find(entry => entry.id === '__policy__')?.value || (await import('@/db/memories').then(module => module.getMemorySyncData())).policy
@@ -883,7 +947,11 @@ async function wireFiles(snapshot: Snapshot, selected: SwitchModule[], plan: Pla
     put(CANVAS_SYNC_PATH, { format: 'notegen-canvases-index', version: 1, updatedAt: Date.now(), purged: plan.canvasPurged.filter(entry => !projects.some(project => project.id === entry.id)), canvases: projects.map(({ document: _document, ...project }) => { void _document; return { ...project, path: `.data/canvases/items/${project.id}.json` } }) })
   }
   if (selected.includes('conversations')) {
-    const items = snapshot.conversations.map(entry => entry.value) as ConversationSyncItem[]
+    const items = (snapshot.conversations.map(entry => entry.value) as ConversationSyncItem[]).map(item => tagProjection ? {
+      ...item, messages: item.messages.map(message => ({ ...message,
+        tagId: message.tagId == null || message.tagId === 0 ? message.tagId : tagProjection.localToRemote[String(message.tagId)],
+      })),
+    } : item)
     for (const item of items) put(`.data/conversations/items/${safePath(item.syncId)}.json`, item)
     put(CONVERSATION_SYNC_INDEX_PATH, { format: 'notegen-conversations-index', version: 1, updatedAt: Date.now(), deleted: plan.conversationTombstones.filter(entry => !items.some(item => item.syncId === entry.syncId)), conversations: items.map(item => ({ syncId: item.syncId, syncUpdatedAt: item.syncUpdatedAt, title: item.title, createdAt: item.createdAt, updatedAt: item.updatedAt, messageCount: item.messages.length, isPinned: item.isPinned, path: `.data/conversations/items/${item.syncId}.json` })) })
   }
@@ -913,6 +981,15 @@ function switchConversationTombstones(plan: PlatformSwitchPlan, strategy: Switch
 export async function preparePlatformSwitchDecision(plan: PlatformSwitchPlan, strategy: SwitchStrategy, selected: SwitchModule[], resolutions: Record<string, SwitchResolution>) {
   if (strategy === 'remote' && plan.unavailableModules.some(module => selected.includes(module))) throw new Error('SYNC_SWITCH_UNAVAILABLE_REMOTE_DATA')
   const resolved = resolveSnapshot(plan, strategy, selected, resolutions)
+  if (selected.includes('tags') && !selected.includes('conversations')) {
+    // Replacing records must retain labels still used by local conversations
+    // whose synchronization was not selected.
+    const db = await import('@/db').then(module => module.getDb())
+    const referenced = await db.select<Array<{ tagId: number }>>('select distinct tagId from chats where tagId > 0')
+    const needed = new Set(referenced.map(message => message.tagId))
+    const present = new Set(resolved.tags.map(entry => Number(entry.id)))
+    resolved.tags.push(...plan.local.tags.filter(entry => needed.has(Number(entry.id)) && !present.has(Number(entry.id))))
+  }
   // Allocate record IDs once, before generating either the local snapshot or wire files.
   if (strategy === 'merge' && selected.includes('records')) {
     const localIds = new Map(plan.local.records.map(entry => [entry.id, (entry.value as Mark).id]))
@@ -939,7 +1016,7 @@ export async function preparePlatformSwitchDecision(plan: PlatformSwitchPlan, st
     if (moduleId === 'settings') {
       // A field-by-field merge must still round-trip as one persisted settings
       // snapshot, including aliases/defaults and local-only field exclusions.
-      resolved.settings = await settingsEntries(Object.fromEntries(resolved.settings.map(entry => [entry.id, entry.value])))
+      resolved.settings = await settingsEntries(Object.fromEntries(resolved.settings.map(entry => [entry.id, entry.value])), plan.excludeSensitiveConfig !== false)
       continue
     }
     resolved[moduleId] = await Promise.all(resolved[moduleId].map(async entry => {
@@ -952,13 +1029,23 @@ export async function preparePlatformSwitchDecision(plan: PlatformSwitchPlan, st
     }))
   }
   // Validate the complete desired state before any side is modified.
-  if (selected.includes('records')) {
-    validateRecordSnapshot(resolved.records.map(entry => entry.value))
+  if (selected.includes('records') || selected.includes('conversations')) {
+    if (!selected.includes('tags')) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
     const tags = normalizeTagSnapshot(resolved.tags.map(entry => entry.value))
     const tagIds = new Set(tags.map(tag => tag.id))
-    for (const entry of resolved.records) {
-      const mark = entry.value as Mark
-      if (!tagIds.has(mark.tagId) || mark.tagIds?.some(id => !tagIds.has(id))) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
+    if (selected.includes('conversations')) for (const entry of resolved.conversations) {
+      for (const message of (entry.value as ConversationSyncItem).messages) {
+        // Zero is the legacy unassigned-message sentinel, never a real tag ID.
+        if (message.tagId != null && message.tagId !== 0
+          && (!Number.isSafeInteger(message.tagId) || !tagIds.has(message.tagId))) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
+      }
+    }
+    if (selected.includes('records')) {
+      validateRecordSnapshot(resolved.records.map(entry => entry.value))
+      for (const entry of resolved.records) {
+        const mark = entry.value as Mark
+        if (!tagIds.has(mark.tagId) || mark.tagIds?.some(id => !tagIds.has(id))) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
+      }
     }
   }
   if (resolved.conversations.some(entry => !parseConversationSyncItem(JSON.stringify(entry.value)))) throw new Error('Invalid conversation data')
@@ -1115,20 +1202,22 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
     }
   }
   if (strategy !== 'local') {
-    const localModules = selected.filter(id => !['notes', 'assets', 'dataAssets', 'tags'].includes(id))
+    const localModules = selected.filter(id => !['notes', 'assets', 'dataAssets'].includes(id)
+      && (id !== 'tags' || !selected.includes('records')))
+      .sort((a, b) => (a === 'tags' ? 0 : a === 'records' ? 1 : 2) - (b === 'tags' ? 0 : b === 'records' ? 1 : 2))
     for (const [moduleIndex, moduleId] of localModules.entries()) {
       const group: SwitchModule[] = moduleId === 'records' ? ['records', 'tags'] : [moduleId]
       const snapshotHash = (snapshot: Snapshot) => stableSyncValue(group.map(id => [id, snapshot[id].filter(entry => !entry.deleted).map(entry => [entry.id, entry.hash]).sort()]))
       if (snapshotHash(plan.local) === snapshotHash(resolved)) continue
       onProgress({ phase: 'apply', source: 'local', kind: 'module', module: moduleId, current: moduleIndex, total: localModules.length })
       // Recheck the local domain immediately before replacing it.
-      const local = await collectLocal(() => {}, false, group)
+      const local = await collectLocal(() => {}, false, group, plan.excludeSensitiveConfig !== false)
       if (snapshotHash(local) !== snapshotHash(plan.local)) {
         const difference = group.map(id => entryDifference(plan.local[id].filter(entry => !entry.deleted), local[id].filter(entry => !entry.deleted), { stage: 'apply', source: 'local' }, id)).find(item => item !== undefined)
         throw syncStaleError(difference || { stage: 'apply', source: 'local', path: moduleId, check: 'content' })
       }
       await applyMutation({ side: 'local', action: 'module', path: moduleId, before: snapshotHash(plan.local), after: snapshotHash(resolved) },
-        () => applyLocalData(resolved, group, tombstones))
+        () => applyLocalData(resolved, group, tombstones, plan.excludeSensitiveConfig !== false))
     }
   }
   if (strategy !== 'remote') for (const [path, bytes] of wires) {
@@ -1281,7 +1370,7 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
     }
   }
   // Verify persisted structured content as well as transferred bytes.
-  const actualLocal = await collectLocal(value => onProgress({ ...value, phase: 'verify' }), false, selected)
+  const actualLocal = await collectLocal(value => onProgress({ ...value, phase: 'verify' }), false, selected, plan.excludeSensitiveConfig !== false)
   for (const moduleId of selected.filter(id => !['notes', 'assets', 'dataAssets'].includes(id))) {
     onProgress({ phase: 'verify', source: 'local', kind: 'module', module: moduleId, current: selected.indexOf(moduleId), total: selected.length })
     const normalize = async (entries: SnapshotEntry[]) => {
@@ -1291,7 +1380,7 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
       return moduleId === 'conversations'
         ? await Promise.all(entries.map(entry => conversationEntry(entry.value as ConversationSyncItem)))
         : moduleId === 'settings'
-          ? await settingsEntries(Object.fromEntries(entries.map(entry => [entry.id, entry.value])))
+          ? await settingsEntries(Object.fromEntries(entries.map(entry => [entry.id, entry.value])), plan.excludeSensitiveConfig !== false)
           : entries
     }
     const expected = await normalize(strategy === 'local' ? plan.local[moduleId].filter(entry => !entry.deleted) : resolved[moduleId])
@@ -1302,7 +1391,7 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
         const expectedFields = new Map(expected.map(entry => [entry.id, entry.hash]))
         const actualFields = new Map(actual.map(entry => [entry.id, entry.hash]))
         return [...new Set([...expectedFields.keys(), ...actualFields.keys()])]
-          .filter(key => !shouldExcludeFromSync(key, { excludeSensitiveConfig: true }) && expectedFields.get(key) !== actualFields.get(key))
+          .filter(key => !shouldExcludeFromSync(key, { excludeSensitiveConfig: plan.excludeSensitiveConfig !== false }) && expectedFields.get(key) !== actualFields.get(key))
           .sort().slice(0, 5).join(', ')
       })() : ''
       // Report field names only; settings values can contain private content.
@@ -1321,14 +1410,21 @@ export async function executePlatformSwitchPlan(plan: PlatformSwitchPlan, strate
     await updateFileSyncTime(entry.id, key)
   }
   await acceptPlatformSwitchTargetData(domains, targetPlatform)
+  if (selected.includes('tags')) {
+    const remoteTags = plan.remoteDataFiles.find(entry => entry.id === '.data/tags.json')?.value as Tag[] || []
+    const localTags = resolved.tags.map(entry => entry.value) as Tag[]
+    const projection = projectConversationTagsForRemote(localTags, remoteTags, plan.remoteTagIdMap || {}, selected.includes('records'))
+    await acceptPlatformSwitchConversationTagIds(strategy === 'remote' ? plan.remoteTagIdMap || {} : projection.ids,
+      targetPlatform, strategy === 'remote' ? remoteTags : projection.tags, localTags)
+  }
   if (selected.includes('conversations')) await acceptPlatformSwitchConversationVersions(resolved.conversations.map(entry => entry.value) as ConversationSyncItem[], targetPlatform)
   onProgress({ phase: 'verify', source: 'local', current: total, total })
   await journal.status('verified')
   // Refresh only local views; a view failure must not invalidate verified data.
   const views = await Promise.allSettled([
     import('@/stores/article').then(module => module.default.getState().loadFileTree({ skipRemoteSync: true })),
+    ...(selected.includes('tags') ? [import('@/stores/tag').then(module => module.default.getState().fetchTags())] : []),
     ...(selected.includes('records') ? [
-      import('@/stores/tag').then(module => module.default.getState().fetchTags()),
       import('@/stores/mark').then(async module => { await module.default.getState().fetchMarks(); await module.default.getState().fetchAllMarks() }),
       import('@/stores/canvas').then(module => module.default.getState().loadProjects()),
     ] : []),
@@ -1382,7 +1478,7 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
       if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string'
         || typeof entry[1] !== 'string' || !/^[a-f0-9]{64}$/.test(entry[1]) || keys.has(entry[0])) throw new Error('Invalid recovery settings fingerprint')
       keys.add(entry[0])
-      if (!shouldExcludeFromSync(entry[0], { excludeSensitiveConfig: true })) entries.push([entry[0], entry[1]])
+      if (!shouldExcludeFromSync(entry[0], { excludeSensitiveConfig: manifest.excludeSensitiveConfig !== false })) entries.push([entry[0], entry[1]])
     }
     return stableSyncValue([['settings', entries.sort()]])
   }
@@ -1398,7 +1494,7 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
       for (const entry of (moduleId === 'records' ? [...manifest.local.records, ...manifest.local.tags] : manifest.local[moduleId])) {
         if (await hash(encoder.encode(stableSyncValue(entry.value))) !== entry.hash) throw new Error('Damaged sync recovery manifest')
       }
-      const current = domainFingerprint(await collectLocal(() => {}, false, op.path === 'records' ? ['records', 'tags'] : [op.path as SwitchModule]), op.path as SwitchModule)
+      const current = domainFingerprint(await collectLocal(() => {}, false, op.path === 'records' ? ['records', 'tags'] : [op.path as SwitchModule], manifest.excludeSensitiveConfig !== false), op.path as SwitchModule)
       const before = comparableFingerprint(op, op.before)
       const after = comparableFingerprint(op, op.after)
       if (current !== before && current !== after) throw new Error('SYNC_SWITCH_RECOVERY_CHANGED')
@@ -1429,7 +1525,12 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
     if (await withSwitchStaleContext(() => check(op), recoveryContext(op)) === comparableFingerprint(op, op.before)) continue // Also makes interrupted restoration resumable.
     if (op.action === 'module') {
       const moduleId = op.path as SwitchModule
-      await withSwitchStaleContext(() => applyLocalData(manifest.local, moduleId === 'records' ? ['records', 'tags'] : [moduleId], manifest.localConversationTombstones), recoveryContext(op))
+      if (moduleId === 'records' || moduleId === 'tags') {
+        const tags = await import('@/db/tags').then(module => module.getTags())
+        const names = new Map((manifest.local.tags.map(entry => entry.value) as Tag[]).map(tag => [tag.id, tag.name]))
+        await invalidateLocalTagSyncIdentity(tags.filter(tag => names.get(tag.id) !== tag.name).map(tag => tag.id))
+      }
+      await withSwitchStaleContext(() => applyLocalData(manifest.local, moduleId === 'records' ? ['records', 'tags'] : [moduleId], manifest.localConversationTombstones, manifest.excludeSensitiveConfig !== false), recoveryContext(op))
     } else {
       const original = originalFile(op)
       if (original) {

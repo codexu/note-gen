@@ -187,9 +187,48 @@ export function sanitizeSyncErrorMessage(error: unknown): string {
   return redactSensitiveText(message)
 }
 
+const platformSwitchErrorKeys: Record<string, string> = {
+  SYNC_SWITCH_INTERRUPTED: 'interrupted',
+  SYNC_SWITCH_EDITOR_BUSY: 'editorBusy',
+  SYNC_SWITCH_CHAT_BUSY: 'chatBusy',
+  SYNC_SWITCH_MISSING_REFERENCE: 'missingReference',
+  SYNC_SWITCH_UNAVAILABLE_REMOTE_DATA: 'unavailableRemoteData',
+  SYNC_SWITCH_CANCELLED: 'cancelledError',
+  SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED: 'nativeConnectionRequired',
+  SELF_HOSTED_PREVIEW_INSTANCE_CHANGED: 'nativeInstanceChanged',
+  SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED: 'nativeLibraryRequired',
+  SELF_HOSTED_PREVIEW_KEY_REQUIRED: 'nativeKeyRequired',
+  SELF_HOSTED_PREVIEW_DECRYPTION_FAILED: 'nativeDecryptionFailed',
+  SELF_HOSTED_PREVIEW_SETTING_DECRYPTION_FAILED: 'nativeDecryptionFailed',
+  SELF_HOSTED_BOOTSTRAP_CAPACITY_EXCEEDED: 'nativeSnapshotCapacity',
+  SELF_HOSTED_PREVIEW_CONTENT_REQUIRED: 'nativeContentRequired',
+  SELF_HOSTED_PREVIEW_DUPLICATE_IDENTITY: 'nativeDuplicateIdentity',
+  SELF_HOSTED_SWITCH_DEPENDENCY_REQUIRED: 'nativeDependencyRequired',
+  SELF_HOSTED_SWITCH_REMOTE_DEPENDENCY_MISSING: 'nativeRemoteDependencyMissing',
+  SELF_HOSTED_SWITCH_WRITE_REQUIRED: 'nativeWriteRequired',
+  SELF_HOSTED_SWITCH_RESULT_MISMATCH: 'nativeResultMismatch',
+  SELF_HOSTED_SWITCH_COMMAND_REJECTED: 'nativeResultMismatch',
+  SELF_HOSTED_SWITCH_PATH_MOVES_PENDING: 'nativePathMovesPending',
+  SELF_HOSTED_REVISION_CONFLICT: 'nativeRevisionConflict',
+  SELF_HOSTED_LOCAL_CHANGES_PENDING: 'nativeLocalChangesPending',
+  personal_bootstrap_local_change_not_preserved: 'nativeLocalChangesPending',
+  SELF_HOSTED_LOCAL_SNAPSHOT_RESTORE_PENDING: 'nativeLocalSnapshotPending',
+  self_hosted_tag_identity_missing: 'nativeTagIdentityMissing',
+  quota_exceeded: 'nativeStorageBudgetExceeded',
+  SELF_HOSTED_PERSONAL_ASSET_MISSING: 'nativePersonalAssetMissing',
+  SELF_HOSTED_PERSONAL_ASSET_CONFLICT: 'nativePersonalAssetConflict',
+  SELF_HOSTED_PERSONAL_ATTACHMENTS_REQUIRED: 'nativeAttachmentsRequired',
+}
+
 export function formatSyncDataError(message: string, translate: (key: string, values: { path: string }) => string): string {
   message = sanitizeSyncErrorMessage(message)
   if (message.includes('\n')) return message.split('\n').map(line => formatSyncDataError(line, translate)).join('\n')
+  const switchErrorKey = platformSwitchErrorKeys[message]
+  if (switchErrorKey) return translate(switchErrorKey, { path: '' })
+  const incompleteBootstrap = /^bootstrap_apply_incomplete:(\d+\/\d+)$/.exec(message)
+  if (incompleteBootstrap) return translate('nativeBootstrapIncomplete', { path: incompleteBootstrap[1] })
+  if (message.includes('SELF_HOSTED_API_REQUEST_TIMEOUT')) return translate('selfHostedRequestTimeout', { path: '' })
+  if (message.includes('SELF_HOSTED_API_REQUEST_CANCELLED')) return translate('selfHostedRequestCancelled', { path: '' })
   const selfHostedResponse = /^SELF_HOSTED_API_(INVALID_RESPONSE|AUTH_REQUIRED): ([^\n]+)$/.exec(message)
   if (selfHostedResponse) return translate(selfHostedResponse[1] === 'AUTH_REQUIRED' ? 'selfHostedAuthenticationRequired' : 'selfHostedInvalidResponse', { path: selfHostedResponse[2] })
   const giteeRequest = /^SYNC_GITEE_(CONNECTION|REQUEST)_FAILED: ([^\n]+)$/.exec(message)

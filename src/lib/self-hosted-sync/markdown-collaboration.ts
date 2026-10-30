@@ -18,7 +18,8 @@ export interface MarkdownCollaborationController {
   ): void
   clearPresence(): void
   subscribePresence(listener: (message: Record<string, unknown>) => void): () => void
-  close(): void
+  preserveLocalConflict(markdown: string, base: string): Promise<string>
+  close(): Promise<void>
 }
 
 export async function openMarkdownCollaboration(
@@ -42,10 +43,12 @@ export async function openMarkdownCollaboration(
   const text = document.getText('markdown-v3')
   const metadata = document.getMap('markdown-v3-meta')
   let closed = false
+  let closing: Promise<void> | null = null
   let localUpdateCount = 0
   let checkpointTimer: ReturnType<typeof setTimeout> | null = null
   let consumeQueue = Promise.resolve()
   let appendQueue = Promise.resolve()
+  let setupConflict: { id: string; relativePath: string } | null = null
 
   async function checkpoint() {
     if (closed) return
@@ -53,6 +56,7 @@ export async function openMarkdownCollaboration(
     if (checkpointTimer) clearTimeout(checkpointTimer)
     checkpointTimer = null
     await appendQueue
+    await transport.persistLocalUpdates()
     await transport.flush()
     if (closed) return
     await transport.checkpoint(Y.encodeStateAsUpdate(document))
@@ -60,12 +64,16 @@ export async function openMarkdownCollaboration(
 
   document.on('update', (update: Uint8Array, origin: unknown) => {
     if (closed || origin === REMOTE_ORIGIN) return
-    appendQueue = appendQueue
-      .then(() => transport.appendUpdate(update))
-      .catch(error => console.warn('[self-hosted-sync] Unable to append collaborative update', error))
+    appendQueue = transport.appendUpdate(update)
+      .catch(error => {
+        console.warn('[self-hosted-sync] Unable to append collaborative update', error)
+      })
     localUpdateCount++
-    if (localUpdateCount >= 100) void checkpoint()
-    else if (!checkpointTimer) checkpointTimer = setTimeout(() => void checkpoint(), 5 * 60_000)
+    const persistCheckpoint = () => {
+      void checkpoint().catch(error => console.warn('[self-hosted-sync] Unable to checkpoint collaborative document', error))
+    }
+    if (localUpdateCount >= 100) persistCheckpoint()
+    else if (!checkpointTimer) checkpointTimer = setTimeout(persistCheckpoint, 5 * 60_000)
   })
 
   const applyRemoteUpdate = (update: Uint8Array) => {
@@ -141,6 +149,7 @@ export async function openMarkdownCollaboration(
     return {
       markLocalActivity() {},
       applyLocal(markdown) {
+        if (closed) return
         const shared = sharedText()
         if (markdown === shared.toString()) return
         const previous = shared.toString()
@@ -156,13 +165,37 @@ export async function openMarkdownCollaboration(
       updatePresence: transport.updatePresence,
       clearPresence: transport.clearPresence,
       subscribePresence: transport.subscribePresence,
+      preserveLocalConflict(markdown, base) {
+        if (!setupConflict) {
+          const id = crypto.randomUUID()
+          const dot = relativePath.lastIndexOf('.')
+          const suffix = `.conflict-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}-${id.slice(0, 8)}`
+          const copyPath = dot > relativePath.lastIndexOf('/')
+            ? `${relativePath.slice(0, dot)}${suffix}${relativePath.slice(dot)}` : `${relativePath}${suffix}`
+          setupConflict = { id: `setup-conflict:${id}`, relativePath: copyPath }
+        }
+        return transport.preserveLocalConflict({
+          ...setupConflict, localRoot, local: markdown, remote: currentMarkdown(), base,
+        })
+      },
       close() {
+        if (closing) return closing
         closed = true
         if (checkpointTimer) clearTimeout(checkpointTimer)
         if (realtimeFallbackTimer) clearInterval(realtimeFallbackTimer)
         stopRealtime?.()
-        transport.close()
-        document.destroy()
+        // Retry only state admitted before closing. This remains valid during a
+        // pause and cannot introduce a new update from an obsolete generation.
+        closing = (async () => {
+          try {
+            await appendQueue
+            await transport.persistLocalUpdates()
+          } finally {
+            transport.close()
+            document.destroy()
+          }
+        })()
+        return closing
       },
     }
   } catch (error) {

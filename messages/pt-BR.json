@@ -1516,7 +1516,8 @@
           "viewer-local-edit": "Edição local em espaço somente leitura",
           "protocol-conflict": "Conflito de versão no servidor",
           "symlink-ignored": "Link simbólico ignorado e excluído da sincronização"
-        }
+        },
+        "personalDomainDependencyHint": "Desativar etiquetas pausa registros, notas vinculadas, telas e mensagens dependentes. Desativar conversas pausa mensagens. Ao reativar, os dados remotos são recuperados. A transferência de anexos cobre recursos gerenciados pelo NoteGen; faça backup dos arquivos externos separadamente."
       },
       "connectionTab": "Conexão",
       "syncOptionsTab": "Opções de Sincronização",
@@ -1889,6 +1890,10 @@
       "switchPlan": {
         "incrementalReads": "{cached} arquivos reutilizados · {downloaded} arquivos baixados",
         "moduleProgress": "Neste grupo: {current} / {total} módulos processados",
+        "itemProgress": "{current} / {total} itens processados",
+        "processedItems": "{count} itens processados",
+        "currentItem": "Item em processamento",
+        "documentProgress": "Progresso do documento colaborativo: {current} / {total}",
         "scopeDetails": "Escopo e módulos vinculados",
         "panelTitle": "Definir plataforma de sincronização: {platform}",
         "stepsLabel": "Etapas da troca de plataforma",
@@ -1931,8 +1936,13 @@
         "differences": "Differences",
         "distribution": "{same} identical · {localOnly} local only · {remoteOnly} remote only · {conflicts} conflicts",
         "linkedModules": "Módulos relacionados são selecionados juntos. A sincronização automática pausa para os módulos não selecionados.",
-        "nativeEngine": "Self-hosted sync uses the server’s object synchronization and conflict protocol. This switch reconciles pending changes through that protocol rather than mirroring a repository.",
+        "nativeEngine": "Escolha como tratar os dados nesta troca, confira as diferenças e confirme. Mesclar segue o protocolo de sincronização de objetos; manter os dados locais ou usar os remotos substitui os dados sincronizados na direção escolhida.",
         "nativeMode": "Sincronização bidirecional preservando conteúdos exclusivos",
+        "nativeDescriptions": {
+          "merge": "Sincroniza nas duas direções o conteúdo exclusivo de cada lado e tenta mesclar notas no mesmo caminho. Objetos em comum e registros de exclusão seguem as versões de sincronização.",
+          "local": "Usa os dados locais sincronizados como origem, substitui os itens remotos correspondentes e exclui o conteúdo que existe apenas no remoto. Preserva o conteúdo local.",
+          "remote": "Usa os dados remotos sincronizados como origem, substitui os itens locais correspondentes e remove o conteúdo apenas local do escopo ativo de sincronização. Preserva o conteúdo remoto."
+        },
         "chosen": "Strategy: {strategy}. Scope: {modules}.",
         "impact": "Add {added}, replace {replaced}, remove {removed} from the active sync scope.",
         "viewDifference": "Compare both versions",
@@ -1950,9 +1960,9 @@
         "nativeHandlingFiles": "Sincroniza notas e anexos exclusivos de cada lado. Notas no mesmo caminho são mescladas quando possível; diferenças não resolvidas mantêm uma cópia de conflito. Anexos seguem as versões de sincronização.",
         "nativeHandlingPersonal": "Registros, tags, telas, conversas, memórias e configurações seguem as versões dos objetos. Os envios de dados pessoais respeitam as preferências de sincronização existentes. Versões remotas podem atualizar o mesmo objeto; os dados locais originais são salvos antes.",
         "nativeHandlingDeletions": "Preservar os dois lados não ignora exclusões: registros de exclusão locais e remotos seguem o protocolo e podem gerar conflitos com edições locais.",
-        "nativeBackupHint": "Após confirmar, salva os arquivos locais e dados pessoais e verifica novamente as diferenças antes de sincronizar. Alterações ou falhas no snapshot interrompem a troca. O snapshot permite recuperação manual.",
+        "nativeBackupHint": "Arquivos locais e dados pessoais são salvos e verificados antes de comparar novamente. Em caso de falha, restaure para armazenamento local aqui.",
         "nativeBackupTitle": "Snapshot local salvo antes da troca",
-        "nativeBackupLocation": "Diretório de dados do aplicativo: {path}. files contém notas e anexos originais; personal-data.json contém dados pessoais para recuperação manual.",
+        "nativeBackupLocation": "Dados do aplicativo: {path}. Inclui arquivos originais, dados pessoais e mapeamentos de sincronização. O estado atual é salvo antes da restauração.",
         "nativeConnectionRequired": "Conecte-se ao servidor auto-hospedado e verifique novamente.",
         "nativeInstanceChanged": "A identidade do servidor mudou. Verifique se ele foi redefinido ou substituído e reconecte-se.",
         "nativeLibraryRequired": "Não foi possível determinar o espaço de trabalho de destino. Confira o vínculo nas configurações de auto-hospedagem e verifique novamente.",
@@ -1964,6 +1974,16 @@
         "nativeKeyRequired": "Falta uma chave de descriptografia. Desbloqueie o espaço de trabalho e verifique novamente.",
         "nativeContentRequired": "O servidor contém dados que esta versão não consegue visualizar com segurança. A troca foi interrompida. Confira a compatibilidade das versões e dos formatos.",
         "nativeDuplicateIdentity": "Caminhos ou identidades de sincronização duplicados impedem uma comparação confiável. Resolva as duplicatas primeiro.",
+        "nativeDependencyRequired": "A troca com substituição exige os dados relacionados a registros e mensagens. Ative a sincronização de etiquetas para registros e de etiquetas e conversas para mensagens, depois verifique novamente. Você também pode escolher Mesclar.",
+        "nativeRemoteDependencyMissing": "Os dados remotos relacionados estão incompletos, por isso a troca foi interrompida. Confirme que as etiquetas e conversas referenciadas por registros e mensagens foram totalmente sincronizadas e tente novamente.",
+        "nativeWriteRequired": "O espaço de trabalho de destino não tem permissão para criar, atualizar ou excluir, por isso o conteúdo local não pode substituir o remoto. Confira as permissões e verifique novamente.",
+        "nativeResultMismatch": "A verificação dos dados após a troca falhou, por isso a sincronização está pausada. O backup foi mantido. Faça uma nova verificação e tente novamente.",
+        "nativePathMovesPending": "Ainda há movimentações de arquivos pendentes. Cancele esta troca, conclua a sincronização dessas movimentações na plataforma original e tente novamente.",
+        "nativeRevisionConflict": "O servidor recusou uma alteração local. Uma cópia do conflito foi salva. Resolva o conflito na central e tente novamente.",
+        "nativeLocalChangesPending": "Há alterações locais aguardando envio. A aplicação de dados remotos foi pausada para preservá-las. Conclua os envios pendentes ou resolva os erros de sincronização e tente novamente.",
+        "nativePersonalAssetMissing": "Falta um anexo referenciado por um registro ou mensagem. Sincronize um dispositivo que ainda tenha o anexo original e tente novamente.",
+        "nativePersonalAssetConflict": "Anexos no mesmo caminho têm conteúdos diferentes. A gravação foi interrompida para preservar o arquivo local. Resolva a diferença e tente novamente.",
+        "nativeAttachmentsRequired": "Esta troca inclui anexos que ainda não foram enviados. Ative a sincronização de anexos e faça uma nova verificação.",
         "nativeDifferences": {
           "localOnly": "Somente local",
           "remoteOnly": "Somente remoto",
@@ -2031,7 +2051,22 @@
           "compare": "Comparing module content…",
           "backup": "Saving recoverable backups…",
           "apply": "Processing data…",
-          "verify": "Verifying results…"
+          "verify": "Verifying results…",
+          "start": "Iniciando a sincronização na plataforma de destino…"
+        },
+        "startupTasks": {
+          "refresh": "Atualizando os dados locais…",
+          "workspace": "Confirmando o espaço de trabalho de destino…",
+          "recover": "Recuperando gravações de arquivos não concluídas…",
+          "connect": "Conectando ao espaço de trabalho de sincronização…",
+          "scanFiles": "Verificando arquivos locais…",
+          "scanData": "Verificando dados pessoais…",
+          "prepare": "Preparando conteúdo para envio…",
+          "push": "Enviando conteúdo pendente de sincronização…",
+          "pull": "Buscando atualizações remotas…",
+          "apply": "Aplicando atualizações remotas…",
+          "bootstrap": "Inicializando os dados de sincronização…",
+          "save": "Salvando as configurações de sincronização…"
         },
         "modules": {
           "notes": "Markdown notes",
@@ -2147,7 +2182,21 @@
         "verifySkipped": "Verificar novamente e concluir a validação",
         "cancellingHint": "Aguardando a tarefa atual terminar antes de interromper o processamento…",
         "cancelledError": "O usuário cancelou esta troca",
-        "skipUnavailable": "O destino ou o espaço de trabalho foi alterado. Verifique novamente antes de trocar."
+        "skipUnavailable": "O destino ou o espaço de trabalho foi alterado. Verifique novamente antes de trocar.",
+        "nativeRestoreBackup": "Restaurar dados anteriores à troca",
+        "nativeRestoreDescription": "Os dados atuais serão salvos primeiro. Os dados pessoais serão restaurados, e notas e anexos serão copiados para outra pasta. Os espaços originais e os dados do servidor serão preservados. O aplicativo usará armazenamento local; conclua a restauração antes de reativar a sincronização.",
+        "nativeSafetyBackupLocation": "Cópia de segurança anterior à restauração (dados do aplicativo): {path}",
+        "nativeRecoveredLocation": "Espaço restaurado: {path}",
+        "nativeOpenBackup": "Abrir pasta de backup",
+        "nativeBackupInvalid": "O backup está incompleto, danificado ou inválido. A restauração foi interrompida; os espaços originais foram preservados.",
+        "nativeBackupLegacy": "Este snapshot antigo permite apenas recuperação manual. Preserve os arquivos e personal-data.json. A restauração automática exige um snapshot completo mais recente.",
+        "selfHostedRequestTimeout": "A solicitação excedeu o tempo limite. Tente novamente com conexão; as partes salvas dos anexos podem ser retomadas.",
+        "selfHostedRequestCancelled": "A solicitação foi cancelada.",
+        "nativeBackupFileJournalPending": "Há gravações de arquivos pendentes. Feche os editores ativos e continue a restauração.",
+        "nativeBootstrapIncomplete": "{path} objetos do snapshot não puderam ser aplicados localmente. A inicialização permanece incompleta; os itens com falha serão tentados novamente.",
+        "nativeLocalSnapshotPending": "O servidor aceitou as alterações locais, mas a cópia local ainda precisa ser restaurada. Ela será tentada novamente; mantenha os backups existentes.",
+        "nativeTagIdentityMissing": "Esta etiqueta não tem identidade local de sincronização. Reinicie o NoteGen para concluir a inicialização dos dados e tente novamente.",
+        "nativeStorageBudgetExceeded": "O orçamento de armazenamento da conta ou instância foi esgotado. Peça ao administrador que ajuste o limite ou limpe os dados retidos antes de tentar novamente."
       }
     },
     "imageHosting": {

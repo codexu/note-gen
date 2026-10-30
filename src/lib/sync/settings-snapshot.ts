@@ -1,5 +1,5 @@
 import { normalizeSpeechMode } from '@/lib/speech/preferences'
-import { filterSyncData } from '@/config/sync-exclusions'
+import { filterSyncData, type SyncExclusionOptions } from '@/config/sync-exclusions'
 import { DEFAULT_EDITOR_CONTENT_WIDTH, normalizeEditorContentWidth, normalizeEditorLineHeight, normalizeEditorViewMode } from '@/lib/editor-layout-styles'
 import { normalizeOutlinePosition } from '@/lib/outline-preferences'
 import { normalizeRecordSortMode, normalizeRecordViewMode } from '@/lib/record-display-preferences'
@@ -9,10 +9,10 @@ import { isManagedAgentSystemPrompt } from '@/lib/ai/system-prompt'
 
 /** Pure equivalent of persisted preference migrations, before preview or writes.
  * Defaults come from getInitialState(), never from this device's live choices. */
-export function normalizeSettingsSnapshot(value: Record<string, unknown>, defaults: Record<string, unknown>) {
+export function normalizeSettingsSnapshot(value: Record<string, unknown>, defaults: Record<string, unknown>, options: SyncExclusionOptions = { excludeSensitiveConfig: true }) {
   const filtered = (input: Record<string, unknown>) => filterSyncData(Object.fromEntries(
     Object.entries(input).filter(([, item]) => typeof item !== 'function' && item !== undefined)
-  ), { excludeSensitiveConfig: true })
+  ), options)
   const result: Record<string, unknown> = { ...filtered(defaults), ...filtered(value) }
   result.editorContentWidth = normalizeEditorContentWidth(value.editorContentWidth
     ?? (value.centeredContent === true ? 'standard' : DEFAULT_EDITOR_CONTENT_WIDTH))

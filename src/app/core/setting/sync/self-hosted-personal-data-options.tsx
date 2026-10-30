@@ -42,6 +42,7 @@ export function SelfHostedPersonalDataOptions() {
         <CardDescription>{t('personalDataDescription')}</CardDescription>
       </CardHeader>
       <CardContent>
+        <p className="mb-4 text-sm text-muted-foreground">{t('personalDomainDependencyHint')}</p>
         <FieldGroup>
           {DOMAINS.map(domain => (
             <Field key={domain} orientation="horizontal">

@@ -31,16 +31,22 @@ export function validateRecordSnapshot(value: unknown): asserts value is Mark[] 
   }
 }
 
-export function tagSnapshotStatements(value: unknown): RecordStatement[] {
+export function tagSnapshotStatements(value: unknown, includeLocked = false, replaceExisting = true): RecordStatement[] {
   const tags = normalizeTagSnapshot(value)
-  const statements: RecordStatement[] = [{ sql: 'delete from tags where isLocked = false', values: [] }]
+  const statements: RecordStatement[] = [{
+    sql: `update tags set
+      isLocked = case when lower(trim(cast(isLocked as text))) in ('1','true') then 1 else 0 end,
+      isPin = case when lower(trim(cast(isPin as text))) in ('1','true') then 1 else 0 end
+      where typeof(isLocked) = 'text' or typeof(isPin) = 'text' or isLocked is null or isPin is null`, values: [],
+  }]
+  if (replaceExisting) statements.push({ sql: 'delete from tags where isLocked = false', values: [] })
   for (const tag of tags) {
-    if (tag.isLocked) continue
+    if (tag.isLocked && !includeLocked) continue
     statements.push({
-      sql: `insert into tags (id, name, isLocked, isPin, sortOrder) values ($1, $2, 0, $3, $4)
+      sql: `insert into tags (id, name, isLocked, isPin, sortOrder) values ($1, $2, $3, $4, $5)
         on conflict(id) do update set name = excluded.name, isPin = excluded.isPin, sortOrder = excluded.sortOrder
         where tags.isLocked = false`,
-      values: [tag.id, tag.name, tag.isPin ?? false, tag.sortOrder ?? 0],
+      values: [tag.id, tag.name, tag.isLocked ? 1 : 0, tag.isPin ? 1 : 0, tag.sortOrder ?? 0],
     })
   }
   return statements
@@ -48,7 +54,7 @@ export function tagSnapshotStatements(value: unknown): RecordStatement[] {
 
 export async function replaceRecordSnapshot(marks: Mark[], tags?: Tag[]) {
   validateRecordSnapshot(marks)
-  const statements: RecordStatement[] = tags ? tagSnapshotStatements(tags) : []
+  const statements: RecordStatement[] = tags ? tagSnapshotStatements(tags, true) : []
   statements.push({ sql: 'delete from marks', values: [] })
   for (const mark of marks) {
     statements.push({

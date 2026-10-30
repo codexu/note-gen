@@ -61,6 +61,11 @@ const SYNC_TABLES = `
     on self_hosted_object_mappings(workspace_id, path_casefold)
     where path_casefold is not null and deleted_at is null;
 
+  create table if not exists self_hosted_tag_identities (
+    local_tag_id integer primary key,
+    stable_id text not null unique
+  );
+
   create table if not exists self_hosted_revisions (
     workspace_id text not null,
     object_id text not null,
@@ -80,6 +85,9 @@ const SYNC_TABLES = `
     operation text not null check(operation in ('upsert', 'delete')),
     reason text not null,
     state text not null default 'pending',
+    attempt_count integer not null default 0,
+    next_attempt_at integer not null default 0,
+    last_error_code text,
     created_at integer not null,
     updated_at integer not null
   );
@@ -97,6 +105,7 @@ const SYNC_TABLES = `
     attempt_count integer not null default 0,
     next_attempt_at integer not null default 0,
     last_error_code text,
+    restore_local_snapshot integer not null default 0,
     created_at integer not null,
     updated_at integer not null
   );
@@ -241,12 +250,42 @@ export async function initSelfHostedSyncDb() {
   const profileColumns = await database.select<Array<{ name: string }>>(
     'pragma table_info(self_hosted_sync_profiles)'
   )
+  const outboxColumns = await database.select<Array<{ name: string }>>('pragma table_info(self_hosted_outbox)')
+  if (!outboxColumns.some(column => column.name === 'restore_local_snapshot')) {
+    await database.execute('alter table self_hosted_outbox add column restore_local_snapshot integer not null default 0')
+  }
   if (!profileColumns.some(column => column.name === 'access_expires_at')) {
     await database.execute('alter table self_hosted_sync_profiles add column access_expires_at integer')
   }
   if (!localChangeColumns.some(column => column.name === 'workspace_id')) {
     await database.execute('alter table self_hosted_local_changes add column workspace_id text')
   }
+  for (const [name, definition] of [
+    ['attempt_count', 'integer not null default 0'],
+    ['next_attempt_at', 'integer not null default 0'],
+    ['last_error_code', 'text'],
+  ] as const) {
+    if (!localChangeColumns.some(column => column.name === name)) {
+      await database.execute(`alter table self_hosted_local_changes add column ${name} ${definition}`)
+    }
+  }
+  await database.execute(`create index if not exists idx_self_hosted_local_changes_retry
+    on self_hosted_local_changes(state, workspace_id, next_attempt_at, attempt_count, id)`)
+  await database.execute(`
+    insert or ignore into self_hosted_tag_identities(local_tag_id, stable_id)
+    select id, lower(hex(randomblob(16))) from tags
+  `)
+  await database.execute(`
+    create trigger if not exists self_hosted_tag_identity_insert after insert on tags
+    begin
+      insert or ignore into self_hosted_tag_identities(local_tag_id, stable_id)
+      values (NEW.id, lower(hex(randomblob(16))));
+    end
+  `)
+  await database.execute(`
+    create trigger if not exists self_hosted_tag_identity_delete after delete on tags
+    begin delete from self_hosted_tag_identities where local_tag_id = OLD.id; end
+  `)
   const mappingColumns = await database.select<Array<{ name: string }>>(
     'pragma table_info(self_hosted_object_mappings)'
   )

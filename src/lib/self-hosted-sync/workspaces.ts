@@ -295,11 +295,22 @@ export async function markLibraryRemoteDeleted(workspaceId: string) {
   )
 }
 
-export async function reconcileLibraryFiles(workspaceId: string, localRoot: string, writable = true) {
-  return withSelfHostedPrepareLock(workspaceId, () => reconcileLibraryFilesRaw(workspaceId, localRoot, writable))
+export async function reconcileLibraryFiles(
+  workspaceId: string,
+  localRoot: string,
+  writable = true,
+  onProgress?: (progress: { path: string; current: number; total: number }) => void,
+) {
+  return withSelfHostedPrepareLock(workspaceId, () => reconcileLibraryFilesRaw(workspaceId, localRoot, writable, onProgress))
 }
 
-async function reconcileLibraryFilesRaw(workspaceId: string, localRoot: string, writable: boolean) {
+async function reconcileLibraryFilesRaw(
+  workspaceId: string,
+  localRoot: string,
+  writable: boolean,
+  onProgress?: (progress: { path: string; current: number; total: number }) => void,
+) {
+  onProgress?.({ path: localRoot, current: 0, total: 0 })
   const database = await getDb()
   const location = await getWorkspacePath()
   const currentRoot = location.isCustom ? location.path : await getDefaultArticleAbsolutePath('')
@@ -308,6 +319,7 @@ async function reconcileLibraryFilesRaw(workspaceId: string, localRoot: string, 
     ? await (await import('@/lib/sync/workspace-path-moves')).getPendingWorkspacePathMoves()
     : []
   const entries = await scanPortableEntries(localRoot, workspaceId)
+  onProgress?.({ path: localRoot, current: 0, total: entries.length })
   const mapped = await database.select<Array<{ relativePath: string; contentHash: string | null; kind: string }>>(
     `select relative_path as relativePath, content_hash as contentHash, kind
      from self_hosted_object_mappings
@@ -316,14 +328,15 @@ async function reconcileLibraryFilesRaw(workspaceId: string, localRoot: string, 
   )
   const mappedByPath = new Map(mapped.map(item => [item.relativePath, item]))
   const localPaths = new Set(entries.map(entry => entry.relativePath))
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
+    const absolutePath = await join(localRoot, entry.relativePath)
+    onProgress?.({ path: absolutePath, current: index, total: entries.length })
     // A pending remote rename already owns these identities. In particular,
     // do not infer A→C by hash while an offline A→B→C journal is replaying.
     if (pendingMoves.some(move => [move.source, move.target].some(root => (
       entry.relativePath === root || entry.relativePath.startsWith(`${root}/`)
       || (entry.kind === 'folder' && root.startsWith(`${entry.relativePath}/`))
     )))) continue
-    const absolutePath = await join(localRoot, entry.relativePath)
     let content: string | null
     let hash: string | null
     try {
@@ -332,18 +345,34 @@ async function reconcileLibraryFilesRaw(workspaceId: string, localRoot: string, 
         ? await invoke<string>('self_hosted_sha256', { value: content! })
         : await hashFileBytes(await readFile(absolutePath))
     } catch (error) {
-      if (!isMissingPathError(error)) throw error
-      console.info('[Self-hosted sync] Skipped library entry removed during reconciliation', {
-        workspaceId,
-        relativePath: entry.relativePath,
-      })
-      localPaths.delete(entry.relativePath)
+      if (isMissingPathError(error)) {
+        console.info('[Self-hosted sync] Skipped library entry removed during reconciliation', {
+          workspaceId, relativePath: entry.relativePath,
+        })
+        localPaths.delete(entry.relativePath)
+      } else {
+        // Keep the path in localPaths: an unreadable file still exists and must
+        // never be used as evidence of a deletion or inferred rename.
+        if (writable) {
+          const domain = entry.kind === 'markdown' ? 'file' : 'asset'
+          if (domain === 'file') await enqueueFileSnapshot(entry.relativePath, 'upsert', workspaceId)
+          else await enqueueAssetSnapshot(entry.relativePath, 'upsert', workspaceId)
+          await database.execute(
+            `update self_hosted_local_changes set last_error_code = $1, updated_at = $2
+             where workspace_id = $3 and domain = $4 and local_key = $5 and state = 'pending'`,
+            [String(error instanceof Error ? error.message : error).slice(0, 120), Date.now(), workspaceId, domain, entry.relativePath],
+          )
+        } else await recordViewerConflict(workspaceId, entry.relativePath, null)
+        console.warn('[self-hosted-sync] Library entry could not be read; continuing other files', {
+          workspaceId, relativePath: entry.relativePath, error,
+        })
+      }
       continue
     }
+    const expectedKind = entry.kind === 'markdown' ? 'note' : entry.kind === 'folder' ? 'folder' : 'asset'
     let current = mappedByPath.get(entry.relativePath)
     let identityMoved = false
     if (!current && hash && entry.kind !== 'folder') {
-      const expectedKind = entry.kind === 'markdown' ? 'note' : 'asset'
       const moved = [...mappedByPath.entries()].filter(([oldPath, candidate]) => (
         !localPaths.has(oldPath) && candidate.kind === expectedKind && candidate.contentHash === hash
       ))
@@ -366,7 +395,9 @@ async function reconcileLibraryFilesRaw(workspaceId: string, localRoot: string, 
         identityMoved = true
       }
     }
-    if (!current || current.contentHash !== hash || identityMoved) {
+    // Folders have no content digest. Older switch baselines stored an empty
+    // string instead of null, which must not create a new upsert every round.
+    if (!current || current.kind !== expectedKind || (entry.kind !== 'folder' && current.contentHash !== hash) || identityMoved) {
       if (writable) {
         if (entry.kind === 'folder') await enqueueFolderSnapshot(entry.relativePath, 'upsert', workspaceId)
         else if (entry.kind === 'markdown') await enqueueFileSnapshot(entry.relativePath, 'upsert', workspaceId)
@@ -375,6 +406,7 @@ async function reconcileLibraryFilesRaw(workspaceId: string, localRoot: string, 
     }
     mappedByPath.delete(entry.relativePath)
   }
+  onProgress?.({ path: localRoot, current: entries.length, total: entries.length })
   // A missing local path is not evidence of a user deletion. Another device
   // may not have hydrated the remote tree yet, or the workspace may have been
   // temporarily unavailable while scanning. Deletions are journaled by the

@@ -49,7 +49,7 @@ export async function getSelfHostedDiagnosticSummary(): Promise<SelfHostedDiagno
   try {
     await initAllDatabases()
     const database = await getDb()
-    const [profiles, bindings, pendingChanges, pendingOutbox, pendingInbox, conflicts, outboxError, inboxError] = await Promise.all([
+    const [profiles, bindings, pendingChanges, pendingOutbox, pendingInbox, conflicts, outboxError, inboxError, localError] = await Promise.all([
       database.select<Array<{ state: string }>>(
         'select state from self_hosted_sync_profiles order by updated_at desc limit 1',
       ),
@@ -74,6 +74,9 @@ export async function getSelfHostedDiagnosticSummary(): Promise<SelfHostedDiagno
       database.select<Array<{ code: string | null }>>(
         'select error_code as code from self_hosted_inbox where error_code is not null order by received_at desc limit 1',
       ),
+      database.select<Array<{ code: string | null }>>(
+        "select last_error_code as code from self_hosted_local_changes where state = 'pending' and last_error_code is not null order by updated_at desc limit 1",
+      ),
     ])
 
     return {
@@ -85,7 +88,7 @@ export async function getSelfHostedDiagnosticSummary(): Promise<SelfHostedDiagno
       pendingSend: Number(pendingChanges[0]?.count ?? 0) + Number(pendingOutbox[0]?.count ?? 0),
       pendingReceive: Number(pendingInbox[0]?.count ?? 0),
       unresolvedConflicts: Number(conflicts[0]?.count ?? 0),
-      recentErrorCode: outboxError[0]?.code ?? inboxError[0]?.code ?? null,
+      recentErrorCode: localError[0]?.code ?? outboxError[0]?.code ?? inboxError[0]?.code ?? null,
     }
   } catch {
     return { ...EMPTY_SUMMARY }

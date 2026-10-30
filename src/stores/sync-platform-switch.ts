@@ -36,13 +36,15 @@ interface PlatformSwitchState {
   mutated: boolean
   backupPath: string | null
   selfHostedBackupPath: string | null
+  selfHostedSafetyBackupPath: string | null
+  recoveringSelfHostedBackup: boolean
   recovered: boolean
   cancelRequested: boolean
   skipped: boolean
 }
 const initialState: PlatformSwitchState = {
   platform: null, step: 'local', failedStep: null, review: null, plan: null, progress: null, error: null,
-  listing: null, strategy: null, selected: [], resolutions: {}, automatic: false, mutated: false, backupPath: null, selfHostedBackupPath: null, recovered: false, cancelRequested: false, skipped: false,
+  listing: null, strategy: null, selected: [], resolutions: {}, automatic: false, mutated: false, backupPath: null, selfHostedBackupPath: null, selfHostedSafetyBackupPath: null, recoveringSelfHostedBackup: false, recovered: false, cancelRequested: false, skipped: false,
 }
 export const usePlatformSwitchStore = create<PlatformSwitchState>(() => initialState)
 interface Decision { strategy: SwitchStrategy; selected: SwitchModule[]; resolutions: Record<string, SwitchResolution> }
@@ -55,6 +57,7 @@ let inspectionContext: { method: SyncPlatform; workspace: string; targetFingerpr
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 let restoringRecovery: Promise<void> | null = null
 let initialBackupCleanupStarted = false
+let resumeSwitchCollaboration: (() => void) | null = null
 type BackupLease = () => Promise<void>
 
 function recoveryBackupPaths(...markers: (Pick<PlatformSwitchRecovery, 'backupPath' | 'backupPaths'> | null | undefined)[]): string[] {
@@ -94,7 +97,7 @@ function assertSwitchConfiguration(method: SyncPlatform, workspace: string, stag
 function switchErrorContext(state: PlatformSwitchState, fallback: SyncStaleDetails['stage']): SyncStaleDetails {
   const phase = state.progress?.phase
   return {
-    stage: phase === 'list' || phase === 'scan' ? 'scan' : phase === 'compare' ? 'validate' : phase || fallback,
+    stage: phase === 'list' || phase === 'scan' ? 'scan' : phase === 'compare' ? 'validate' : phase === 'start' ? 'verify' : phase || fallback,
     path: state.progress?.path, source: state.progress?.source,
   }
 }
@@ -104,17 +107,28 @@ async function targetFingerprint(platform: SyncPlatform) {
 }
 const commitProgress = (step: 'preparing' | 'saving' | 'starting' | 'reconciling') => {
   assertSwitchActive()
-  usePlatformSwitchStore.setState({ step, progress: null })
+  const selfHostedStarting = usePlatformSwitchStore.getState().platform === 'selfHosted' && (step === 'starting' || step === 'saving')
+  usePlatformSwitchStore.setState({ step, progress: selfHostedStarting
+    ? { phase: 'start', kind: 'item', startupTask: step === 'saving' ? 'save' : 'workspace', current: 0, total: 0 } : null })
 }
 
 async function releaseSync(cancelled = false) {
   if (!paused) return
+  const recovery = await (await Store.load('store.json')).get<PlatformSwitchRecovery>('platformSwitchRecovery')
+  if (cancelled && recovery?.mutated && recovery.resolution !== 'skipped') return
   paused = false
   const settings = useSettingStore.getState()
-  const resume = cancelled && inspectionContext?.method === settings.primaryBackupMethod && inspectionContext?.workspace === settings.workspacePath
+  const resume = cancelled && !recovery && inspectionContext?.method === settings.primaryBackupMethod && inspectionContext?.workspace === settings.workspacePath
   getSyncPushQueue().finishWorkspaceSwitch(resume)
   inspectionContext = null
   await finishAutoDataSyncRepositoryChange(resume ? 'auto' : 'deferred')
+  // The durable marker also covers the interval before the UI records an
+  // explicit skip. Collaboration may resume only after a verified commit or
+  // a clean cancellation has removed that marker.
+  if (!recovery && !usePlatformSwitchStore.getState().skipped) {
+    resumeSwitchCollaboration?.()
+    resumeSwitchCollaboration = null
+  }
   if (resume) await import('@/lib/self-hosted-sync/lifecycle').then(module => module.refreshSelfHostedSyncRuntime())
 }
 export async function restorePlatformSwitchRecovery() {
@@ -131,6 +145,7 @@ export async function restorePlatformSwitchRecovery() {
     usePlatformSwitchStore.setState({ ...initialState, platform: saved.platform,
       step: saved.resolution === 'skipped' ? 'completed' : saved.resolution === 'cancelled' ? 'cancelled' : 'error',
       mutated: saved.mutated ?? (Boolean(saved.backupPath) || !saved.workspaceSetup), backupPath: saved.backupPath || null, selfHostedBackupPath: saved.selfHostedBackupPath || null,
+      selfHostedSafetyBackupPath: saved.selfHostedSafetyBackupPath || null,
       error: sanitizeSyncErrorMessage(saved.error || 'SYNC_SWITCH_INTERRUPTED'), skipped: saved.resolution === 'skipped',
     })
   })()
@@ -194,7 +209,7 @@ export async function dismissPlatformSwitch() {
 export function choosePlatformSwitchStrategy(strategy: SwitchStrategy) {
   const state = usePlatformSwitchStore.getState()
   if (state.step !== 'review' || !state.selected.length || !['merge', 'local', 'remote'].includes(strategy)) return
-  if (state.platform === 'selfHosted' && (strategy !== 'merge' || !state.review?.selfHostedPreview)) return
+  if (state.platform === 'selfHosted' && !state.review?.selfHostedPreview) return
   if (strategy === 'remote' && state.plan?.unavailableModules.some(module => state.selected.includes(module))) return
   usePlatformSwitchStore.setState({ strategy, step: 'confirm' })
 }
@@ -225,7 +240,7 @@ export function resolvePlatformSwitchConflict(id: string, resolution: SwitchReso
 export function confirmPlatformSwitch() {
   const { step, strategy, selected, resolutions, plan, platform, review } = usePlatformSwitchStore.getState()
   if (step !== 'confirm' || !strategy || !selected.length) return
-  if (platform === 'selfHosted' && (strategy !== 'merge' || !review?.selfHostedPreview)) return
+  if (platform === 'selfHosted' && !review?.selfHostedPreview) return
   if (strategy === 'merge' && plan?.conflicts.some(item => selected.includes(item.module) && !resolutions[item.id])) return
   const decide = reviewDecision
   if (!decide) return
@@ -237,12 +252,18 @@ let progressReportedAt = 0
 let progressContext = ''
 const progress = (value: SwitchOperationProgress) => {
   assertSwitchActive()
-  const context = `${value.phase}:${value.source}:${value.kind}:${value.module}`
+  const context = `${value.phase}:${value.source}:${value.kind}:${value.module}:${value.startupTask}`
   const now = Date.now()
-  if (context === progressContext && value.current < value.total && now - progressReportedAt < 100) return
+  const previous = usePlatformSwitchStore.getState().progress
+  const changedItem = value.kind === 'item' && value.path !== previous?.path
+  const changedDocument = Boolean(value.documentProgress) !== Boolean(previous?.documentProgress)
+  const completedDocument = value.documentProgress && value.documentProgress.current === value.documentProgress.total
+  const incomplete = value.total === 0 || value.current < value.total
+  if (context === progressContext && incomplete && !changedItem && !changedDocument && !completedDocument && now - progressReportedAt < 100) return
   progressContext = context
   progressReportedAt = now
-  usePlatformSwitchStore.setState({ progress: value, step: value.phase === 'list' || value.phase === 'scan' || value.phase === 'compare' ? (value.source === 'local' ? 'local' : 'nextRemote') : 'reconciling' })
+  usePlatformSwitchStore.setState({ progress: value, step: value.phase === 'start' ? 'starting'
+    : value.phase === 'list' || value.phase === 'scan' || value.phase === 'compare' ? (value.source === 'local' ? 'local' : 'nextRemote') : 'reconciling' })
 }
 async function clearCancelledPlatformSwitch(store: Store, recovery: PlatformSwitchRecovery | null | undefined) {
   const state = usePlatformSwitchStore.getState()
@@ -256,8 +277,26 @@ async function clearCancelledPlatformSwitch(store: Store, recovery: PlatformSwit
     await useSettingStore.getState().setWorkspacePath(setup.originalPath)
     noMutations = true
   }
-  // Cancellation ends the attempt. Keep backups and journals for completed
-  // writes, but do not leave a recovery marker that blocks the original provider.
+  if (!noMutations) {
+    const platform = state.platform ?? recovery?.platform
+    if (!platform) throw new Error('SYNC_SWITCH_INTERRUPTED')
+    // The local workspace may already contain the destination's data. Keep
+    // every sender paused until a rescan or an explicit backup restoration;
+    // restarting the original provider here would upload that mixed state.
+    await store.set('platformSwitchRecovery', { ...recovery, platform, mutated: true,
+      originalPlatform: recovery?.originalPlatform ?? useSettingStore.getState().primaryBackupMethod,
+      backupPath: state.backupPath ?? recovery?.backupPath,
+      selfHostedBackupPath: state.selfHostedBackupPath ?? recovery?.selfHostedBackupPath,
+      resolution: 'cancelled', error: 'SYNC_SWITCH_CANCELLED', failedAt: Date.now(),
+    } satisfies PlatformSwitchRecovery)
+    await store.save()
+    pauseSyncEngine('selfHosted')
+    reviewDecision = null
+    usePlatformSwitchStore.setState({ step: 'cancelled', failedStep: state.step, error: 'SYNC_SWITCH_CANCELLED', cancelRequested: false, mutated: true })
+    return false
+  }
+  // No content was changed, or workspace setup was fully undone. Only this
+  // clean cancellation may remove the recovery marker and resume the source.
   await store.delete('platformSwitchRecovery')
   await store.save()
   reviewDecision = null
@@ -269,8 +308,12 @@ async function clearCancelledPlatformSwitch(store: Store, recovery: PlatformSwit
 export async function cancelPlatformSwitch() {
   const state = usePlatformSwitchStore.getState()
   if (!state.platform || state.step === 'completed' || cancelling || dismissing) return
+  if (state.selfHostedSafetyBackupPath) return
   if (running) {
     usePlatformSwitchStore.setState({ cancelRequested: true })
+    if (state.platform === 'selfHosted' || useSettingStore.getState().primaryBackupMethod === 'selfHosted') {
+      await import('@/lib/self-hosted-sync/client').then(module => module.cancelSelfHostedRequests())
+    }
     if (state.platform === 'selfHosted' && state.mutated) pauseSyncEngine('selfHosted')
     reviewDecision?.(null)
     reviewDecision = null
@@ -283,8 +326,8 @@ export async function cancelPlatformSwitch() {
     const recovery = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')
     const noMutations = await clearCancelledPlatformSwitch(store, recovery)
     await finishBackupRetention(null, recoveryBackupPaths(recovery, { backupPath: state.backupPath || undefined }), false, noMutations)
-    if (paused) await releaseSync(true)
-    else {
+    if (noMutations && paused) await releaseSync(true)
+    else if (noMutations) {
       await finishAutoDataSyncRepositoryChange('deferred')
       await import('@/lib/self-hosted-sync/lifecycle').then(module => module.refreshSelfHostedSyncRuntime())
     }
@@ -298,15 +341,64 @@ export async function cancelPlatformSwitch() {
 export function cancelPlatformSwitchInspection() { void cancelPlatformSwitch() }
 async function reconcileSelfHosted() {
   const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
+  const runtime = getSelfHostedSyncRuntime()
   let errors: string[] = []
   const completed = (event: { provider: 'selfHosted'; errors: string[] }) => { errors = event.errors }
+  const report = (value: SwitchOperationProgress) => {
+    if (!usePlatformSwitchStore.getState().cancelRequested) progress(value)
+  }
+  const unsubscribe = runtime.subscribeProgress(report)
   emitter.on('sync-engine-completed', completed)
   try {
-    await import('@/lib/self-hosted-sync/lifecycle').then(module => module.refreshSelfHostedSyncRuntime('selfHosted'))
-    await getSelfHostedSyncRuntime().wake('platform-switch')
+    await import('@/lib/self-hosted-sync/lifecycle').then(module => module.refreshSelfHostedSyncRuntime('selfHosted', progress))
+    // Refresh already starts the runtime. Wait for that run without asking
+    // wake() to queue another complete scan.
+    await runtime.waitForCurrentRun()
+    assertSwitchActive()
     if (errors.length) throw new Error(errors.join('\n'))
     if (!useSyncStore.getState().selfHostedRuntimeReady) throw new Error('Self-hosted sync is not ready')
-  } finally { emitter.off('sync-engine-completed', completed) }
+  } finally { unsubscribe(); emitter.off('sync-engine-completed', completed) }
+}
+async function prepareSelfHostedLocalEditors() {
+  const canvases = (await import('./canvas')).default
+  const canvasState = canvases.getState()
+  for (const [id, document] of Object.entries(canvasState.documents)) {
+    const persisted = canvasState.projects.find(project => project.id === id)?.document
+    if (JSON.stringify(document) !== JSON.stringify(persisted)) await canvases.getState().saveProject(id)
+  }
+  const { prepareActiveEditorDeactivationDurably } = await import('@/lib/editor-deactivation')
+  const article = (await import('./article')).default.getState()
+  if (!await prepareActiveEditorDeactivationDurably(article.activeFilePath)) throw new Error('SYNC_SWITCH_EDITOR_BUSY')
+  await article.flushAllPendingArticleSaves()
+  return article.activeFilePath
+}
+async function refreshSelfHostedSwitchStores(replacedLocal: boolean, replacedCanvases: boolean) {
+  if (!replacedLocal) return
+  const { invalidateMemoryCache } = await import('@/lib/memory/cache-version')
+  invalidateMemoryCache()
+  const [{ default: articles }, { default: marks }, { default: tags }, { default: canvases }, { default: chats }] = await Promise.all([
+    import('./article'), import('./mark'), import('./tag'), import('./canvas'), import('./chat'),
+  ])
+  await useSettingStore.getState().initSettingData({ hydrateOnly: true })
+  await tags.getState().fetchTags()
+  if (replacedCanvases) canvases.setState({ documents: {}, activeCanvasId: null, selectionContext: null, pendingFocus: null })
+  await Promise.all([
+    articles.getState().loadFileTree({ skipRemoteSync: true }),
+    marks.getState().fetchAllMarks(),
+    marks.getState().trashState ? marks.getState().fetchAllTrashMarks() : marks.getState().fetchMarks(),
+    canvases.getState().loadProjects(), chats.getState().initConversations(),
+    import('./memories').then(async module => {
+      await module.default.getState().loadMemories()
+      await module.default.getState().loadStats()
+      await module.default.getState().loadPolicy()
+    }),
+  ])
+  const activeConversation = chats.getState().currentConversationId
+  if (activeConversation && chats.getState().conversations.some(item => item.id === activeConversation)) {
+    await chats.getState().switchConversation(activeConversation)
+  } else chats.setState({ currentConversationId: null, chats: [] })
+  void import('@/lib/knowledge-index').then(module => module.reconcileStructuredKnowledgeSources())
+    .catch(error => console.warn('[self-hosted-sync] Knowledge index refresh failed after platform switch', error))
 }
 function completeSwitch() {
   usePlatformSwitchStore.setState({ step: 'completed', error: null, cancelRequested: false, skipped: false })
@@ -382,10 +474,19 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
       inspectionContext = { method: current, workspace, targetFingerprint: fingerprint }
       await Promise.all([getSyncPushQueue().prepareForWorkspaceSwitch(), prepareAutoDataSyncForRepositoryChange()])
     }
+    if (platform === 'selfHosted' || current === 'selfHosted') {
+      const collaboration = await import('@/lib/self-hosted-sync/collaboration')
+      await prepareSelfHostedLocalEditors()
+      resumeSwitchCollaboration ??= collaboration.pauseSelfHostedCollaboration()
+      await import('@/lib/self-hosted-sync/canvas-collaboration').then(module => module.closeAllCanvasCollaboration())
+      await collaboration.waitForSelfHostedCollaborationIdle()
+      await import('@/lib/self-hosted-sync/runtime').then(module => module.getSelfHostedSyncRuntime().stopAndWait())
+    }
     assertSwitchActive()
     const { prepareActiveEditorDeactivationDurably } = await import('@/lib/editor-deactivation')
     const activePath = (await import('./article')).default.getState().activeFilePath
     if (activePath && !await prepareActiveEditorDeactivationDurably(activePath)) throw new Error('SYNC_SWITCH_EDITOR_BUSY')
+    if (activePath && resumeSwitchCollaboration) emitter.emit('editor-file-close', { path: activePath })
     const setupStore = await Store.load('store.json')
     const pendingSetup = await setupStore.get<PlatformSwitchRecovery>('platformSwitchRecovery')
     const setup = workspaceSetup || (pendingSetup?.platform === platform && pendingSetup.resolution !== 'skipped' ? pendingSetup.workspaceSetup : undefined)
@@ -416,12 +517,13 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
     } else if (platform === 'selfHosted') {
       const review = await inspectSyncEngineSwitch(current, platform, (step, listing) => { assertSwitchActive(); usePlatformSwitchStore.setState({ step, listing: listing || null }) }, assertSwitchActive)
       assertSwitchActive()
-      // The self-hosted server owns its reconciliation protocol; do not offer unsupported overwrite modes.
       const decision = await new Promise<Decision | null>(resolve => {
         reviewDecision = resolve
         usePlatformSwitchStore.setState({ step: 'review', review, selected: review.selfHostedPreview!.modules.map(module => module.id) })
       })
       if (!decision) { assertSwitchActive(); return false }
+      const { validateSelfHostedSwitchStrategy, executeSelfHostedSwitch } = await import('@/lib/self-hosted-sync/switch-execute')
+      validateSelfHostedSwitchStrategy(review.selfHostedPreview!, decision.strategy)
       assertSwitchConfiguration(current, workspace, 'validate')
       assertSwitchActive()
       usePlatformSwitchStore.setState({ step: 'preparing' })
@@ -439,7 +541,17 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
       assertSwitchActive()
       await store.set('platformSwitchRecovery', { ...previousRecovery, platform, originalPlatform: current, commitPlatform: undefined, workspace, targetFingerprint: fingerprint, workspaceSetup: activeWorkspaceSetup, selfHostedBackupPath, mutated: true, resolution: undefined, startedAt: Date.now() })
       await store.save()
-      await useSettingStore.getState().commitVerifiedPrimaryBackupMethod(platform, commitProgress, 'deferred', reconcileSelfHosted, assertSwitchActive)
+      await useSettingStore.getState().commitVerifiedPrimaryBackupMethod(platform, commitProgress, 'deferred', async () => {
+        if (decision.strategy !== 'merge') {
+          await executeSelfHostedSwitch(review.selfHostedPreview!, decision.strategy, assertSwitchActive, progress)
+        }
+        progress({ phase: 'start', kind: 'item', startupTask: 'refresh', source: 'local', current: 0, total: 0 })
+        if (decision.strategy !== 'merge') {
+          await refreshSelfHostedSwitchStores(decision.strategy === 'remote', review.selfHostedPreview!.modules.some(module => module.id === 'canvases'))
+        }
+        await reconcileSelfHosted()
+        return { selfHostedRuntimeReady: true }
+      }, assertSwitchActive)
     } else {
       const plan = await inspectPlatformSwitchPlan(platform, progress)
       activePlan = plan
@@ -538,6 +650,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
 }
 export async function skipPlatformSwitchError() {
   const state = usePlatformSwitchStore.getState()
+  if (state.selfHostedSafetyBackupPath) return false
   const platform = state.platform
   if (!platform || running || cancelling || dismissing || !['error', 'cancelled'].includes(state.step)) return false
   const previous = useSettingStore.getState().primaryBackupMethod
@@ -612,6 +725,7 @@ export async function skipPlatformSwitchError() {
 export async function retryPlatformSwitch() {
   const { platform, step } = usePlatformSwitchStore.getState()
   if (!platform || (!['error', 'cancelled'].includes(step) && !(step === 'completed' && usePlatformSwitchStore.getState().skipped)) || running || cancelling || dismissing) return
+  if (usePlatformSwitchStore.getState().selfHostedSafetyBackupPath) return recoverSelfHostedSwitchBackup()
   // Always rescan a partially completed operation; never silently repeat a destructive decision.
   await switchSyncPlatform(platform, true)
 }
@@ -691,5 +805,124 @@ export async function recoverPlatformSwitchLocalBackup() {
       await finishBackupRetention(releaseBackup, attemptBackupPaths, verified)
       running = false
     }
+  }
+}
+
+export async function recoverSelfHostedSwitchBackup() {
+  const state = usePlatformSwitchStore.getState()
+  if (running || cancelling || dismissing || state.platform !== 'selfHosted'
+    || !state.selfHostedBackupPath || !(['error', 'cancelled'].includes(state.step) || state.skipped)) return
+  running = true
+  const backupPath = state.selfHostedBackupPath
+  usePlatformSwitchStore.setState({ step: 'preparing', error: null, cancelRequested: false, recoveringSelfHostedBackup: true })
+  try {
+    const { captureSelfHostedSwitchBackup, readSelfHostedSwitchBackup, restoreSelfHostedSwitchBackup } = await import('@/lib/self-hosted-sync/switch-backup')
+    const { manifest } = await readSelfHostedSwitchBackup(backupPath)
+    const chat = (await import('./chat')).default.getState()
+    if (chat.loading || chat.agentState.isRunning) throw new Error('SYNC_SWITCH_CHAT_BUSY')
+    if (!paused) {
+      paused = true
+      await Promise.all([getSyncPushQueue().prepareForWorkspaceSwitch(), prepareAutoDataSyncForRepositoryChange()])
+    }
+    pauseSyncEngine(useSettingStore.getState().primaryBackupMethod)
+    pauseSyncEngine('selfHosted')
+    const collaboration = await import('@/lib/self-hosted-sync/collaboration')
+    const activePath = await prepareSelfHostedLocalEditors()
+    resumeSwitchCollaboration ??= collaboration.pauseSelfHostedCollaboration()
+    await import('@/lib/self-hosted-sync/canvas-collaboration').then(module => module.closeAllCanvasCollaboration())
+    await collaboration.waitForSelfHostedCollaborationIdle()
+    await import('@/lib/self-hosted-sync/runtime').then(module => module.getSelfHostedSyncRuntime().stopAndWait())
+    if (activePath) emitter.emit('editor-file-close', { path: activePath })
+    const store = await Store.load('store.json')
+    const recovery = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')
+    if (!recovery || recovery.selfHostedBackupPath !== backupPath) throw new Error('SELF_HOSTED_BACKUP_INVALID')
+    const { getDb } = await import('@/db')
+    const bindings = await (await getDb()).select<Array<{ workspaceId: string; localRoot: string }>>(
+      `select workspace_id as workspaceId, local_root as localRoot from self_hosted_workspace_bindings
+       where workspace_type = 'library' and local_root is not null`,
+    )
+    const { getCurrentWorkspaceRoot } = await import('@/lib/self-hosted-sync/workspaces')
+    const activeRoot = await getCurrentWorkspaceRoot()
+    const { platform } = await import('@tauri-apps/plugin-os')
+    const normalizeRoot = (root: string) => {
+      const normalized = root.normalize('NFC').replaceAll('\\', '/').replace(/\/+$/, '')
+      return platform() === 'windows' ? normalized.toLowerCase() : normalized
+    }
+    const activeBinding = bindings.find(binding => normalizeRoot(binding.localRoot) === normalizeRoot(activeRoot))
+    const currentLibraries = [
+      { workspaceId: activeBinding?.workspaceId ?? null, localRoot: activeRoot },
+      ...manifest.libraries.map(library => {
+        const current = bindings.find(binding => library.workspaceId !== null
+          ? binding.workspaceId === library.workspaceId : normalizeRoot(binding.localRoot) === normalizeRoot(library.localRoot))
+        return current ?? library
+      }),
+      ...bindings,
+    ].filter((library, index, libraries) => libraries.findIndex(candidate => (
+      normalizeRoot(candidate.localRoot) === normalizeRoot(library.localRoot)
+    )) === index)
+    // Every destructive attempt needs a current snapshot, including edits made
+    // after a previous restore failed. Keep earlier snapshots as well, and use
+    // the actual current roots instead of the target backup's historical paths.
+    const safetyPath = await captureSelfHostedSwitchBackup({
+      ...manifest, libraries: currentLibraries, personalAssets: undefined,
+      assertActive: assertSwitchActive, onProgress: progress,
+    })
+    const safetyPaths = [...new Set([
+      ...(recovery.selfHostedSafetyBackupPaths ?? []),
+      ...(recovery.selfHostedSafetyBackupPath ? [recovery.selfHostedSafetyBackupPath] : []),
+      safetyPath,
+    ])]
+    // Persist the new snapshot and the complete history before resource writes,
+    // database replacement or native-journal quarantine can change current data.
+    await store.set('platformSwitchRecovery', { ...recovery, selfHostedSafetyBackupPath: safetyPath,
+      selfHostedSafetyBackupPaths: safetyPaths, commitPlatform: 'local', mutated: true })
+    await store.save()
+    usePlatformSwitchStore.setState({ mutated: true, selfHostedSafetyBackupPath: safetyPath })
+    // Settle native writes before restoring older resource bytes. Otherwise a
+    // later runtime startup could replay an old temporary file over recovery.
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('self_hosted_recover_file_journal').catch(error => console.warn('Native writes require quarantine before local recovery', error))
+    const pendingFileWrites = await invoke<number[]>('self_hosted_pending_file_journal')
+    if (pendingFileWrites.length) {
+      const { executeRecordTransaction, getDb } = await import('@/db')
+      const database = await getDb()
+      const journal = await database.select<Array<Record<string, unknown>>>(
+        'select * from self_hosted_file_journal where id in (select value from json_each($1))', [JSON.stringify(pendingFileWrites)],
+      )
+      const { BaseDirectory, writeFile } = await import('@tauri-apps/plugin-fs')
+      await writeFile(`${safetyPath}/quarantined-file-journal-${Date.now()}-${crypto.randomUUID()}.json`,
+        new TextEncoder().encode(JSON.stringify(journal)), { baseDir: BaseDirectory.AppData })
+      await invoke('self_hosted_flush_switch_data', { relativePath: safetyPath })
+      // Preserve both the journal evidence and its temporary files. This
+      // explicit recovery supersedes failed writes; they must never replay.
+      await executeRecordTransaction([{ sql: `update self_hosted_file_journal
+        set state = 'rolled-back', error_code = 'superseded-by-local-recovery', updated_at = $1
+        where id in (select value from json_each($2)) and state not in ('committed','rolled-back')`,
+        values: [Date.now(), JSON.stringify(pendingFileWrites)] }])
+      if ((await invoke<number[]>('self_hosted_pending_file_journal')).length) throw new Error('SELF_HOSTED_BACKUP_FILE_JOURNAL_PENDING')
+    }
+    const restored = await restoreSelfHostedSwitchBackup(backupPath, safetyPath, assertSwitchActive, progress)
+    await useSettingStore.getState().setWorkspacePath(restored.root)
+    await store.save()
+    await refreshSelfHostedSwitchStores(true, true)
+    await useSettingStore.getState().commitVerifiedPrimaryBackupMethod('local', commitProgress, 'deferred', undefined, assertSwitchActive)
+    await releaseSync().catch(error => console.warn('Recovered self-hosted switch queue cleanup failed', error))
+    usePlatformSwitchStore.setState({ step: 'completed', recovered: true, skipped: false, error: null, cancelRequested: false })
+  } catch (error) {
+    // Recovery is repeatable. Keep both snapshots and the durable marker until
+    // the local provider and the recovered workspace have committed together.
+    const message = sanitizeSyncErrorMessage(error)
+    usePlatformSwitchStore.setState({ step: 'error', error: message, cancelRequested: false })
+    try {
+      const store = await Store.load('store.json')
+      const recovery = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')
+      if (recovery) {
+        await store.set('platformSwitchRecovery', { ...recovery, error: message, failedAt: Date.now() })
+        await store.save()
+      }
+    } catch (persistenceError) { console.warn('Could not persist self-hosted recovery error', persistenceError) }
+  } finally {
+    running = false
+    usePlatformSwitchStore.setState({ recoveringSelfHostedBackup: false })
   }
 }

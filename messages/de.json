@@ -1883,7 +1883,8 @@
         "instanceChangeTitle": "Mit dem zurückgesetzten Server verbinden?",
         "instanceChangeDescription": "Die Instanzidentität von {server} hat sich geändert. Fahre nur fort, wenn du den Server zurückgesetzt oder ersetzt hast. Nach erfolgreicher Anmeldung werden alte Synchronisierungszuordnungen, Anmeldedaten und Schlüssel deaktiviert. Lokale Notizen bleiben erhalten; vor der Synchronisierung müssen die Datenunterschiede bestätigt werden.",
         "instanceChangeConfirm": "Bestätigen und neu verbinden",
-        "instanceChangeCancel": "Abbrechen"
+        "instanceChangeCancel": "Abbrechen",
+        "personalDomainDependencyHint": "Ohne Tags pausieren abhängige Aufzeichnungen, verknüpfte Notizen, Zeichenflächen und Nachrichten; ohne Unterhaltungen pausieren Nachrichten. Nach dem Aktivieren werden entfernte Daten nachgeladen. Anhänge werden für von NoteGen verwaltete Dateien übertragen; externe Dateien separat sichern."
       },
       "connectionTab": "Verbindung",
       "syncOptionsTab": "Sync-Optionen",
@@ -2256,6 +2257,10 @@
       "switchPlan": {
         "incrementalReads": "{cached} Dateien wiederverwendet · {downloaded} Dateien heruntergeladen",
         "moduleProgress": "Diese Gruppe: {current} / {total} Module verarbeitet",
+        "itemProgress": "{current} / {total} Einträge verarbeitet",
+        "processedItems": "{count} Einträge verarbeitet",
+        "currentItem": "Eintrag in Bearbeitung",
+        "documentProgress": "Fortschritt des gemeinsamen Dokuments: {current} / {total}",
         "scopeDetails": "Synchronisierungsumfang und verknüpfte Module",
         "panelTitle": "Synchronisierungsplattform: {platform}",
         "stepsLabel": "Schritte des Plattformwechsels",
@@ -2298,8 +2303,13 @@
         "differences": "Differences",
         "distribution": "{same} identical · {localOnly} local only · {remoteOnly} remote only · {conflicts} conflicts",
         "linkedModules": "Verknüpfte Module werden gemeinsam ausgewählt. Für nicht ausgewählte Module pausiert die automatische Synchronisierung.",
-        "nativeEngine": "Self-hosted sync uses the server’s object synchronization and conflict protocol. This switch reconciles pending changes through that protocol rather than mirroring a repository.",
+        "nativeEngine": "Wähle die Datenbehandlung für diesen Wechsel und bestätige danach die Unterschiede. Zusammenführen folgt dem Objektsynchronisationsprotokoll. Lokal oder Remote ersetzt synchronisierte Daten in der gewählten Richtung.",
         "nativeMode": "Beidseitige Synchronisierung mit Erhalt einzigartiger Inhalte",
+        "nativeDescriptions": {
+          "merge": "Synchronisiert Inhalte, die nur auf einer Seite vorhanden sind, in beide Richtungen und versucht, Notizen am selben Pfad zusammenzuführen. Gemeinsame Objekte und Löschungen folgen den Synchronisationsversionen.",
+          "local": "Verwendet lokale synchronisierte Daten als Quelle, ersetzt entsprechende Remote-Einträge und löscht nur remote vorhandene Inhalte. Lokale Inhalte bleiben erhalten.",
+          "remote": "Verwendet synchronisierte Remote-Daten als Quelle, ersetzt entsprechende lokale Einträge und entfernt nur lokal vorhandene Inhalte aus dem aktiven Synchronisationsbereich. Remote-Inhalte bleiben erhalten."
+        },
         "chosen": "Strategy: {strategy}. Scope: {modules}.",
         "impact": "Add {added}, replace {replaced}, remove {removed} from the active sync scope.",
         "viewDifference": "Compare both versions",
@@ -2317,9 +2327,9 @@
         "nativeHandlingFiles": "Einzigartige Notizen und Anhänge beider Seiten werden synchronisiert. Notizen mit gleichem Pfad werden nach Möglichkeit zusammengeführt; andernfalls bleibt eine Konfliktkopie erhalten. Anhänge folgen den Synchronisierungsversionen.",
         "nativeHandlingPersonal": "Aufzeichnungen, Tags, Zeichenflächen, Gespräche, Erinnerungen und Einstellungen folgen den Objektversionen. Uploads persönlicher Daten beachten die bestehenden Synchronisierungseinstellungen. Remote-Versionen können dasselbe Objekt aktualisieren; die lokalen Originaldaten werden vorher gesichert.",
         "nativeHandlingDeletions": "Das Beibehalten beider Seiten ignoriert keine Löschungen. Lokale und entfernte Löschungen folgen weiterhin dem Synchronisierungsprotokoll und können mit lokalen Änderungen kollidieren.",
-        "nativeBackupHint": "Nach der Bestätigung werden lokale Dateien und persönliche Daten gesichert und die Unterschiede erneut geprüft. Änderungen oder eine fehlgeschlagene Sicherung stoppen den Wechsel. Der Snapshot dient zur manuellen Wiederherstellung.",
+        "nativeBackupHint": "Lokale Dateien und persönliche Daten werden vor dem erneuten Vergleich gesichert und geprüft. Bei einem Fehler können Sie hier zur lokalen Speicherung wiederherstellen.",
         "nativeBackupTitle": "Lokaler Snapshot vor dem Wechsel gespeichert",
-        "nativeBackupLocation": "App-Datenverzeichnis: {path}. files enthält originale Notizen und Anhänge; personal-data.json enthält persönliche Daten zur manuellen Wiederherstellung.",
+        "nativeBackupLocation": "App-Daten: {path}. Enthält Originaldateien, persönliche Daten und Synchronisierungszuordnungen. Der aktuelle Zustand wird vor der Wiederherstellung gesichert.",
         "nativeConnectionRequired": "Verbinde zuerst deinen selbst gehosteten Server und scanne erneut.",
         "nativeInstanceChanged": "Die Serveridentität hat sich geändert. Prüfe, ob der Server zurückgesetzt oder ersetzt wurde, und verbinde dich erneut.",
         "nativeLibraryRequired": "Der Zielarbeitsbereich konnte nicht ermittelt werden. Prüfe seine Zuordnung in den Self-Hosting-Einstellungen und scanne erneut.",
@@ -2331,6 +2341,16 @@
         "nativeKeyRequired": "Ein Entschlüsselungsschlüssel fehlt. Entsperre den Arbeitsbereich und scanne erneut.",
         "nativeContentRequired": "Der Server enthält Daten, die diese Version nicht zuverlässig anzeigen kann. Der Wechsel wurde gestoppt. Prüfe die Kompatibilität von Versionen und Datenformaten.",
         "nativeDuplicateIdentity": "Doppelte Pfade oder Synchronisierungs-IDs verhindern einen zuverlässigen Vergleich. Behebe die Duplikate zuerst.",
+        "nativeDependencyRequired": "Ein überschreibender Wechsel benötigt die zugehörigen Daten für Aufzeichnungen und Nachrichten. Aktiviere die Tag-Synchronisation für Aufzeichnungen sowie die Tag- und Gesprächssynchronisation für Nachrichten und scanne erneut. Alternativ kannst du Zusammenführen wählen.",
+        "nativeRemoteDependencyMissing": "Zugehörige Remote-Daten sind unvollständig. Der Wechsel wurde gestoppt. Prüfe, ob die von Aufzeichnungen und Nachrichten referenzierten Tags und Gespräche vollständig synchronisiert wurden, und versuche es erneut.",
+        "nativeWriteRequired": "Im Zielarbeitsbereich fehlen Berechtigungen zum Erstellen, Aktualisieren oder Löschen. Lokale Inhalte können Remote-Inhalte deshalb nicht ersetzen. Prüfe die Berechtigungen und scanne erneut.",
+        "nativeResultMismatch": "Die Datenprüfung nach dem Wechsel ist fehlgeschlagen. Die Synchronisierung wurde pausiert und die Sicherung bleibt erhalten. Scanne erneut und versuche es noch einmal.",
+        "nativePathMovesPending": "Es stehen noch Dateiverschiebungen aus. Brich diesen Wechsel ab, schließe die Synchronisation der Dateiverschiebungen auf der ursprünglichen Plattform ab und versuche es erneut.",
+        "nativeRevisionConflict": "Der Server hat eine lokale Änderung abgelehnt. Eine Konfliktkopie wurde gespeichert. Bearbeite sie im Konfliktcenter und versuche es erneut.",
+        "nativeLocalChangesPending": "Lokale Änderungen warten noch auf die Übertragung. Zum Schutz dieser Änderungen werden entfernte Daten vorerst nicht angewendet. Schließe ausstehende Uploads ab oder behebe Synchronisationsfehler und versuche es erneut.",
+        "nativePersonalAssetMissing": "Ein von einem Eintrag oder einer Nachricht referenzierter Anhang fehlt. Synchronisiere ein Gerät mit dem Originalanhang und versuche es erneut.",
+        "nativePersonalAssetConflict": "Anhänge am selben Pfad haben unterschiedliche Inhalte. Der Schreibvorgang wurde zum Schutz der lokalen Datei gestoppt. Behebe den Unterschied und versuche es erneut.",
+        "nativeAttachmentsRequired": "Dieser Wechsel enthält noch nicht hochgeladene Anhänge. Aktiviere die Anhangssynchronisation und scanne erneut.",
         "nativeDifferences": {
           "localOnly": "Nur lokal",
           "remoteOnly": "Nur remote",
@@ -2398,7 +2418,22 @@
           "compare": "Comparing module content…",
           "backup": "Saving recoverable backups…",
           "apply": "Processing data…",
-          "verify": "Verifying results…"
+          "verify": "Verifying results…",
+          "start": "Synchronisierung auf der Zielplattform wird gestartet…"
+        },
+        "startupTasks": {
+          "refresh": "Lokale Daten werden aktualisiert…",
+          "workspace": "Zielarbeitsbereich wird bestätigt…",
+          "recover": "Unvollständige Dateischreibvorgänge werden wiederhergestellt…",
+          "connect": "Verbindung zum Synchronisierungsarbeitsbereich wird hergestellt…",
+          "scanFiles": "Lokale Dateien werden geprüft…",
+          "scanData": "Persönliche Daten werden geprüft…",
+          "prepare": "Inhalte werden zum Hochladen vorbereitet…",
+          "push": "Ausstehende Inhalte werden hochgeladen…",
+          "pull": "Remote-Änderungen werden abgerufen…",
+          "apply": "Remote-Änderungen werden angewendet…",
+          "bootstrap": "Synchronisierungsdaten werden initialisiert…",
+          "save": "Synchronisierungseinstellungen werden gespeichert…"
         },
         "modules": {
           "notes": "Markdown notes",
@@ -2514,7 +2549,21 @@
         "verifySkipped": "Erneut scannen und Prüfung abschließen",
         "cancellingHint": "Warten auf das Ende der aktuellen Aufgabe, bevor die weitere Verarbeitung gestoppt wird…",
         "cancelledError": "Der Benutzer hat diesen Wechsel abgebrochen",
-        "skipUnavailable": "Das Ziel oder der Arbeitsbereich wurde geändert. Scannen Sie vor dem Wechsel erneut."
+        "skipUnavailable": "Das Ziel oder der Arbeitsbereich wurde geändert. Scannen Sie vor dem Wechsel erneut.",
+        "nativeRestoreBackup": "Daten vor dem Wechsel wiederherstellen",
+        "nativeRestoreDescription": "Die aktuellen Daten werden zuerst gesichert. Persönliche Daten werden wiederhergestellt, Notizen und Anhänge in einen separaten Ordner kopiert. Ursprüngliche Arbeitsbereiche und Serverdaten bleiben erhalten. Danach wird lokal gespeichert. Schließen Sie die Wiederherstellung vor dem erneuten Synchronisieren ab.",
+        "nativeSafetyBackupLocation": "Sicherheitskopie vor der Wiederherstellung (App-Daten): {path}",
+        "nativeRecoveredLocation": "Wiederhergestellter Arbeitsbereich: {path}",
+        "nativeOpenBackup": "Sicherungsordner öffnen",
+        "nativeBackupInvalid": "Die Sicherung ist unvollständig, beschädigt oder ungültig. Die Wiederherstellung wurde gestoppt; ursprüngliche Arbeitsbereiche bleiben erhalten.",
+        "nativeBackupLegacy": "Dieser ältere Snapshot kann nur manuell wiederhergestellt werden. Bewahren Sie Dateien und personal-data.json auf. Die automatische Wiederherstellung benötigt einen neueren vollständigen Snapshot.",
+        "selfHostedRequestTimeout": "Zeitüberschreitung. Versuchen Sie es bei bestehender Verbindung erneut; gespeicherte Anhangsteile können fortgesetzt werden.",
+        "selfHostedRequestCancelled": "Die Anfrage wurde abgebrochen.",
+        "nativeBackupFileJournalPending": "Dateischreibvorgänge sind noch offen. Schließen Sie aktive Editoren und setzen Sie die Wiederherstellung fort.",
+        "nativeBootstrapIncomplete": "{path} Snapshot-Objekte konnten lokal nicht angewendet werden. Die Initialisierung bleibt unvollständig; fehlgeschlagene Elemente werden erneut versucht.",
+        "nativeLocalSnapshotPending": "Der Server hat lokale Änderungen angenommen, die lokale Kopie muss aber noch wiederhergestellt werden. Bewahren Sie die Sicherungen bis zum erneuten Versuch auf.",
+        "nativeTagIdentityMissing": "Diesem Tag fehlt eine lokale Synchronisierungsidentität. Starten Sie NoteGen neu, um die Dateninitialisierung abzuschließen, und versuchen Sie es erneut.",
+        "nativeStorageBudgetExceeded": "Das Speicherbudget des Kontos oder der Instanz ist ausgeschöpft. Bitten Sie den Administrator, es anzupassen oder aufbewahrte Daten zu bereinigen."
       }
     },
     "imageHosting": {

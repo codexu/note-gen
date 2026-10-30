@@ -2492,6 +2492,7 @@ export function TipTapEditor({
   )
   const [editorRenderDurationMs, setEditorRenderDurationMs] = useState<number | null>(null)
   const t = useTranslations('editor')
+  const tSelfHosted = useTranslations('settings.sync.selfHosted')
   const tMermaid = useTranslations('editor.mermaid.templates')
   const tImage = useTranslations('editor.image')
   const tSourceMode = useTranslations('settings.editor.sourceMode')
@@ -3260,6 +3261,9 @@ export function TipTapEditor({
       let setupMergeBaseMarkdown = setupBaseMarkdown
       let setupAuthoritativeMarkdown = setupBaseMarkdown
       let controllerReady = false
+      let setupFailed = false
+      let pendingController: MarkdownCollaborationController | null = null
+      let preservingConflict = false
       const applyAuthoritativeMarkdown = (markdown: string) => {
         externalUpdateCounterRef.current++
         sourceMarkdownRef.current = markdown
@@ -3282,41 +3286,61 @@ export function TipTapEditor({
             if (!controllerReady && contentVersionRef.current === setupContentVersion) {
               setupMergeBaseMarkdown = markdown
             }
-            if (cancelled || markdown === sourceMarkdownRef.current) return
+            if (cancelled || setupFailed || markdown === sourceMarkdownRef.current) return
             if (!controllerReady && contentVersionRef.current !== setupContentVersion) return
             applyAuthoritativeMarkdown(markdown)
           },
         )
-        controllerReady = true
-        if (cancelled) controller.close()
+        pendingController = controller
+        if (cancelled) await controller.close()
         else {
-          selfHostedCollaborationRef.current = controller
           // Rebase edits made while the asynchronous session was opening onto
           // the authoritative baseline. Never replace that baseline wholesale
           // with the stale source ref captured before visual-editor debounce.
           if (contentVersionRef.current !== setupContentVersion) {
-            const setupLocalMarkdown = isSourceViewRef.current
-              ? sourceMarkdownRef.current
-              : normalizeMarkdownPlaceholders(editor.getMarkdown())
-            const mergedMarkdown = mergeCollaborationSetupMarkdown(
-              setupMergeBaseMarkdown,
-              setupLocalMarkdown,
-              setupAuthoritativeMarkdown,
-            )
-            const nextMarkdown = mergedMarkdown ?? setupAuthoritativeMarkdown
-            if (mergedMarkdown === null) {
-              console.warn('[self-hosted-sync] Concurrent setup edits overlapped; kept the authoritative document')
-            } else if (mergedMarkdown !== setupAuthoritativeMarkdown) {
-              controller.applyLocal(mergedMarkdown)
+            let conflictCopy: string | null = null
+            for (;;) {
+              const localVersion = contentVersionRef.current
+              const remoteMarkdown = setupAuthoritativeMarkdown
+              const setupLocalMarkdown = isSourceViewRef.current
+                ? sourceMarkdownRef.current
+                : normalizeMarkdownPlaceholders(editor.getMarkdown())
+              const mergedMarkdown = mergeCollaborationSetupMarkdown(
+                setupMergeBaseMarkdown,
+                setupLocalMarkdown,
+                remoteMarkdown,
+              )
+              if (mergedMarkdown === null) {
+                preservingConflict = true
+                conflictCopy = await controller.preserveLocalConflict(setupLocalMarkdown, setupMergeBaseMarkdown)
+                preservingConflict = false
+                if (cancelled) { await controller.close(); return }
+                // Editing and remote polling continue while the copy is saved.
+                // Update the same durable copy until both candidates are stable;
+                // never replace text entered during that asynchronous save.
+                if (contentVersionRef.current !== localVersion || setupAuthoritativeMarkdown !== remoteMarkdown) continue
+              } else if (mergedMarkdown !== remoteMarkdown) {
+                controller.applyLocal(mergedMarkdown)
+              }
+              const nextMarkdown = mergedMarkdown ?? remoteMarkdown
+              if (nextMarkdown !== setupLocalMarkdown) {
+                applyAuthoritativeMarkdown(nextMarkdown)
+              } else if (sourceMarkdownRef.current !== nextMarkdown) {
+                sourceMarkdownRef.current = nextMarkdown
+                setSourceMarkdown(nextMarkdown)
+                onChangeRef.current?.(nextMarkdown)
+              }
+              break
             }
-            if (nextMarkdown !== setupLocalMarkdown) {
-              applyAuthoritativeMarkdown(nextMarkdown)
-            } else if (sourceMarkdownRef.current !== nextMarkdown) {
-              sourceMarkdownRef.current = nextMarkdown
-              setSourceMarkdown(nextMarkdown)
-              onChangeRef.current?.(nextMarkdown)
+            if (conflictCopy) {
+              toast({ title: tSelfHosted('keepLocalCopy'), description: conflictCopy })
+              void useArticleStore.getState().loadFileTree({ skipRemoteSync: true }).catch(error => {
+                console.warn('[self-hosted-sync] Unable to refresh preserved conflict copy:', error)
+              })
             }
           }
+          controllerReady = true
+          selfHostedCollaborationRef.current = controller
           stopPresence = controller.subscribePresence(message => {
             const deviceId = typeof message.deviceId === 'string' ? message.deviceId : null
             if (!deviceId) return
@@ -3355,6 +3379,17 @@ export function TipTapEditor({
           }
         }
       } catch (error) {
+        setupFailed = true
+        if (pendingController) {
+          if (selfHostedCollaborationRef.current === pendingController) selfHostedCollaborationRef.current = null
+          await pendingController.close().catch(closeError => {
+            console.warn('[self-hosted-sync] Unable to close failed document setup:', closeError)
+          })
+        }
+        if (preservingConflict && !cancelled) {
+          toast({ title: tSelfHosted('conflictsTitle'),
+            description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+        }
         console.warn('[self-hosted-sync] Collaborative document is unavailable:', error)
       }
     }
@@ -3364,7 +3399,9 @@ export function TipTapEditor({
       stopPresence?.()
       setSelfHostedCollaborators([])
       flushCollaborationChange()
-      selfHostedCollaborationRef.current?.close()
+      void selfHostedCollaborationRef.current?.close().catch(error => {
+        console.warn('[self-hosted-sync] Unable to persist closing collaborative document:', error)
+      })
       selfHostedCollaborationRef.current = null
     }
   }, [
@@ -3376,6 +3413,7 @@ export function TipTapEditor({
     primaryBackupMethod,
     selfHostedRuntimeReady,
     standalone,
+    tSelfHosted,
     trySetMarkdownContent,
   ])
 

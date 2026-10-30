@@ -351,6 +351,7 @@ fn main() {
             self_hosted_files::self_hosted_delete_directory,
             self_hosted_files::self_hosted_move_path,
             self_hosted_files::self_hosted_pending_file_journal,
+            self_hosted_files::self_hosted_flush_switch_data,
             self_hosted_files::self_hosted_recover_file_journal,
         ])
         // 应用设置 - 在所有插件和命令注册后

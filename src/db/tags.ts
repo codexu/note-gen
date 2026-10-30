@@ -3,7 +3,7 @@ import { getDb } from "./index"
 import { Store } from '@tauri-apps/plugin-store';
 import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
 import { tagPathMatches } from '@/lib/record-tags'
-import { normalizeTagBoolean } from '@/lib/tag-sync'
+import { normalizeTagBoolean, invalidateLocalTagSyncIdentity } from '@/lib/tag-sync'
 
 export interface Tag {
   id: number
@@ -182,6 +182,7 @@ export async function delTag(id: number, options: { sync?: boolean } = {}) {
     throw new Error('Cannot delete a tag that has child tags')
   }
   const fallback = tags.find(tag => tag.id !== id)!
+  await invalidateLocalTagSyncIdentity([id])
   const result = await db.execute(
     'delete from tags where id = $1 and isLocked = false and exists (select 1 from tags where id = $2)',
     [id, fallback.id]
@@ -205,6 +206,8 @@ export function normalizeTagName(value?: string): string {
 
 export async function deleteAllTags() {
   const db = await getDb();
+  const tags = await getTags()
+  await invalidateLocalTagSyncIdentity(tags.filter(tag => !tag.isLocked).map(tag => tag.id))
   return await db.execute("delete from tags where isLocked = false")
 }
 

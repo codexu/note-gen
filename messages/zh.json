@@ -2020,7 +2020,8 @@
           "viewer-local-edit": "只读工作区存在本地修改",
           "protocol-conflict": "服务器检测到版本冲突",
           "symlink-ignored": "符号链接已忽略，不会参与同步"
-        }
+        },
+        "personalDomainDependencyHint": "关闭标签会暂停依赖标签的记录、关联笔记、画布与消息，关闭会话会暂停消息。重新启用后会补齐远端内容。附件传输覆盖 NoteGen 管理的本地资源，外部文件仍需单独备份。"
       },
       "connectionTab": "连接设置",
       "syncOptionsTab": "同步选项",
@@ -2393,6 +2394,10 @@
       "switchPlan": {
         "incrementalReads": "已复用 {cached} 个文件 · 本次下载 {downloaded} 个文件",
         "moduleProgress": "本组已处理 {current} / {total} 个模块",
+        "itemProgress": "已处理 {current} / {total} 项",
+        "processedItems": "已处理 {count} 项",
+        "currentItem": "当前处理的项目",
+        "documentProgress": "协作文档进度：{current} / {total}",
         "scopeDetails": "同步范围与联动规则",
         "panelTitle": "设置同步平台：{platform}",
         "stepsLabel": "平台切换步骤",
@@ -2435,8 +2440,13 @@
         "differences": "差异分布",
         "distribution": "{same} 一致 · {localOnly} 仅本地 · {remoteOnly} 仅远端 · {conflicts} 冲突",
         "linkedModules": "关联模块会联动选择；未选模块将暂停自动同步。",
-        "nativeEngine": "自建服务使用服务器的对象同步和冲突处理协议；本次切换由服务器核对本地待提交内容，不使用仓库镜像覆盖。",
+        "nativeEngine": "先选择本次切换的数据处理方式，再核对差异并确认。合并沿用对象同步协议；保留本地或使用远端会按所选方向替换参与同步的数据。",
         "nativeMode": "双向同步，保留双方独有内容",
+        "nativeDescriptions": {
+          "merge": "双向同步双方独有内容，同名笔记尝试合并；同一对象和删除记录按同步版本处理。",
+          "local": "以本地参与同步的数据为准，替换远端同项并删除远端独有内容；保留本地内容。",
+          "remote": "以远端参与同步的数据为准，替换本地同项并将本地独有内容移出活动同步范围；保留远端内容。"
+        },
         "chosen": "处理方式：{strategy}。范围：{modules}。",
         "impact": "新增 {added} 项，替换 {replaced} 项，移出活动同步范围 {removed} 项。",
         "viewDifference": "查看两侧内容差异",
@@ -2454,9 +2464,9 @@
         "nativeHandlingFiles": "同步双方独有的笔记和附件。同名笔记尝试合并，无法合并时保留冲突副本；附件按同步版本处理。",
         "nativeHandlingPersonal": "记录、标签、画布、对话、记忆和配置按对象版本同步；个人数据上传遵循已有同步开关。同一对象可能被远端版本更新，本地原始数据会先保存到快照。",
         "nativeHandlingDeletions": "“保留双方”不代表忽略删除：本地和远端的删除记录仍按同步协议处理，本地修改可能形成冲突。",
-        "nativeBackupHint": "确认后先保存本地文件和个人数据快照，再次核对差异后开始同步。数据变化或快照失败会停止；此快照用于手动恢复。",
+        "nativeBackupHint": "确认后先保存并校验本地文件和个人数据，再核对差异。失败时可从此处恢复到本地存储。",
         "nativeBackupTitle": "已保存切换前的本地快照",
-        "nativeBackupLocation": "应用数据目录：{path}。files 保存原始笔记与附件，personal-data.json 保存个人数据；需要时可手动取回。",
+        "nativeBackupLocation": "应用数据目录：{path}。包含原始文件、个人数据和同步映射；恢复时会另存当前数据。",
         "nativeConnectionRequired": "请先连接自托管服务器，再重新扫描差异。",
         "nativeInstanceChanged": "服务器实例身份已变化，请确认服务器是否已重置或替换后重新连接。",
         "nativeLibraryRequired": "无法确定目标工作区，请先在自托管设置中确认工作区绑定，再重新扫描。",
@@ -2468,6 +2478,16 @@
         "nativeKeyRequired": "目标工作区缺少解密密钥，无法预览。请先解锁工作区，再重新扫描。",
         "nativeContentRequired": "服务器包含当前版本无法可靠预览的内容，已停止切换。请确认双方版本与数据格式是否兼容。",
         "nativeDuplicateIdentity": "发现重复的文件路径或同步标识，无法可靠比较，请先处理重复项。",
+        "nativeDependencyRequired": "覆盖切换需要同步记录和消息的关联数据。请先开启记录所需的标签同步，以及消息所需的标签和对话同步，再重新扫描；也可以选择合并。",
+        "nativeRemoteDependencyMissing": "远端关联数据不完整，已停止切换。请确认记录和消息引用的标签、会话是否已完整同步后重试。",
+        "nativeWriteRequired": "目标工作区缺少创建、更新或删除权限，无法用本地内容覆盖远端。请确认工作区权限后重新扫描。",
+        "nativeResultMismatch": "切换后的数据核验未通过，已暂停同步。备份已保留，请重新扫描后重试。",
+        "nativePathMovesPending": "仍有未完成的文件移动。请取消本次切换，先完成原平台的文件移动同步后重试。",
+        "nativeRevisionConflict": "本地修改未被远端接受，已保存冲突副本。请到冲突中心处理后重试。",
+        "nativeLocalChangesPending": "本地变更尚待发送，已暂缓应用远端数据以保留本地修改。请完成待发送项目或处理同步错误后重试。",
+        "nativePersonalAssetMissing": "记录或消息引用的附件缺失。请在保留原附件的设备上完成同步后重试。",
+        "nativePersonalAssetConflict": "同一路径的附件内容不同，已停止写入以保留本地文件。请处理附件差异后重试。",
+        "nativeAttachmentsRequired": "此切换包含尚未上传的附件，请先开启附件同步后重新扫描。",
         "nativeDifferences": {
           "localOnly": "仅本地",
           "remoteOnly": "仅远端",
@@ -2535,7 +2555,22 @@
           "compare": "正在比对模块内容…",
           "backup": "正在保存可恢复备份…",
           "apply": "正在处理数据…",
-          "verify": "正在核验结果…"
+          "verify": "正在核验结果…",
+          "start": "正在启动目标平台同步…"
+        },
+        "startupTasks": {
+          "refresh": "正在刷新本地数据…",
+          "workspace": "正在确认目标工作区…",
+          "recover": "正在恢复未完成的文件写入…",
+          "connect": "正在连接同步工作区…",
+          "scanFiles": "正在检查本地文件…",
+          "scanData": "正在检查个人数据…",
+          "prepare": "正在准备待上传内容…",
+          "push": "正在上传待同步内容…",
+          "pull": "正在获取远端更新…",
+          "apply": "正在应用远端更新…",
+          "bootstrap": "正在初始化同步数据…",
+          "save": "正在保存同步设置…"
         },
         "modules": {
           "notes": "Markdown 笔记",
@@ -2651,7 +2686,21 @@
         "verifySkipped": "重新扫描并完成校验",
         "cancellingHint": "正在等待当前任务结束，再停止后续处理…",
         "cancelledError": "用户已取消本次切换",
-        "skipUnavailable": "当前目标或工作区已变化，请重新扫描后再切换。"
+        "skipUnavailable": "当前目标或工作区已变化，请重新扫描后再切换。",
+        "nativeRestoreBackup": "恢复切换前的数据",
+        "nativeRestoreDescription": "恢复前会另存当前数据。个人数据将恢复到切换前，笔记和附件会复制到独立恢复目录；原工作区和远端数据保留，完成后切换到本地存储。恢复开始后请完成恢复再重新启用同步。",
+        "nativeSafetyBackupLocation": "恢复前的安全副本（应用数据目录）：{path}",
+        "nativeRecoveredLocation": "已恢复的工作区：{path}",
+        "nativeOpenBackup": "打开备份目录",
+        "nativeBackupInvalid": "备份不完整、已损坏或格式无效，恢复已停止，原工作区保留。",
+        "nativeBackupLegacy": "此旧版快照仅支持手动取回。请打开备份目录，保留原文件和 personal-data.json；自动恢复需要新版完整快照。",
+        "selfHostedRequestTimeout": "请求超时，本轮已停止；联网后可重试，已保存的附件分片会继续上传。",
+        "selfHostedRequestCancelled": "请求已取消。",
+        "nativeBackupFileJournalPending": "仍有未完成的文件写入，恢复已暂停。请关闭正在编辑的文件后继续恢复。",
+        "nativeBootstrapIncomplete": "仍有 {path} 个快照对象未能写入本机，初始化尚未完成。已保留失败信息，后续会重试。",
+        "nativeLocalSnapshotPending": "服务器已接受本地修改，但本机副本尚未恢复完整，正在等待重试；请保留现有备份。",
+        "nativeTagIdentityMissing": "此标签缺少本地同步身份，已暂停相关条目。请重启 NoteGen 完成本地数据初始化后重试。",
+        "nativeStorageBudgetExceeded": "实例或账号存储预算已用尽。请联系管理员调整预算或清理保留数据后重试。"
       }
     },
     "imageHosting": {

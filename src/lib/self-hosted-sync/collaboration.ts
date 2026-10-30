@@ -1,9 +1,11 @@
 import { getDb } from '@/db'
 import { invoke } from '@tauri-apps/api/core'
-import { encryptJson, decryptPackedJson, loadWorkspaceKey, objectAssociatedData } from './crypto'
+import { Store } from '@tauri-apps/plugin-store'
+import { encryptJson, decryptPackedJson, encodeUtf8Base64Url, loadWorkspaceKey, objectAssociatedData } from './crypto'
 import { getSelfHostedSyncRuntime } from './runtime'
-import { authenticatedClient } from './profile'
+import { authenticatedClient, getProfile } from './profile'
 import { enqueueFileSnapshot } from './outbox'
+import { isPersonalSyncKindEnabled } from './domains'
 
 interface DocumentBinding {
   workspaceId: string
@@ -18,11 +20,69 @@ interface YjsEnvelope {
   update: string
 }
 
+interface LocalAppend {
+  commandId: string
+  updateId: string
+  update: Uint8Array
+  encrypted?: Awaited<ReturnType<typeof encryptJson>>
+}
+
 export type PresenceCoordinateSpace = 'markdown' | 'prosemirror'
 
+let collaborationGeneration = 0
+let collaborationPauseDepth = 0
+const operations = new Set<Promise<unknown>>()
+const pendingLocalPersistence = new Set<() => Promise<void>>()
+
+export function pauseSelfHostedCollaboration(): () => void {
+  collaborationGeneration++
+  collaborationPauseDepth++
+  let resumed = false
+  return () => {
+    if (resumed) return
+    resumed = true
+    collaborationPauseDepth = Math.max(0, collaborationPauseDepth - 1)
+  }
+}
+
+export function captureSelfHostedCollaboration() {
+  const generation = collaborationGeneration
+  return () => collaborationPauseDepth === 0 && generation === collaborationGeneration
+}
+
+export async function waitForSelfHostedCollaborationIdle() {
+  for (;;) {
+    await Promise.allSettled([...operations])
+    // Rejections remain registered until their original admitted bytes commit.
+    // Retry once per drain attempt; failures propagate and block a snapshot.
+    for (const persist of [...pendingLocalPersistence]) await persist()
+    if (!operations.size && !pendingLocalPersistence.size) return
+  }
+}
+
+function trackOperation<T>(action: () => Promise<T>): Promise<T> {
+  const operation = action()
+  operations.add(operation)
+  void operation.then(() => operations.delete(operation), () => operations.delete(operation))
+  return operation
+}
+
+function requireActive(isActive: () => boolean) {
+  return () => {
+    if (!isActive()) throw new Error('SELF_HOSTED_COLLABORATION_PAUSED')
+  }
+}
+
 export async function openCollaborativeDocument(localRoot: string, relativePath: string) {
-  const binding = await resolveDocument(localRoot, relativePath)
-  return openCollaborativeBinding(binding)
+  const isActive = captureSelfHostedCollaboration()
+  const assertActive = requireActive(isActive)
+  return trackOperation(async () => {
+    await assertCollaborationEntry()
+    assertActive()
+    const binding = await resolveDocument(localRoot, relativePath, assertActive)
+    assertActive()
+    return openCollaborativeBinding(binding, isActive)
+  })
 }
 
 export async function openCollaborativeObject(
@@ -31,31 +91,120 @@ export async function openCollaborativeObject(
   documentId: string,
   kind: 'note' | 'canvas',
 ) {
-  return openCollaborativeBinding({
-    workspaceId, objectId, documentId, kind, keyVersion: await latestKeyVersion(workspaceId),
+  const isActive = captureSelfHostedCollaboration()
+  const assertActive = requireActive(isActive)
+  return trackOperation(async () => {
+    await assertCollaborationEntry()
+    assertActive()
+    const keyVersion = await latestKeyVersion(workspaceId)
+    assertActive()
+    const binding = { workspaceId, objectId, documentId, kind, keyVersion }
+    await assertBindingEnabled(binding)
+    assertActive()
+    return openCollaborativeBinding(binding, isActive)
   })
 }
 
-function openCollaborativeBinding(binding: DocumentBinding) {
+function openCollaborativeBinding(binding: DocumentBinding, generationActive: () => boolean) {
+  let closed = false
+  const isActive = () => !closed && generationActive()
+  const assertActive = requireActive(isActive)
   const runtime = getSelfHostedSyncRuntime()
   const presenceOwner = Symbol('collaboration-presence')
   const unsubscribeDocument = runtime.subscribeDocument(binding.workspaceId, binding.documentId)
   let consumedThrough = '0'
+  const consumedLocalCommands = new Set<string>()
+  let appendQueue: Promise<void> = Promise.resolve()
+  let admissionQueue: Promise<void> = Promise.resolve()
+  const localUpdates: LocalAppend[] = []
+  function persistAdmittedUpdates(): Promise<void> {
+    const previous = appendQueue
+    const operation = trackOperation(async () => {
+      await previous
+      while (localUpdates.length) {
+        await appendYjsUpdate(binding, localUpdates[0], isActive)
+        localUpdates.shift()
+      }
+      pendingLocalPersistence.delete(persistAdmittedUpdates)
+    })
+    appendQueue = operation.catch(() => undefined)
+    return operation
+  }
+  function persistLocalUpdates(): Promise<void> {
+    return trackOperation(async () => {
+      await admissionQueue
+      await persistAdmittedUpdates()
+    })
+  }
   return {
     ...binding,
-    initialize: (update: Uint8Array) => initializeYjsDocument(binding, update),
-    appendUpdate: (update: Uint8Array) => appendYjsUpdate(binding, update),
-    checkpoint: (state: Uint8Array) => commitYjsCheckpoint(binding, state),
-    flush: () => runtime.wake('collaboration-flush'),
+    isActive,
+    initialize: (update: Uint8Array) => trackOperation(async () => {
+      assertActive()
+      return initializeYjsDocument(binding, update, assertActive)
+    }),
+    appendUpdate: (update: Uint8Array) => {
+      // Capture the bytes and register the operation synchronously at the Yjs
+      // event. The admission queue checks entry policy before adding them to
+      // local persistence; idle also waits for this pending admission phase.
+      if (!isActive()) return Promise.reject(new Error('SELF_HOSTED_COLLABORATION_PAUSED'))
+      const local = { commandId: crypto.randomUUID(), updateId: crypto.randomUUID(), update: update.slice() }
+      const previous = admissionQueue
+      const operation = trackOperation(async () => {
+        await previous
+        await assertCollaborationEntry()
+        localUpdates.push(local)
+        pendingLocalPersistence.add(persistAdmittedUpdates)
+        await persistAdmittedUpdates()
+      })
+      admissionQueue = operation.catch(() => undefined)
+      return operation
+    },
+    // This method accepts no new state. It may finish pre-admitted writes even
+    // after pause/close, and remains part of the authoritative snapshot fence.
+    persistLocalUpdates,
+    preserveLocalConflict: (input: {
+      id: string; localRoot: string; relativePath: string; local: string; remote: string; base: string
+    }) => trackOperation(async () => {
+      await assertCollaborationEntry()
+      await assertBindingPermissions(binding)
+      assertActive()
+      await invoke('self_hosted_atomic_write', {
+        workspaceId: binding.workspaceId, objectId: null, workspaceRoot: input.localRoot,
+        relativePath: input.relativePath, contents: encodeUtf8Base64Url(input.local),
+        expectedHash: await invoke<string>('self_hosted_sha256', { value: input.local }),
+      })
+      const database = await getDb()
+      assertActive()
+      await database.execute(
+        `insert into self_hosted_conflicts(id, workspace_id, object_id, conflict_type,
+           local_snapshot, remote_snapshot, base_snapshot, local_copy_path, state, created_at)
+         values ($1,$2,$3,'snapshot-diverged',$4,$5,$6,$7,'unresolved',$8)
+         on conflict(id) do update set local_snapshot=excluded.local_snapshot,
+           remote_snapshot=excluded.remote_snapshot, base_snapshot=excluded.base_snapshot,
+           local_copy_path=excluded.local_copy_path, state='unresolved', resolved_at=null`,
+        [input.id, binding.workspaceId, binding.objectId, input.local, input.remote, input.base, input.relativePath, Date.now()],
+      )
+      assertActive()
+      return input.relativePath
+    }),
+    checkpoint: (state: Uint8Array) => trackOperation(async () => {
+      if (isActive()) await commitYjsCheckpoint(binding, state, assertActive)
+    }),
+    flush: () => isActive() ? runtime.wake('collaboration-flush') : Promise.resolve(),
     consume: async (apply: (update: Uint8Array, checkpoint: boolean) => void) => {
-      let pullError: unknown = null
-      try {
-        await pullDocumentUpdates(binding)
-      } catch (error) {
-        pullError = error
-      }
-      consumedThrough = await consumeYjsUpdates(binding, apply, consumedThrough)
-      if (pullError) throw pullError
+      if (!isActive()) return
+      return trackOperation(async () => {
+        let pullError: unknown = null
+        try {
+          await pullDocumentUpdates(binding, assertActive)
+        } catch (error) {
+          pullError = error
+        }
+        if (!isActive()) return
+        consumedThrough = await consumeYjsUpdates(binding, apply, consumedThrough, consumedLocalCommands, assertActive)
+        if (pullError) throw pullError
+      })
     },
     updatePresence: (
       anchor: number,
@@ -63,6 +212,7 @@ function openCollaborativeBinding(binding: DocumentBinding) {
       label: string,
       coordinateSpace: PresenceCoordinateSpace,
     ) => {
+      if (!isActive()) return
       runtime.updatePresence(
         binding.workspaceId,
         binding.documentId,
@@ -73,8 +223,9 @@ function openCollaborativeBinding(binding: DocumentBinding) {
         presenceOwner,
       )
     },
-    clearPresence: () => runtime.clearPresence(presenceOwner),
+    clearPresence: () => { if (isActive()) runtime.clearPresence(presenceOwner) },
     updateCanvasPresence: (nodes: Array<{ id: string; x: number; y: number }>, label: string) => {
+      if (!isActive()) return
       runtime.updateCanvasPresence(
         binding.workspaceId,
         binding.documentId,
@@ -83,19 +234,24 @@ function openCollaborativeBinding(binding: DocumentBinding) {
         presenceOwner,
       )
     },
-    subscribePresence: (listener: (message: Record<string, unknown>) => void) => runtime.subscribeRealtime(message => {
-      if (message.workspaceId === binding.workspaceId
-        && (message.documentId === binding.documentId || message.type === 'workspace.changed'
-          || message.type === 'inbox.applied')) listener(message)
-    }),
+    subscribePresence: (listener: (message: Record<string, unknown>) => void) => {
+      if (!isActive()) return () => {}
+      return runtime.subscribeRealtime(message => {
+        if (isActive() && message.workspaceId === binding.workspaceId
+          && (message.documentId === binding.documentId || message.type === 'workspace.changed'
+            || message.type === 'inbox.applied')) listener(message)
+      })
+    },
     close: () => {
+      if (closed) return
+      closed = true
       unsubscribeDocument()
       runtime.clearPresence(presenceOwner)
     },
   }
 }
 
-async function initializeYjsDocument(binding: DocumentBinding, update: Uint8Array) {
+async function initializeYjsDocument(binding: DocumentBinding, update: Uint8Array, assertActive: () => void) {
   const database = await getDb()
   const bindings = await database.select<Array<{ profileId: string; syncEpoch: string | null }>>(
     `select profile_id as profileId, sync_epoch as syncEpoch
@@ -114,6 +270,8 @@ async function initializeYjsDocument(binding: DocumentBinding, update: Uint8Arra
     format: 'yjs-v1', update: bytesToBase64Url(update),
   } satisfies YjsEnvelope, objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind))
   const { client } = await authenticatedClient(localBinding.profileId)
+  await assertBindingEnabled(binding, true)
+  assertActive()
   const response = await client.pushCommands(binding.workspaceId, [{
     commandId,
     type: 'initialize-document',
@@ -131,7 +289,7 @@ async function initializeYjsDocument(binding: DocumentBinding, update: Uint8Arra
   throw new Error(`协作文档初始化失败：${result?.code ?? 'missing_command_result'}`)
 }
 
-async function pullDocumentUpdates(binding: DocumentBinding) {
+async function pullDocumentUpdates(binding: DocumentBinding, assertActive: () => void) {
   const database = await getDb()
   const bindings = await database.select<Array<{ profileId: string; syncEpoch: string | null }>>(
     `select profile_id as profileId, sync_epoch as syncEpoch
@@ -155,12 +313,15 @@ async function pullDocumentUpdates(binding: DocumentBinding) {
   let hasMore = true
   const { client } = await authenticatedClient(localBinding.profileId)
   while (hasMore) {
+    await assertBindingEnabled(binding)
+    assertActive()
     const page = await client.documentUpdates(
       binding.workspaceId,
       binding.documentId,
       after,
       localBinding.syncEpoch,
     )
+    assertActive()
     if (
       page.checkpoint
       && BigInt(page.checkpoint.documentSequence) > BigInt(checkpointSequence)
@@ -184,6 +345,7 @@ async function pullDocumentUpdates(binding: DocumentBinding) {
       checkpointSequence = page.checkpoint.documentSequence
     }
     for (const update of page.updates) {
+      assertActive()
       await database.execute(
         `insert or ignore into self_hosted_yjs_updates(
            workspace_id, document_id, document_sequence, object_id, key_version,
@@ -206,13 +368,19 @@ async function pullDocumentUpdates(binding: DocumentBinding) {
   }
 }
 
-async function appendYjsUpdate(binding: DocumentBinding, update: Uint8Array) {
-  const commandId = crypto.randomUUID()
-  const updateId = crypto.randomUUID()
-  const key = await loadWorkspaceKey(binding.workspaceId, binding.keyVersion)
-  const encrypted = await encryptJson(key, {
-    format: 'yjs-v1', update: bytesToBase64Url(update),
-  } satisfies YjsEnvelope, objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind))
+async function appendYjsUpdate(binding: DocumentBinding, local: LocalAppend, shouldWake: () => boolean) {
+  if (!local.encrypted) {
+    const key = await loadWorkspaceKey(binding.workspaceId, binding.keyVersion)
+    local.encrypted = await encryptJson(key, {
+      format: 'yjs-v1', update: bytesToBase64Url(local.update),
+    } satisfies YjsEnvelope, objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind))
+  }
+  const encrypted = local.encrypted
+  const { commandId, updateId } = local
+  await assertBindingPermissions(binding, true)
+  // This operation was admitted before pause/close. It remains in the global
+  // idle fence until SQLite commits, so a later authoritative snapshot cannot
+  // be followed by an append from the previous generation.
   await insertCommand(binding.workspaceId, commandId, 'append-update', {
     commandId,
     type: 'append-update',
@@ -224,10 +392,15 @@ async function appendYjsUpdate(binding: DocumentBinding, update: Uint8Array) {
     ciphertext: encrypted.packedCiphertext,
     ciphertextHash: encrypted.packedCiphertextHash,
   })
-  void getSelfHostedSyncRuntime().wake('local-change')
+  if (shouldWake()) {
+    // Recovery markers and a non-self-hosted primary pause the sender, while
+    // pre-admitted local writes must remain drainable for recovery snapshots.
+    try { await assertCollaborationEntry() } catch { return }
+    if (shouldWake()) void getSelfHostedSyncRuntime().wake('local-change')
+  }
 }
 
-async function commitYjsCheckpoint(binding: DocumentBinding, state: Uint8Array) {
+async function commitYjsCheckpoint(binding: DocumentBinding, state: Uint8Array, assertActive: () => void) {
   const database = await getDb()
   const pending = await database.select<Array<{ count: number }>>(
     `select count(*) as count from self_hosted_outbox
@@ -253,6 +426,8 @@ async function commitYjsCheckpoint(binding: DocumentBinding, state: Uint8Array) 
   const encrypted = await encryptJson(key, {
     format: 'yjs-v1', update: bytesToBase64Url(state),
   } satisfies YjsEnvelope, objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind))
+  await assertBindingEnabled(binding, true)
+  assertActive()
   await insertCommand(binding.workspaceId, commandId, 'commit-checkpoint', {
     commandId,
     type: 'commit-checkpoint',
@@ -265,7 +440,8 @@ async function commitYjsCheckpoint(binding: DocumentBinding, state: Uint8Array) 
     keyVersion: binding.keyVersion,
     ciphertext: encrypted.packedCiphertext,
     ciphertextHash: encrypted.packedCiphertextHash,
-  })
+  }, assertActive)
+  assertActive()
   void getSelfHostedSyncRuntime().wake('local-change')
 }
 
@@ -273,6 +449,8 @@ async function consumeYjsUpdates(
   binding: DocumentBinding,
   apply: (update: Uint8Array, checkpoint: boolean) => void,
   after: string,
+  consumedLocalCommands: Set<string>,
+  assertActive: () => void,
 ) {
   const database = await getDb()
   let consumedThrough = after
@@ -299,6 +477,8 @@ async function consumeYjsUpdates(
         checkpoint.payload,
         objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind),
       )
+      await assertBindingEnabled(binding)
+      assertActive()
       apply(base64UrlToBytes(value.update), true)
       consumedThrough = checkpoint.sequence
     }
@@ -320,13 +500,43 @@ async function consumeYjsUpdates(
     const value = await decryptPackedJson<YjsEnvelope>(
       key, row.payload, objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind),
     )
+    await assertBindingEnabled(binding)
+    assertActive()
     apply(base64UrlToBytes(value.update), row.eventType === 'checkpoint')
+    assertActive()
     await database.execute(
       `update self_hosted_yjs_updates set applied = 1
        where workspace_id = $1 and document_id = $2 and document_sequence = $3`,
       [binding.workspaceId, binding.documentId, row.sequence]
     )
     consumedThrough = row.sequence
+  }
+  // A document reopened while offline must include locally persisted updates.
+  // They may not have a server document sequence yet. Reapplying them on later
+  // pulls is safe because Yjs update identities are idempotent. Include retained
+  // acknowledgements too: an ACK can race the HTTP pull's snapshot.
+  const local = await database.select<Array<{ commandId: string; payload: string }>>(
+    `select o.command_id as commandId, o.payload from self_hosted_outbox o
+     where o.workspace_id = $1 and o.command_type in ('append-update', 'commit-checkpoint')
+       and json_extract(o.payload, '$.documentId') = $2
+       and not exists (
+         select 1 from self_hosted_yjs_updates y where y.workspace_id = o.workspace_id
+           and y.document_id = $2 and cast(y.document_sequence as integer) <= cast($3 as integer)
+           and y.update_id = coalesce(json_extract(o.payload, '$.updateId'), json_extract(o.payload, '$.checkpointId'))
+       ) order by o.created_at, o.rowid`,
+    [binding.workspaceId, binding.documentId, consumedThrough],
+  )
+  for (const row of local) {
+    if (consumedLocalCommands.has(row.commandId)) continue
+    const command = JSON.parse(row.payload) as { ciphertext: string; keyVersion: number }
+    const key = await loadWorkspaceKey(binding.workspaceId, command.keyVersion)
+    const value = await decryptPackedJson<YjsEnvelope>(
+      key, command.ciphertext, objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind),
+    )
+    await assertBindingEnabled(binding)
+    assertActive()
+    apply(base64UrlToBytes(value.update), false)
+    consumedLocalCommands.add(row.commandId)
   }
   if (rows.length > 0) {
     console.info('[self-hosted-sync] document.updates-applied', {
@@ -339,7 +549,39 @@ async function consumeYjsUpdates(
   return consumedThrough
 }
 
-async function resolveDocument(localRoot: string, relativePath: string): Promise<DocumentBinding> {
+async function assertBindingEnabled(binding: DocumentBinding, writing = false) {
+  if (writing) await assertCollaborationEntry()
+  return assertBindingPermissions(binding, writing)
+}
+
+async function assertCollaborationEntry() {
+  const store = await Store.load('store.json')
+  if (await store.get('primaryBackupMethod') !== 'selfHosted'
+    || await store.get('platformSwitchRecovery')
+    || await store.get('selfHostedConnectionReviewProfileId')) throw new Error('SELF_HOSTED_COLLABORATION_PAUSED')
+}
+
+async function assertBindingPermissions(binding: DocumentBinding, writing = false) {
+  const database = await getDb()
+  const [row] = await database.select<Array<{
+    profileId: string; workspaceType: string; bindingState: string; accessMode: string
+  }>>(
+    `select profile_id as profileId, workspace_type as workspaceType,
+       binding_state as bindingState, access_mode as accessMode
+     from self_hosted_workspace_bindings where workspace_id = $1 limit 1`,
+    [binding.workspaceId],
+  )
+  if (!row || row.bindingState !== 'bound') throw new Error('SELF_HOSTED_COLLABORATION_PAUSED')
+  if (writing && row.accessMode === 'read-only') throw new Error('SELF_HOSTED_WORKSPACE_READ_ONLY')
+  if (row.workspaceType === 'account-data') {
+    const profile = await getProfile(row.profileId)
+    if (!profile || !isPersonalSyncKindEnabled(binding.kind, profile.domainToggles)) {
+      throw new Error('SELF_HOSTED_DOMAIN_DISABLED')
+    }
+  }
+}
+
+async function resolveDocument(localRoot: string, relativePath: string, assertActive: () => void): Promise<DocumentBinding> {
   const database = await getDb()
   const portable = await invoke<{ normalized: string; caseFolded: string }>('self_hosted_portable_path', {
     relativePath,
@@ -359,6 +601,7 @@ async function resolveDocument(localRoot: string, relativePath: string): Promise
       row.workspaceId,
       row.objectId,
       portable.normalized,
+      assertActive,
     )
     return {
       ...row, documentId: row.objectId, kind: 'note', keyVersion: await latestKeyVersion(row.workspaceId),
@@ -379,6 +622,7 @@ async function resolveDocument(localRoot: string, relativePath: string): Promise
   )
   const deletedMapping = deletedMappings[0]
   if (deletedMapping) {
+    assertActive()
     await database.execute(
       `update self_hosted_object_mappings
        set local_identity = $1, relative_path = null, path_casefold = null, updated_at = $2
@@ -396,6 +640,7 @@ async function resolveDocument(localRoot: string, relativePath: string): Promise
     : await invoke<string>('self_hosted_import_object_id', {
         workspaceId, relativePath: `file/${portable.normalized}`,
       })
+  assertActive()
   await database.execute(
     `insert or ignore into self_hosted_object_mappings(
        workspace_id, object_id, kind, local_identity, relative_path, path_casefold, updated_at
@@ -414,6 +659,7 @@ async function resolveDocument(localRoot: string, relativePath: string): Promise
     workspaceId,
     resolvedObjectId,
     portable.normalized,
+    assertActive,
   )
   return {
     workspaceId, objectId: resolvedObjectId, documentId: resolvedObjectId, kind: 'note',
@@ -426,6 +672,7 @@ async function ensureCollaborativeObjectActive(
   workspaceId: string,
   objectId: string,
   relativePath: string,
+  assertActive: () => void,
 ) {
   const objectStates = await database.select<Array<{
     revision: string | null
@@ -440,7 +687,9 @@ async function ensureCollaborativeObjectActive(
     [workspaceId, objectId],
   )
   if (!objectStates[0]?.revision || objectStates[0].deletedAt !== null) {
+    assertActive()
     await enqueueFileSnapshot(relativePath, 'upsert', workspaceId, 'import')
+    assertActive()
     await getSelfHostedSyncRuntime().wake('collaboration-object-activation')
   }
 }
@@ -454,7 +703,7 @@ async function latestKeyVersion(workspaceId: string) {
   return rows[0]?.keyVersion ?? 1
 }
 
-async function insertCommand(workspaceId: string, commandId: string, type: string, payload: object) {
+async function insertCommand(workspaceId: string, commandId: string, type: string, payload: object, assertActive?: () => void) {
   const database = await getDb()
   const now = Date.now()
   const objectId = 'objectId' in payload && typeof payload.objectId === 'string' ? payload.objectId : null
@@ -472,10 +721,12 @@ async function insertCommand(workspaceId: string, commandId: string, type: strin
   ) : []
   const object = objects[0]
   const state = objectId && (!object?.revision || object.deletedAt !== null) ? 'blocked' : 'pending'
+  assertActive?.()
   await database.execute(
     `insert into self_hosted_outbox(
        command_id, workspace_id, source_change_ids, command_type, payload, state, created_at, updated_at
-     ) values ($1, $2, '[]', $3, $4, $5, $6, $6)`,
+     ) values ($1, $2, '[]', $3, $4, $5, $6, $6)
+     on conflict(command_id) do nothing`,
     [commandId, workspaceId, type, JSON.stringify(payload), state, now]
   )
 }

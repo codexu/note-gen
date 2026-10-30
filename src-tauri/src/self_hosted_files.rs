@@ -322,6 +322,69 @@ pub async fn self_hosted_move_path(
 }
 
 #[tauri::command]
+pub async fn self_hosted_flush_switch_data(
+    app_handle: AppHandle,
+    relative_path: String,
+) -> Result<(), String> {
+    let directory = relative_path
+        .strip_prefix("self-hosted-switch-backups/")
+        .or_else(|| relative_path.strip_prefix("restored-workspaces/self-hosted-"))
+        .ok_or_else(|| "Invalid self-hosted backup directory".to_string())?;
+    let (timestamp, identity) = directory
+        .split_once('-')
+        .ok_or_else(|| "Invalid self-hosted backup identity".to_string())?;
+    if timestamp.is_empty()
+        || !timestamp.bytes().all(|value| value.is_ascii_digit())
+        || Uuid::parse_str(identity).is_err()
+    {
+        return Err("Invalid self-hosted backup identity".to_string());
+    }
+    let root = app_handle.path().app_data_dir()
+        .map_err(|error| format!("Failed to locate self-hosted backup: {error}"))?;
+    let target = root.join(&relative_path);
+    reject_symlink_path(&root, &target)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        fn flush(path: &Path) -> Result<(), String> {
+            let metadata = fs::symlink_metadata(path)
+                .map_err(|error| format!("Failed to inspect backup data: {error}"))?;
+            if metadata.file_type().is_symlink() {
+                return Err("Backup data must not contain symbolic links".to_string());
+            }
+            if metadata.is_dir() {
+                for entry in fs::read_dir(path)
+                    .map_err(|error| format!("Failed to read backup directory: {error}"))?
+                {
+                    flush(&entry.map_err(|error| error.to_string())?.path())?;
+                }
+                #[cfg(unix)]
+                fs::File::open(path).and_then(|directory| directory.sync_all())
+                    .map_err(|error| format!("Failed to persist backup directory: {error}"))?;
+            } else if metadata.is_file() {
+                OpenOptions::new().read(true).write(true).open(path)
+                    .and_then(|file| file.sync_all())
+                    .map_err(|error| format!("Failed to persist backup data: {error}"))?;
+            } else {
+                return Err("Backup contains an unsupported filesystem entry".to_string());
+            }
+            Ok(())
+        }
+        if relative_path.starts_with("self-hosted-switch-backups/") && !target.join("manifest.json").is_file() {
+            return Err("Backup manifest is missing".to_string());
+        }
+        flush(&target)?;
+        #[cfg(unix)]
+        if let Some(parent) = target.parent() {
+            fs::File::open(parent).and_then(|directory| directory.sync_all())
+                .map_err(|error| format!("Failed to persist backup parent directory: {error}"))?;
+        }
+        #[cfg(unix)]
+        fs::File::open(&root).and_then(|directory| directory.sync_all())
+            .map_err(|error| format!("Failed to persist application data directory: {error}"))?;
+        Ok(())
+    }).await.map_err(|error| format!("Backup durability task failed: {error}"))?
+}
+
+#[tauri::command]
 pub async fn self_hosted_pending_file_journal(app_handle: AppHandle) -> Result<Vec<i64>, String> {
     let database_path = app_handle
         .path()

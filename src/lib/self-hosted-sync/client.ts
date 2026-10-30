@@ -27,6 +27,75 @@ function formatApiErrorMessage(body: ApiErrorBody) {
   return `${body.message}: ${first[0]} ${String(first[1])}`
 }
 
+/** The native HTTP plugin can stall while reading a response body as well as
+ * connecting. Bound the complete operation and abort its native request. The
+ * race also releases the sync queue if cancellation itself stalls in the IPC. */
+const activeRequestCancellations = new Set<() => void>()
+
+export function cancelSelfHostedRequests() {
+  for (const cancel of [...activeRequestCancellations]) cancel()
+}
+
+/** Keep cancellation registered across local reads, encryption and SQLite
+ * awaits between HTTP requests. Cooperative checks prevent the next request
+ * from starting after a cancellation that happened between two parts. */
+export async function withSelfHostedRequestScope<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  externalSignal?: AbortSignal,
+): Promise<T> {
+  const controller = new AbortController()
+  const onAbort = () => controller.abort(new SelfHostedApiError({
+    code: 'request_cancelled', message: 'SELF_HOSTED_API_REQUEST_CANCELLED', requestId: '', retryable: false,
+  }, 0))
+  activeRequestCancellations.add(onAbort)
+  externalSignal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    if (externalSignal?.aborted) onAbort()
+    controller.signal.throwIfAborted()
+    const result = await operation(controller.signal)
+    controller.signal.throwIfAborted()
+    return result
+  } finally {
+    activeRequestCancellations.delete(onAbort)
+    externalSignal?.removeEventListener('abort', onAbort)
+  }
+}
+
+async function boundedRequest<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  externalSignal?: AbortSignal,
+  timeoutMs = 30_000,
+): Promise<T> {
+  const controller = new AbortController()
+  let rejectCancelled: (error: SelfHostedApiError) => void = () => {}
+  const cancelled = new Promise<never>((_resolve, reject) => { rejectCancelled = reject })
+  const abort = (code: 'request_timeout' | 'request_cancelled') => {
+    rejectCancelled(new SelfHostedApiError({
+      code, message: code === 'request_timeout' ? 'SELF_HOSTED_API_REQUEST_TIMEOUT' : 'SELF_HOSTED_API_REQUEST_CANCELLED',
+      requestId: '', retryable: code === 'request_timeout',
+    }, 0))
+    controller.abort()
+  }
+  const onAbort = () => abort('request_cancelled')
+  activeRequestCancellations.add(onAbort)
+  externalSignal?.addEventListener('abort', onAbort, { once: true })
+  const timer = setTimeout(() => abort('request_timeout'), timeoutMs)
+  try {
+    if (externalSignal?.aborted) onAbort()
+    return await Promise.race([
+      cancelled,
+      Promise.resolve().then(() => {
+        if (controller.signal.aborted) throw new Error('request_cancelled')
+        return operation(controller.signal)
+      }),
+    ])
+  } finally {
+    activeRequestCancellations.delete(onAbort)
+    clearTimeout(timer)
+    externalSignal?.removeEventListener('abort', onAbort)
+  }
+}
+
 export function normalizeServerUrl(value: string): NormalizedServerUrl {
   const trimmed = value.trim()
   const parsed = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`)
@@ -251,7 +320,7 @@ export class SelfHostedClient {
     expectedSize: string
     ciphertextHash: string
     expectedSyncEpoch: string
-  }) {
+  }, signal?: AbortSignal) {
     return this.request<{
       alreadyExists: boolean
       resumed: boolean
@@ -260,49 +329,61 @@ export class SelfHostedClient {
       partBytes: number
       uploadedParts: Array<{ partNumber: number; etag: string; size: string }>
       expiresAt: string | null
-    }>(`/v1/workspaces/${workspaceId}/blobs/uploads`, { method: 'POST', body: input })
+    }>(`/v1/workspaces/${workspaceId}/blobs/uploads`, { method: 'POST', body: input, signal })
   }
 
-  async uploadBlobPart(workspaceId: string, uploadId: string, partNumber: number, bytes: Uint8Array) {
-    const response = await fetch(
-      `${this.baseUrl}/v1/workspaces/${workspaceId}/blobs/uploads/${uploadId}/parts/${partNumber}`,
-      {
-        method: 'PUT',
-        headers: {
-          'content-type': 'application/octet-stream',
-          ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}),
-        },
-        body: bytes,
+  async uploadBlobPart(workspaceId: string, uploadId: string, partNumber: number, bytes: Uint8Array, signal?: AbortSignal) {
+    return boundedRequest(async requestSignal => {
+      const response = await fetch(
+        `${this.baseUrl}/v1/workspaces/${workspaceId}/blobs/uploads/${uploadId}/parts/${partNumber}`,
+        {
+          method: 'PUT',
+          signal: requestSignal,
+          connectTimeout: 15_000,
+          maxRedirections: 0,
+          headers: {
+            'content-type': 'application/octet-stream',
+            ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}),
+          },
+          body: bytes,
+        }
+      )
+      requestSignal.throwIfAborted()
+      const value = await response.json() as { partNumber: number; etag: string; receivedSize: string } | ApiErrorBody
+      if (!response.ok) {
+        if (response.status === 401) await this.onAuthenticationRejected?.()
+        throw new SelfHostedApiError(value as ApiErrorBody, response.status)
       }
-    )
-    const value = await response.json() as { partNumber: number; etag: string; receivedSize: string } | ApiErrorBody
-    if (!response.ok) {
-      if (response.status === 401) await this.onAuthenticationRejected?.()
-      throw new SelfHostedApiError(value as ApiErrorBody, response.status)
-    }
-    return value as { partNumber: number; etag: string; receivedSize: string }
+      return value as { partNumber: number; etag: string; receivedSize: string }
+    }, signal, 120_000)
   }
 
-  completeBlobUpload(workspaceId: string, uploadId: string, expectedSyncEpoch: string) {
+  completeBlobUpload(workspaceId: string, uploadId: string, expectedSyncEpoch: string, signal?: AbortSignal) {
     return this.request<{ blobId: string; size: string; ciphertextHash: string }>(
       `/v1/workspaces/${workspaceId}/blobs/uploads/${uploadId}/complete`,
-      { method: 'POST', body: { expectedSyncEpoch } },
+      { method: 'POST', body: { expectedSyncEpoch }, signal },
     )
   }
 
-  async downloadBlob(workspaceId: string, blobId: string) {
-    const response = await fetch(`${this.baseUrl}/v1/workspaces/${workspaceId}/blobs/${blobId}`, {
-      headers: {
-        accept: 'application/octet-stream',
-        ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}),
-      },
-    })
-    if (!response.ok) {
-      const value = await response.json() as ApiErrorBody
-      if (response.status === 401) await this.onAuthenticationRejected?.()
-      throw new SelfHostedApiError(value, response.status)
-    }
-    return new Uint8Array(await response.arrayBuffer())
+  async downloadBlob(workspaceId: string, blobId: string, signal?: AbortSignal) {
+    return boundedRequest(async requestSignal => {
+      const response = await fetch(`${this.baseUrl}/v1/workspaces/${workspaceId}/blobs/${blobId}`, {
+        signal: requestSignal,
+        connectTimeout: 15_000,
+        maxRedirections: 0,
+        headers: {
+          accept: 'application/octet-stream',
+          ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}),
+        },
+      })
+      requestSignal.throwIfAborted()
+      if (!response.ok) {
+        const value = await response.json() as ApiErrorBody
+        if (response.status === 401) await this.onAuthenticationRejected?.()
+        throw new SelfHostedApiError(value, response.status)
+      }
+      return new Uint8Array(await response.arrayBuffer())
+    }, signal, 120_000)
   }
 
   private bootstrap(
@@ -402,39 +483,44 @@ export class SelfHostedClient {
     headers?: Record<string, string>
     signal?: AbortSignal
   } = {}): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method: options.method ?? 'GET',
-      signal: options.signal,
-      headers: {
-        accept: 'application/json',
-        ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
-        ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}),
-        ...options.headers,
-      },
-      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-    })
-    if (response.status === 401) await this.onAuthenticationRejected?.()
-    let value: unknown = null
-    if (response.status !== 204) {
-      const content = await response.text()
-      try { value = JSON.parse(content.replace(/^\uFEFF/, '')) as unknown }
-      catch {
-        throw new SelfHostedApiError({ code: 'invalid_response',
-          message: `${response.status === 401 ? 'SELF_HOSTED_API_AUTH_REQUIRED' : 'SELF_HOSTED_API_INVALID_RESPONSE'}: HTTP ${response.status} ${path.split('?')[0]}`,
-          requestId: response.headers.get('x-request-id') ?? '',
-          retryable: response.ok || response.status >= 500 }, response.status)
+    return boundedRequest(async signal => {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: options.method ?? 'GET',
+        signal,
+        connectTimeout: 15_000,
+        maxRedirections: 0,
+        headers: {
+          accept: 'application/json',
+          ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...(this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}),
+          ...options.headers,
+        },
+        ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      })
+      signal.throwIfAborted()
+      if (response.status === 401) await this.onAuthenticationRejected?.()
+      let value: unknown = null
+      if (response.status !== 204) {
+        const content = await response.text()
+        try { value = JSON.parse(content.replace(/^\uFEFF/, '')) as unknown }
+        catch {
+          throw new SelfHostedApiError({ code: 'invalid_response',
+            message: `${response.status === 401 ? 'SELF_HOSTED_API_AUTH_REQUIRED' : 'SELF_HOSTED_API_INVALID_RESPONSE'}: HTTP ${response.status} ${path.split('?')[0]}`,
+            requestId: response.headers.get('x-request-id') ?? '',
+            retryable: response.ok || response.status >= 500 }, response.status)
+        }
       }
-    }
-    if (!response.ok) {
-      const body = (value && typeof value === 'object' && !Array.isArray(value) ? value : {}) as Partial<ApiErrorBody>
-      throw new SelfHostedApiError({
-        code: body.code ?? 'request_failed',
-        message: body.message ?? `服务器请求失败 (${response.status})`,
-        requestId: body.requestId ?? '',
-        retryable: body.retryable ?? response.status >= 500,
-        ...(body.details === undefined ? {} : { details: body.details }),
-      }, response.status)
-    }
-    return value as T
+      if (!response.ok) {
+        const body = (value && typeof value === 'object' && !Array.isArray(value) ? value : {}) as Partial<ApiErrorBody>
+        throw new SelfHostedApiError({
+          code: body.code ?? 'request_failed',
+          message: body.message ?? `服务器请求失败 (${response.status})`,
+          requestId: body.requestId ?? '',
+          retryable: body.retryable ?? response.status >= 500,
+          ...(body.details === undefined ? {} : { details: body.details }),
+        }, response.status)
+      }
+      return value as T
+    }, options.signal)
   }
 }

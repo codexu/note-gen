@@ -2020,7 +2020,8 @@
           "viewer-local-edit": "Local edit in a read-only workspace",
           "protocol-conflict": "Server version conflict",
           "symlink-ignored": "Symbolic link ignored and excluded from sync"
-        }
+        },
+        "personalDomainDependencyHint": "Disabling tags pauses dependent records, linked notes, canvases, and messages. Disabling conversations pauses messages. Re-enabling retrieves remote data. Attachment transfer covers NoteGen-managed resources; back up external files separately."
       },
       "connectionTab": "Connection",
       "syncOptionsTab": "Sync Options",
@@ -2393,6 +2394,10 @@
       "switchPlan": {
         "incrementalReads": "{cached} files reused · {downloaded} files downloaded",
         "moduleProgress": "This group: {current} / {total} modules processed",
+        "itemProgress": "{current} / {total} items processed",
+        "processedItems": "{count} items processed",
+        "currentItem": "Item being processed",
+        "documentProgress": "Collaborative document progress: {current} / {total}",
         "scopeDetails": "Sync scope and linked modules",
         "panelTitle": "Set sync platform: {platform}",
         "stepsLabel": "Platform switch steps",
@@ -2435,8 +2440,13 @@
         "differences": "Differences",
         "distribution": "{same} identical · {localOnly} local only · {remoteOnly} remote only · {conflicts} conflicts",
         "linkedModules": "Related modules are selected together. Automatic sync pauses for unselected modules.",
-        "nativeEngine": "Self-hosted sync uses the server’s object synchronization and conflict protocol. This switch reconciles pending changes through that protocol rather than mirroring a repository.",
+        "nativeEngine": "Choose how to handle this switch, then review the differences and confirm. Merge follows the object sync protocol; keeping local or using remote replaces synced data in the selected direction.",
         "nativeMode": "Two-way sync, keeping content unique to either side",
+        "nativeDescriptions": {
+          "merge": "Sync content unique to either side and try to merge notes at the same path. Shared objects and deletion records follow sync versions.",
+          "local": "Use local synced data as the source, replace matching remote items and delete remote-only content. Keep local content.",
+          "remote": "Use remote synced data as the source, replace matching local items and remove local-only content from the active sync scope. Keep remote content."
+        },
         "chosen": "Strategy: {strategy}. Scope: {modules}.",
         "impact": "Add {added}, replace {replaced}, remove {removed} from the active sync scope.",
         "viewDifference": "Compare both versions",
@@ -2454,9 +2464,9 @@
         "nativeHandlingFiles": "Sync notes and attachments unique to either side. Notes at the same path are merged when possible; unresolved differences keep a conflict copy. Attachments follow sync versions.",
         "nativeHandlingPersonal": "Records, tags, canvases, conversations, memories and settings sync by object version. Personal data uploads follow existing sync preferences. Remote versions may update the same object; original local data is saved in a snapshot first.",
         "nativeHandlingDeletions": "Keeping both sides does not ignore deletions: local and remote deletion records still follow the sync protocol, and local edits may create conflicts.",
-        "nativeBackupHint": "After confirmation, save local files and personal data, then check differences again before syncing. Changes or a failed snapshot stop the switch. The snapshot supports manual recovery.",
+        "nativeBackupHint": "Local files and personal data are saved and verified before differences are checked again. If the switch fails, restore to local storage here.",
         "nativeBackupTitle": "Local snapshot saved before switching",
-        "nativeBackupLocation": "App data directory: {path}. files contains original notes and attachments; personal-data.json contains personal data for manual recovery.",
+        "nativeBackupLocation": "App data directory: {path}. Includes original files, personal data, and sync mappings. Recovery first saves the current state.",
         "nativeConnectionRequired": "Connect to your self-hosted server, then scan again.",
         "nativeInstanceChanged": "The server instance identity has changed. Check whether it was reset or replaced, then reconnect.",
         "nativeLibraryRequired": "The destination workspace could not be determined. Check its binding in self-hosted settings, then scan again.",
@@ -2468,6 +2478,16 @@
         "nativeKeyRequired": "The destination workspace has no available decryption key. Unlock it, then scan again.",
         "nativeContentRequired": "The server contains content this version cannot reliably preview. Switching stopped. Check version and data format compatibility.",
         "nativeDuplicateIdentity": "Duplicate paths or sync identities prevent a reliable comparison. Resolve them first.",
+        "nativeDependencyRequired": "An overwrite switch requires related data for records and messages. Enable tag sync for records, and tag and conversation sync for messages, then scan again. You can also choose Merge.",
+        "nativeRemoteDependencyMissing": "Related remote data is incomplete, so switching has stopped. Check that the tags and conversations referenced by records and messages have fully synced, then retry.",
+        "nativeWriteRequired": "The destination workspace lacks create, update or delete permissions, so local content cannot replace remote content. Check workspace permissions and scan again.",
+        "nativeResultMismatch": "Data verification after the switch failed, so sync is paused. Your backup has been kept. Scan again, then retry.",
+        "nativePathMovesPending": "Some file moves are still pending. Cancel this switch, finish syncing file moves on the original platform, then retry.",
+        "nativeRevisionConflict": "The server rejected a local change. A conflict copy has been saved. Resolve it in the conflict center, then retry.",
+        "nativeLocalChangesPending": "Local changes are still waiting to be sent. Applying remote data is paused to preserve them. Complete the pending uploads or resolve sync errors, then retry.",
+        "nativePersonalAssetMissing": "An attachment referenced by a record or message is missing. Sync from a device that still has the original attachment, then retry.",
+        "nativePersonalAssetConflict": "Attachments at the same path have different contents. Writing has stopped to preserve the local file. Resolve the difference, then retry.",
+        "nativeAttachmentsRequired": "This switch includes attachments that have not been uploaded. Enable attachment sync, then scan again.",
         "nativeDifferences": {
           "localOnly": "Local only",
           "remoteOnly": "Remote only",
@@ -2535,7 +2555,22 @@
           "compare": "Comparing module content…",
           "backup": "Saving recoverable backups…",
           "apply": "Processing data…",
-          "verify": "Verifying results…"
+          "verify": "Verifying results…",
+          "start": "Starting sync on the target platform…"
+        },
+        "startupTasks": {
+          "refresh": "Refreshing local data…",
+          "workspace": "Confirming the target workspace…",
+          "recover": "Recovering unfinished file writes…",
+          "connect": "Connecting to the sync workspace…",
+          "scanFiles": "Checking local files…",
+          "scanData": "Checking personal data…",
+          "prepare": "Preparing content for upload…",
+          "push": "Uploading pending sync content…",
+          "pull": "Fetching remote updates…",
+          "apply": "Applying remote updates…",
+          "bootstrap": "Initializing sync data…",
+          "save": "Saving sync settings…"
         },
         "modules": {
           "notes": "Markdown notes",
@@ -2651,7 +2686,21 @@
         "verifySkipped": "Rescan and complete verification",
         "cancellingHint": "Waiting for the current task to finish before stopping further processing…",
         "cancelledError": "The user cancelled this switch",
-        "skipUnavailable": "The target or workspace has changed. Rescan before switching."
+        "skipUnavailable": "The target or workspace has changed. Rescan before switching.",
+        "nativeRestoreBackup": "Restore data from before the switch",
+        "nativeRestoreDescription": "Current data will be saved first. Personal data returns to the snapshot, and notes and attachments are copied into a separate recovered workspace. Original workspaces and server data are retained. The app switches to local storage; finish recovery before enabling sync again.",
+        "nativeSafetyBackupLocation": "Safety copy made before recovery (app data directory): {path}",
+        "nativeRecoveredLocation": "Recovered workspace: {path}",
+        "nativeOpenBackup": "Open backup folder",
+        "nativeBackupInvalid": "The backup is incomplete, damaged, or invalid. Recovery stopped; original workspaces are retained.",
+        "nativeBackupLegacy": "This older snapshot supports manual recovery only. Open the backup folder and keep its files and personal-data.json. Automatic recovery requires a newer complete snapshot.",
+        "selfHostedRequestTimeout": "The request timed out. Retry when connected; saved attachment parts can resume.",
+        "selfHostedRequestCancelled": "The request was cancelled.",
+        "nativeBackupFileJournalPending": "Some native file writes are still pending. Recovery paused; close active editors and continue recovery.",
+        "nativeBootstrapIncomplete": "{path} snapshot objects could not be applied locally. Initialization remains incomplete and failed items will be retried.",
+        "nativeLocalSnapshotPending": "The server accepted local changes, but the local copy still needs restoration. It will be retried; retain existing backups.",
+        "nativeTagIdentityMissing": "This tag has no local sync identity. Restart NoteGen to finish local data initialization, then retry.",
+        "nativeStorageBudgetExceeded": "The account or instance storage budget is exhausted. Ask the administrator to adjust it or clear retained data before retrying."
       }
     },
     "imageHosting": {

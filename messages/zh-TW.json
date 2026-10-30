@@ -1491,7 +1491,8 @@
           "viewer-local-edit": "唯讀工作區存在本機修改",
           "protocol-conflict": "伺服器版本衝突",
           "symlink-ignored": "符號連結已忽略，不會參與同步"
-        }
+        },
+        "personalDomainDependencyHint": "關閉標籤會暫停依賴標籤的記錄、關聯筆記、畫布與訊息，關閉對話會暫停訊息。重新啟用後會補齊遠端內容。附件傳輸涵蓋 NoteGen 管理的本機資源，外部檔案仍須另外備份。"
       },
       "connectionTab": "連線設定",
       "syncOptionsTab": "同步選項",
@@ -1864,6 +1865,10 @@
       "switchPlan": {
         "incrementalReads": "已重用 {cached} 個檔案 · 本次下載 {downloaded} 個檔案",
         "moduleProgress": "本組已處理 {current} / {total} 個模組",
+        "itemProgress": "已處理 {current} / {total} 項",
+        "processedItems": "已處理 {count} 項",
+        "currentItem": "目前處理的項目",
+        "documentProgress": "協作文件進度：{current} / {total}",
         "scopeDetails": "同步範圍與連動規則",
         "panelTitle": "設定同步平台：{platform}",
         "stepsLabel": "平台切換步驟",
@@ -1906,8 +1911,13 @@
         "differences": "差异分布",
         "distribution": "{same} 一致 · {localOnly} 仅本地 · {remoteOnly} 仅远端 · {conflicts} 冲突",
         "linkedModules": "關聯模組會連動選取；未選模組將暫停自動同步。",
-        "nativeEngine": "自建服务使用服务器的对象同步和冲突处理协议；本次切换由服务器核对本地待提交内容，不使用仓库镜像覆盖。",
+        "nativeEngine": "先選擇本次切換的資料處理方式，再核對差異並確認。合併沿用物件同步協定；保留本機或使用遠端會按所選方向取代參與同步的資料。",
         "nativeMode": "雙向同步，保留雙方獨有內容",
+        "nativeDescriptions": {
+          "merge": "雙向同步雙方獨有內容，同名筆記嘗試合併；同一物件與刪除紀錄按同步版本處理。",
+          "local": "以本機參與同步的資料為準，取代遠端相同項目並刪除遠端獨有內容；保留本機內容。",
+          "remote": "以遠端參與同步的資料為準，取代本機相同項目並將本機獨有內容移出作用中的同步範圍；保留遠端內容。"
+        },
         "chosen": "处理方式：{strategy}。范围：{modules}。",
         "impact": "新增 {added} 项，替换 {replaced} 项，移出活动同步范围 {removed} 项。",
         "viewDifference": "查看两侧内容差异",
@@ -1925,9 +1935,9 @@
         "nativeHandlingFiles": "同步雙方獨有的筆記與附件。同路徑筆記嘗試合併，無法合併時保留衝突副本；附件依同步版本處理。",
         "nativeHandlingPersonal": "記錄、標籤、畫布、對話、記憶與設定依物件版本同步；個人資料上傳遵循現有同步開關。同一物件可能被遠端版本更新，本機原始資料會先儲存至快照。",
         "nativeHandlingDeletions": "「保留雙方」不代表忽略刪除：本機與遠端的刪除記錄仍依同步協定處理，本機修改可能形成衝突。",
-        "nativeBackupHint": "確認後先儲存本機檔案與個人資料快照，再次核對差異後開始同步。資料變動或快照失敗會停止；此快照用於手動復原。",
+        "nativeBackupHint": "確認後先儲存並驗證本機檔案和個人資料，再核對差異。失敗時可在此復原到本機儲存。",
         "nativeBackupTitle": "已儲存切換前的本機快照",
-        "nativeBackupLocation": "應用程式資料目錄：{path}。files 儲存原始筆記與附件，personal-data.json 儲存個人資料，可手動取回。",
+        "nativeBackupLocation": "應用程式資料目錄：{path}。包含原始檔案、個人資料和同步對應；復原前會另存目前狀態。",
         "nativeConnectionRequired": "請先連接自託管伺服器，再重新掃描差異。",
         "nativeInstanceChanged": "伺服器實例身分已變更，請確認是否已重設或替換後重新連接。",
         "nativeLibraryRequired": "無法確定目標工作區，請先在自託管設定確認工作區綁定，再重新掃描。",
@@ -1939,6 +1949,16 @@
         "nativeKeyRequired": "目標工作區缺少解密金鑰，無法預覽。請先解鎖工作區，再重新掃描。",
         "nativeContentRequired": "伺服器包含目前版本無法可靠預覽的內容，已停止切換。請確認雙方版本與資料格式是否相容。",
         "nativeDuplicateIdentity": "發現重複的檔案路徑或同步識別碼，請先處理重複項目。",
+        "nativeDependencyRequired": "覆寫切換需要同步記錄與訊息的關聯資料。請先開啟記錄所需的標籤同步，以及訊息所需的標籤和對話同步，再重新掃描；也可以選擇合併。",
+        "nativeRemoteDependencyMissing": "遠端關聯資料不完整，已停止切換。請確認記錄與訊息引用的標籤、對話是否已完整同步後重試。",
+        "nativeWriteRequired": "目標工作區缺少建立、更新或刪除權限，無法以本機內容覆寫遠端。請確認工作區權限後重新掃描。",
+        "nativeResultMismatch": "切換後的資料驗證未通過，已暫停同步。備份已保留，請重新掃描後再試。",
+        "nativePathMovesPending": "仍有未完成的檔案移動。請取消本次切換，先完成原平台的檔案移動同步後再試。",
+        "nativeRevisionConflict": "本機修改未被遠端接受，已儲存衝突副本。請到衝突中心處理後重試。",
+        "nativeLocalChangesPending": "本機變更尚待傳送，已暫緩套用遠端資料以保留本機修改。請完成待傳送項目或處理同步錯誤後重試。",
+        "nativePersonalAssetMissing": "記錄或訊息引用的附件遺失。請在保留原附件的裝置上完成同步後重試。",
+        "nativePersonalAssetConflict": "相同路徑的附件內容不同，已停止寫入以保留本機檔案。請處理附件差異後重試。",
+        "nativeAttachmentsRequired": "此切換包含尚未上傳的附件，請先開啟附件同步後重新掃描。",
         "nativeDifferences": {
           "localOnly": "僅本機",
           "remoteOnly": "僅遠端",
@@ -2006,7 +2026,22 @@
           "compare": "正在比对模块内容…",
           "backup": "正在保存可恢复备份…",
           "apply": "正在处理数据…",
-          "verify": "正在核验结果…"
+          "verify": "正在核验结果…",
+          "start": "正在啟動目標平台同步…"
+        },
+        "startupTasks": {
+          "refresh": "正在重新載入本機資料…",
+          "workspace": "正在確認目標工作區…",
+          "recover": "正在恢復未完成的檔案寫入…",
+          "connect": "正在連線至同步工作區…",
+          "scanFiles": "正在檢查本機檔案…",
+          "scanData": "正在檢查個人資料…",
+          "prepare": "正在準備待上傳內容…",
+          "push": "正在上傳待同步內容…",
+          "pull": "正在取得遠端更新…",
+          "apply": "正在套用遠端更新…",
+          "bootstrap": "正在初始化同步資料…",
+          "save": "正在儲存同步設定…"
         },
         "modules": {
           "notes": "Markdown 笔记",
@@ -2122,7 +2157,21 @@
         "verifySkipped": "重新掃描並完成驗證",
         "cancellingHint": "正在等待目前任務結束，再停止後續處理…",
         "cancelledError": "使用者已取消本次切換",
-        "skipUnavailable": "目前目標或工作區已變更，請重新掃描後再切換。"
+        "skipUnavailable": "目前目標或工作區已變更，請重新掃描後再切換。",
+        "nativeRestoreBackup": "復原切換前的資料",
+        "nativeRestoreDescription": "復原前會另存目前資料。個人資料將回到快照狀態，筆記與附件會複製到獨立復原目錄；原工作區和遠端資料保留，完成後切換到本機儲存。開始後請完成復原再啟用同步。",
+        "nativeSafetyBackupLocation": "復原前的安全副本（應用程式資料目錄）：{path}",
+        "nativeRecoveredLocation": "已復原的工作區：{path}",
+        "nativeOpenBackup": "開啟備份目錄",
+        "nativeBackupInvalid": "備份不完整、已損壞或格式無效，復原已停止，原工作區保留。",
+        "nativeBackupLegacy": "此舊版快照僅支援手動取回。請開啟備份目錄並保留檔案和 personal-data.json；自動復原需要新版完整快照。",
+        "selfHostedRequestTimeout": "請求逾時，這一輪已停止；連線後可重試，已儲存的附件分片可繼續上傳。",
+        "selfHostedRequestCancelled": "請求已取消。",
+        "nativeBackupFileJournalPending": "仍有未完成的檔案寫入，復原已暫停。請關閉正在編輯的檔案後繼續復原。",
+        "nativeBootstrapIncomplete": "仍有 {path} 個快照物件無法寫入本機，初始化尚未完成。失敗資訊已保留，後續會重試。",
+        "nativeLocalSnapshotPending": "伺服器已接受本機修改，但本機副本尚未完整復原，正在等待重試；請保留現有備份。",
+        "nativeTagIdentityMissing": "此標籤缺少本機同步身分，已暫停相關項目。請重新啟動 NoteGen 完成本機資料初始化後重試。",
+        "nativeStorageBudgetExceeded": "實例或帳號儲存預算已用盡。請聯絡管理員調整預算或清理保留資料後重試。"
       }
     },
     "imageHosting": {

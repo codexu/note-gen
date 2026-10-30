@@ -5,6 +5,7 @@ import useSyncStore from '@/stores/sync'
 import { getSelfHostedSyncRuntime } from './runtime'
 import emitter from '@/lib/emitter'
 import type { SyncPlatform } from '@/types/sync'
+import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 
 let listenersInstalled = false
 let activeLibraryWorkspaceId: string | null = null
@@ -26,7 +27,11 @@ function installRuntimeListeners(runtime: ReturnType<typeof getSelfHostedSyncRun
   })
 }
 
-export async function refreshSelfHostedSyncRuntime(target?: SyncPlatform) {
+export async function refreshSelfHostedSyncRuntime(target?: SyncPlatform, onProgress?: (progress: SwitchOperationProgress) => void) {
+  const report = (startupTask: NonNullable<SwitchOperationProgress['startupTask']>) => {
+    onProgress?.({ phase: 'start', kind: 'item', startupTask, current: 0, total: 0 })
+  }
+  if (target === 'selfHosted') report('workspace')
   useSyncStore.getState().setSelfHostedRuntimeReady(false)
   const store = await Store.load('store.json')
   // An explicit target is allowed only for the controlled switch attempt. On
@@ -73,7 +78,9 @@ export async function refreshSelfHostedSyncRuntime(target?: SyncPlatform) {
   }
   activeLibraryWorkspaceId = libraryWorkspaceId
   installRuntimeListeners(runtime)
+  report('recover')
   await invoke<number>('self_hosted_recover_file_journal')
+  report('connect')
   runtime.start()
   useSyncStore.getState().setSelfHostedConnected(true)
   if (!await runtime.bindingIsReady(libraryWorkspaceId)) {

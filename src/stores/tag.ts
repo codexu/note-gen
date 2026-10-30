@@ -42,7 +42,7 @@ interface TagState {
   setSyncState: (syncState: boolean) => void
   lastSyncTime: string
   setLastSyncTime: (lastSyncTime: string) => void
-  uploadTags: (condition?: RemoteWriteCondition) => Promise<boolean>
+  uploadTags: (condition?: RemoteWriteCondition, tagsOverride?: Tag[]) => Promise<boolean>
   downloadTags: (options?: RecordDataDownloadOptions) => Promise<Tag[]>
 }
 
@@ -101,11 +101,11 @@ const useTagStore = create<TagState>((set, get) => ({
   setLastSyncTime: (lastSyncTime) => {
     set({ lastSyncTime })
   },
-  uploadTags: async (condition) => {
+  uploadTags: async (condition, tagsOverride) => {
     set({ syncState: true })
     const path = '.data'
     const filename = 'tags.json'
-    const tags = await getTags()
+    const tags = tagsOverride ?? await getTags()
     const store = await Store.load('store.json');
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false

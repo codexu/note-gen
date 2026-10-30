@@ -9,6 +9,8 @@ export interface PlatformSwitchRecovery {
   backupPath?: string
   backupPaths?: string[]
   selfHostedBackupPath?: string
+  selfHostedSafetyBackupPath?: string
+  selfHostedSafetyBackupPaths?: string[]
   startedAt?: number
   workspace?: string
   targetFingerprint?: string

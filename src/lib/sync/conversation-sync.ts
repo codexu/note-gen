@@ -24,6 +24,8 @@ import { v5 as uuidv5 } from 'uuid'
 import { recordSyncTiming } from './sync-timing'
 import { CONVERSATION_ASSETS_DIRECTORY, resolveConversationAssetPath } from '@/lib/conversation-assets'
 import { sanitizeChatUiBlocksForSync } from '@/lib/chat-ui/serialization'
+import { normalizeTagBoolean, normalizeTagSnapshot, remapRemoteProtectedTags, projectConversationTagsForRemote, type TagSyncIdentityBaseline } from '@/lib/tag-sync'
+import type { Tag } from '@/db/tags'
 
 export const CONVERSATION_SYNC_DIRECTORY = '.data/conversations'
 export const CONVERSATION_SYNC_INDEX_PATH = `${CONVERSATION_SYNC_DIRECTORY}/index.json`
@@ -39,6 +41,7 @@ const HTTP_URL_PATTERN = /^https?:\/\//i
 const DATA_URL_PATTERN = /^data:/i
 const CONVERSATION_SYNC_VERSIONS_KEY = 'conversationSyncVersions'
 const LEGACY_REMOTE_CONVERSATION_NAMESPACE = 'a3d53934-b448-4617-8971-922cf0a73aad'
+const CONVERSATION_TAGS_PATH = '.data/tags.json'
 
 export interface ConversationSyncMessage {
   syncId: string
@@ -61,7 +64,12 @@ export interface ConversationSyncMessage {
   quoteData?: string
   condensedContent?: string
   condensedAt?: number
+  condensedFrom?: string
+  originalTokenCount?: number
+  originalMessageCount?: number
 }
+
+type ConversationSourceChat = Chat & Pick<ConversationSyncMessage, 'condensedFrom' | 'originalTokenCount' | 'originalMessageCount'>
 
 export interface ConversationSyncCompaction {
   summary: string
@@ -144,6 +152,39 @@ async function setConversationSyncVersions(store: Store, versions: Record<string
   await store.set(await getConversationSyncVersionsKey(store), versions)
 }
 
+async function getConversationTagIdsKey(store: Store, platform?: SyncPlatform) {
+  const provider = platform ?? await store.get<SyncPlatform>('primaryBackupMethod') ?? 'github'
+  const identity = await import('./platform-switch-plan').then(module => module.targetIdentity(provider))
+  const target = await hashBytes(new TextEncoder().encode(JSON.stringify([identity, await store.get<string>('workspacePath') || ''])))
+  return `${await getConversationSyncVersionsKey(store, provider)}:tags:${target}`
+}
+
+export async function acceptPlatformSwitchConversationTagIds(ids: Record<string, number>, platform: SyncPlatform, remoteTags: Tag[] = [], localTags?: Tag[]) {
+  const store = await Store.load('store.json')
+  // Reuse the device-local metadata prefix so aliases are always excluded from
+  // settings sync, regardless of the sensitive-settings preference.
+  const key = await getConversationTagIdsKey(store, platform)
+  await store.set(key, ids)
+  const resolvedLocalTags: Tag[] = localTags ?? await import('@/db/tags').then(module => module.getTags()) ?? []
+  const local = new Map(resolvedLocalTags.map(tag => [tag.id, tag]))
+  const remote = new Map(remoteTags.map(tag => [tag.id, tag]))
+  await store.set(`${key}:identity`, Object.fromEntries(Object.entries(ids).flatMap(([source, target]) => {
+    const destination = local.get(target), origin = remote.get(Number(source))
+    return destination && origin ? [[source, { localId: target, localName: destination.name, remoteName: origin.name }]] : []
+  })))
+  await store.save()
+}
+
+export async function getConversationSyncTagIds(platform?: SyncPlatform) {
+  const store = await Store.load('store.json')
+  return await store.get<Record<string, number>>(await getConversationTagIdsKey(store, platform)) || {}
+}
+
+export async function getConversationSyncTagIdentity(platform?: SyncPlatform) {
+  const store = await Store.load('store.json')
+  return await store.get<TagSyncIdentityBaseline>(`${await getConversationTagIdsKey(store, platform)}:identity`) || {}
+}
+
 function getConversationItemPath(syncId: string) {
   return `${CONVERSATION_SYNC_ITEMS_DIRECTORY}/${syncId}.json`
 }
@@ -169,7 +210,8 @@ async function createConversationRemoteStorage(store: Store): Promise<Conversati
     if (content === null) return null
     const value = parseSyncJson<unknown>(content, `${provider} / ${path}`)
     const normalized = content.replace(/^\uFEFF/, '')
-    const valid = path === CONVERSATION_SYNC_INDEX_PATH ? Boolean(parseConversationSyncIndex(normalized))
+    const valid = path === CONVERSATION_TAGS_PATH ? Boolean(normalizeTagSnapshot(value))
+      : path === CONVERSATION_SYNC_INDEX_PATH ? Boolean(parseConversationSyncIndex(normalized))
       : path === LEGACY_CHATS_SYNC_PATH ? Array.isArray(value) && value.every(item => isRecord(item) && typeof item.createdAt === 'number' && chatRoles.has(item.role as Role) && chatTypes.has(item.type as ChatType))
       : Boolean(parseConversationSyncItem(normalized))
     if (!valid) throw syncDataError('INVALID_SCHEMA', `${provider} / ${path}`)
@@ -371,13 +413,14 @@ function normalizeTombstone(value: unknown): ConversationSyncTombstone | null {
 
 function normalizeIndexEntry(value: unknown): ConversationSyncIndexEntry | null {
   if (!isRecord(value)) return null
+  const isPinned = normalizeTagBoolean(value.isPinned)
   if (typeof value.syncId !== 'string' || !value.syncId
     || typeof value.syncUpdatedAt !== 'number'
     || typeof value.title !== 'string'
     || typeof value.createdAt !== 'number'
     || typeof value.updatedAt !== 'number'
     || typeof value.messageCount !== 'number'
-    || typeof value.isPinned !== 'boolean') return null
+    || isPinned === undefined) return null
   return {
     syncId: value.syncId,
     syncUpdatedAt: value.syncUpdatedAt,
@@ -385,7 +428,7 @@ function normalizeIndexEntry(value: unknown): ConversationSyncIndexEntry | null 
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     messageCount: value.messageCount,
-    isPinned: value.isPinned,
+    isPinned,
     path: typeof value.path === 'string' ? value.path : getConversationItemPath(value.syncId),
   }
 }
@@ -500,12 +543,17 @@ function normalizeSyncImageAnalyses(value: unknown): string | undefined {
 
 function normalizeSyncMessage(value: unknown): ConversationSyncMessage | null {
   if (!isRecord(value)) return null
+  const inserted = normalizeTagBoolean(value.inserted)
   if (typeof value.syncId !== 'string' || !value.syncId
     || typeof value.syncUpdatedAt !== 'number'
     || typeof value.createdAt !== 'number'
-    || typeof value.inserted !== 'boolean'
+    || inserted === undefined
     || !chatRoles.has(value.role as Role)
-    || !chatTypes.has(value.type as ChatType)) return null
+    || !chatTypes.has(value.type as ChatType)
+    || (value.tagId != null && (typeof value.tagId !== 'number' || !Number.isSafeInteger(value.tagId) || value.tagId < 0))
+    || (value.condensedFrom != null && typeof value.condensedFrom !== 'string')
+    || [value.originalTokenCount, value.originalMessageCount].some(count => count != null
+      && (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0))) return null
   return {
     syncId: value.syncId,
     syncUpdatedAt: value.syncUpdatedAt,
@@ -517,7 +565,7 @@ function normalizeSyncMessage(value: unknown): ConversationSyncMessage | null {
     images: normalizeSyncImages(value.images),
     imageAnalyses: normalizeSyncImageAnalyses(value.imageAnalyses),
     attachments: sanitizeAttachments(optionalString(value.attachments)),
-    inserted: value.inserted,
+    inserted,
     createdAt: value.createdAt,
     ragSources: optionalString(value.ragSources),
     ragSourceDetails: sanitizeRagSourceDetails(optionalString(value.ragSourceDetails)),
@@ -527,6 +575,9 @@ function normalizeSyncMessage(value: unknown): ConversationSyncMessage | null {
     quoteData: optionalString(value.quoteData),
     condensedContent: optionalString(value.condensedContent),
     condensedAt: optionalNumber(value.condensedAt),
+    condensedFrom: optionalString(value.condensedFrom),
+    originalTokenCount: optionalNumber(value.originalTokenCount),
+    originalMessageCount: optionalNumber(value.originalMessageCount),
   }
 }
 
@@ -565,6 +616,7 @@ export function parseConversationSyncItem(content: string | null): ConversationS
   if (!content) return null
   try {
     const value: unknown = JSON.parse(content)
+    const isPinned = isRecord(value) ? normalizeTagBoolean(value.isPinned) : undefined
     if (!isRecord(value)
       || value.format !== CONVERSATION_SYNC_ITEM_FORMAT
       || value.version !== CONVERSATION_SYNC_VERSION
@@ -573,7 +625,7 @@ export function parseConversationSyncItem(content: string | null): ConversationS
       || typeof value.title !== 'string'
       || typeof value.createdAt !== 'number'
       || typeof value.updatedAt !== 'number'
-      || typeof value.isPinned !== 'boolean'
+      || isPinned === undefined
       || !Array.isArray(value.messages)) return null
     const messages = value.messages.map(normalizeSyncMessage)
     const messageTombstones = Array.isArray(value.messageTombstones)
@@ -603,7 +655,7 @@ export function parseConversationSyncItem(content: string | null): ConversationS
       title: value.title,
       createdAt: value.createdAt,
       updatedAt: value.updatedAt,
-      isPinned: value.isPinned,
+      isPinned,
       messages: activeMessages.sort((a, b) => a.createdAt - b.createdAt || compareSyncIds(a.syncId, b.syncId)),
       messageTombstones: [...tombstones.values()].sort((a, b) => compareSyncIds(a.syncId, b.syncId)),
       compaction,
@@ -613,9 +665,9 @@ export function parseConversationSyncItem(content: string | null): ConversationS
   }
 }
 
-function chatToSyncMessage(chat: Chat): ConversationSyncMessage | null {
-  if (!chat.syncId || typeof chat.syncUpdatedAt !== 'number' || !Number.isFinite(chat.syncUpdatedAt)) return null
-  return {
+function chatToSyncMessage(chat: ConversationSourceChat): ConversationSyncMessage | null {
+  if (!chat.syncId || typeof chat.syncUpdatedAt !== 'number' || !Number.isFinite(chat.syncUpdatedAt)) throw new Error('Invalid local conversation message identity')
+  const message = normalizeSyncMessage({
     syncId: chat.syncId,
     syncUpdatedAt: chat.syncUpdatedAt,
     tagId: chat.tagId,
@@ -626,7 +678,7 @@ function chatToSyncMessage(chat: Chat): ConversationSyncMessage | null {
     images: chat.images,
     imageAnalyses: chat.imageAnalyses,
     attachments: sanitizeAttachments(chat.attachments),
-    inserted: Boolean(chat.inserted),
+    inserted: normalizeTagBoolean(chat.inserted) ?? false,
     createdAt: chat.createdAt,
     ragSources: chat.ragSources,
     ragSourceDetails: sanitizeRagSourceDetails(chat.ragSourceDetails),
@@ -636,7 +688,12 @@ function chatToSyncMessage(chat: Chat): ConversationSyncMessage | null {
     quoteData: chat.quoteData,
     condensedContent: chat.condensedContent,
     condensedAt: chat.condensedAt,
-  }
+    condensedFrom: chat.condensedFrom,
+    originalTokenCount: chat.originalTokenCount,
+    originalMessageCount: chat.originalMessageCount,
+  })
+  if (!message) throw new Error('Invalid local conversation message')
+  return message
 }
 
 function compactionToSyncValue(
@@ -691,7 +748,7 @@ export async function getLocalConversationSyncItems(): Promise<ConversationSyncI
       title: conversation.title,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
-      isPinned: Boolean(conversation.isPinned),
+      isPinned: normalizeTagBoolean(conversation.isPinned) ?? false,
       messages: syncMessages,
       messageTombstones: tombstones.filter(tombstone => (
         tombstone.entityType === 'message'
@@ -1132,10 +1189,10 @@ async function persistMergedConversationItems(
              syncId, syncUpdatedAt, tagId, conversationId, content, role, type,
              image, images, imageAnalyses, attachments, inserted, createdAt,
              ragSources, ragSourceDetails, agentHistory, thinking, quoteData,
-             condensedContent, condensedAt, uiBlocks
+             condensedContent, condensedAt, uiBlocks, condensedFrom, originalTokenCount, originalMessageCount
            ) values (
              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-             $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+             $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
            )
            on conflict(syncId) do update set
              syncUpdatedAt = excluded.syncUpdatedAt,
@@ -1155,9 +1212,12 @@ async function persistMergedConversationItems(
              agentHistory = excluded.agentHistory,
              thinking = excluded.thinking,
              quoteData = excluded.quoteData,
-             uiBlocks = coalesce(excluded.uiBlocks, chats.uiBlocks),
+             uiBlocks = excluded.uiBlocks,
              condensedContent = excluded.condensedContent,
-             condensedAt = excluded.condensedAt`,
+             condensedAt = excluded.condensedAt,
+             condensedFrom = excluded.condensedFrom,
+             originalTokenCount = excluded.originalTokenCount,
+             originalMessageCount = excluded.originalMessageCount`,
           [
             message.syncId,
             message.syncUpdatedAt,
@@ -1180,6 +1240,9 @@ async function persistMergedConversationItems(
             message.condensedContent,
             message.condensedAt,
             message.uiBlocks ?? null,
+            message.condensedFrom ?? null,
+            message.originalTokenCount ?? null,
+            message.originalMessageCount ?? null,
           ]
       )
     }
@@ -1314,7 +1377,7 @@ export async function getLocalConversationSyncFingerprint() {
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
       messageCount: conversation.messageCount,
-      isPinned: Boolean(conversation.isPinned),
+      isPinned: normalizeTagBoolean(conversation.isPinned) ?? false,
       path: getConversationItemPath(conversation.syncId),
     })),
     deleted: tombstones.filter(tombstone => tombstone.entityType === 'conversation'),
@@ -1373,9 +1436,10 @@ export function legacyChatsToItems(content: string): ConversationSyncItem[] {
         syncUpdatedAt: typeof value.syncUpdatedAt === 'number'
           ? value.syncUpdatedAt
           : value.createdAt,
-        inserted: Boolean(value.inserted),
+        inserted: normalizeTagBoolean(value.inserted) ?? false,
       })
-      return normalized ? [normalized] : []
+      if (!normalized) throw syncDataError('INVALID_SCHEMA', LEGACY_CHATS_SYNC_PATH)
+      return [normalized]
     })
     const createdAt = messages[0]?.createdAt || Date.now()
     const updatedAt = messages.at(-1)?.createdAt || createdAt
@@ -1441,12 +1505,14 @@ async function readRemoteConversationItems(
   index: ConversationSyncIndex,
   localItems: ConversationSyncItem[],
   baselineVersions: Record<string, number>,
+  toLocal: (item: ConversationSyncItem) => ConversationSyncItem,
+  stableTagMapping: boolean,
 ) {
   const items: ConversationSyncItem[] = []
   const localById = new Map(localItems.map(item => [item.syncId, item]))
   for (const entry of index.conversations) {
     const localItem = localById.get(entry.syncId)
-    if (localItem
+    if (stableTagMapping && localItem
       && localItem.syncUpdatedAt === entry.syncUpdatedAt
       && localItem.messages.length === entry.messageCount
       && baselineVersions[entry.syncId] === entry.syncUpdatedAt) {
@@ -1459,9 +1525,69 @@ async function readRemoteConversationItems(
       || item.syncUpdatedAt !== entry.syncUpdatedAt) {
       throw new Error(`Invalid remote conversation file: ${entry.path}`)
     }
-    items.push(item)
+    items.push(toLocal(item))
   }
   return items
+}
+
+interface ConversationTagContext {
+  stableMapping: boolean
+  toLocal: (item: ConversationSyncItem) => ConversationSyncItem
+  toRemote: (item: ConversationSyncItem) => ConversationSyncItem
+  persistDependencies: (items: ConversationSyncItem[]) => Promise<void>
+}
+
+async function prepareConversationTagContext(storage: ConversationRemoteStorage, store: Store, publish: boolean, items: ConversationSyncItem[] = []): Promise<ConversationTagContext> {
+  const { getTags } = await import('@/db/tags')
+  const local = normalizeTagSnapshot(await getTags())
+  const content = await storage.read(CONVERSATION_TAGS_PATH)
+  const remote = content === null ? [] : normalizeTagSnapshot(JSON.parse(content))
+  const key = await getConversationTagIdsKey(store)
+  const previous = await store.get<Record<string, number>>(key) || {}
+  const reconciled = remapRemoteProtectedTags(remote, local, previous, await store.get<TagSyncIdentityBaseline>(`${key}:identity`) || {})
+  const tags = [...new Map([
+    ...reconciled.tags.map(tag => [tag.id, tag] as const), ...local.map(tag => [tag.id, tag] as const),
+  ]).values()]
+  const required = new Set([
+    ...Object.values(reconciled.ids), ...items.flatMap(item => item.messages.flatMap(message => message.tagId ? [message.tagId] : [])),
+  ])
+  const projection = projectConversationTagsForRemote(tags.filter(tag => required.has(tag.id)), remote, reconciled.ids)
+  // Add missing dependencies before publishing any messages, preserving every
+  // target tag and record that is outside conversation synchronization.
+  if (publish && stableSerialize(projection.tags) !== stableSerialize(remote)
+    && !await storage.write(CONVERSATION_TAGS_PATH, JSON.stringify(projection.tags), content)) {
+    throw new Error('Conversation tag dependencies changed during synchronization')
+  }
+  const localIds = new Set(local.map(tag => tag.id))
+  const additions = new Map<number, Tag>(tags.filter(tag => !localIds.has(tag.id)).map(tag => [tag.id, tag]))
+  const remoteToLocal = publish ? projection.ids : reconciled.ids
+  await acceptPlatformSwitchConversationTagIds(remoteToLocal, await store.get<SyncPlatform>('primaryBackupMethod') || 'github',
+    publish ? projection.tags : remote, tags)
+  const translate = (item: ConversationSyncItem, ids: Record<string, number>) => ({
+    ...item, messages: item.messages.map(message => {
+      if (message.tagId == null || message.tagId === 0) return message
+      const id = ids[String(message.tagId)]
+      if (!Number.isSafeInteger(id) || id <= 0) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
+      return { ...message, tagId: id }
+    }),
+  })
+  return {
+    stableMapping: stableSerialize(previous) === stableSerialize(reconciled.ids),
+    toLocal: item => translate(item, remoteToLocal),
+    toRemote: item => translate(item, projection.localToRemote),
+    persistDependencies: async desired => {
+      const required = new Set(desired.flatMap(item => item.messages.flatMap(message => message.tagId ? [message.tagId] : [])))
+      const incoming = [...additions.values()].filter(tag => required.has(tag.id))
+      if (!incoming.length) return
+      await import('@/db').then(module => module.executeRecordTransaction(incoming.map(tag => ({
+        sql: 'insert into tags (id, name, isLocked, isPin, sortOrder) values ($1,$2,$3,$4,$5)',
+        values: [tag.id, tag.name, tag.isLocked ? 1 : 0, tag.isPin ? 1 : 0, tag.sortOrder ?? 0],
+        expectedRows: 1,
+      }))))
+      for (const tag of incoming) additions.delete(tag.id)
+      await import('@/stores/tag').then(module => module.default.getState().fetchTags())
+    },
+  }
 }
 
 export async function uploadConversations() {
@@ -1473,6 +1599,7 @@ export async function uploadConversations() {
     getLocalConversationSyncItems(),
     import('@/db/conversation-sync-state').then(module => module.getConversationSyncTombstones()),
   ])
+  const tags = await prepareConversationTagContext(storage, store, true, items)
   const remoteIndexContent = await storage.read(CONVERSATION_SYNC_INDEX_PATH)
   const remoteIndex = parseConversationSyncIndex(remoteIndexContent)
   if (remoteIndexContent && !remoteIndex) return false
@@ -1496,9 +1623,10 @@ export async function uploadConversations() {
     const remoteItemPath = remoteEntry?.path ?? getConversationItemPath(item.syncId)
     const expectedRemoteItemContent = await storage.read(remoteItemPath)
     if (remoteEntry && expectedRemoteItemContent === null) return false
-    const parsedRemoteItem = expectedRemoteItemContent !== null
+    const rawRemoteItem = expectedRemoteItemContent !== null
       ? parseConversationSyncItem(expectedRemoteItemContent)
       : null
+    const parsedRemoteItem = rawRemoteItem ? tags.toLocal(rawRemoteItem) : null
     if (expectedRemoteItemContent !== null
       && (!parsedRemoteItem || parsedRemoteItem.syncId !== item.syncId)) return false
     const remoteMatchesLocal = parsedRemoteItem !== null
@@ -1537,6 +1665,7 @@ export async function uploadConversations() {
           ...mergedTombstones.map(tombstone => tombstone.deletedAt),
         ))
       ))
+      await tags.persistDependencies([itemToPublish])
       await persistMergedConversationItems([itemToPublish], mergedTombstones)
       appliedRemoteDuringUpload = true
     }
@@ -1547,7 +1676,7 @@ export async function uploadConversations() {
     await persistNormalizedMessageAssets(normalizedMessages)
     if (!await storage.write(
       getConversationItemPath(item.syncId),
-      JSON.stringify(normalizedItem),
+      JSON.stringify(tags.toRemote(normalizedItem)),
       expectedRemoteItemContent,
     )) {
       return false
@@ -1616,6 +1745,7 @@ export async function downloadConversations() {
   const storage = await createConversationRemoteStorage(store)
   if (!storage) return false
   try {
+    const tags = await prepareConversationTagContext(storage, store, false)
     const [localItems, localTombstones] = await Promise.all([
       getLocalConversationSyncItems(),
       import('@/db/conversation-sync-state').then(module => module.getConversationSyncTombstones()),
@@ -1627,13 +1757,13 @@ export async function downloadConversations() {
     let remoteTombstones: ConversationSyncTombstone[]
     let migratedLegacy = false
     if (index) {
-      remoteItems = await readRemoteConversationItems(storage, index, localItems, versions)
+      remoteItems = await readRemoteConversationItems(storage, index, localItems, versions, tags.toLocal, tags.stableMapping)
       remoteTombstones = index.deleted
     } else {
       if (indexContent) throw new Error('Invalid remote conversation index')
       const legacyContent = await storage.read(LEGACY_CHATS_SYNC_PATH)
       if (!legacyContent) return true
-      remoteItems = deduplicateLegacyItems(localItems, legacyChatsToItems(legacyContent))
+      remoteItems = deduplicateLegacyItems(localItems, legacyChatsToItems(legacyContent).map(tags.toLocal))
       remoteTombstones = []
       migratedLegacy = true
     }
@@ -1665,6 +1795,7 @@ export async function downloadConversations() {
       await import('@/db/conversation-sync-state').then(module => (
         module.observeConversationSyncTimestamp(observedTimestamp)
       ))
+      await tags.persistDependencies(merged)
       await persistMergedConversationItems(merged, tombstones)
     }
     await setConversationSyncVersions(store, Object.fromEntries(

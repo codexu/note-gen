@@ -1491,7 +1491,8 @@
           "viewer-local-edit": "読み取り専用ワークスペースのローカル編集",
           "protocol-conflict": "サーバーのバージョン競合",
           "symlink-ignored": "シンボリックリンクは同期対象外です"
-        }
+        },
+        "personalDomainDependencyHint": "タグを無効にすると依存する記録、関連ノート、キャンバス、メッセージも停止し、会話を無効にするとメッセージも停止します。再有効化するとリモートデータを取得します。添付転送はNoteGen管理のリソースが対象です。外部ファイルは別途バックアップしてください。"
       },
       "connectionTab": "接続設定",
       "syncOptionsTab": "同期オプション",
@@ -1864,6 +1865,10 @@
       "switchPlan": {
         "incrementalReads": "{cached} ファイルを再利用 · {downloaded} ファイルをダウンロード",
         "moduleProgress": "このグループ：{current} / {total} モジュールを処理済み",
+        "itemProgress": "{current} / {total} 項目を処理済み",
+        "processedItems": "{count} 項目を処理済み",
+        "currentItem": "処理中の項目",
+        "documentProgress": "共同編集ドキュメントの進捗：{current} / {total}",
         "scopeDetails": "同期範囲と連動ルール",
         "panelTitle": "同期先を設定：{platform}",
         "stepsLabel": "同期先の切り替え手順",
@@ -1906,8 +1911,13 @@
         "differences": "Differences",
         "distribution": "{same} identical · {localOnly} local only · {remoteOnly} remote only · {conflicts} conflicts",
         "linkedModules": "関連モジュールは連動して選択されます。未選択モジュールの自動同期は一時停止します。",
-        "nativeEngine": "Self-hosted sync uses the server’s object synchronization and conflict protocol. This switch reconciles pending changes through that protocol rather than mirroring a repository.",
+        "nativeEngine": "切り替え時のデータ処理方法を選び、差分を確認してください。マージはオブジェクト同期プロトコルに従います。ローカルまたはリモートを選ぶと、その方向で同期対象データを置き換えます。",
         "nativeMode": "双方に固有のデータを保持して双方向同期",
+        "nativeDescriptions": {
+          "merge": "片側だけにある内容を双方向に同期し、同じパスのノートのマージを試みます。同じオブジェクトと削除記録は同期バージョンに従って処理します。",
+          "local": "同期対象のローカルデータを基準に、対応するリモート項目を置き換え、リモートだけにある内容を削除します。ローカルの内容は保持します。",
+          "remote": "同期対象のリモートデータを基準に、対応するローカル項目を置き換え、ローカルだけにある内容を有効な同期範囲から外します。リモートの内容は保持します。"
+        },
         "chosen": "Strategy: {strategy}. Scope: {modules}.",
         "impact": "Add {added}, replace {replaced}, remove {removed} from the active sync scope.",
         "viewDifference": "Compare both versions",
@@ -1925,9 +1935,9 @@
         "nativeHandlingFiles": "双方に固有のノートと添付ファイルを同期します。同じパスのノートは可能ならマージし、解決できない場合は競合コピーを保持します。添付ファイルは同期バージョンに従います。",
         "nativeHandlingPersonal": "記録、タグ、キャンバス、会話、メモリー、設定はオブジェクトのバージョンで同期します。個人データのアップロードは既存の同期設定に従います。同じオブジェクトがリモート版で更新される場合に備え、元のローカルデータを先に保存します。",
         "nativeHandlingDeletions": "双方を保持しても削除は無視されません。ローカルとリモートの削除記録は同期プロトコルに従い、ローカルの編集と競合する場合があります。",
-        "nativeBackupHint": "確認後、ローカルファイルと個人データを保存し、差分を再確認してから同期します。データの変更や保存の失敗時は停止します。スナップショットは手動復元用です。",
+        "nativeBackupHint": "ローカルファイルと個人データを保存・検証してから差分を再確認します。失敗した場合はここからローカル保存に復元できます。",
         "nativeBackupTitle": "切り替え前のローカルデータを保存しました",
-        "nativeBackupLocation": "アプリデータディレクトリ：{path}。files に元のノートと添付ファイル、personal-data.json に手動復元用の個人データを保存しています。",
+        "nativeBackupLocation": "アプリデータ：{path}。元のファイル、個人データ、同期マッピングを含みます。復元前に現在の状態も保存します。",
         "nativeConnectionRequired": "セルフホストサーバーに接続してから、再スキャンしてください。",
         "nativeInstanceChanged": "サーバーの識別情報が変わりました。リセットや置き換えを確認して再接続してください。",
         "nativeLibraryRequired": "対象ワークスペースを特定できません。セルフホスト設定で関連付けを確認して再スキャンしてください。",
@@ -1939,6 +1949,16 @@
         "nativeKeyRequired": "復号キーがありません。ワークスペースをロック解除して再スキャンしてください。",
         "nativeContentRequired": "このバージョンで正確にプレビューできないデータがあるため、切り替えを停止しました。バージョンとデータ形式の互換性を確認してください。",
         "nativeDuplicateIdentity": "パスまたは同期 ID が重複しています。重複を解消してください。",
+        "nativeDependencyRequired": "上書きで切り替えるには、記録やメッセージの関連データも同期する必要があります。記録にはタグ同期を、メッセージにはタグと会話の同期を有効にして、再スキャンしてください。マージも選択できます。",
+        "nativeRemoteDependencyMissing": "リモートの関連データが不完全なため、切り替えを停止しました。記録やメッセージが参照するタグと会話がすべて同期されていることを確認して、再試行してください。",
+        "nativeWriteRequired": "切り替え先のワークスペースに作成・更新・削除の権限がないため、ローカルの内容でリモートを上書きできません。権限を確認して再スキャンしてください。",
+        "nativeResultMismatch": "切り替え後のデータ検証に失敗したため、同期を一時停止しました。バックアップは保持されています。再スキャンしてから再試行してください。",
+        "nativePathMovesPending": "未完了のファイル移動があります。この切り替えをキャンセルし、元のプラットフォームでファイル移動の同期を完了してから再試行してください。",
+        "nativeRevisionConflict": "ローカルの変更がサーバーに拒否され、競合コピーを保存しました。競合センターで処理してから再試行してください。",
+        "nativeLocalChangesPending": "未送信のローカル変更を保護するため、リモートデータの適用を保留しています。未送信項目の同期または同期エラーの解決後に再試行してください。",
+        "nativePersonalAssetMissing": "記録またはメッセージが参照する添付ファイルがありません。元の添付ファイルが残っている端末で同期してから再試行してください。",
+        "nativePersonalAssetConflict": "同じパスの添付ファイルの内容が異なるため、ローカルファイルを保護するために書き込みを停止しました。差異を解決してから再試行してください。",
+        "nativeAttachmentsRequired": "この切り替えには未アップロードの添付ファイルが含まれます。添付ファイルの同期を有効にしてから再スキャンしてください。",
         "nativeDifferences": {
           "localOnly": "ローカルのみ",
           "remoteOnly": "リモートのみ",
@@ -2006,7 +2026,22 @@
           "compare": "Comparing module content…",
           "backup": "Saving recoverable backups…",
           "apply": "Processing data…",
-          "verify": "Verifying results…"
+          "verify": "Verifying results…",
+          "start": "切り替え先のプラットフォームで同期を開始中…"
+        },
+        "startupTasks": {
+          "refresh": "ローカルデータを再読み込み中…",
+          "workspace": "切り替え先のワークスペースを確認中…",
+          "recover": "未完了のファイル書き込みを復旧中…",
+          "connect": "同期ワークスペースに接続中…",
+          "scanFiles": "ローカルファイルを確認中…",
+          "scanData": "個人データを確認中…",
+          "prepare": "アップロードする内容を準備中…",
+          "push": "未同期の内容をアップロード中…",
+          "pull": "リモートの更新を取得中…",
+          "apply": "リモートの更新を適用中…",
+          "bootstrap": "同期データを初期化中…",
+          "save": "同期設定を保存中…"
         },
         "modules": {
           "notes": "Markdown notes",
@@ -2122,7 +2157,21 @@
         "verifySkipped": "再スキャンして検証を完了",
         "cancellingHint": "現在のタスクが終了するのを待ってから、後続の処理を停止します…",
         "cancelledError": "ユーザーが今回の切り替えをキャンセルしました",
-        "skipUnavailable": "切り替え先またはワークスペースが変更されました。再スキャンしてから切り替えてください。"
+        "skipUnavailable": "切り替え先またはワークスペースが変更されました。再スキャンしてから切り替えてください。",
+        "nativeRestoreBackup": "切り替え前のデータを復元",
+        "nativeRestoreDescription": "現在のデータを先に保存します。個人データを復元し、ノートと添付ファイルを別の復元先にコピーします。元のワークスペースとサーバーデータは保持され、ローカル保存に切り替わります。同期を再開する前に復元を完了してください。",
+        "nativeSafetyBackupLocation": "復元前の安全コピー（アプリデータ）：{path}",
+        "nativeRecoveredLocation": "復元したワークスペース：{path}",
+        "nativeOpenBackup": "バックアップフォルダーを開く",
+        "nativeBackupInvalid": "バックアップが不完全、破損、または無効なため復元を停止しました。元のワークスペースは保持されます。",
+        "nativeBackupLegacy": "この古いスナップショットは手動復元用です。フォルダー内のファイルと personal-data.json を保管してください。自動復元には新しい完全なスナップショットが必要です。",
+        "selfHostedRequestTimeout": "リクエストがタイムアウトしました。接続後に再試行すると、保存済みの添付ファイル分割データから再開できます。",
+        "selfHostedRequestCancelled": "リクエストをキャンセルしました。",
+        "nativeBackupFileJournalPending": "未完了のファイル書き込みがあるため復元を一時停止しました。編集中のファイルを閉じて復元を続けてください。",
+        "nativeBootstrapIncomplete": "{path} 個のスナップショットオブジェクトを端末に適用できませんでした。初期化は未完了のまま、失敗項目を再試行します。",
+        "nativeLocalSnapshotPending": "サーバーは変更を受け入れましたが、端末のコピーの復元が未完了です。再試行を待ち、既存のバックアップを保持してください。",
+        "nativeTagIdentityMissing": "このタグには端末の同期IDがありません。NoteGenを再起動してデータ初期化を完了し、再試行してください。",
+        "nativeStorageBudgetExceeded": "アカウントまたはインスタンスの保存容量予算に達しました。管理者に上限の調整または保持データの整理を依頼してください。"
       }
     },
     "imageHosting": {

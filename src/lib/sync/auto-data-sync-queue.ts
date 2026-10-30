@@ -11,7 +11,7 @@ import type { Mark } from '@/db/marks'
 import type { Tag } from '@/db/tags'
 import { mergeRecordTags, preserveLegacyRecordTags, recordTagIds } from '@/lib/record-tags'
 import { validateRecordSnapshot } from '@/db/record-snapshot'
-import { normalizeTagSnapshot, normalizeTagBoolean } from '@/lib/tag-sync'
+import { normalizeTagSnapshot, normalizeTagBoolean, remapRemoteProtectedTags, projectConversationTagsForRemote, invalidateLocalTagSyncIdentity, type TagSyncIdentityBaseline } from '@/lib/tag-sync'
 import { downloadRecordAssets, uploadRecordAssets } from '@/lib/sync/record-assets'
 import { recordSyncTiming } from '@/lib/sync/sync-timing'
 import { filterSyncData } from '@/config/sync-exclusions'
@@ -36,6 +36,9 @@ import {
   getRemoteConversationSyncFingerprint,
   hasRemoteConversationSyncData,
   uploadConversations,
+  getConversationSyncTagIds,
+  getConversationSyncTagIdentity,
+  acceptPlatformSwitchConversationTagIds,
 } from '@/lib/sync/conversation-sync'
 import useSettingStore from '@/stores/setting'
 
@@ -239,66 +242,24 @@ interface TagMergeResult {
   remoteTagIdMap: Map<number, number>
 }
 
-function mergeTags(localTags: Tag[], remoteTags: Tag[]): TagMergeResult {
-  const tags = [...localTags]
-  const remoteTagIdMap = new Map<number, number>()
-  const usedIds = new Set(tags.map(tag => tag.id))
-  const nameToId = new Map(tags.map(tag => [tag.name, tag.id]))
-  let maxId = Math.max(0, ...tags.map(tag => tag.id))
+function mergeTags(localTags: Tag[], remoteTags: Tag[], previous: Record<string, number> = {}, baseline: TagSyncIdentityBaseline = {}): TagMergeResult {
+  const reconciled = remapRemoteProtectedTags(remoteTags, localTags, previous, baseline)
+  const tags = [...new Map([
+    ...normalizeTagSnapshot(localTags).map(tag => [tag.id, tag] as const), ...reconciled.tags.map(tag => [tag.id, tag] as const),
+  ]).values()]
+  return { tags, remoteTagIdMap: new Map(Object.entries(reconciled.ids).map(([source, target]) => [Number(source), target])) }
+}
 
-  function nextId() {
-    do {
-      maxId += 1
-    } while (usedIds.has(maxId))
-    usedIds.add(maxId)
-    return maxId
-  }
+function remapRecordTagReferences(marks: Mark[], ids: Map<number, number>) {
+  return marks.map(mark => {
+    if (recordTagIds(mark).some(id => !ids.has(id))) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
+    return { ...mark, tagId: ids.get(mark.tagId)!, tagIds: mark.tagIds?.map(id => ids.get(id)!) }
+  })
+}
 
-  for (const remoteTag of remoteTags) {
-    const existingIndex = tags.findIndex(tag => tag.id === remoteTag.id)
-    if (existingIndex === -1) {
-      const sameNameId = nameToId.get(remoteTag.name)
-      if (sameNameId !== undefined) {
-        remoteTagIdMap.set(remoteTag.id, sameNameId)
-        continue
-      }
-
-      tags.push(remoteTag)
-      usedIds.add(remoteTag.id)
-      nameToId.set(remoteTag.name, remoteTag.id)
-      remoteTagIdMap.set(remoteTag.id, remoteTag.id)
-      maxId = Math.max(maxId, remoteTag.id)
-      continue
-    }
-
-    const existingTag = tags[existingIndex]
-    if (existingTag.name === remoteTag.name || existingTag.isLocked || remoteTag.isLocked) {
-      tags[existingIndex] = {
-        ...existingTag,
-        ...remoteTag,
-        id: existingTag.id,
-      }
-      nameToId.set(tags[existingIndex].name, existingTag.id)
-      remoteTagIdMap.set(remoteTag.id, existingTag.id)
-      continue
-    }
-
-    const sameNameId = nameToId.get(remoteTag.name)
-    if (sameNameId !== undefined) {
-      remoteTagIdMap.set(remoteTag.id, sameNameId)
-      continue
-    }
-
-    const newId = nextId()
-    tags.push({
-      ...remoteTag,
-      id: newId,
-    })
-    nameToId.set(remoteTag.name, newId)
-    remoteTagIdMap.set(remoteTag.id, newId)
-  }
-
-  return { tags, remoteTagIdMap }
+async function remoteTagSnapshot(store: Store, provider: AutoDataSyncProvider) {
+  const content = await downloadAutoDataSyncRemoteFileContent(store, provider, AUTO_DATA_SYNC_TAGS_PATH)
+  return content === null ? [] : normalizeTagSnapshot(JSON.parse(content))
 }
 
 function marksShareCoreIdentity(left: Mark, right: Mark): boolean {
@@ -388,6 +349,7 @@ function mergeMarksById(
   }
 
   for (const remoteMark of remoteMarks) {
+    if (recordTagIds(remoteMark).some(id => !remoteTagIdMap.has(id))) throw new Error('SYNC_SWITCH_MISSING_REFERENCE')
     const normalizedRemoteMark = {
       ...remoteMark,
       tagId: remoteTagIdMap.get(remoteMark.tagId) ?? remoteMark.tagId,
@@ -953,7 +915,7 @@ export async function downloadAutoDataSyncNow(
     if (shouldDownloadRecords) {
       const domainStartedAt = Date.now()
       downloadStage = 'download-tags'
-      tagResult = await useTagStore.getState().downloadTags({ allowMissingRemote: true, fetchOnly: true })
+      tagResult = await remoteTagSnapshot(store, provider)
       downloadStage = 'download-marks'
       markResult = await useMarkStore.getState().downloadMarks({
         allowMissingRemote: true,
@@ -962,9 +924,21 @@ export async function downloadAutoDataSyncNow(
       })
       const { getAllMarks } = await import('@/db/marks')
       const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
-      markResult = preserveLegacyRecordTags(markResult, await getAllMarks())
+      const localTags = await import('@/db/tags').then(module => module.getTags())
+      const downloadedTags = tagResult
+      const reconciled = remapRemoteProtectedTags(tagResult, localTags, await getConversationSyncTagIds(provider), await getConversationSyncTagIdentity(provider))
+      markResult = preserveLegacyRecordTags(remapRecordTagReferences(markResult,
+        new Map(Object.entries(reconciled.ids).map(([source, target]) => [Number(source), target]))), await getAllMarks())
+      const db = await import('@/db').then(module => module.getDb())
+      const messageTags = await db.select<Array<{ tagId: number }>>('select distinct tagId from chats where tagId > 0')
+      const dependencies = new Set([...markResult.flatMap(recordTagIds), ...messageTags.map(message => message.tagId)])
+      tagResult = [...new Map([
+        ...localTags.filter(tag => dependencies.has(tag.id)).map(tag => [tag.id, tag] as const),
+        ...reconciled.tags.map(tag => [tag.id, tag] as const),
+      ]).values()]
       downloadStage = 'replace-record-snapshot'
       await replaceRecordSnapshot(markResult, tagResult)
+      await acceptPlatformSwitchConversationTagIds(reconciled.ids, provider, downloadedTags, tagResult)
       recordSnapshotApplied = true
       downloadStage = 'refresh-tags'
       await useTagStore.getState().fetchTags()
@@ -1216,7 +1190,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       : [[], []]
     const localMemoryData = mergeSettings ? await memoriesDb.getMemorySyncData() : null
     const remoteTags = mergeRecords
-      ? await useTagStore.getState().downloadTags({ allowMissingRemote: true, fetchOnly: true })
+      ? await remoteTagSnapshot(store, provider)
       : []
     const remoteMarks = mergeRecords
       ? await useMarkStore.getState().downloadMarks({ allowMissingRemote: true, preserveLegacyTags: false, fetchOnly: true })
@@ -1235,7 +1209,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       throw new Error('Failed to merge remote app data')
     }
 
-    const tagMergeResult = mergeTags(localTags, remoteTags)
+    const tagMergeResult = mergeTags(localTags, remoteTags, mergeRecords ? await getConversationSyncTagIds(provider) : {}, mergeRecords ? await getConversationSyncTagIdentity(provider) : {})
     const mergedTags = tagMergeResult.tags
     const mergedMarks = mergeMarksById(localMarks, remoteMarks, tagMergeResult.remoteTagIdMap)
     const mergedMemoryData = mergeMemorySyncData(localMemoryData, remoteMemoryData)
@@ -1244,6 +1218,7 @@ async function mergeAutoDataSyncDomains(targetDomains: AutoDataSyncDomain[]): Pr
       const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
       await downloadCanvases()
       await replaceRecordSnapshot(mergedMarks, mergedTags)
+      await acceptPlatformSwitchConversationTagIds(Object.fromEntries(tagMergeResult.remoteTagIdMap), provider, remoteTags, mergedTags)
       await downloadRecordAssets(mergedMarks)
       await useTagStore.getState().fetchTags()
       await Promise.all([
@@ -1970,9 +1945,15 @@ async function uploadDomain(domain: AutoDataSyncDomain, conditions?: Map<string,
 
     const { getAllMarks } = await import('@/db/marks')
     const marks = await getAllMarks()
+    const localTags = await import('@/db/tags').then(module => module.getTags())
+    const remoteTags = await remoteTagSnapshot(store, provider)
+    const reconciled = remapRemoteProtectedTags(remoteTags, localTags, await getConversationSyncTagIds(provider), await getConversationSyncTagIdentity(provider))
+    const projection = projectConversationTagsForRemote(localTags, remoteTags, reconciled.ids, true)
+    const publishedMarks = remapRecordTagReferences(marks,
+      new Map(Object.entries(projection.localToRemote).map(([source, target]) => [Number(source), target])))
     await uploadRecordAssets(marks)
-    const tagResult = await useTagStore.getState().uploadTags(conditionFor(AUTO_DATA_SYNC_TAGS_PATH))
-    const markResult = await useMarkStore.getState().uploadMarks(conditionFor(AUTO_DATA_SYNC_MARKS_PATH))
+    const tagResult = await useTagStore.getState().uploadTags(conditionFor(AUTO_DATA_SYNC_TAGS_PATH), projection.tags)
+    const markResult = tagResult && await useMarkStore.getState().uploadMarks(conditionFor(AUTO_DATA_SYNC_MARKS_PATH), publishedMarks)
     const canvasResult = await uploadCanvases(versions)
     debugAutoDataSync('records upload results', {
       tags: tagResult,
@@ -1983,6 +1964,7 @@ async function uploadDomain(domain: AutoDataSyncDomain, conditions?: Map<string,
     if (!tagResult || !markResult || !canvasResult) {
       throw new Error('Failed to upload records')
     }
+    await acceptPlatformSwitchConversationTagIds(projection.ids, provider, projection.tags, localTags)
 
     recordSyncTiming('domainUpload', startedAt, { domain, success: true })
     return
@@ -2573,6 +2555,9 @@ async function restoreAutoDataSyncLocalRecordSnapshot(
 
     const { replaceRecordSnapshot } = await import('@/db/record-snapshot')
     restoreStage = 'replace-record-snapshot'
+    const currentTags = await import('@/db/tags').then(module => module.getTags())
+    const restoredNames = new Map(snapshot.tags.map(tag => [tag.id, tag.name]))
+    await invalidateLocalTagSyncIdentity(currentTags.filter(tag => restoredNames.get(tag.id) !== tag.name).map(tag => tag.id))
     await replaceRecordSnapshot(snapshot.marks, snapshot.tags)
     restoreStage = 'restore-canvases'
     await canvasesDb.replaceAllCanvasProjects(snapshot.canvases)
@@ -2879,12 +2864,16 @@ async function getAutoDataSyncContentFingerprints(
     if (!remoteTags || !remoteMarks) {
       return null
     }
+    const localTags = await import('@/db/tags').then(module => module.getTags())
+    const reconciled = remapRemoteProtectedTags(remoteTags, localTags, await getConversationSyncTagIds(provider), await getConversationSyncTagIdentity(provider))
+    const normalizedMarks = remapRecordTagReferences(remoteMarks,
+      new Map(Object.entries(reconciled.ids).map(([source, target]) => [Number(source), target])))
 
     return {
       local,
       remote: stableSerialize({
-        tags: remoteTags.map(getTagSyncKey).sort(),
-        marks: remoteMarks.map(getMarkSyncKey).sort(),
+        tags: reconciled.tags.map(getTagSyncKey).sort(),
+        marks: normalizedMarks.map(getMarkSyncKey).sort(),
         canvases: remoteCanvases.map(project => [project.id, project.updatedAt, project.deletedAt, project.pinnedAt, project.title]),
       }),
     }

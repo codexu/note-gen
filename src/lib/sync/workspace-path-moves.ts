@@ -345,3 +345,18 @@ export async function getPendingWorkspacePathMoves(): Promise<Array<{ source: st
   const journal = await Store.load(context.journalName)
   return readMoves(await journal.get(context.key)).map(({ source, target }) => ({ source, target }))
 }
+
+/** Inspect the destination's dormant journal before an authoritative switch. */
+export async function hasPendingSelfHostedWorkspacePathMoves(workspaceIds: string[], profileId: string) {
+  const journal = await Store.load('workspace_path_moves.json')
+  for (const [key, value] of await journal.entries()) {
+    let context: unknown
+    try { context = JSON.parse(key) as unknown } catch { continue }
+    if (!Array.isArray(context) || context[2] !== 'selfHosted' || typeof context[3] !== 'string') continue
+    let identity: unknown
+    try { identity = JSON.parse(context[3]) as unknown } catch { continue }
+    if (!Array.isArray(identity) || identity[1] !== profileId || !workspaceIds.includes(String(identity[0]))) continue
+    if (readMoves(value).length) return true
+  }
+  return false
+}

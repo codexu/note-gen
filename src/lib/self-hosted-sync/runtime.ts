@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { exists, readFile, readTextFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, exists, mkdir, readFile, readTextFile, writeFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
 import { getDb } from '@/db'
@@ -16,11 +16,16 @@ import {
   materializeOutbox,
 } from './outbox'
 import { applyStructuredPayload, deleteStructuredObject } from './structured'
+import { enabledPersonalSyncKinds, isPersonalSyncKindEnabled } from './domains'
+import { hydratePersonalAssets } from './personal-assets'
+import { hasPendingPersonalMutation, pendingPersonalChangesForEvent } from './pending-personal'
 import { ensureManagedWorkspaceKeys, getCurrentWorkspaceRoot, reconcileLibraryFiles } from './workspaces'
 import { bytesToBase64Url, downloadAsset, hashBytes } from './blob'
 import type { SyncBootstrapPage, SyncEvent, SyncObjectKind, SyncSession } from './protocol'
+import { applyConversationTombstones, type SelfHostedSnapshotObject } from './snapshot'
 import emitter from '@/lib/emitter'
 import { withSelfHostedPrepareLock } from './prepare-lock'
+import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import {
   editorPathsReferToSameFile,
   getEditorPathMutationRevision,
@@ -32,6 +37,10 @@ import {
 
 class PendingPathMove extends Error {
   constructor() { super('remote_path_move_pending') }
+}
+
+class PendingLocalChange extends Error {
+  constructor() { super('SELF_HOSTED_LOCAL_CHANGES_PENDING') }
 }
 
 interface Binding {
@@ -50,7 +59,10 @@ interface OutboxRow {
   sourceChangeIds: string
   payload: string
   attemptCount: number
+  restoreLocalSnapshot: number
 }
+
+type SyncItemProgress = Pick<SwitchOperationProgress, 'current' | 'total' | 'path'>
 
 export class SelfHostedSyncRuntime {
   #manualRetryRequested = false
@@ -65,10 +77,24 @@ export class SelfHostedSyncRuntime {
   #documentSubscriptions = new Map<string, number>()
   #presence: Record<string, unknown> | null = null
   #presenceOwner: symbol | null = null
+  #progressListeners = new Set<(progress: SwitchOperationProgress) => void>()
 
   start() {
     this.#stopped = false
     void this.wake('startup')
+  }
+
+  waitForCurrentRun(): Promise<void> {
+    return this.#wakeCompletion ?? Promise.resolve()
+  }
+
+  subscribeProgress(listener: (progress: SwitchOperationProgress) => void) {
+    this.#progressListeners.add(listener)
+    return () => { this.#progressListeners.delete(listener) }
+  }
+
+  #reportProgress(progress: Omit<SwitchOperationProgress, 'phase' | 'kind'>) {
+    for (const listener of this.#progressListeners) listener({ phase: 'start', kind: 'item', ...progress })
   }
 
   async bindingIsReady(workspaceId: string) {
@@ -89,6 +115,11 @@ export class SelfHostedSyncRuntime {
     this.#presenceOwner = null
     if (this.#timer) clearTimeout(this.#timer)
     this.#timer = null
+  }
+
+  async stopAndWait() {
+    this.stop()
+    await this.#wakeCompletion
   }
 
   subscribeRealtime(listener: (message: Record<string, unknown>) => void) {
@@ -190,12 +221,25 @@ export class SelfHostedSyncRuntime {
           try {
             if (manualRetry) {
               const database = await getDb()
+              const acknowledged = await releaseAcknowledgedRevisionConflicts(binding)
+              if (acknowledged && binding.workspaceType === 'library') {
+                // Refresh the accepted base before scanning the kept local
+                // file again, otherwise its old bytes would create the same
+                // rejected command on every retry.
+                binding.bindingState = 'epoch-changed'
+                await setBindingState(binding.workspaceId, 'epoch-changed')
+              }
               await database.execute(
                 "update self_hosted_outbox set next_attempt_at = 0 where workspace_id = $1 and state = 'retry'",
                 [binding.workspaceId],
               )
+              await database.execute(
+                `update self_hosted_local_changes set next_attempt_at = 0
+                 where state = 'pending' and (workspace_id = $1 or (workspace_id is null and $2 = 'account-data'))`,
+                [binding.workspaceId, binding.workspaceType],
+              )
             }
-            const session = await this.#syncBinding(binding)
+            const session = await this.#syncBinding(binding, errors)
             if (session) sessions.push({ profileId: binding.profileId, session })
           } catch (error) {
             if (isSelfHostedAuthenticationError(error)) throw error
@@ -232,7 +276,13 @@ export class SelfHostedSyncRuntime {
     }
   }
 
-  async #syncBinding(binding: Binding) {
+  async #syncBinding(binding: Binding, errors: Set<string>) {
+    const report = (
+      startupTask: NonNullable<SwitchOperationProgress['startupTask']>,
+      value: Partial<Omit<SwitchOperationProgress, 'phase' | 'kind' | 'startupTask'>> = {},
+    ) => this.#reportProgress({ startupTask, source: 'remote', path: binding.localRoot ?? undefined, current: 0, total: 0, ...value })
+    report('connect')
+    await assertNoUnresolvedRevisionCommands(binding.workspaceId)
     const { profile, client } = await authenticatedClient(binding.profileId)
     if (this.#stopped) return null
     let session: SyncSession
@@ -269,16 +319,43 @@ export class SelfHostedSyncRuntime {
       session.bootstrap.required
       || binding.bindingState !== 'bound'
       || await hasCoveredFailedInbox(binding)
+      || await hasIncompleteBootstrap(binding)
       || await hasAmbiguousTombstonedLibraryFile(binding)
     ) {
       // A pending rename owns its local paths until its frozen commands reach
       // the server. Do not enter bootstrap and replay the old paths meanwhile.
       if ((await pendingPathMovesForBinding(binding)).length > 0) {
-        if (await pushOutbox(binding, session, true)) this.#rerun = true
+        report('push')
+        if (await pushOutbox(binding, session, true, errors)) this.#rerun = true
         return session
       }
+      if (binding.workspaceType === 'account-data') {
+        // A bootstrap must not replace a row while its local edit or delete
+        // is still waiting to be accepted. Send frozen commands first, then
+        // capture subsequent edits against the accepted base.
+        report('push')
+        if (await pushOutbox(binding, session, false, errors)) this.#rerun = true
+        if (this.#stopped) return null
+        let hasMore: boolean
+        do {
+          report('prepare', { source: 'local' })
+          const prepared = await materializeOutbox(
+            binding.workspaceId, binding.workspaceType, binding.localRoot,
+            session.limits.maxCommandsPerBatch, binding.profileId, session.syncEpoch,
+            Math.max(1, ...session.keyVersions.map(key => key.keyVersion)), session.limits.maxObjectBytes,
+          )
+          for (const error of prepared.errors) errors.add(error)
+          hasMore = prepared.hasMore
+          if (this.#stopped) return null
+          report('push')
+          if (await pushOutbox(binding, session, false, errors)) this.#rerun = true
+          if (this.#stopped) return null
+        } while (hasMore)
+      }
       await setBindingState(binding.workspaceId, 'bootstrapping')
-      await bootstrapBinding(binding, session)
+      report('bootstrap')
+      await bootstrapBinding(binding, session, errors, value => report('bootstrap', value))
+      report('refresh', { source: 'local' })
       await refreshBindingStores(binding)
       if (this.#stopped) return null
       emitter.emit('self-hosted-binding-ready', { workspaceId: binding.workspaceId })
@@ -294,18 +371,22 @@ export class SelfHostedSyncRuntime {
     )
     if (this.#stopped) return null
     if (binding.workspaceType === 'library' && binding.localRoot) {
+      report('scanFiles', { source: 'local' })
       await reconcileLibraryFiles(
         binding.workspaceId,
         binding.localRoot,
         session.workspace.capabilities.includes('content.update'),
+        value => report('scanFiles', { source: 'local', ...value }),
       )
     }
     if (this.#stopped) return null
     if (binding.workspaceType === 'account-data') {
+      report('scanData', { source: 'local' })
       await reconcilePersonalWorkspaceObjects(binding.workspaceId)
     }
     if (this.#stopped) return null
-    await materializeOutbox(
+    report('prepare', { source: 'local' })
+    const preparation = await materializeOutbox(
       binding.workspaceId,
       binding.workspaceType,
       binding.localRoot,
@@ -315,15 +396,22 @@ export class SelfHostedSyncRuntime {
       Math.max(1, ...session.keyVersions.map(key => key.keyVersion)),
       session.limits.maxObjectBytes,
     )
+    for (const error of preparation.errors) errors.add(error)
+    if (preparation.hasMore) this.#rerun = true
     if (this.#stopped) return null
-    if (await pushOutbox(binding, session)) this.#rerun = true
+    report('push')
+    if (await pushOutbox(binding, session, false, errors)) this.#rerun = true
     if (this.#stopped) return null
-    await pullEvents(binding, session)
+    report('pull')
+    await pullEvents(binding, session, value => report('pull', value))
     if (this.#stopped) return null
+    report('apply')
     const appliedThrough = await applyInbox(
       binding,
       profile.deviceId,
       objectId => this.#documentSubscriptions.has(`${binding.workspaceId}\0${objectId}`),
+      value => report('apply', value),
+      () => report('refresh', { source: 'local' }),
     )
     if (this.#stopped) return null
     for (const listener of this.#realtimeListeners) listener({
@@ -396,6 +484,16 @@ async function hasCoveredFailedInbox(binding: Binding) {
        and cast(sequence as integer) <= cast($2 as integer)
      limit 1`,
     [binding.workspaceId, binding.appliedSequence],
+  )
+  return rows.length > 0
+}
+
+async function hasIncompleteBootstrap(binding: Binding) {
+  const rows = await (await getDb()).select<Array<{ found: number }>>(
+    `select 1 as found from self_hosted_conflicts
+     where workspace_id = $1 and conflict_type = 'bootstrap-apply-failed'
+       and state <> 'resolved' limit 1`,
+    [binding.workspaceId],
   )
   return rows.length > 0
 }
@@ -546,34 +644,71 @@ async function listBindings(): Promise<Binding[]> {
   `)
 }
 
-async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly = false) {
+async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly = false, errors?: Set<string>) {
   const database = await getDb()
+  const profile = binding.workspaceType === 'account-data' ? await getProfile(binding.profileId) : null
+  if (binding.workspaceType === 'account-data' && !profile) throw new Error('自托管同步配置不存在')
+  const domainToggles = profile?.domainToggles ?? {}
+  // Filter before LIMIT so paused domains cannot occupy the whole batch.
+  // Materialized payloads must obey the same dependency and deletion rules
+  // as newly captured changes, including nested conflict resolutions.
   const rows = await database.select<OutboxRow[]>(
-    `select command_id as commandId, source_change_ids as sourceChangeIds,
-       payload, attempt_count as attemptCount
-     from self_hosted_outbox o
-     left join self_hosted_object_mappings m
-       on m.workspace_id = o.workspace_id
-      and m.object_id = json_extract(o.payload, '$.objectId')
-     where o.workspace_id = $1 and o.state in ('pending', 'retry') and o.next_attempt_at <= $2
-       and ($4 = 0 or o.command_type = 'path-move')
-       and not exists (
-         select 1 from self_hosted_sync_profiles p where p.id = $5
-           and json_extract(p.domain_toggles, '$.settings') = 0
-           and (json_extract(o.payload, '$.kind') = 'setting' or m.kind = 'setting')
-       )
+    `with candidates as (
+       select o.*, o.rowid as outboxRowId, m.kind as mappingKind, m.relative_path as mappingPath,
+         coalesce(json_extract(o.payload, '$.objectId'), json_extract(o.payload, '$.objectResolution.objectId'),
+           json_extract(o.payload, '$.resolution.objectId'),
+           (select object_id from self_hosted_conflicts where workspace_id = o.workspace_id
+             and id = json_extract(o.payload, '$.conflictId') limit 1)) as effectiveObjectId,
+         coalesce(json_extract(o.payload, '$.kind'), json_extract(o.payload, '$.objectResolution.kind'),
+           json_extract(o.payload, '$.resolution.kind'), m.kind,
+           (select parent.kind from self_hosted_conflicts conflict
+            join self_hosted_object_mappings parent on parent.workspace_id = conflict.workspace_id and parent.object_id = conflict.object_id
+            where conflict.workspace_id = o.workspace_id and conflict.id = json_extract(o.payload, '$.conflictId') limit 1)) as effectiveKind
+       from self_hosted_outbox o
+       left join self_hosted_object_mappings m
+         on m.workspace_id = o.workspace_id
+        and m.object_id = coalesce(json_extract(o.payload, '$.objectId'),
+          json_extract(o.payload, '$.objectResolution.objectId'), json_extract(o.payload, '$.resolution.objectId'))
+       where o.workspace_id = $1 and o.state in ('pending', 'retry') and o.next_attempt_at <= $2
+         and ($4 = 0 or o.command_type = 'path-move')
+     ), commandBlobRefs as (
+       select c.command_id, refs.value as blobId from candidates c join json_each(c.payload, '$.blobRefs') refs
+       union select c.command_id, refs.value from candidates c join json_each(c.payload, '$.objectResolution.blobRefs') refs
+       union select c.command_id, refs.value from candidates c join json_each(c.payload, '$.resolution.blobRefs') refs
+     )
+     select command_id as commandId, source_change_ids as sourceChangeIds,
+       payload, attempt_count as attemptCount, restore_local_snapshot as restoreLocalSnapshot
+     from candidates o
+     where ($5 = 'library' or (
+       o.effectiveKind in (select value from json_each(
+         case when json_extract(o.payload, '$.type') = 'delete-object'
+           or json_extract(o.payload, '$.deleteObject') = 1 then $7 else $6 end))
+       and ($8 = 1 or json_extract(o.payload, '$.type') = 'delete-object'
+         or json_extract(o.payload, '$.deleteObject') = 1
+         or not exists (
+           select 1 from commandBlobRefs ref where ref.command_id = o.command_id
+             and not exists (
+               select 1 from self_hosted_remote_objects accepted join json_each(accepted.payload, '$.personalAssets') asset
+               where accepted.workspace_id = o.workspace_id and accepted.object_id = o.effectiveObjectId
+                 and json_extract(asset.value, '$.blobId') = ref.blobId
+             )
+         ))
+     ))
      order by
-       case when json_extract(o.payload, '$.type') = 'delete-object' and m.kind = 'folder' then 2
-            when m.kind = 'folder' then 0 else 1 end,
-       case when m.kind = 'folder' and m.relative_path is not null
+       case when json_extract(o.payload, '$.type') = 'delete-object' and o.mappingKind = 'folder' then 2
+            when o.mappingKind = 'folder' then 0 else 1 end,
+       case when o.mappingKind = 'folder' and o.mappingPath is not null
          then (case when json_extract(o.payload, '$.type') = 'delete-object' then -1 else 1 end)
-           * (length(m.relative_path) - length(replace(m.relative_path, '/', '')))
+           * (length(o.mappingPath) - length(replace(o.mappingPath, '/', '')))
          else 0 end,
-       o.created_at, o.rowid limit $3`,
-    [binding.workspaceId, Date.now(), session.limits.maxCommandsPerBatch, pathMovesOnly ? 1 : 0, binding.profileId]
+       o.created_at, o.outboxRowId limit $3`,
+    [binding.workspaceId, Date.now(), session.limits.maxCommandsPerBatch, pathMovesOnly ? 1 : 0,
+      binding.workspaceType, JSON.stringify(enabledPersonalSyncKinds(domainToggles)),
+      JSON.stringify(enabledPersonalSyncKinds(domainToggles, true)), domainToggles.attachments === false ? 0 : 1]
   )
   if (rows.length === 0) return false
   let activatedCollaborativeObject = false
+  let restoredPersonalSnapshot = false
   const commands: Record<string, unknown>[] = []
   for (const row of rows) {
     const { command, changed } = parseOutboxCommand(row.payload)
@@ -590,14 +725,49 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
   const response = await client.pushCommands(
     binding.workspaceId, commands, session.syncEpoch,
   )
+  let revisionConflicted = false
   for (const result of response.results) {
     const row = rows.find(candidate => candidate.commandId === result.commandId)
     if (!row) continue
+    if (result.code === 'revision_conflict' || (result.status === 'conflict' && !result.conflictId)) {
+      // A CAS rejection has not accepted this payload and has no durable
+      // server conflict object. Keep it locally and stop before pulling a
+      // snapshot that could overwrite the only remaining local edit.
+      await preserveRejectedRevision(binding, row, result.revision)
+      revisionConflicted = true
+      continue
+    }
     if (result.status === 'applied' || result.status === 'conflict') {
       const command = JSON.parse(row.payload) as {
         type?: string; objectId?: string; documentId?: string; updateId?: string
         checkpointId?: string; keyVersion?: number; ciphertext?: string; coversDocumentSequence?: string
-        ciphertextHash?: string; kind?: SyncObjectKind
+        ciphertextHash?: string; kind?: SyncObjectKind; blobRefs?: string[]
+      }
+      const stalePersonalAck = binding.workspaceType === 'account-data' && command.objectId && result.revision
+        ? await personalAckHasNewerRevision(binding.workspaceId, command.objectId, result.revision) : false
+      if (result.status === 'applied' && !stalePersonalAck && row.restoreLocalSnapshot === 1) {
+        try {
+          if (await restoreAcceptedPersonalSnapshot(binding, row, result.revision)) restoredPersonalSnapshot = true
+        } catch (error) {
+          if (isSelfHostedAuthenticationError(error)) throw error
+          // The server already owns this command. Retain the frozen snapshot
+          // and retry its local installation through the same idempotent ack,
+          // while completing other acknowledgements and pulling remote events.
+          const code = 'SELF_HOSTED_LOCAL_SNAPSHOT_RESTORE_PENDING'
+          errors?.add(code)
+          await database.execute(
+            `update self_hosted_outbox set state = 'retry', attempt_count = attempt_count + 1,
+               next_attempt_at = $1, last_error_code = $2, updated_at = $3 where command_id = $4`,
+            [Date.now() + retryDelay(row.attemptCount), code, Date.now(), row.commandId],
+          )
+          console.warn('[self-hosted-sync] Accepted snapshot could not be restored locally', { workspaceId: binding.workspaceId, error })
+          continue
+        }
+      }
+      if (result.status === 'applied' && !stalePersonalAck && command.objectId && result.revision && result.sequence) {
+        // Keep the accepted server base durable before releasing the frozen
+        // command. A retry can recover this cache write from the same ack.
+        await recordAppliedCommandRevision(binding, command, result.revision, result.sequence)
       }
       await database.execute(
         "update self_hosted_outbox set state = 'sent', updated_at = $1, last_error_code = null where command_id = $2",
@@ -609,15 +779,8 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
           [Date.now(), id]
         )
       }
-      if (command.objectId && result.revision && result.sequence) {
-        if (result.status === 'applied') {
-          await recordAppliedCommandRevision(
-            binding,
-            command,
-            result.revision,
-            result.sequence,
-          )
-        } else {
+      if (!stalePersonalAck && command.objectId && result.revision && result.sequence) {
+        if (result.status !== 'applied') {
           await recordRevision(
             binding.workspaceId,
             command.objectId,
@@ -629,19 +792,20 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
         await database.execute(
           `update self_hosted_outbox set state = 'pending', updated_at = $1
            where workspace_id = $2 and state = 'blocked'
-             and json_extract(payload, '$.objectId') = $3`,
+             and json_extract(payload, '$.objectId') = $3
+             and coalesce(last_error_code, '') != 'revision_conflict'`,
           [Date.now(), binding.workspaceId, command.objectId]
         )
         if (command.type === 'upsert-object') activatedCollaborativeObject = true
       }
-      if (result.status === 'applied' && command.type === 'delete-object' && command.objectId) {
+      if (result.status === 'applied' && !stalePersonalAck && command.type === 'delete-object' && command.objectId) {
         await database.execute(
           `update self_hosted_object_mappings set deleted_at = $1, updated_at = $1
            where workspace_id = $2 and object_id = $3`,
           [Date.now(), binding.workspaceId, command.objectId]
         )
       }
-      if (result.status === 'applied' && command.type === 'upsert-object' && command.objectId) {
+      if (result.status === 'applied' && !stalePersonalAck && command.type === 'upsert-object' && command.objectId) {
         await database.execute(
           `update self_hosted_object_mappings set deleted_at = null, updated_at = $1
            where workspace_id = $2 and object_id = $3`,
@@ -692,7 +856,189 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
       )
     }
   }
+  if (restoredPersonalSnapshot) await refreshBindingStores(binding)
+  if (revisionConflicted) throw new Error('SELF_HOSTED_REVISION_CONFLICT')
   return activatedCollaborativeObject
+}
+
+async function personalAckHasNewerRevision(workspaceId: string, objectId: string, revision: string) {
+  if (!/^\d+$/.test(revision)) return true
+  const known = await (await getDb()).select<Array<{ revision: string }>>(
+    `select revision from self_hosted_revisions where workspace_id = $1 and object_id = $2
+     union all select revision from self_hosted_remote_objects where workspace_id = $1 and object_id = $2`,
+    [workspaceId, objectId],
+  )
+  return known.some(item => !/^\d+$/.test(item.revision) || BigInt(item.revision) > BigInt(revision))
+}
+
+async function restoreAcceptedPersonalSnapshot(binding: Binding, row: OutboxRow, revision?: string) {
+  if (binding.workspaceType !== 'account-data' || !revision || !/^\d+$/.test(revision)) return false
+  const command = JSON.parse(row.payload) as Record<string, unknown>
+  if (command.type !== 'upsert-object' || typeof command.objectId !== 'string'
+    || typeof command.kind !== 'string' || typeof command.keyVersion !== 'number'
+    || typeof command.ciphertext !== 'string') return false
+  const sourceIds = JSON.parse(row.sourceChangeIds) as number[]
+  if (!sourceIds.length || sourceIds.some(id => !Number.isSafeInteger(id) || id < 1)) return false
+  const payload = await decryptPackedJson<Record<string, unknown>>(
+    await loadWorkspaceKey(binding.workspaceId, command.keyVersion), command.ciphertext,
+    objectAssociatedData(binding.workspaceId, command.objectId, command.kind),
+  )
+  const context = { workspaceId: binding.workspaceId, objectId: command.objectId,
+    kind: command.kind, revision, sourceIds, payload }
+  if (!await restorePersonalSnapshotStillAllowed(context)) return false
+  if (payload.domain === 'mark' || payload.domain === 'message') {
+    const profile = await getProfile(binding.profileId)
+    if (!profile) return false
+    await hydratePersonalAssets({ profileId: binding.profileId, workspaceId: binding.workspaceId,
+      payload, enabled: profile.domainToggles.attachments !== false })
+  }
+  // Decryption, attachment downloads and profile reads can yield to a newer
+  // edit or deletion. Re-read the complete restore guard before changing rows.
+  if (!await restorePersonalSnapshotStillAllowed(context)) return false
+  await applyStructuredPayload(binding.workspaceId, command.objectId, command.kind as SyncObjectKind, payload)
+  return true
+}
+
+async function restorePersonalSnapshotStillAllowed(input: {
+  workspaceId: string; objectId: string; kind: string; revision: string
+  sourceIds: number[]; payload: Record<string, unknown>
+}) {
+  const database = await getDb()
+  const domain = typeof input.payload.domain === 'string' ? input.payload.domain : null
+  if (!domain) return false
+  const mappings = await database.select<Array<{ kind: string; localIdentity: string; deletedAt: number | null }>>(
+    `select kind, local_identity as localIdentity, deleted_at as deletedAt from self_hosted_object_mappings
+     where workspace_id = $1 and object_id = $2 limit 1`, [input.workspaceId, input.objectId],
+  )
+  const mapping = mappings[0]
+  if (!mapping || mapping.kind !== input.kind || mapping.deletedAt !== null
+    || !mapping.localIdentity.startsWith(`${domain}:`)) return false
+  const known = await database.select<Array<{ revision: string }>>(
+    `select revision from self_hosted_revisions where workspace_id = $1 and object_id = $2
+     union all select revision from self_hosted_remote_objects where workspace_id = $1 and object_id = $2`,
+    [input.workspaceId, input.objectId],
+  )
+  if (known.some(item => !/^\d+$/.test(item.revision) || BigInt(item.revision) > BigInt(input.revision))) return false
+  const sources = await database.select<Array<{ domain: string; localKey: string }>>(
+    `select domain, local_key as localKey from self_hosted_local_changes
+     where id in (select value from json_each($1)) and (workspace_id = $2 or workspace_id is null)`,
+    [JSON.stringify(input.sourceIds), input.workspaceId],
+  )
+  if (sources.length !== new Set(input.sourceIds).size || sources.some(source => source.domain !== domain)) return false
+  const aliases = new Set(sources.map(source => source.localKey))
+  aliases.add(mapping.localIdentity.slice(domain.length + 1))
+  if (typeof input.payload.localKey === 'string') aliases.add(input.payload.localKey)
+  const value = input.payload.value && typeof input.payload.value === 'object' && !Array.isArray(input.payload.value)
+    ? input.payload.value as Record<string, unknown> : {}
+  for (const key of ['id', 'sourceId', 'syncId']) {
+    if (typeof value[key] === 'string' || typeof value[key] === 'number') aliases.add(String(value[key]))
+  }
+  if (domain === 'mark' || domain === 'message' || domain === 'conversation') {
+    const table = domain === 'mark' ? 'marks' : domain === 'message' ? 'chats' : 'conversations'
+    const stableColumn = domain === 'mark' ? 'sourceId' : 'syncId'
+    const rows = await database.select<Array<{ id: string; stableId: string | null; deleted: number }>>(
+      `select cast(id as text) as id, ${stableColumn} as stableId, ${domain === 'mark' ? 'deleted' : '0'} as deleted
+       from ${table} where cast(id as text) in (select value from json_each($1))
+         or ${stableColumn} in (select value from json_each($1))`, [JSON.stringify([...aliases])],
+    )
+    if (rows.length > 1 || rows.some(row => row.deleted === 1)) return false
+    for (const row of rows) {
+      aliases.add(row.id)
+      if (row.stableId) aliases.add(row.stableId)
+    }
+  }
+  const references = input.payload.references && typeof input.payload.references === 'object' && !Array.isArray(input.payload.references)
+    ? input.payload.references as Record<string, unknown> : {}
+  if (domain === 'message' && (value.conversationId != null || typeof references.conversation === 'string')) {
+    if (typeof references.conversation !== 'string') return false
+    const parents = await database.select<Array<{ present: number }>>(
+      `select 1 as present from self_hosted_object_mappings m join conversations c
+         on m.local_identity = 'conversation:' || c.syncId
+       where m.workspace_id = $1 and m.object_id = $2 and m.kind = 'conversation' and m.deleted_at is null limit 1`,
+      [input.workspaceId, references.conversation],
+    )
+    if (!parents.length) return false
+  }
+  const newer = await database.select<Array<{ id: number }>>(
+    `select id from self_hosted_local_changes where id > $1 and domain = $2
+       and (workspace_id = $3 or workspace_id is null)
+       and ($2 = 'setting' or local_key in (select value from json_each($4))) limit 1`,
+    [input.sourceIds.reduce((latest, id) => Math.max(latest, id), 0), domain, input.workspaceId, JSON.stringify([...aliases])],
+  )
+  return newer.length === 0
+}
+
+async function assertNoUnresolvedRevisionCommands(workspaceId: string) {
+  const rows = await (await getDb()).select<Array<{ commandId: string }>>(
+    "select command_id as commandId from self_hosted_outbox where workspace_id = $1 and state = 'blocked' and last_error_code = 'revision_conflict' limit 1",
+    [workspaceId],
+  )
+  if (rows.length) throw new Error('SELF_HOSTED_REVISION_CONFLICT')
+}
+
+async function preserveRejectedRevision(binding: Binding, row: OutboxRow, revision?: string) {
+  const database = await getDb()
+  const command = JSON.parse(row.payload) as Record<string, unknown>
+  const objectId = typeof command.objectId === 'string' ? command.objectId : null
+  const conflictId = `revision-conflict:${row.commandId}`
+  const previous = await database.select<Array<{ path: string | null }>>(
+    'select local_copy_path as path from self_hosted_conflicts where id = $1', [conflictId],
+  )
+  let payload: unknown = null
+  if (objectId && typeof command.kind === 'string' && typeof command.ciphertext === 'string' && typeof command.keyVersion === 'number') {
+    payload = await decryptPackedJson<unknown>(await loadWorkspaceKey(binding.workspaceId, command.keyVersion), command.ciphertext,
+      objectAssociatedData(binding.workspaceId, objectId, command.kind))
+  }
+  const snapshot = JSON.stringify({ version: 1, workspaceId: binding.workspaceId, command, payload })
+  const previousPath = previous[0]?.path
+  const copyPath = previousPath && isRevisionConflictCopyPath(previousPath)
+    ? previousPath : `self-hosted-conflict-backups/${crypto.randomUUID()}.json`
+  await mkdir('self-hosted-conflict-backups', { baseDir: BaseDirectory.AppData, recursive: true })
+  await writeFile(copyPath, new TextEncoder().encode(snapshot), { baseDir: BaseDirectory.AppData })
+  // Persist the recovery copy before making the command non-retryable.
+  await database.execute(`insert into self_hosted_conflicts(id, workspace_id, object_id, conflict_type,
+      local_snapshot, remote_snapshot, local_copy_path, state, created_at)
+    values ($1,$2,$3,'protocol-conflict',$4,$5,$6,'unresolved',$7)
+    on conflict(id) do update set local_snapshot=excluded.local_snapshot,remote_snapshot=excluded.remote_snapshot,
+      local_copy_path=excluded.local_copy_path,state='unresolved',resolved_at=null`,
+  [conflictId, binding.workspaceId, objectId, snapshot, JSON.stringify({ revision: revision ?? null }), copyPath, Date.now()])
+  await database.execute("update self_hosted_outbox set state='blocked',last_error_code='revision_conflict',next_attempt_at=0,updated_at=$1 where command_id=$2",
+    [Date.now(), row.commandId])
+}
+
+async function releaseAcknowledgedRevisionConflicts(binding: Binding) {
+  const database = await getDb()
+  const rows = await database.select<Array<{ commandId: string; sourceIds: string; copyPath: string | null }>>(
+    `select o.command_id as commandId,o.source_change_ids as sourceIds,c.local_copy_path as copyPath
+     from self_hosted_outbox o join self_hosted_conflicts c on c.id = 'revision-conflict:' || o.command_id
+     where o.workspace_id=$1 and o.state='blocked' and o.last_error_code='revision_conflict'
+       and c.state='resolved-local-kept'`, [binding.workspaceId],
+  )
+  for (const row of rows) {
+    if (!row.copyPath || !isRevisionConflictCopyPath(row.copyPath)
+      || !await exists(row.copyPath, { baseDir: BaseDirectory.AppData })) throw new Error('SELF_HOSTED_REVISION_CONFLICT')
+    try {
+      const saved = JSON.parse(await readTextFile(row.copyPath, { baseDir: BaseDirectory.AppData })) as {
+        command?: { commandId?: unknown }
+      }
+      if (saved.command?.commandId !== row.commandId) throw new Error('invalid_recovery_copy')
+    } catch {
+      throw new Error('SELF_HOSTED_REVISION_CONFLICT')
+    }
+    for (const sourceId of JSON.parse(row.sourceIds) as number[]) {
+      await database.execute("update self_hosted_local_changes set state='superseded',updated_at=$1 where id=$2 and state='queued'",
+        [Date.now(), sourceId])
+    }
+    // Acknowledging the preserved copy accepts the remote version. Never
+    // turn the rejected command into a forced overwrite with a new base.
+    await database.execute("update self_hosted_outbox set state='superseded',last_error_code='revision_conflict-copy-kept',updated_at=$1 where command_id=$2",
+      [Date.now(), row.commandId])
+  }
+  return rows.length > 0
+}
+
+function isRevisionConflictCopyPath(path: string) {
+  return /^self-hosted-conflict-backups\/[a-f0-9-]+\.json$/.test(path)
 }
 
 function parseOutboxCommand(payload: string) {
@@ -705,12 +1051,14 @@ function parseOutboxCommand(payload: string) {
   return { command, changed }
 }
 
-async function pullEvents(binding: Binding, session: SyncSession) {
+async function pullEvents(binding: Binding, session: SyncSession, onProgress?: (progress: SyncItemProgress) => void) {
   const database = await getDb()
   const { client } = await authenticatedClient(binding.profileId)
   let cursor = binding.pulledSequence
   let hasMore = true
+  let received = 0
   while (hasMore) {
+    onProgress?.({ current: received, total: 0 })
     const page = await client.events(
       binding.workspaceId, cursor, Math.min(500, session.limits.maxEventsPerPage), session.syncEpoch,
     )
@@ -724,7 +1072,9 @@ async function pullEvents(binding: Binding, session: SyncSession) {
     }
     cursor = page.nextCursor
     hasMore = page.hasMore
+    received += page.events.length
     await updatePulledCursor(binding.workspaceId, cursor)
+    onProgress?.({ current: received, total: hasMore ? 0 : received })
   }
 }
 
@@ -732,6 +1082,8 @@ async function applyInbox(
   binding: Binding,
   deviceId: string | null,
   isDocumentSubscribed: (objectId: string) => boolean,
+  onProgress?: (progress: SyncItemProgress) => void,
+  onRefresh?: () => void,
 ): Promise<string> {
   const database = await getDb()
   const rows = await database.select<Array<{ sequence: string; payload: string }>>(
@@ -759,8 +1111,12 @@ async function applyInbox(
   let through = binding.appliedSequence
   let coalesced = 0
   let bindingStoresChanged = false
-  for (const row of parsedRows) {
+  let deferredLocalChange: PendingLocalChange | null = null
+  onProgress?.({ current: 0, total: parsedRows.length })
+  for (const [index, row] of parsedRows.entries()) {
     const event = row.event
+    const path = event.objectId ?? undefined
+    onProgress?.({ path, current: index, total: parsedRows.length })
     try {
       const supersededSnapshot = isCoalescibleSnapshot(event)
         && latestSnapshotSequence.get(event.objectId!) !== row.sequence
@@ -790,8 +1146,17 @@ async function applyInbox(
         [Date.now(), binding.workspaceId, event.sequence]
       )
       through = event.sequence
+      onProgress?.({ path, current: index + 1, total: parsedRows.length })
     } catch (error) {
       if (error instanceof PendingPathMove) break
+      if (error instanceof PendingLocalChange) {
+        await database.execute(
+          "update self_hosted_inbox set state = 'pending', error_code = $1 where workspace_id = $2 and sequence = $3",
+          [error.message, binding.workspaceId, event.sequence],
+        )
+        deferredLocalChange = error
+        break
+      }
       await database.execute(
         "update self_hosted_inbox set state = 'failed', error_code = $1 where workspace_id = $2 and sequence = $3",
         [String(error instanceof Error ? error.message : error).slice(0, 120), binding.workspaceId, event.sequence]
@@ -809,7 +1174,11 @@ async function applyInbox(
       appliedThrough: through,
     })
   }
-  if (bindingStoresChanged) await refreshBindingStores(binding)
+  if (bindingStoresChanged) {
+    onRefresh?.()
+    await refreshBindingStores(binding)
+  }
+  if (deferredLocalChange) throw deferredLocalChange
   return through
 }
 
@@ -868,19 +1237,15 @@ async function refreshLibraryFileTree(binding: Binding) {
   }
 }
 
-async function applyRemoteEvent(binding: Binding, event: SyncEvent) {
+async function applyRemoteEvent(binding: Binding, event: SyncEvent, beforeStructuredApply?: (payload: Record<string, unknown>) => Promise<void>) {
   if (binding.workspaceType === 'library') {
     return withSelfHostedPrepareLock(binding.workspaceId, () => applyRemoteEventRaw(binding, event))
   }
-  return applyRemoteEventRaw(binding, event)
+  return applyRemoteEventRaw(binding, event, beforeStructuredApply)
 }
 
-async function applyRemoteEventRaw(binding: Binding, event: SyncEvent) {
-  if (binding.workspaceType === 'account-data' && event.metadata.kind === 'setting') {
-    const profile = await getProfile(binding.profileId)
-    if (!profile) throw new Error('自托管同步配置不存在')
-    if (profile.domainToggles.settings === false) return
-  }
+async function applyRemoteEventRaw(binding: Binding, event: SyncEvent, beforeStructuredApply?: (payload: Record<string, unknown>) => Promise<void>) {
+  if (!await shouldApplyPersonalEvent(binding, event)) return
   const database = await getDb()
   if (event.type === 'conflict.created' || event.type === 'conflict.resolved') {
     if (event.type === 'conflict.created') {
@@ -890,6 +1255,7 @@ async function applyRemoteEventRaw(binding: Binding, event: SyncEvent) {
     return
   }
   if (!event.objectId) return
+  if (!beforeStructuredApply || event.type === 'object.deleted') await assertPersonalRemoteApplyAllowed(binding, event)
   if (binding.workspaceType === 'library') {
     if (event.metadata.kind === 'canvas') return
     if (event.type === 'object.deleted' || event.type === 'document.updated' || event.type === 'document.checkpointed') {
@@ -902,7 +1268,13 @@ async function applyRemoteEventRaw(binding: Binding, event: SyncEvent) {
     }
   }
   if (event.type === 'object.deleted') {
-    await applyRemoteDelete(binding, await resolveRemoteDeleteTarget(binding, event))
+    const target = await resolveRemoteDeleteTarget(binding, event)
+    await assertPersonalRemoteApplyAllowed(binding, { ...event, objectId: target })
+    await applyRemoteDelete(binding, target)
+    if (binding.workspaceType === 'account-data') {
+      await database.execute('delete from self_hosted_remote_objects where workspace_id = $1 and object_id = $2',
+        [binding.workspaceId, event.objectId])
+    }
     return
   }
   if (event.type === 'document.updated' || event.type === 'document.checkpointed') {
@@ -926,6 +1298,37 @@ async function applyRemoteEventRaw(binding: Binding, event: SyncEvent) {
   const payload = await decryptPackedJson<Record<string, unknown>>(
     key, event.ciphertext, objectAssociatedData(binding.workspaceId, event.objectId, kind),
   )
+  if (!beforeStructuredApply) await assertPersonalRemoteApplyAllowed(binding, event, payload)
+  if (binding.workspaceType === 'account-data' && payload.domain === 'message') {
+    const references = payload.references
+    const conversation = references && typeof references === 'object' && !Array.isArray(references)
+      ? (references as Record<string, unknown>).conversation : undefined
+    if (typeof conversation === 'string') {
+      const deletedParents = await database.select<Array<{ deletedAt: number }>>(
+        `select deleted_at as deletedAt from self_hosted_object_mappings
+         where workspace_id = $1 and object_id = $2 and kind = 'conversation' and deleted_at is not null limit 1`,
+        [binding.workspaceId, conversation],
+      )
+      if (deletedParents[0]) {
+        const target = await resolveRemoteDeleteTarget(binding, event)
+        await assertPersonalRemoteApplyAllowed(binding, { ...event, objectId: target })
+        await applyRemoteDelete(binding, target)
+        await database.execute('delete from self_hosted_remote_objects where workspace_id = $1 and object_id = $2',
+          [binding.workspaceId, event.objectId])
+        return
+      }
+    }
+  }
+  if (binding.workspaceType === 'account-data' && (payload.domain === 'mark' || payload.domain === 'message')) {
+    const profile = await getProfile(binding.profileId)
+    if (!profile) throw new Error('自托管同步配置不存在')
+    await hydratePersonalAssets({
+      profileId: binding.profileId,
+      workspaceId: binding.workspaceId,
+      payload,
+      enabled: profile.domainToggles.attachments !== false,
+    })
+  }
   if (binding.workspaceType === 'library' && payload.domain === 'canvas') return
   if (binding.workspaceType === 'library' && typeof payload.relativePath === 'string') {
     await assertNoPendingPathMove(binding, payload.relativePath)
@@ -942,6 +1345,11 @@ async function applyRemoteEventRaw(binding: Binding, event: SyncEvent) {
     await applyRemoteFolder(binding, event, payload)
     return
   }
+  // Downloads and dependency resolution may have yielded to a new local edit.
+  if (beforeStructuredApply) {
+    await beforeStructuredApply(payload)
+    await assertPersonalRemoteApplyAllowed(binding, event, payload, true)
+  } else await assertPersonalRemoteApplyAllowed(binding, event, payload)
   await applyStructuredPayload(binding.workspaceId, event.objectId, kind as SyncObjectKind, payload)
   await database.execute(
     `insert into self_hosted_remote_objects(workspace_id, object_id, kind, revision, payload, updated_at)
@@ -952,6 +1360,28 @@ async function applyRemoteEventRaw(binding: Binding, event: SyncEvent) {
   )
 }
 
+async function shouldApplyPersonalEvent(binding: Binding, event: SyncEvent) {
+  if (binding.workspaceType !== 'account-data') return true
+  if (event.type === 'conflict.created' || event.type === 'conflict.resolved') return true
+  const profile = await getProfile(binding.profileId)
+  if (!profile) throw new Error('自托管同步配置不存在')
+  let kind = typeof event.metadata.kind === 'string' ? event.metadata.kind : null
+  if (!kind && event.objectId) {
+    const mappings = await (await getDb()).select<Array<{ kind: string }>>(
+      'select kind from self_hosted_object_mappings where workspace_id = $1 and object_id = $2 limit 1',
+      [binding.workspaceId, event.objectId],
+    )
+    kind = mappings[0]?.kind ?? null
+  }
+  return kind !== null && isPersonalSyncKindEnabled(kind, profile.domainToggles, event.type === 'object.deleted')
+}
+
+async function assertPersonalRemoteApplyAllowed(
+  binding: Binding, event: SyncEvent, payload?: Record<string, unknown>, allowRestoredSnapshots = false,
+) {
+  if (await hasPendingPersonalMutation(binding, event, payload, allowRestoredSnapshots)) throw new PendingLocalChange()
+}
+
 async function resolveRemoteDeleteTarget(binding: Binding, event: SyncEvent) {
   const database = await getDb()
   const direct = await database.select<Array<{ objectId: string }>>(
@@ -960,6 +1390,17 @@ async function resolveRemoteDeleteTarget(binding: Binding, event: SyncEvent) {
     [binding.workspaceId, event.objectId]
   )
   if (direct[0]) return direct[0].objectId
+  if (binding.workspaceType === 'account-data') {
+    // A remote SQLite key belongs to the source device. An unmapped tombstone
+    // must never claim another local object's row through that numeric key.
+    const kind = String(event.metadata.kind ?? '')
+    if (!isPersonalSyncKindEnabled(kind, {}, true)) return event.objectId!
+    await database.execute(`insert or ignore into self_hosted_object_mappings(
+        workspace_id, object_id, kind, local_identity, deleted_at, updated_at)
+      values ($1, $2, $3, $4, $5, $5)`,
+    [binding.workspaceId, event.objectId, kind, `superseded:${kind}:${event.objectId}`, Date.now()])
+    return event.objectId!
+  }
   if (!event.ciphertext || !event.keyVersion) return event.objectId!
   const kind = String(event.metadata.kind ?? 'note') as SyncObjectKind
   const key = await loadWorkspaceKey(binding.workspaceId, event.keyVersion)
@@ -1516,8 +1957,49 @@ async function applyRemoteFile(binding: Binding, event: SyncEvent, payload: Reco
   }
 }
 
-async function bootstrapBinding(binding: Binding, session: SyncSession) {
+async function preserveBootstrapPendingPersonalChanges(
+  binding: Binding, event: SyncEvent, session: SyncSession, payload: Record<string, unknown>,
+) {
+  if (binding.workspaceType !== 'account-data' || !event.objectId) return
+  const database = await getDb()
+  const pendingForObject = () => pendingPersonalChangesForEvent(binding, event, payload)
+  // The remote attachment hydration runs first. A missing local asset which
+  // exists on the server can therefore be recovered before capturing its row.
+  // Retry this object's preparation immediately, even when another attempted
+  // object set a backoff before the attachment became available.
+  for (const change of await pendingForObject()) {
+    await database.execute('update self_hosted_local_changes set next_attempt_at = 0 where id = $1', [change.id])
+  }
+  let hasMore: boolean
+  do {
+    const prepared = await materializeOutbox(
+      binding.workspaceId, binding.workspaceType, binding.localRoot,
+      session.limits.maxCommandsPerBatch, binding.profileId, session.syncEpoch,
+      Math.max(1, ...session.keyVersions.map(key => key.keyVersion)), session.limits.maxObjectBytes,
+    )
+    hasMore = prepared.hasMore
+  } while (hasMore)
+  // An unrelated bad attachment remains pending without preventing healthy
+  // objects from applying. Only refuse to overwrite the row still holding an
+  // uncaptured local edit; its bootstrap failure remains durable and retryable.
+  if ((await pendingForObject()).length) throw new Error('personal_bootstrap_local_change_not_preserved')
+  await database.execute(
+    `update self_hosted_outbox set restore_local_snapshot = 1
+     where workspace_id = $1 and json_extract(payload, '$.objectId') = $2
+       and json_extract(payload, '$.type') = 'upsert-object' and state in ('pending', 'retry', 'blocked')`,
+    [binding.workspaceId, event.objectId],
+  )
+}
+
+async function bootstrapBinding(
+  binding: Binding,
+  session: SyncSession,
+  errors: Set<string>,
+  onProgress?: (progress: SyncItemProgress) => void,
+) {
   const { client } = await authenticatedClient(binding.profileId)
+  const profile = await getProfile(binding.profileId)
+  if (!profile) throw new Error('自托管同步配置不存在')
   return client.withBootstrapSnapshot(binding.workspaceId, session.syncEpoch, async readPage => {
     let bootstrapId: string | undefined
     let afterObjectId: string | undefined
@@ -1525,6 +2007,7 @@ async function bootstrapBinding(binding: Binding, session: SyncSession) {
     const objects: SyncBootstrapPage['objects'] = []
     const conflicts: Array<Record<string, unknown>> = []
     do {
+      onProgress?.({ current: objects.length, total: 0 })
       const page = await readPage(
         bootstrapId,
         afterObjectId,
@@ -1535,10 +2018,31 @@ async function bootstrapBinding(binding: Binding, session: SyncSession) {
       objects.push(...page.objects)
       conflicts.push(...page.conflicts)
       afterObjectId = page.nextObjectId ?? undefined
+      onProgress?.({ current: objects.length, total: afterObjectId ? 0 : objects.length })
     } while (afterObjectId)
+    if (binding.workspaceType === 'account-data' && objects.some(object => object.kind === 'conversation' && object.deletedAt !== null)) {
+      const entries: SelfHostedSnapshotObject[] = []
+      for (const object of objects) {
+        let payload: Record<string, unknown> = {}
+        if (object.kind === 'message' && object.deletedAt === null) {
+          try {
+            const key = await loadWorkspaceKey(binding.workspaceId, object.keyVersion)
+            payload = await decryptPackedJson<Record<string, unknown>>(
+              key, object.ciphertext, objectAssociatedData(binding.workspaceId, object.objectId, object.kind),
+            )
+          } catch {
+            // Keep the normal per-object apply path responsible for reporting
+            // malformed/encrypted objects and its isolated failure accounting.
+          }
+        }
+        entries.push({ object, payload })
+      }
+      const effective = applyConversationTombstones(entries)
+      for (let index = 0; index < objects.length; index++) objects[index] = effective[index].object
+    }
     const priority: Partial<Record<SyncObjectKind, number>> = {
       tag: 0, conversation: 0, folder: 0,
-      mark: 1, note: 1, message: 1, asset: 1, canvas: 1,
+      mark: 1, note: 1, message: 1, asset: 1, canvas: 2,
     }
     objects.sort((left, right) => {
       const deletionOrder = Number(left.deletedAt === null) - Number(right.deletedAt === null)
@@ -1547,7 +2051,10 @@ async function bootstrapBinding(binding: Binding, session: SyncSession) {
     })
     let skippedObjects = 0
     const appliedObjectIds: string[] = []
-    for (const object of objects) {
+    for (const [index, object] of objects.entries()) {
+      onProgress?.({ path: object.objectId, current: index, total: objects.length })
+      if (binding.workspaceType === 'account-data'
+        && !isPersonalSyncKindEnabled(object.kind, profile.domainToggles, object.deletedAt !== null)) continue
       const event: SyncEvent = {
         eventId: `bootstrap:${bootstrapId}:${object.objectId}`,
         sequence: snapshotSequence,
@@ -1564,9 +2071,10 @@ async function bootstrapBinding(binding: Binding, session: SyncSession) {
         createdAt: new Date().toISOString(),
       }
       try {
-        await applyRemoteEvent(binding, event)
+        await applyRemoteEvent(binding, event, payload => preserveBootstrapPendingPersonalChanges(binding, event, session, payload))
       } catch (error) {
         if (error instanceof PendingPathMove) throw error
+        if (error instanceof PendingLocalChange) errors.add(error.message)
         skippedObjects += 1
         try {
           await recordBootstrapApplyFailure(binding.workspaceId, object.objectId, object.kind, error)
@@ -1613,6 +2121,7 @@ async function bootstrapBinding(binding: Binding, session: SyncSession) {
       }
       appliedObjectIds.push(object.objectId)
     }
+    onProgress?.({ current: objects.length, total: objects.length })
     if (appliedObjectIds.length > 0) {
       await (await getDb()).execute(
         `update self_hosted_conflicts set state = 'resolved', resolved_at = $1
@@ -1621,20 +2130,14 @@ async function bootstrapBinding(binding: Binding, session: SyncSession) {
         [Date.now(), binding.workspaceId, JSON.stringify(appliedObjectIds)],
       )
     }
-    if (skippedObjects > 0) {
-      console.warn('[self-hosted-sync] Bootstrap completed with isolated object failures', {
-        workspaceId: binding.workspaceId,
-        workspaceType: binding.workspaceType,
-        skippedObjects,
-        totalObjects: objects.length,
-      })
-    }
-    const isolatedFailureLimit = Math.max(3, Math.ceil(objects.length * 0.1))
-    if (skippedObjects > isolatedFailureLimit) {
-      throw new Error(
-        `bootstrap_apply_failure_limit_exceeded:${skippedObjects}/${objects.length}`,
-      )
-    }
+    if (skippedObjects > 0) throw new Error(`bootstrap_apply_incomplete:${skippedObjects}/${objects.length}`)
+    // Complete only after every enabled object has been materialized. Resolve
+    // stale failures for removed or intentionally paused objects as well.
+    await (await getDb()).execute(
+      `update self_hosted_conflicts set state = 'resolved', resolved_at = $1
+       where workspace_id = $2 and conflict_type = 'bootstrap-apply-failed' and state <> 'resolved'`,
+      [Date.now(), binding.workspaceId],
+    )
     for (const conflict of conflicts) {
       await recordProtocolConflict(
         binding.workspaceId,
@@ -1988,6 +2491,31 @@ async function recordAppliedCommandRevision(
   sequence: string,
 ) {
   if (!command.objectId) return
+  if (binding.workspaceType === 'account-data') {
+    const database = await getDb()
+    if (command.type === 'upsert-object' && command.kind && command.ciphertext && command.keyVersion) {
+      const payload = await decryptPackedJson<Record<string, unknown>>(
+        await loadWorkspaceKey(binding.workspaceId, command.keyVersion), command.ciphertext,
+        objectAssociatedData(binding.workspaceId, command.objectId, command.kind),
+      )
+      // This is the frozen, accepted payload, never the current editable row.
+      // Do not regress a newer remote base that another apply already cached.
+      await database.execute(
+        `insert into self_hosted_remote_objects(workspace_id, object_id, kind, revision, payload, updated_at)
+         values ($1, $2, $3, $4, $5, $6)
+         on conflict(workspace_id, object_id) do update set
+           kind = excluded.kind, revision = excluded.revision, payload = excluded.payload, updated_at = excluded.updated_at
+         where cast(self_hosted_remote_objects.revision as integer) <= cast(excluded.revision as integer)`,
+        [binding.workspaceId, command.objectId, command.kind, revision, JSON.stringify(payload), Date.now()],
+      )
+    } else if (command.type === 'delete-object') {
+      await database.execute(
+        `delete from self_hosted_remote_objects where workspace_id = $1 and object_id = $2
+           and cast(revision as integer) <= cast($3 as integer)`,
+        [binding.workspaceId, command.objectId, revision],
+      )
+    }
+  }
   let appliedContentHash = command.ciphertextHash ?? ''
   if (
     command.type === 'upsert-object'

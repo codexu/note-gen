@@ -140,7 +140,7 @@ interface MarkState {
   setSyncState: (syncState: boolean) => void
   lastSyncTime: string
   setLastSyncTime: (lastSyncTime: string) => void
-  uploadMarks: (condition?: RemoteWriteCondition) => Promise<boolean>
+  uploadMarks: (condition?: RemoteWriteCondition, marksOverride?: Mark[]) => Promise<boolean>
   downloadMarks: (options?: RecordDataDownloadOptions) => Promise<Mark[]>
 }
 
@@ -430,11 +430,11 @@ const useMarkStore = create<MarkState>((set, get) => ({
   setLastSyncTime: (lastSyncTime) => {
     set({ lastSyncTime })
   },
-  uploadMarks: async (condition) => {
+  uploadMarks: async (condition, marksOverride) => {
     set({ syncState: true })
     const path = '.data'
     const filename = 'marks.json'
-    const marks = await getAllMarks()
+    const marks = marksOverride ?? await getAllMarks()
     const store = await Store.load('store.json');
     const primaryBackupMethod = await store.get<string>('primaryBackupMethod') || 'github';
     let result = false

@@ -2096,6 +2096,7 @@
         "repositoryLabel": "同步仓库",
         "current": "当前",
         "connected": "已绑定",
+        "notChecked": "未检测",
         "unbound": "未绑定仓库",
         "unboundTitle": "这个工作区还没有关联仓库",
         "unboundDescription": "未绑定仓库，笔记文件仅保存在本地。",

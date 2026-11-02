@@ -17,7 +17,7 @@ import { testS3Connection } from '@/lib/sync/s3'
 import { testWebDAVConnection } from '@/lib/sync/webdav'
 import { testCloudFolderConnection } from '@/lib/sync/cloud-folder'
 import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
-import useSettingStore from '@/stores/setting'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
 import { cn } from '@/lib/utils'
 import { MobileMeActivityDrawer } from './mobile-me-activity-drawer'
@@ -91,6 +91,7 @@ export function MobileMePage({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const restoredScrollRef = useRef(false)
   const refreshOnMountRef = useRef(refreshOnMount)
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
 
   const {
     primaryBackupMethod,
@@ -147,12 +148,17 @@ export function MobileMePage({
   }, [])
 
   useEffect(() => {
-    if (!refreshOnMountRef.current) return
+    if (!refreshOnMountRef.current || !settingsReady) return
 
     let cancelled = false
+    const isCurrent = () => !cancelled
+      && useSettingsHydrationStore.getState().status === 'ready'
+      && useSettingStore.getState().primaryBackupMethod === primaryBackupMethod
+      && useSettingStore.getState().workspacePath === workspacePath
 
     async function loadSyncProfile() {
       const store = await Store.load('store.json')
+      if (!isCurrent()) return
       const syncState = useSyncStore.getState()
       const settingState = useSettingStore.getState()
 
@@ -160,7 +166,7 @@ export function MobileMePage({
         switch (primaryBackupMethod) {
           case 'github': {
             const accessToken = await store.get<string>('accessToken')
-            if (!accessToken) return
+            if (!isCurrent() || !accessToken) return
 
             syncState.setSyncRepoState(SyncStateEnum.checking)
 
@@ -168,7 +174,9 @@ export function MobileMePage({
               import('@/lib/sync/github'),
               getOptionalSyncRepoName('github'),
             ])
+            if (!isCurrent()) return
             const user = await getUserInfo()
+            if (!isCurrent()) return
             const githubUser = user && typeof user === 'object' && 'data' in user
               ? user.data as UserInfo
               : undefined
@@ -177,6 +185,7 @@ export function MobileMePage({
               syncState.setUserInfo(githubUser)
               await settingState.setGithubUsername(githubUser.login)
             }
+            if (!isCurrent()) return
 
             if (!repoName) {
               syncState.setSyncRepoState(SyncStateEnum.fail)
@@ -184,7 +193,7 @@ export function MobileMePage({
             }
 
             const repo = await checkSyncRepoState(repoName)
-            if (cancelled) return
+            if (!isCurrent()) return
 
             if (repo) {
               syncState.setSyncRepoInfo(repo)
@@ -197,7 +206,7 @@ export function MobileMePage({
           }
           case 'gitee': {
             const accessToken = await store.get<string>('giteeAccessToken')
-            if (!accessToken) return
+            if (!isCurrent() || !accessToken) return
 
             syncState.setGiteeSyncRepoState(SyncStateEnum.checking)
 
@@ -205,7 +214,9 @@ export function MobileMePage({
               import('@/lib/sync/gitee'),
               getOptionalSyncRepoName('gitee'),
             ])
+            if (!isCurrent()) return
             const user = await getUserInfo()
+            if (!isCurrent()) return
             if (!cancelled && user) {
               syncState.setGiteeUserInfo(user)
             }
@@ -216,7 +227,7 @@ export function MobileMePage({
             }
 
             const repo = await checkSyncRepoState(repoName)
-            if (cancelled) return
+            if (!isCurrent()) return
 
             if (repo) {
               syncState.setGiteeSyncRepoInfo(repo)
@@ -229,7 +240,7 @@ export function MobileMePage({
           }
           case 'gitlab': {
             const accessToken = await store.get<string>('gitlabAccessToken')
-            if (!accessToken) return
+            if (!isCurrent() || !accessToken) return
 
             syncState.setGitlabSyncProjectState(SyncStateEnum.checking)
 
@@ -237,11 +248,14 @@ export function MobileMePage({
               import('@/lib/sync/gitlab'),
               getOptionalSyncRepoName('gitlab'),
             ])
+            if (!isCurrent()) return
             const user = await getUserInfo()
+            if (!isCurrent()) return
             if (!cancelled && user) {
               syncState.setGitlabUserInfo(user)
               await settingState.setGitlabUsername(user.username)
             }
+            if (!isCurrent()) return
 
             if (!repoName) {
               syncState.setGitlabSyncProjectState(SyncStateEnum.fail)
@@ -249,7 +263,7 @@ export function MobileMePage({
             }
 
             const project = await checkSyncProjectState(repoName)
-            if (cancelled) return
+            if (!isCurrent()) return
 
             if (project) {
               syncState.setGitlabSyncProjectInfo(project)
@@ -262,7 +276,7 @@ export function MobileMePage({
           }
           case 'gitea': {
             const accessToken = await store.get<string>('giteaAccessToken')
-            if (!accessToken) return
+            if (!isCurrent() || !accessToken) return
 
             syncState.setGiteaSyncRepoState(SyncStateEnum.checking)
 
@@ -270,11 +284,14 @@ export function MobileMePage({
               import('@/lib/sync/gitea'),
               getOptionalSyncRepoName('gitea'),
             ])
+            if (!isCurrent()) return
             const user = await getUserInfo()
+            if (!isCurrent()) return
             if (!cancelled && user) {
               syncState.setGiteaUserInfo(user)
               await settingState.setGiteaUsername(user.login)
             }
+            if (!isCurrent()) return
 
             if (!repoName) {
               syncState.setGiteaSyncRepoState(SyncStateEnum.fail)
@@ -282,7 +299,7 @@ export function MobileMePage({
             }
 
             const repo = await checkSyncRepoState(repoName)
-            if (cancelled) return
+            if (!isCurrent()) return
 
             if (repo) {
               syncState.setGiteaSyncRepoInfo(repo)
@@ -295,37 +312,38 @@ export function MobileMePage({
           }
           case 's3': {
             const s3Config = await store.get<S3Config>('s3SyncConfig')
-            if (!s3Config?.bucket) return
+            if (!isCurrent() || !s3Config?.bucket) return
 
             const connected = await testS3Connection(s3Config).catch(() => false)
-            if (!cancelled) {
+            if (isCurrent()) {
               syncState.setS3Connected(connected)
             }
             return
           }
           case 'webdav': {
             const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-            if (!webdavConfig?.url || !webdavConfig?.username || !webdavConfig?.password) return
+            if (!isCurrent() || !webdavConfig?.url || !webdavConfig?.username || !webdavConfig?.password) return
 
             const connected = await testWebDAVConnection(webdavConfig).catch(() => false)
-            if (!cancelled) {
+            if (isCurrent()) {
               syncState.setWebDAVConnected(connected)
             }
             return
           }
           case 'cloudFolder': {
             const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
-            if (!cancelled) setCloudFolderProvider(config?.provider)
+            if (!isCurrent()) return
+            setCloudFolderProvider(config?.provider)
             if (!config?.path) return
             const connected = await testCloudFolderConnection(config).catch(() => false)
-            if (!cancelled) syncState.setCloudFolderConnected(connected)
+            if (isCurrent()) syncState.setCloudFolderConnected(connected)
             return
           }
           default:
             return
         }
       } catch (error) {
-        if (cancelled) return
+        if (!isCurrent()) return
         console.error('[MobileMePage] Failed to load sync profile:', error)
 
         switch (primaryBackupMethod) {
@@ -356,12 +374,13 @@ export function MobileMePage({
       }
     }
 
-    loadSyncProfile()
+    void loadSyncProfile()
 
     return () => {
       cancelled = true
     }
   }, [
+    settingsReady,
     primaryBackupMethod,
     workspacePath,
     githubCustomSyncRepo,

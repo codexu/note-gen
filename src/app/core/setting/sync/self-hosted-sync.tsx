@@ -29,7 +29,7 @@ import { formatSyncDataError } from '@/lib/sync/remote-file'
 
 let serverUrlDraftWrite: Promise<void> = Promise.resolve()
 
-export function SelfHostedSync() {
+export function SelfHostedSync({ active = true }: { active?: boolean }) {
   const t = useTranslations('settings.sync.selfHosted')
   const p = useTranslations('settings.sync.switchPlan')
   const tStatus = useTranslations('syncOverview')
@@ -103,7 +103,8 @@ export function SelfHostedSync() {
   }, [profileId, switchStep])
 
   useEffect(() => {
-    if (experimentalAcknowledged !== true) return
+    if (!active || experimentalAcknowledged !== true) return
+    let cancelled = false
     const handleProfileStateChange = () => {
       setProfileId(null)
       setReauthenticationRequired(true)
@@ -116,6 +117,7 @@ export function SelfHostedSync() {
     void (async () => {
       const store = await Store.load('store.json')
       const serverUrlDraft = await store.get<string>('selfHostedServerUrlDraft')
+      if (cancelled) return
       if (serverUrlDraft) {
         setServerUrl(serverUrlDraft)
         try {
@@ -132,6 +134,7 @@ export function SelfHostedSync() {
       }>>(
         "select id, server_url as serverUrl, state from self_hosted_sync_profiles order by updated_at desc limit 1"
       )
+      if (cancelled) return
       if (profiles[0]?.state === 'connected') {
         setServerUrl(profiles[0].serverUrl)
         setInsecureHttp(normalizeServerUrl(profiles[0].serverUrl).insecureHttp)
@@ -152,10 +155,14 @@ export function SelfHostedSync() {
         setReauthenticationRequired(profiles[0]?.state === 'reauthentication-required')
       }
     })().catch(error => {
+      if (cancelled) return
       toast.error(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? error.message : t('operationFailed'))
     })
-    return () => window.removeEventListener('self-hosted-profile-state-changed', handleProfileStateChange)
-  }, [experimentalAcknowledged, setSelfHostedConnected, t, p])
+    return () => {
+      cancelled = true
+      window.removeEventListener('self-hosted-profile-state-changed', handleProfileStateChange)
+    }
+  }, [active, experimentalAcknowledged, setSelfHostedConnected, t, p])
 
   function updateServerUrl(value: string) {
     setServerUrl(value)
@@ -442,7 +449,7 @@ export function SelfHostedSync() {
           )}
         </CardFooter>
       </Card>
-      {selfHostedConnected && profileId ? (
+      {active && selfHostedConnected && profileId ? (
         <SelfHostedWorkspaces key={`${profileId}:${workspaceRevision}`} profileId={profileId} />
       ) : null}
       <AlertDialog open={instanceChange !== null} onOpenChange={open => { if (!open) setInstanceChange(null) }}>

@@ -2,7 +2,7 @@
 
 import { FileDown, Loader2, RefreshCcw } from 'lucide-react'
 import { useTranslations } from 'next-intl'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { confirm } from '@tauri-apps/plugin-dialog'
 import { platform } from '@tauri-apps/plugin-os'
 import { Store } from '@tauri-apps/plugin-store'
@@ -28,8 +28,9 @@ import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { RepoNames, SyncStateEnum } from '@/lib/sync/github.types'
 import { hasConfiguredSelfHostedSync } from '@/lib/diagnostics/self-hosted'
+import { checkSyncProviderStatus } from '@/lib/sync/provider-status'
 import type { SyncRepoPlatform, WorkspaceSyncRepos } from '@/lib/sync/workspace-repos'
-import useSettingStore from '@/stores/setting'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
 import { SYNC_PLATFORMS, SYNC_PLATFORM_INFO, SyncPlatform, type CloudFolderConfig } from '@/types/sync'
 
@@ -48,6 +49,7 @@ function isRepoSyncPlatform(platformName: MobileSyncPlatform): platformName is S
 
 export default function SyncPage() {
   const t = useTranslations()
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
   const currentPlatform = platform()
   const isIOS = currentPlatform === 'ios'
   const isAndroid = currentPlatform === 'android'
@@ -82,6 +84,7 @@ export default function SyncPage() {
     webdavConnected,
     cloudFolderConnected,
     selfHostedConnected,
+    providerChecks,
   } = useSyncStore()
 
   const [tab, setTab] = useState<MobileSyncPlatform>(primaryBackupMethod)
@@ -89,6 +92,8 @@ export default function SyncPage() {
   const [activeCloudFolderProvider, setActiveCloudFolderProvider] = useState<'folder' | 'oneDrive' | null>(null)
   const [workspaceRepos, setWorkspaceRepos] = useState<Record<string, WorkspaceSyncRepos>>({})
   const [hasSelfHostedConfiguration, setHasSelfHostedConfiguration] = useState(false)
+  const selectedTabRef = useRef(tab)
+  selectedTabRef.current = tab
 
   const standardPlatforms = useMemo(
     () => SYNC_PLATFORMS.filter(platformName => platformName !== 'cloudFolder'
@@ -188,12 +193,30 @@ export default function SyncPage() {
   }, [isAndroid, isIOS])
 
   const selectedSyncPlatform = toSyncPlatform(tab)
+
+  useEffect(() => {
+    if (!settingsReady || isLoading || selectedSyncPlatform === 'local') return
+    // The iCloud and OneDrive panels restore and check their own matching
+    // provider. A generic cloud-folder check could probe the other service.
+    if (selectedSyncPlatform === 'cloudFolder') return
+    let active = true
+    const isActive = () => active
+      && selectedTabRef.current === tab
+      && useSettingsHydrationStore.getState().status === 'ready'
+      && useSettingStore.getState().workspacePath === workspacePath
+    void checkSyncProviderStatus(selectedSyncPlatform, { isActive }).catch(error => {
+      if (isActive()) console.error('Failed to check the selected sync platform:', error)
+    })
+    return () => { active = false }
+  }, [isLoading, selectedSyncPlatform, settingsReady, tab, workspacePath])
+
   const currentSyncState = getCurrentSyncState(selectedSyncPlatform)
   const isFileAutoSyncDisabled = currentSyncState !== SyncStateEnum.success
   const isCloudFolderTab = selectedSyncPlatform === 'cloudFolder'
   const supportsCloudFolderFileSync = tab === 'oneDrive'
 
   function getCurrentSyncState(platform: SyncPlatform) {
+    if (providerChecks[platform] === 'checking') return SyncStateEnum.checking
     switch (platform) {
       case 'local':
         return SyncStateEnum.success

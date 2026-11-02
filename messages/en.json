@@ -2095,6 +2095,7 @@
         "repositoryLabel": "Sync repository",
         "current": "Current",
         "connected": "Linked",
+        "notChecked": "Not checked",
         "unbound": "No repository linked",
         "unboundTitle": "This workspace has no linked repository",
         "unboundDescription": "No repository is linked. Note files are stored only on this device.",

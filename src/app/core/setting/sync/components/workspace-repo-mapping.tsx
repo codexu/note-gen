@@ -627,9 +627,11 @@ export function WorkspaceRepoMapping({
                                 : 'settings.sync.workspaceConnection.connectionFailed')
                               : waitingForValidation
                                 ? t('settings.sync.workspaceConnection.pending')
-                                : t(hasBinding
-                                  ? 'settings.sync.workspaceConnection.connected'
-                                  : 'settings.sync.workspaceConnection.unbound')
+                                : hasBinding && !result
+                                  ? t('settings.sync.workspaceConnection.notChecked')
+                                  : t(hasBinding
+                                    ? 'settings.sync.workspaceConnection.connected'
+                                    : 'settings.sync.workspaceConnection.unbound')
                 const describedBy = [!hasBinding && warningId, hasConnectionError && resultId].filter(Boolean).join(' ') || undefined
                 const statusDescription = hasConnectionError && result
                   ? t(`settings.sync.repositoryCheck.${result}`)
@@ -730,7 +732,7 @@ export function WorkspaceRepoMapping({
                             <TooltipTrigger asChild>
                               <Badge
                                 asChild
-                                variant={hasBinding && !isBusy && !waitingForValidation && !hasConnectionError ? 'success' : 'outline'}
+                                variant={hasBinding && result === 'success' && !isBusy && !waitingForValidation ? 'success' : 'outline'}
                                 className={cn(
                                   'cursor-pointer disabled:cursor-default disabled:opacity-70',
                                   isBusy || waitingForValidation
@@ -762,6 +764,8 @@ export function WorkspaceRepoMapping({
                                     <PencilLine aria-hidden="true" />
                                   ) : !hasBinding || hasConnectionError ? (
                                     <CircleAlert aria-hidden="true" />
+                                  ) : hasBinding && !result ? (
+                                    <RefreshCw aria-hidden="true" />
                                   ) : (
                                     <CheckCircle2 aria-hidden="true" />
                                   )}

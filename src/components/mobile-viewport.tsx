@@ -23,6 +23,10 @@ function hasKeyboardKeepAliveTarget(target: EventTarget | null) {
   return target instanceof HTMLElement && Boolean(target.closest(`${EDITABLE_SELECTOR}, ${KEYBOARD_KEEPALIVE_SELECTOR}`))
 }
 
+function isAndroidPlatform() {
+  return typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)
+}
+
 export function MobileViewport() {
   useEffect(() => {
     const root = document.documentElement
@@ -30,7 +34,9 @@ export function MobileViewport() {
     root.classList.add('mobile-app-active')
     body.classList.add('mobile-app-active')
     const timers = new Set<number>()
+    const androidPlatform = isAndroidPlatform()
     let stableViewportHeight = window.visualViewport?.height ?? window.innerHeight
+    let stableLayoutHeight = window.innerHeight
     let recentEditablePointerAt = 0
     let stableViewportFallbackUntil = 0
 
@@ -44,20 +50,35 @@ export function MobileViewport() {
 
     const updateViewportVars = () => {
       const viewport = window.visualViewport
-      const viewportHeight = viewport?.height ?? window.innerHeight
+      const layoutHeight = window.innerHeight
+      const viewportHeight = viewport?.height ?? layoutHeight
       const viewportWidth = viewport?.width ?? window.innerWidth
       const viewportOffsetTop = viewport?.offsetTop ?? 0
       const activeElement = document.activeElement
       const hasEditableFocus = activeElement instanceof HTMLElement && isEditableElement(activeElement)
-      const keyboardInset = Math.max(0, window.innerHeight - viewportHeight - viewportOffsetTop)
+      const keyboardInset = Math.max(0, layoutHeight - viewportHeight - viewportOffsetTop)
       const keyboardInsetFromStableViewport = Math.max(0, stableViewportHeight - viewportHeight)
+      // Android keeps a full height window when the keyboard opens, so the native
+      // container shrinks instead and innerHeight and visualViewport height fall
+      // together. Only the recorded keyboard-closed height reveals the change.
+      const keyboardInsetFromLayoutResize = Math.max(0, stableLayoutHeight - layoutHeight)
       const allowStableViewportFallback = hasEditableFocus && Date.now() <= stableViewportFallbackUntil
+      const allowLayoutResizeFallback = androidPlatform && hasEditableFocus
       const keyboardOpen = keyboardInset > KEYBOARD_OPEN_THRESHOLD
         || (allowStableViewportFallback && keyboardInsetFromStableViewport > KEYBOARD_OPEN_THRESHOLD)
-      const effectiveKeyboardInset = Math.max(keyboardInset, keyboardInsetFromStableViewport)
+        || (allowLayoutResizeFallback && keyboardInsetFromLayoutResize > KEYBOARD_OPEN_THRESHOLD)
+      // The native container already shrinks the viewport when it takes the
+      // keyboard inset, so the CSS reservation stays empty on that path.
+      const effectiveKeyboardInset = allowLayoutResizeFallback
+        && keyboardInsetFromLayoutResize > KEYBOARD_OPEN_THRESHOLD
+        ? 0
+        : Math.max(keyboardInset, keyboardInsetFromStableViewport)
 
       if (!hasEditableFocus && viewportHeight > stableViewportHeight) {
         stableViewportHeight = viewportHeight
+      }
+      if (!hasEditableFocus && layoutHeight > stableLayoutHeight) {
+        stableLayoutHeight = layoutHeight
       }
 
       root.style.setProperty('--mobile-viewport-height', `${viewportHeight}px`)
@@ -139,6 +160,8 @@ export function MobileViewport() {
     }
 
     const handleOrientationChange = () => {
+      stableViewportHeight = window.visualViewport?.height ?? window.innerHeight
+      stableLayoutHeight = window.innerHeight
       updateViewportVars()
       setTimer(updateViewportVars, 250)
     }

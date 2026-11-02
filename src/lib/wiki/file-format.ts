@@ -203,8 +203,12 @@ function sourceLinks(page: WikiPage, filePath: string, allPages: WikiPage[], chi
 }
 
 function pageMetadata(page: WikiPage, filePath: string) {
-  const { contextId: _contextId, body: _body, ...metadata } = page
-  return pageMetadataSchema.parse({ ...metadata, filePath })
+  return pageMetadataSchema.parse({
+    id: page.id, kind: page.kind, title: page.title, aliases: page.aliases,
+    sourceRefs: page.sourceRefs, inputHash: page.inputHash, outputHash: page.outputHash,
+    updatedAt: page.updatedAt, status: page.status, relatedPageIds: page.relatedPageIds,
+    topicKey: page.topicKey, generation: page.generation, filePath,
+  })
 }
 
 export function serializeWikiPageFile(
@@ -283,7 +287,7 @@ function pageFromProse(
   const summary = normalizeBody(heading.rest)
   let revision: WikiSourceRevision | undefined
   if (envelope.revision) {
-    const { contributions: _contributionMetadata, ...metadata } = envelope.revision
+    const metadata = envelope.revision
     const outputHash = edited ? hash(JSON.stringify({ summary, contributions })) : metadata.outputHash
     revision = { ...metadata, contextId, summary, contributions, outputHash,
       id: edited ? `${metadata.inputHash}:${outputHash}` : metadata.id }

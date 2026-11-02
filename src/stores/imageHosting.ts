@@ -8,6 +8,7 @@ import type { ImageHostingType } from '@/lib/image-hosting-config';
 
 interface ImageHostingState {
   initMainHosting: () => Promise<void>
+  initialized: boolean
   path: string
   setPath: (path: string) => void
 
@@ -47,17 +48,17 @@ interface ImageHostingState {
 const useImageStore = create<ImageHostingState>((set, get) => ({
   initMainHosting: async () => {
     const store = await Store.load('store.json');
-    const mainImageHosting = await store.get<string>('mainImageHosting')
-    if (mainImageHosting) {
-      set({ mainImageHosting })
-    }
-
-    // 初始化 S3 配置
-    const s3Config = await store.get<S3Config>('s3Config');
-    if (s3Config) {
-      set({ s3Config })
-    }
+    const [mainImageHosting, s3Config] = await Promise.all([
+      store.get<string>('mainImageHosting'),
+      store.get<S3Config>('s3Config'),
+    ])
+    set({
+      ...(mainImageHosting ? { mainImageHosting } : {}),
+      ...(s3Config ? { s3Config } : {}),
+      initialized: true,
+    })
   },
+  initialized: false,
   path: '',
   setPath: (path) => set({ path }),
 

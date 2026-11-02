@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 
 import {
@@ -9,6 +9,7 @@ import {
   useInitialConnectionTest,
 } from './service-settings-card'
 import { useStoredImageConfig } from './use-stored-image-config'
+import { useImageHostingSettingsActivity } from './use-image-hosting-settings-activity'
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { ResponsiveSelect } from '@/components/responsive-select'
@@ -55,14 +56,7 @@ export function LskyImageHosting() {
   )
   const state = useServiceState('lsky')
   const canTest = isLskyConfigComplete(config)
-  const runTest = useCallback(async () => {
-    state.set(SyncStateEnum.checking)
-    try {
-      state.set(await testLskyConnection(config) ? SyncStateEnum.success : SyncStateEnum.fail)
-    } catch {
-      state.set(SyncStateEnum.fail)
-    }
-  }, [config, state])
+  const runTest = useServiceConnectionTest(config, canTest, testLskyConnection, state.set)
   useInitialConnectionTest({ loaded, canTest, test: runTest })
 
   async function update(next: LskyConfig) {
@@ -119,14 +113,7 @@ export function WebDavImageHosting() {
   )
   const state = useServiceState('webdav')
   const canTest = isWebDavImageConfigComplete(config)
-  const runTest = useCallback(async () => {
-    state.set(SyncStateEnum.checking)
-    try {
-      state.set(await testWebDavImageConnection(config) ? SyncStateEnum.success : SyncStateEnum.fail)
-    } catch {
-      state.set(SyncStateEnum.fail)
-    }
-  }, [config, state])
+  const runTest = useServiceConnectionTest(config, canTest, testWebDavImageConnection, state.set)
   useInitialConnectionTest({ loaded, canTest, test: runTest })
 
   async function update(next: WebDavImageConfig) {
@@ -198,11 +185,12 @@ export function CustomHttpImageHosting() {
   )
   const state = useServiceState('custom-http')
   const isComplete = isCustomHttpImageConfigComplete(config)
+  const { active } = useImageHostingSettingsActivity()
 
   useEffect(() => {
-    if (!loaded) return
+    if (!active || !loaded) return
     state.set(isComplete ? SyncStateEnum.success : SyncStateEnum.fail)
-  }, [isComplete, loaded, state])
+  }, [active, isComplete, loaded, state])
 
   async function update(next: CustomHttpImageConfig) {
     await updateConfig(next)
@@ -293,11 +281,12 @@ export function CloudinaryImageHosting() {
   )
   const state = useServiceState('cloudinary')
   const isComplete = isCloudinaryConfigComplete(config)
+  const { active } = useImageHostingSettingsActivity()
 
   useEffect(() => {
-    if (!loaded) return
+    if (!active || !loaded) return
     state.set(isComplete ? SyncStateEnum.success : SyncStateEnum.fail)
-  }, [isComplete, loaded, state])
+  }, [active, isComplete, loaded, state])
 
   async function update(next: CloudinaryConfig) {
     await updateConfig(next)
@@ -351,14 +340,7 @@ export function ImageKitImageHosting() {
   )
   const state = useServiceState('imagekit')
   const canTest = isImageKitConfigComplete(config)
-  const runTest = useCallback(async () => {
-    state.set(SyncStateEnum.checking)
-    try {
-      state.set(await testImageKitConnection(config) ? SyncStateEnum.success : SyncStateEnum.fail)
-    } catch {
-      state.set(SyncStateEnum.fail)
-    }
-  }, [config, state])
+  const runTest = useServiceConnectionTest(config, canTest, testImageKitConnection, state.set)
   useInitialConnectionTest({ loaded, canTest, test: runTest })
 
   async function update(next: ImageKitConfig) {
@@ -403,11 +385,12 @@ export function QiniuImageHosting() {
   )
   const state = useServiceState('qiniu')
   const isComplete = isQiniuConfigComplete(config)
+  const { active } = useImageHostingSettingsActivity()
 
   useEffect(() => {
-    if (!loaded) return
+    if (!active || !loaded) return
     state.set(isComplete ? SyncStateEnum.success : SyncStateEnum.fail)
-  }, [isComplete, loaded, state])
+  }, [active, isComplete, loaded, state])
 
   async function update(next: QiniuConfig) {
     await updateConfig(next)
@@ -484,14 +467,7 @@ export function UpyunImageHosting() {
   )
   const state = useServiceState('upyun')
   const canTest = isUpyunConfigComplete(config)
-  const runTest = useCallback(async () => {
-    state.set(SyncStateEnum.checking)
-    try {
-      state.set(await testUpyunConnection(config) ? SyncStateEnum.success : SyncStateEnum.fail)
-    } catch {
-      state.set(SyncStateEnum.fail)
-    }
-  }, [config, state])
+  const runTest = useServiceConnectionTest(config, canTest, testUpyunConnection, state.set)
   useInitialConnectionTest({ loaded, canTest, test: runTest })
 
   async function update(next: UpyunConfig) {
@@ -550,6 +526,32 @@ export function UpyunImageHosting() {
       </Field>
     </ServiceSettingsCard>
   )
+}
+
+function useServiceConnectionTest<T extends object>(
+  config: T,
+  canTest: boolean,
+  test: (config: T) => Promise<boolean>,
+  setState: (state: SyncStateEnum) => void,
+) {
+  const { getCheckGuard } = useImageHostingSettingsActivity()
+  const currentConfig = useRef(config)
+  const requestId = useRef(0)
+  currentConfig.current = config
+
+  return useCallback(async () => {
+    const isActive = getCheckGuard()
+    if (!canTest || !isActive()) return
+    const request = ++requestId.current
+    const isCurrent = () => isActive() && requestId.current === request && currentConfig.current === config
+    setState(SyncStateEnum.checking)
+    try {
+      const connected = await test(config)
+      if (isCurrent()) setState(connected ? SyncStateEnum.success : SyncStateEnum.fail)
+    } catch {
+      if (isCurrent()) setState(SyncStateEnum.fail)
+    }
+  }, [canTest, config, getCheckGuard, setState, test])
 }
 
 function useServiceState(

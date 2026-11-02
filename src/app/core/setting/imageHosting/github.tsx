@@ -1,7 +1,7 @@
 'use client'
 import { Input } from "@/components/ui/input";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from 'next-intl';
 import useSettingStore from "@/stores/setting";
 import { Store } from "@tauri-apps/plugin-store";
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { TokenInputControl } from "@/app/core/setting/sync/components/token-input-control";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { useImageHostingSettingsActivity } from './use-image-hosting-settings-activity';
 
 dayjs.extend(relativeTime)
 
@@ -27,7 +28,11 @@ export function GithubImageHosting() {
 
   const t = useTranslations();
   const { setImageRepoUserInfo } = useImageStore()
+  const { active, getCheckGuard } = useImageHostingSettingsActivity()
   const [accessTokenVisible, setAccessTokenVisible] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const requestRef = useRef(0)
+  const saveRevisionRef = useRef(0)
 
   const {
     githubImageAccessToken,
@@ -51,10 +56,16 @@ export function GithubImageHosting() {
 
   // 创建 GitHub 仓库
   async function createGithubRepo() {
+    const scopeActive = getCheckGuard()
+    if (!scopeActive()) return
+    const request = ++requestRef.current
+    const isCurrent = () => scopeActive() && requestRef.current === request
     try {
       setImageRepoState(SyncStateEnum.creating)
       const actualRepoName = await getImageRepoName()
+      if (!isCurrent()) return
       const info = await createImageRepo(actualRepoName)
+      if (!isCurrent()) return
       if (info) {
         setImageRepoInfo(info)
         setImageRepoState(SyncStateEnum.success)
@@ -62,27 +73,41 @@ export function GithubImageHosting() {
         setImageRepoState(SyncStateEnum.fail)
       }
     } catch (err) {
+      if (!isCurrent()) return
       console.error('Failed to create GitHub repo:', err)
       setImageRepoState(SyncStateEnum.fail)
     }
   }
 
   // 检查 GitHub 仓库状态
-  async function checkGithubRepos() {
+  const checkGithubRepos = useCallback(async (scopeActive = getCheckGuard()) => {
+    if (!scopeActive()) return
+    const request = ++requestRef.current
+    const isCurrent = () => scopeActive() && requestRef.current === request
     try {
-      setImageRepoState(SyncStateEnum.checking)
       const store = await Store.load('store.json');
       const accessToken = await store.get<string>('githubImageAccessToken')
+      if (!isCurrent()) return
+      if (!accessToken?.trim()) {
+        setImageRepoInfo(undefined)
+        setImageRepoState(SyncStateEnum.fail)
+        return
+      }
+      setImageRepoState(SyncStateEnum.checking)
       const userInfo = await getUserInfo(accessToken);
+      if (!isCurrent()) return
       if (!userInfo) {
         setImageRepoState(SyncStateEnum.fail)
         return;
       }
-      setImageRepoUserInfo(userInfo)
+      await setImageRepoUserInfo(userInfo)
+      if (!isCurrent()) return
       // 获取实际使用的仓库名（自定义或默认）
       const actualRepoName = await getImageRepoName()
+      if (!isCurrent()) return
       // 检查图床仓库状态
       const imageRepo = await checkImageRepoState(actualRepoName)
+      if (!isCurrent()) return
       if (imageRepo) {
         setImageRepoInfo(imageRepo)
         setImageRepoState(SyncStateEnum.success)
@@ -91,45 +116,59 @@ export function GithubImageHosting() {
         setImageRepoState(SyncStateEnum.fail)
       }
     } catch (err) {
+      if (!isCurrent()) return
       console.error('Failed to check GitHub repos:', err)
       setImageRepoState(SyncStateEnum.fail)
     }
-  }
+  }, [getCheckGuard, setImageRepoInfo, setImageRepoState, setImageRepoUserInfo])
 
   async function tokenChangeHandler(e: React.ChangeEvent<HTMLInputElement>) {
+    const scopeActive = getCheckGuard()
+    const revision = ++saveRevisionRef.current
+    requestRef.current++
     const value = e.target.value
     if (value === '') {
       setImageRepoState(SyncStateEnum.fail)
       setImageRepoInfo(undefined)
     }
     await setGithubImageAccessToken(value)
-    if (value) {
-      checkGithubRepos()
+    if (value && scopeActive() && saveRevisionRef.current === revision) {
+      await checkGithubRepos(scopeActive)
     }
   }
 
   async function customRepoChangeHandler(e: React.ChangeEvent<HTMLInputElement>) {
+    const scopeActive = getCheckGuard()
+    const revision = ++saveRevisionRef.current
+    requestRef.current++
     const value = e.target.value
     await setGithubCustomImageRepo(value)
     // 如果有token，重新检查仓库状态
-    if (githubImageAccessToken) {
-      checkGithubRepos()
+    if (scopeActive() && saveRevisionRef.current === revision) {
+      await checkGithubRepos(scopeActive)
     }
   }
 
   useEffect(() => {
+    let cancelled = false
     async function init() {
       const store = await Store.load('store.json');
       const token = await store.get<string>('githubImageAccessToken')
+      if (cancelled) return
       if (token) {
         await setGithubImageAccessToken(token)
-        checkGithubRepos()
       } else {
         await setGithubImageAccessToken('')
       }
+      if (!cancelled) setLoaded(true)
     }
-    init()
-  }, [])
+    void init().catch(error => console.error('Failed to load GitHub image hosting config:', error))
+    return () => { cancelled = true }
+  }, [setGithubImageAccessToken])
+
+  useEffect(() => {
+    if (active && loaded) void checkGithubRepos()
+  }, [active, loaded, checkGithubRepos])
 
   const getStatusIcon = () => {
     switch (imageRepoState) {
@@ -188,7 +227,7 @@ export function GithubImageHosting() {
                 : t('settings.imageHosting.github.createNewRepo')}
             </Button>
             <Button 
-              onClick={checkGithubRepos}
+              onClick={() => void checkGithubRepos()}
               size="sm"
               variant="outline"
               disabled={isChecking || isCreating}

@@ -26,6 +26,7 @@ import {
   ItemTitle,
 } from '@/components/ui/item'
 import { SyncStateEnum } from '@/lib/sync/github.types'
+import { useImageHostingSettingsActivity } from './use-image-hosting-settings-activity'
 
 export function ServiceSettingsCard({
   title,
@@ -166,10 +167,15 @@ export function useInitialConnectionTest({
   test: () => Promise<void>
 }) {
   const tested = useRef(false)
+  const { active } = useImageHostingSettingsActivity()
 
   useEffect(() => {
+    if (!active) {
+      tested.current = false
+      return
+    }
     if (!loaded || !canTest || tested.current) return
     tested.current = true
     void test()
-  }, [canTest, loaded, test])
+  }, [active, canTest, loaded, test])
 }

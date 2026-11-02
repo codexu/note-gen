@@ -89,7 +89,8 @@ const useVectorStore = create<VectorState>((set, get) => ({
       }
 
       // 检查重排序模型是否可用
-      const hasRerankModel = await get().checkRerankModel();
+      const semanticEnabled = await store.get<boolean>('wikiSemanticSearchEnabled') !== false;
+      const hasRerankModel = semanticEnabled ? await get().checkRerankModel() : false;
       set({ hasRerankModel });
       await get().refreshIndexStats();
     } catch (error) {

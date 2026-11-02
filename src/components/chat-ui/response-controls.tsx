@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -89,6 +89,25 @@ const actionIcons = {
   copy: 'copy', 'open-note': 'file-text', 'open-source': 'book-open',
   'open-artifact': 'external-link', 'save-artifact': 'download',
 } as const
+
+/** Markdown citations use the same workspace checks and navigation as structured source actions. */
+export function ResponseSourceLink({ sourceKey, href, children }: { sourceKey: string; href: string; children: ReactNode }) {
+  const context = useChatResponseContext()
+  const run = useResponseAction()
+  const t = useTranslations('record.chat.response')
+  const busy = useRef(false)
+  const available = !context.isPreview && Boolean(context.workspaceFingerprint)
+    && context.sources.some(source => source.sourceKey === sourceKey)
+  return <a href={href} className="text-primary underline underline-offset-4" aria-disabled={!available} onClick={event => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!available || busy.current) return
+    busy.current = true
+    void run({ type: 'open-source', sourceKey, label: sourceKey }).catch(() => {
+      toast({ title: t('actionFailed'), description: t('unavailable'), variant: 'destructive' })
+    }).finally(() => { busy.current = false })
+  }}>{children}</a>
+}
 
 export function ResponseActionButton({ action, variant = 'outline' }: {
   action: ResponseAction

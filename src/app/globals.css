@@ -142,6 +142,40 @@
   animation: recordSearchBreathe 1.5s ease-in-out 2;
 }
 
+/* Preserve the bookcase silhouette while its books gently move during Wiki work. */
+@keyframes wikiBookLift {
+  0%, 42%, 100% { transform: translateY(0); }
+  18%, 26% { transform: translateY(-2px); }
+}
+
+@keyframes wikiBookSettle {
+  0%, 40%, 100% { transform: translateY(0) rotate(0deg); }
+  60%, 72% { transform: translateY(-1px) rotate(-5deg); }
+}
+
+@keyframes wikiWorkBreathe {
+  0%, 100% { opacity: 0.78; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .notegen-wiki-icon[data-wiki-working="true"] {
+    animation: wikiWorkBreathe 1.8s ease-in-out infinite;
+  }
+
+  /* LibraryBig's rectangle and first path are one book, including its spine. */
+  .notegen-wiki-icon[data-wiki-working="true"] > rect,
+  .notegen-wiki-icon[data-wiki-working="true"] > path:first-of-type {
+    animation: wikiBookLift 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .notegen-wiki-icon[data-wiki-working="true"] > path:nth-of-type(2) {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: wikiBookSettle 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+}
+
 /* 基础样式 - 包含主题变量定义 */
 @layer base {
   :root {
@@ -506,6 +540,17 @@ html, body {
 
 .file-manager-item:focus-visible {
   box-shadow: inset 0 0 0 1px hsl(var(--sidebar-ring) / 0.65);
+}
+
+[data-file-manager-status] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.file-manager-item:hover [data-file-manager-status],
+[data-file-manager-status]:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .file-manager-item.active {

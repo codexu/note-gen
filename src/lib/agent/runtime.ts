@@ -18,6 +18,7 @@ import { buildMcpAgentToolCatalog } from '@/lib/mcp/agent-tools'
 import { agentDebugLog, previewText } from './debug-log'
 import { getRagAgentPolicy } from '@/lib/rag-agent-policy'
 import { WebSearchBudget } from './web-search-budget'
+import { parseKnowledgeSourceKey, type KnowledgeWikiPageGrant } from '@/types/knowledge'
 import { getChatResponseText, parseChatResponseSpec } from '@/lib/chat-ui/response-catalog'
 import { createChatResponseStream } from '@/lib/chat-ui/response-stream'
 import type {
@@ -115,6 +116,9 @@ function stringifyToolResult(result: AgentToolResult) {
     data: result.data,
     error: result.error,
     changes: result.changes,
+    wikiPages: result.wikiPages?.map(page => ({ pageId: page.pageId, title: page.title,
+      excerpt: page.excerpt, sourceCount: page.sourceRefs.length,
+      relevanceScore: page.relevanceScore, updatedAt: page.updatedAt })),
   }
 
   return JSON.stringify(payload)
@@ -899,11 +903,23 @@ export class AgentRuntime {
     const webSearchBudget = new WebSearchBudget()
     let knowledgeSearchCount = 0
     const readKnowledgeSourceKeys = new Set<string>()
+    const originalSourceGrants = new Set<string>()
+    const readWikiPageIds = new Set<string>()
+    const readEvidenceSourceKeys = new Set<string>()
+    const wikiPageGrants = new Map<string, KnowledgeWikiPageGrant[]>()
     const knowledgeReadLimit = ragAgentPolicy.strategy === 'fast'
       ? 1
       : ragAgentPolicy.strategy === 'deep' ? 5 : 3
     let directAnswerEvidenceChecked = false
     let knowledgeCitationChecked = false
+    const isExplicitSource = (sourceKey: string) => {
+      const source = parseKnowledgeSourceKey(sourceKey)
+      if (source?.sourceType === 'canvas') return source.sourceId === context.activeCanvasId
+      if (source?.sourceType !== 'article') return false
+      const normalize = (path: string) => path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+/g, '/')
+      return [context.activeFilePath, context.currentQuote?.articlePath]
+        .some(path => typeof path === 'string' && normalize(path) === normalize(source.sourceId))
+    }
     const executeToolWithBudget = async (
       tool: AgentTool,
       args: Record<string, unknown>
@@ -931,6 +947,10 @@ export class AgentRuntime {
           return typeof sourceKey === 'string' ? [sourceKey] : []
         })
         const nextKeys = requestedKeys.filter(sourceKey => !readKnowledgeSourceKeys.has(sourceKey))
+        if (requestedKeys.some(sourceKey => !originalSourceGrants.has(sourceKey) && !isExplicitSource(sourceKey))) {
+          return { ok: false, message: '请先使用 knowledge_search 搜索目标原文，再读取返回的来源候选；Wiki 页面证据不会自动授权读取所有原文。',
+            error: 'KNOWLEDGE_SEARCH_REQUIRED' }
+        }
         if (readKnowledgeSourceKeys.size + new Set(nextKeys).size > knowledgeReadLimit) {
           return {
             ok: false,
@@ -939,6 +959,29 @@ export class AgentRuntime {
           }
         }
         requestedKeys.forEach(sourceKey => readKnowledgeSourceKeys.add(sourceKey))
+      }
+      if (tool.name === 'knowledge_read_wiki') {
+        const requests = Array.isArray(args.requests) ? args.requests : []
+        const pageIds = requests.flatMap(request => {
+          if (!request || typeof request !== 'object') return []
+          const pageId = (request as { pageId?: unknown }).pageId
+          return typeof pageId === 'string' ? [pageId] : []
+        })
+        if (pageIds.some(pageId => !wikiPageGrants.has(pageId))) return {
+          ok: false, message: '请先搜索并读取本次检索范围内的 Wiki 页面。', error: 'WIKI_SEARCH_REQUIRED',
+        }
+        const newPages = new Set(pageIds.filter(pageId => !readWikiPageIds.has(pageId)))
+        if (readWikiPageIds.size + newPages.size > knowledgeReadLimit) return {
+          ok: false, message: '已达到本次知识读取预算，请使用最相关的页面。', error: 'KNOWLEDGE_READ_BUDGET_EXHAUSTED',
+        }
+        pageIds.forEach(pageId => readWikiPageIds.add(pageId))
+        args = { ...args, wikiGrants: Object.fromEntries(pageIds.map(pageId => [pageId, wikiPageGrants.get(pageId)!])) }
+      }
+      if (tool.name === 'knowledge_cite_sources') {
+        const keys = Array.isArray(args.sourceKeys) ? args.sourceKeys : []
+        if (keys.some(key => typeof key !== 'string' || !readEvidenceSourceKeys.has(key))) return {
+          ok: false, message: '只能引用本次已读取的 Wiki 证据或原文来源。', error: 'KNOWLEDGE_EVIDENCE_NOT_READ',
+        }
       }
 
       const result = await executeAgentTool(
@@ -951,7 +994,30 @@ export class AgentRuntime {
         runWorkspaceIdentity,
         callbacks.requestUserInteraction,
       )
+      await assertRunWorkspace()
       if (tool.name === 'web_search') webSearchBudget.recordResult(result)
+      if (result.ok && tool.name === 'knowledge_search') {
+        for (const page of result.wikiPages ?? []) {
+          const previous = wikiPageGrants.get(page.pageId) ?? []
+          wikiPageGrants.set(page.pageId, [...previous, { contextId: page.contextId,
+            sourceRefs: page.sourceRefs, scope: page.scope }])
+        }
+      }
+      if (result.ok && Array.isArray(result.data)) {
+        for (const item of result.data) {
+          if (!item || typeof item !== 'object') continue
+          const value = item as { sourceKey?: unknown; sourceRefs?: unknown }
+          if (tool.name === 'knowledge_search' && typeof value.sourceKey === 'string') originalSourceGrants.add(value.sourceKey)
+          if (tool.name === 'knowledge_read_sources' && typeof value.sourceKey === 'string') readEvidenceSourceKeys.add(value.sourceKey)
+          if (tool.name === 'knowledge_read_wiki' && Array.isArray(value.sourceRefs)) {
+            for (const reference of value.sourceRefs) {
+              if (reference && typeof reference === 'object' && typeof (reference as { sourceKey?: unknown }).sourceKey === 'string') {
+                readEvidenceSourceKeys.add((reference as { sourceKey: string }).sourceKey)
+              }
+            }
+          }
+        }
+      }
       return result
     }
     const appendToolResult = (

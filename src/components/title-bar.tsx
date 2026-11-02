@@ -5,7 +5,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { isMobileDevice } from '@/lib/check'
-import { Settings, Minus, Square, Copy, X, PanelLeft, PanelRight, SquarePen, Cog } from 'lucide-react'
+import { Settings, Minus, Square, Copy, X, PanelLeft, PanelRight, SquarePen, Cog, BookOpen } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useSidebarStore } from '@/stores/sidebar'
 import { PluginTitleBar } from './plugins/plugin-title-bar'
@@ -38,10 +38,12 @@ import {
 import { DraggableToolbarItem } from './draggable-toolbar-item'
 import { useToolbarShortcuts } from '@/hooks/use-toolbar-shortcuts'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
+import { useWikiNavigation } from '@/components/wiki/use-wiki-navigation'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
 export function TitleBar() {
+  const { openFolder: openWikiFolder } = useWikiNavigation()
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
   const [isMobile, setIsMobile] = useState(true)
   const [isMaximized, setIsMaximized] = useState(false)
@@ -273,6 +275,10 @@ export function TitleBar() {
         {/* 右侧按钮 */}
         <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
           <PluginTitleBar location="title-bar-right" />
+          <Tooltip>
+            <TooltipTrigger asChild><Button variant="ghost" size="icon" className="size-8" aria-label={t('wiki.open')} onClick={() => void openWikiFolder()}><BookOpen /></Button></TooltipTrigger>
+            <TooltipContent side="bottom">{t('wiki.title')}</TooltipContent>
+          </Tooltip>
           {/* 左侧边栏切换按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>

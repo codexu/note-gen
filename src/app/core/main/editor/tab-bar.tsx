@@ -3,8 +3,11 @@
 import { readingKey, useEditorReadingStore } from '@/stores/editor-reading'
 
 import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
+import { WikiFolderIcon } from '@/components/wiki/wiki-folder-icon'
+import { isWikiFolderPath } from '@/lib/wiki/path'
+import { isWritingAssetsFolder } from '@/lib/writing-assets-path'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ExternalLink, FileLock, FilePlus2, FileText, Folder, Globe2, LockKeyholeOpen, Maximize2, MessageSquareText, MoreHorizontal, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, RotateCw, Undo2, X } from 'lucide-react'
+import { ExternalLink, FileLock, FilePlus2, FileText, Folder, Globe2, LockKeyholeOpen, Maximize2, MessageSquareText, MoreHorizontal, PackageOpen, Palette, PanelBottom, PanelLeft, PanelRight, PanelTop, Pin, PinOff, Plus, Redo2, RotateCw, Undo2, X } from 'lucide-react'
 import { platform } from '@tauri-apps/plugin-os'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { checkIsTauri } from '@/lib/check'
@@ -113,6 +116,7 @@ function SortableTabWithMenu({
   })
   const t = useTranslations('tabContext')
   const readingWorkspacePath = useSettingStore(state => state.workspacePath)
+  const assetsPath = useSettingStore(state => state.assetsPath)
   const readOnly = useEditorReadingStore(state => Boolean(state.readOnlyFiles[readingKey(readingWorkspacePath, tab.path)]))
   const tReading = useTranslations('editor.readingMode')
   const recordTypeT = useTranslations('record.mark.type')
@@ -173,7 +177,11 @@ function SortableTabWithMenu({
           ) : isCanvasTab ? (
             <Palette className={cn('size-4 shrink-0', isActive && 'text-primary')} />
           ) : tab.isFolder ? (
-            <PluginFileIcon path={tab.path} kind="folder" fallback={<Folder className="size-4 shrink-0 text-amber-500" />} />
+            isWikiFolderPath(tab.path)
+              ? <WikiFolderIcon className="size-4 shrink-0 text-primary" />
+              : isWritingAssetsFolder(tab.path, assetsPath)
+                ? <PackageOpen className="size-4 shrink-0 text-primary" />
+                : <PluginFileIcon path={tab.path} kind="folder" fallback={<Folder className="size-4 shrink-0 text-amber-500" />} />
           ) : readOnly ? (
             <FileLock className={cn('size-4 shrink-0', isActive && 'text-primary')} aria-label={tReading('readOnly')} />
           ) : (

@@ -322,6 +322,29 @@ export async function getVectorDocumentsByFilename(filename: string) {
     [normalizedFilename]);
 }
 
+/** Aggregate only this folder's known notes without loading embedding payloads. */
+export async function getVectorIndexStatsForFiles(filenames: readonly string[]): Promise<{
+  documentCount: number;
+  chunkCount: number;
+  lastUpdatedAt: number | null;
+}> {
+  const keys = [...new Set(filenames.map(normalizeVectorDocumentKey))];
+  const summary = { documentCount: 0, chunkCount: 0, lastUpdatedAt: null as number | null };
+  for (let offset = 0; offset < keys.length; offset += 200) {
+    const batch = keys.slice(offset, offset + 200);
+    const placeholders = batch.map((_, index) => `$${index + 1}`).join(',');
+    const rows = await db.select<Array<{ documentCount: number; chunkCount: number; lastUpdatedAt: number | null }>>(
+      `select count(distinct filename) as documentCount,count(*) as chunkCount,max(updated_at) as lastUpdatedAt
+       from vector_documents where filename in (${placeholders})`, batch);
+    const result = rows[0];
+    if (!result) continue;
+    summary.documentCount += Number(result.documentCount) || 0;
+    summary.chunkCount += Number(result.chunkCount) || 0;
+    if (result.lastUpdatedAt !== null) summary.lastUpdatedAt = Math.max(summary.lastUpdatedAt ?? 0, Number(result.lastUpdatedAt));
+  }
+  return summary;
+}
+
 // 通过文件名删除向量文档
 export async function deleteVectorDocumentsByFilename(filename: string) {
   const normalizedFilename = normalizeVectorDocumentKey(filename);

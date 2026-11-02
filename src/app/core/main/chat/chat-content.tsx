@@ -394,6 +394,8 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
           nodeIds?: string[]
         }
         updatedAt?: number
+        evidenceKind?: 'wiki' | 'source'
+        wikiPageId?: string
       }>
     } catch {
       return []

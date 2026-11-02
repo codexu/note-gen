@@ -3,6 +3,7 @@ import type { AiConfig } from '@/app/core/setting/config'
 import type { RuntimeChatAttachment } from '@/lib/chat-attachments'
 import type { AgentImageAttachment } from '@/lib/chat-image-context'
 import type { ChatResponsePreview, PendingChatUi, RequestChatUi } from '@/lib/chat-ui/types'
+import type { KnowledgeWikiPageCandidate } from '@/types/knowledge'
 
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
@@ -149,6 +150,8 @@ export interface AgentToolResult {
   data?: unknown
   error?: string
   changes?: AgentChange[]
+  /** Private evidence grants; the model receives only lightweight page previews. */
+  wikiPages?: KnowledgeWikiPageCandidate[]
 }
 
 export interface AgentTool {
@@ -442,6 +445,8 @@ export interface AgentState {
       nodeIds?: string[]
     }
     updatedAt?: number
+    evidenceKind?: 'wiki' | 'source'
+    wikiPageId?: string
   }>
   isFinalAnswerMode?: boolean
   finalAnswerContent?: string

@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 
 import useSettingStore from '@/stores/setting'
 import useArticleStore from '@/stores/article'
+import emitter, { type Events } from '@/lib/emitter'
 import { getSelfHostedSyncRuntime } from '@/lib/self-hosted-sync/runtime'
 import { enqueueStaticAssetSync } from '@/lib/sync/static-asset-sync-queue'
 import {
@@ -84,7 +85,8 @@ export function useWorkspaceFileWatcher() {
           .map(path => toWorkspaceRelativeWatchPath(path, normalizedRoot))
           .filter(path => path && !path.split('/').some(part => part.startsWith('.')))
 
-        for (const relativePath of getChangedFilePaths(event, relativePaths)) {
+        const changedPaths = getChangedFilePaths(event, relativePaths)
+        for (const relativePath of changedPaths) {
           enqueueStaticAssetSync(relativePath)
         }
 
@@ -92,31 +94,60 @@ export function useWorkspaceFileWatcher() {
         // A truly pathless structural event still falls through to a full reload.
         if (event.paths.length > 0 && relativePaths.length === 0) return
         const notePaths = relativePaths.filter(path => path.toLowerCase().endsWith('.md'))
+        const publishChange = (change: Omit<Events['workspace-file-changed'], 'workspaceRoot'>) => {
+          emitter.emit('workspace-file-changed', { ...change, workspaceRoot })
+        }
 
         if (!isStructuralEvent(event)) {
           for (const relativePath of relativePaths) {
             useArticleStore.getState().markFileDirty(relativePath)
           }
           for (const path of notePaths) emitNoteChange({ type: 'changed', path })
+          // Access/read events must not enqueue another compilation when Wiki
+          // reads an original. Only actual data/write-time changes qualify.
+          for (const path of changedPaths.filter(path => path.toLowerCase().endsWith('.md'))) {
+            publishChange({ kind: 'changed', path })
+          }
           return
         }
 
         if (event.type === 'any' || event.type === 'other') {
           for (const path of notePaths) emitNoteChange({ type: 'changed', path })
+          for (const path of notePaths) publishChange({ kind: 'changed', path })
+          if (!notePaths.length) publishChange({ kind: 'rescan', path: relativePaths[0] || '' })
         }
 
         if (typeof event.type !== 'string') {
           if ('create' in event.type && event.type.create.kind === 'file') {
             for (const path of notePaths) emitNoteChange({ type: 'created', path })
+            for (const path of notePaths) publishChange({ kind: 'created', path })
+          } else if ('create' in event.type) {
+            publishChange({ kind: 'rescan', path: relativePaths[0] || '' })
           } else if ('remove' in event.type && event.type.remove.kind === 'file') {
             for (const path of notePaths) emitNoteChange({ type: 'deleted', path })
+            for (const path of notePaths) publishChange({ kind: 'deleted', path })
+          } else if ('remove' in event.type) {
+            for (const path of relativePaths) publishChange({ kind: 'deleted', path })
+            if (!relativePaths.length) publishChange({ kind: 'rescan', path: '' })
           } else if ('modify' in event.type && event.type.modify.kind === 'rename') {
             const mode = event.type.modify.mode
             if ((mode === 'both' || mode === 'any') && relativePaths.length >= 2) {
               const oldPath = relativePaths[0]
               const newPath = relativePaths[relativePaths.length - 1]
+              publishChange({ kind: 'moved', path: newPath, previousPath: oldPath })
               if (oldPath.toLowerCase().endsWith('.md') && newPath.toLowerCase().endsWith('.md')) {
                 emitNoteChange({ type: 'moved', path: newPath, previousPath: oldPath })
+              }
+            } else {
+              const destination = event.paths.length
+                ? toWorkspaceRelativeWatchPath(event.paths[event.paths.length - 1], normalizedRoot) : ''
+              if (mode !== 'from' && notePaths.includes(destination)) {
+                // Atomic saves can rename a hidden temporary file over a note.
+                // The hidden path was filtered out, but the destination is an
+                // exact content change and should keep the normal debounce.
+                publishChange({ kind: 'changed', path: destination })
+              } else {
+                publishChange({ kind: 'rescan', path: relativePaths[0] || '' })
               }
             }
           }

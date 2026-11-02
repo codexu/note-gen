@@ -16,6 +16,7 @@ import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
 import { getFilePathOptions } from '@/lib/workspace'
 import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
+import { isWikiRootFolder } from '@/lib/wiki/path'
 import { filterFileTreeByVisibility } from '@/app/core/main/file/file-tree-model'
 import { EntryListItem } from './entry-list-item'
 import { NameInputDialog } from './name-input-dialog'
@@ -175,6 +176,10 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     return children
       .filter((node) => node.isDirectory || syncStaticAssets || isMarkdownFile(node))
       .sort((a, b) => {
+        const aIsWiki = !currentDir && a.isDirectory && isWikiRootFolder(a.name)
+        const bIsWiki = !currentDir && b.isDirectory && isWikiRootFolder(b.name)
+        if (aIsWiki && !bIsWiki) return -1
+        if (!aIsWiki && bIsWiki) return 1
         if (a.isDirectory && !b.isDirectory) return -1
         if (!a.isDirectory && b.isDirectory) return 1
 

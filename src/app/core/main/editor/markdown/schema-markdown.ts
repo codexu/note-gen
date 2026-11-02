@@ -3,6 +3,7 @@ import { Markdown, type MarkdownExtensionOptions } from '@tiptap/markdown'
 import { Fragment, Mark, type Node as ProseMirrorNode, type Schema } from '@tiptap/pm/model'
 import { createIsolatedMarkdownLexer, MARKDOWN_TOKENIZER_NAMES } from './markdown-tokenizers'
 import type { PreparedMarkdownTokens } from './markdown-lexer-async'
+import { WIKI_METADATA_REPLACE_DOCUMENT } from './wiki-metadata-tokenizer'
 
 /** Reuse background tokens through the public lexer boundary. Keep Tiptap's
  * extension handlers, DOM-dependent HTML parsing and schema normalization.
@@ -142,6 +143,12 @@ export const SchemaMarkdown = Markdown.extend({
     const commands = this.parent?.() ?? {}
     return {
       ...commands,
+      // Loading another file, receiving sync content, and accepting source-mode
+      // edits replace metadata explicitly. Rich-text selections preserve it.
+      setContent: (...args: Parameters<RawCommands['setContent']>) => props => {
+        props.tr.setMeta(WIKI_METADATA_REPLACE_DOCUMENT, true)
+        return commands.setContent?.(...args)(props) ?? false
+      },
       // A complete empty document needs a paragraph, but an empty insertion
       // should leave the document and the current selection unchanged.
       insertContent: (...args: Parameters<RawCommands['insertContent']>) => {

@@ -5,6 +5,12 @@ import type { CanvasDocument } from '@/types/canvas'
 
 // 定义事件类型
 interface Events {
+  'workspace-file-changed': {
+    kind: 'created' | 'changed' | 'deleted' | 'moved' | 'rescan'
+    path: string
+    workspaceRoot: string
+    previousPath?: string
+  };
   'self-hosted-workspaces-discovered': { profileId: string };
   'self-hosted-conflicts-changed': undefined;
   'self-hosted-conflict-resolved': { workspaceRoot: string; path: string };

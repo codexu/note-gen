@@ -10,6 +10,8 @@ import { isSkillsFolder, extractSkillIdFromPath } from '@/lib/skills/utils'
 import { FolderStatsView } from './folder-stats'
 import { SkillsListView } from './skills-list'
 import { SkillDetailView } from './skill-detail'
+import { WikiFolderView } from './wiki-folder-view'
+import { isWikiFolderPath } from '@/lib/wiki/path'
 
 interface FolderViewProps {
   folderPath: string
@@ -59,22 +61,25 @@ function collectFiles(tree: ReturnType<typeof useArticleStore.getState>['fileTre
   }
 
   if (tree) {
-    findAndCollect(tree, targetPath)
+    if (!targetPath) {
+      for (const item of tree) collectFromDirectory(item, item.name)
+    } else findAndCollect(tree, targetPath)
   }
   return files
 }
 
 export function FolderView({ folderPath }: FolderViewProps) {
   const t = useTranslations('article.file.folderView')
-  const { fileTree } = useArticleStore()
+  const fileTree = useArticleStore(state => state.fileTree)
   const { getSkillsByScope, initSkills, initialized: skillsStoreInitialized } = useSkillsStore()
 
   // 检查是否是 Skills 文件夹
-  const isSkillsView = isSkillsFolder(folderPath.split('/').pop() || '')
+  const isWikiView = isWikiFolderPath(folderPath)
+  const isSkillsView = !isWikiView && isSkillsFolder(folderPath.split('/').pop() || '')
 
   // 检查是否是 Skill 子文件夹（单个 skill）
   const skillId = extractSkillIdFromPath(folderPath)
-  const isSkillDetailView = skillId !== null
+  const isSkillDetailView = !isWikiView && skillId !== null
 
   // 初始化 Skills（如果是 Skills 相关视图）
   useEffect(() => {
@@ -84,7 +89,9 @@ export function FolderView({ folderPath }: FolderViewProps) {
   }, [isSkillsView, isSkillDetailView, skillsStoreInitialized, initSkills])
 
   // Get all files in the current folder (recursively)
-  const folderFiles = useMemo(() => collectFiles(fileTree, folderPath), [fileTree, folderPath])
+  const folderFiles = useMemo(() => isWikiView ? [] : collectFiles(fileTree, folderPath), [fileTree, folderPath, isWikiView])
+
+  if (isWikiView) return <WikiFolderView folderPath={folderPath} />
 
   // If it's a Skills folder, show Skills view
   if (isSkillsView) {

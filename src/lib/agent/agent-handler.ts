@@ -71,6 +71,8 @@ export class AgentHandler {
       nodeIds?: string[]
     }
     updatedAt?: number
+    evidenceKind?: 'wiki' | 'source'
+    wikiPageId?: string
   }>()
 
   constructor(config: AgentHandlerConfig) {
@@ -363,6 +365,9 @@ export class AgentHandler {
     if (toolCall.toolName === 'knowledge_read_sources' && toolCall.status === 'success') {
       this.captureKnowledgeReadPages(toolCall)
     }
+    if (toolCall.toolName === 'knowledge_read_wiki' && toolCall.status === 'success') {
+      this.captureWikiReadPages(toolCall)
+    }
     if (toolCall.toolName === 'knowledge_cite_sources' && toolCall.status === 'success') {
       this.captureCitedKnowledgeSources(toolCall)
     }
@@ -427,10 +432,44 @@ export class AgentHandler {
       if (!current) continue
       this.retrievedKnowledgeSources.set(page.sourceKey, {
         ...current,
+        evidenceKind: 'source',
+        wikiPageId: undefined,
         content: current.content.includes(page.content)
           ? current.content
           : [current.content, page.content].filter(Boolean).join('\n\n'),
       })
+    }
+  }
+
+  private captureWikiReadPages(toolCall: ToolCall) {
+    const data = toolCall.result?.data
+    if (!Array.isArray(data)) return
+    for (const value of data) {
+      if (!value || typeof value !== 'object') continue
+      const page = value as { pageId?: unknown; content?: unknown; sourceRefs?: unknown }
+      if (typeof page.pageId !== 'string' || typeof page.content !== 'string' || !Array.isArray(page.sourceRefs)) continue
+      for (const source of page.sourceRefs) {
+        if (!source || typeof source !== 'object') continue
+        const reference = source as { sourceKey?: unknown; sourceType?: unknown; title?: unknown; locator?: unknown }
+        const sourceKey = reference.sourceKey
+        if (typeof sourceKey !== 'string' || (reference.sourceType !== 'article'
+          && reference.sourceType !== 'record' && reference.sourceType !== 'canvas')) continue
+        const current = this.retrievedKnowledgeSources.get(sourceKey)
+        if (current?.evidenceKind === 'source') continue
+        const locator = reference.locator && typeof reference.locator === 'object'
+          ? reference.locator as { filePath?: string; markId?: number; tagId?: number; canvasId?: string; nodeIds?: string[] }
+          : undefined
+        this.retrievedKnowledgeSources.set(sourceKey, {
+          ...(current ?? { sourceKey, sourceType: reference.sourceType,
+            sourceId: sourceKey.slice(sourceKey.indexOf(':') + 1),
+            filepath: locator?.filePath || sourceKey,
+            filename: typeof reference.title === 'string' ? reference.title : sourceKey, locator }),
+          content: current?.wikiPageId === page.pageId
+            ? current.content.includes(page.content) ? current.content : `${current.content}\n\n${page.content}`
+            : page.content,
+          evidenceKind: 'wiki', wikiPageId: page.pageId,
+        })
+      }
     }
   }
 

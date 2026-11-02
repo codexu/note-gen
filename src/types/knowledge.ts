@@ -48,6 +48,37 @@ export interface KnowledgeSearchCandidate {
   relevanceScore: number
   updatedAt: number
   locator: KnowledgeLocator
+  wikiPageIds?: string[]
+  evidenceKind?: 'wiki' | 'source'
+}
+
+export interface KnowledgeWikiSearchScope {
+  sourceTypes?: KnowledgeSourceType[]
+  sourceMode?: 'prefer' | 'only'
+  folderPath?: string
+  tagId?: number
+  /** In-memory authorization only; never included in model-facing previews. */
+  sourceFilter?: (source: KnowledgeSource) => boolean
+}
+
+/** Page evidence is authorized independently of the original-source budget. */
+export interface KnowledgeWikiPageGrant {
+  contextId: string
+  sourceRefs: Array<{ sourceKey: string; stableId: string; contentHash: string }>
+  scope: KnowledgeWikiSearchScope
+}
+
+export interface KnowledgeWikiPageCandidate extends KnowledgeWikiPageGrant {
+  pageId: string
+  title: string
+  excerpt: string
+  relevanceScore: number
+  updatedAt: number
+}
+
+export interface KnowledgeSearchResults {
+  sources: KnowledgeSearchCandidate[]
+  wikiPages: KnowledgeWikiPageCandidate[]
 }
 
 export interface KnowledgeReadPage {

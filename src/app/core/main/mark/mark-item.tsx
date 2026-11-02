@@ -47,6 +47,7 @@ import { createRecordTab } from "./mark-record-tab";
 import { getImageRecordDisplayText, getImageRecordStatus, type ImageRecordStatusLabels, isImageRecord } from "./image-record-status";
 import { useSettingsDialogStore } from "@/stores/settings-dialog";
 import { CANVAS_MARK_DRAG_TYPE } from "@/lib/canvas/drag-data";
+import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 import {
   getDocumentParseMessageKey,
   normalizeDocumentParseError,
@@ -1059,6 +1060,7 @@ export const MarkItem = React.memo(({
         {markCard}
       </ContextMenuTrigger>
       <ContextMenuContent>
+        {!trashState && <WikiMenuItems kind="record" id={mark.sourceId || String(mark.id)} label={(mark.desc || mark.content || mark.url || `#${mark.id}`).replace(/\s+/g, ' ').slice(0, 120)} sourceKey={`record:${mark.id}`} disabled={isMultiSelectMode} />}
         {
           trashState ? null :
           <ContextMenuSub>

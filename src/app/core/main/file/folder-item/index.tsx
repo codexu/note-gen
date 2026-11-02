@@ -1,17 +1,20 @@
 import { PluginFileIcon } from '@/components/plugins/plugin-file-icon'
+import { WikiFolderIcon } from '@/components/wiki/wiki-folder-icon'
+import { isWikiFolderPath } from '@/lib/wiki/path'
 import { ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from "@/components/ui/enhanced-context-menu";
 import { Input } from "@/components/ui/input";
 import useArticleStore, { beginDeferredFileActivation, DirTree } from "@/stores/article";
 import { BaseDirectory, exists, mkdir, rename } from "@tauri-apps/plugin-fs";
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 import { withWorkspacePathMove } from '@/lib/sync/workspace-path-moves'
-import { Folder, FolderDot, FolderOpen, FolderOpenDot, LoaderCircle, Database, Sparkles } from "lucide-react"
+import { Folder, FolderOpen, Database, PackageOpen, Sparkles } from "lucide-react"
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { toast } from "@/hooks/use-toast";
 import { cloneDeep } from "lodash-es";
 import { computedParentPath, getCurrentFolder, joinRelativePath } from "@/lib/path";
+import { cn } from '@/lib/utils'
 import useSettingStore from '@/stores/setting'
-import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
+import { isWritingAssetsFolder } from '@/lib/writing-assets-path'
 import { isSkillsFolder } from "@/lib/skills/utils"
 import DownloadFolder from './sync-folder'
 import { UploadFolder } from './upload-folder'
@@ -47,7 +50,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { FileTreeRenameProgress, FileTreeRow, type FileTreeItemProps } from "../file-tree-row";
 import { Badge } from '@/components/ui/badge'
 import { getFileTreeSyncStatus, validateFileTreeName, type FileTreeSyncStatus } from "../file-tree-action-policy";
-import { FileTreeDecorations } from "../file-tree-decorations";
+import { FileTreeDecorations, type FileTreeRagStatus } from "../file-tree-decorations";
 import { rewriteWorkspaceMarkdownMediaPaths } from '@/lib/markdown-media-path'
 import {
   prepareActiveEditorPathMutationDurably,
@@ -95,7 +98,6 @@ export function FolderItem({
   const { assetsPath, fileManagerTextSize, workspacePath } = useSettingStore()
   const deleteEntries = useFileDeletion()
   const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
-  const assetsFolderName = getWritingAssetsFolderName(assetsPath)
   const isMobile = useIsMobile()
   const t = useTranslations('article.file')
   const tCommon = useTranslations('common')
@@ -160,6 +162,10 @@ export function FolderItem({
   const { setClipboardItem, clipboardItem, clipboardItems, clipboardOperation } = useClipboardStore()
 
   const path = computedParentPath(item)
+  const isWikiFolder = isWikiFolderPath(path)
+  const isAssetsFolder = isWritingAssetsFolder(path, assetsPath)
+  const FolderIdentityIcon = isWikiFolder ? WikiFolderIcon : isAssetsFolder ? PackageOpen : Folder
+  const folderIdentityClassName = cn(iconSize, 'shrink-0', (isWikiFolder || isAssetsFolder) && 'text-primary')
   const pendingRenameTarget = Object.entries(pendingFileTreeRenames)
     .find(([source, target]) => source === path || target === path)?.[1]
   const renamePending = isRenaming || Boolean(pendingRenameTarget)
@@ -176,74 +182,21 @@ export function FolderItem({
 
   // 计算文件夹的向量状态
   const folderVectorStatus = useMemo(() => {
-    let totalCount = 0
-    let loadedIndexedCount = 0
-
-    function countFiles(node: DirTree) {
-      if (!node.children) {
-        // 如果是文件（没有 children）
-        if (node.name.endsWith('.md')) {
-          totalCount++
-          if (vectorIndexedFiles.has(computedParentPath(node))) {
-            loadedIndexedCount++
-          }
-        }
-        return
-      }
-
-      // 递归计算子节点
-      node.children.forEach(child => countFiles(child))
+    function hasCalculation(node: DirTree): boolean {
+      return node.vectorCalcStatus === 'calculating' || Boolean(node.children?.some(hasCalculation))
     }
-
-    countFiles(item)
     const pathPrefix = `${path}/`
     const indexedCount = Array.from(vectorIndexedFiles.keys())
       .filter(filePath => filePath.startsWith(pathPrefix))
       .length
-
-    return {
-      totalCount,
-      indexedCount: totalCount > 0 ? loadedIndexedCount : indexedCount,
-      hasVector: indexedCount > 0 || loadedIndexedCount > 0,
-      isComplete: totalCount > 0 && loadedIndexedCount === totalCount
+    return { indexedCount, calculating: hasCalculation(item) }
+  }, [item, path, vectorIndexedFiles, fileTree])
+  const ragStatus: FileTreeRagStatus | undefined = showKnowledgeBaseStatus && !isInSkillsFolder(path)
+    ? {
+      status: folderVectorStatus.calculating ? 'calculating' : folderVectorStatus.indexedCount > 0 ? 'indexed' : 'idle',
+      indexedCount: folderVectorStatus.indexedCount,
     }
-  }, [item, path, vectorIndexedFiles])
-
-  // 渲染文件夹的向量状态图标
-  const renderFolderVectorIcon = () => {
-    if (!showKnowledgeBaseStatus || isInSkillsFolder(path)) return null
-
-    const status = item.vectorCalcStatus
-    const vectorStatus = folderVectorStatus
-
-    if (status === 'calculating') {
-      return (
-        <span
-          className="inline-flex shrink-0 items-center"
-          title={t('context.knowledgeBase')}
-          aria-label={t('context.knowledgeBase')}
-        >
-          <LoaderCircle className={`${iconSize} shrink-0 animate-spin text-muted-foreground`} />
-        </span>
-      )
-    } else if (status === 'completed' || vectorStatus.hasVector) {
-      return (
-        <span
-          className="flex shrink-0 items-center"
-          title={t('context.knowledgeBase')}
-          aria-label={t('context.knowledgeBase')}
-        >
-          <span className={`text-xs text-muted-foreground ${vectorStatus.isComplete ? 'opacity-100' : 'opacity-60'}`}>
-            {vectorStatus.totalCount > 0
-              ? `${vectorStatus.indexedCount}/${vectorStatus.totalCount}`
-              : vectorStatus.indexedCount}
-          </span>
-          <Database className={`${iconSize} ml-1 shrink-0 text-muted-foreground ${vectorStatus.isComplete ? 'opacity-100' : 'opacity-60'}`} />
-        </span>
-      )
-    }
-    return null
-  }
+    : undefined
 
   // 移动端处理函数
   function handleNewFile() {
@@ -979,15 +932,13 @@ export function FolderItem({
                 <FileTreeRenameProgress
                   name={pendingRenameTarget?.split('/').pop() || name || item.name}
                   label={tCommon('loading')}
-                  icon={<Folder className={`${iconSize} shrink-0`} />}
+                  icon={<FolderIdentityIcon className={folderIdentityClassName} />}
                   className={`text-${fileManagerTextSize}`}
                 />
               ) : isEditing ?
                 <>
                   {
-                    item.isLocale ?
-                      <Folder className={`${iconSize} shrink-0`} /> :
-                      <Folder className={`${iconSize} shrink-0`} />
+                    <FolderIdentityIcon className={folderIdentityClassName} />
                   }
                   <Input
                     ref={inputRef}
@@ -1031,22 +982,20 @@ export function FolderItem({
                     onDragStart={handleDragStart}
                     className="relative flex min-w-0 flex-1 cursor-default select-none items-center gap-1 overflow-hidden"
                   >
-                    <PluginFileIcon path={path} kind="folder" className={`${iconSize} shrink-0`} fallback={isSkillsFolder(item.name) ? (
+                    {isWikiFolder || isAssetsFolder ? <FolderIdentityIcon className={folderIdentityClassName} /> : <PluginFileIcon path={path} kind="folder" className={`${iconSize} shrink-0`} fallback={isSkillsFolder(item.name) ? (
                       <Sparkles className={`${iconSize} shrink-0 text-primary`} />
                     ) : collapsibleList.includes(path) ? (
-                      assetsFolderName === item.name
-                        ? <FolderOpenDot className={`${iconSize} shrink-0`} />
-                        : <FolderOpen className={`${iconSize} shrink-0`} />
+                      <FolderOpen className={`${iconSize} shrink-0`} />
                     ) : (
-                      assetsFolderName === item.name
-                        ? <FolderDot className={`${iconSize} shrink-0`} />
-                        : <Folder className={`${iconSize} shrink-0`} />
-                    )} />
+                      <Folder className={`${iconSize} shrink-0`} />
+                    )} />}
                     <span className={`text-${fileManagerTextSize} min-w-0 flex-1 truncate ${item.loading ? 'text-muted-foreground' : ''}`}>{item.name}</span>
                   </div>
                   <FileTreeDecorations
+                    path={path}
+                    kind="folder"
                     iconSize={iconSize}
-                    knowledge={renderFolderVectorIcon()}
+                    rag={ragStatus}
                     syncStatus={syncStatus}
                     syncTitle={syncStatusTitle}
                   />

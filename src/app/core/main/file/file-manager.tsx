@@ -76,13 +76,14 @@ import { buildFileTreeSyncStatusMap } from './file-tree-action-policy'
 import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
 import { PluginFileActions } from '@/components/plugins/plugin-file-actions'
 import { getWritingAssetsFolderName } from '@/lib/writing-assets-path'
+import { isWikiRootFolder } from '@/lib/wiki/path'
+import { computedParentPath } from '@/lib/path'
 import { useFileDeletion } from './use-file-deletion'
 import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 
 type SearchPhase = 'idle' | 'local' | 'remote' | 'complete'
 
-// 搜索结果按“本地优先、远程补充”展示。同一来源内保持文件树原有顺序，
-// 避免远程结果到达后让已经展示的本地结果相互跳动。
+// Keep Wiki first; other search results remain local-first in their existing tree order.
 function prioritizeLocalSearchResults(tree: DirTree[]): DirTree[] {
   return tree
     .map(item => ({
@@ -91,7 +92,11 @@ function prioritizeLocalSearchResults(tree: DirTree[]): DirTree[] {
         ? prioritizeLocalSearchResults(item.children)
         : undefined,
     }))
-    .sort((left, right) => Number(right.isLocale) - Number(left.isLocale))
+    .sort((left, right) => {
+      const leftIsWiki = Boolean(left.isDirectory && isWikiRootFolder(computedParentPath(left)))
+      const rightIsWiki = Boolean(right.isDirectory && isWikiRootFolder(computedParentPath(right)))
+      return Number(rightIsWiki) - Number(leftIsWiki) || Number(right.isLocale) - Number(left.isLocale)
+    })
 }
 
 function getSelectionBox(startX: number, startY: number, currentX: number, currentY: number): SelectionBox {

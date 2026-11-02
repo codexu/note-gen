@@ -68,6 +68,7 @@ import { setCanvasDragData } from '@/lib/canvas/canvas-dnd'
 import { parseCanvasProjectFile } from '@/lib/canvas/file-format'
 import { mermaidToCanvasDocument } from '@/lib/canvas/mermaid'
 import { CanvasThumbnail } from './canvas-thumbnail'
+import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 
 type CanvasSyncDisplayStatus = 'pending' | 'uploading' | 'synced' | 'failed'
 
@@ -640,6 +641,7 @@ export function CanvasSidebar() {
                   </ContextMenuItem>
                 </ContextMenuGroup>
               ) : (<>
+              <WikiMenuItems kind="canvas" id={project.id} label={project.title} sourceKey={`canvas:${project.id}`} />
               <ContextMenuGroup>
                 {syncConfigured && (
                   <ContextMenuItem

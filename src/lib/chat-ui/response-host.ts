@@ -31,6 +31,39 @@ export function getChatResponseSources(...inputs: unknown[]): ChatResponseSource
   return [...sources.values()]
 }
 
+function responseHistory(input: unknown): Record<string, unknown> | undefined {
+  if (typeof input === 'string') {
+    try { input = JSON.parse(input) as unknown } catch { return undefined }
+  }
+  return input !== null && typeof input === 'object' && !Array.isArray(input)
+    ? input as Record<string, unknown> : undefined
+}
+
+export function getChatResponseWorkspaceFingerprint(history: unknown): string | undefined {
+  const value = responseHistory(history)?.workspaceFingerprint
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value) ? value : undefined
+}
+
+/** Recover exact cited keys when synchronization retained only display text in ragSourceDetails. */
+export function getChatResponseCitedSources(history: unknown, ...details: unknown[]): ChatResponseSource[] {
+  const sources = new Map(getChatResponseSources(...details).map(source => [source.sourceKey, source]))
+  const calls = responseHistory(history)?.toolCalls
+  if (!Array.isArray(calls)) return [...sources.values()]
+  for (const value of calls) {
+    const call = responseHistory(value)
+    const result = responseHistory(call?.result)
+    if (call?.toolName !== 'knowledge_cite_sources' || (result?.success !== true && result?.ok !== true)) continue
+    const keys = responseHistory(result.data)?.sourceKeys
+    if (!Array.isArray(keys)) continue
+    for (const key of keys) {
+      if (typeof key !== 'string' || !key.startsWith('article:') || sources.has(key)) continue
+      const path = key.slice('article:'.length)
+      if (isResponseNotePath(path)) sources.set(key, { sourceKey: key, sourceType: 'article', locator: { filePath: path } })
+    }
+  }
+  return [...sources.values()]
+}
+
 export async function assertResponseWorkspace(fingerprint?: string): Promise<void> {
   if (!fingerprint || !/^[a-f0-9]{64}$/i.test(fingerprint)) throw new Error('RESPONSE_WORKSPACE_UNAVAILABLE')
   const identity = getSkillWorkspaceIdentity(await getWorkspacePath())

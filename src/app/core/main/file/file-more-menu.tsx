@@ -15,7 +15,6 @@ import {
   Eye,
   FileArchive,
   FileOutput,
-  FolderDot,
   FolderInput,
   LoaderCircle,
   PackageOpen,
@@ -331,7 +330,7 @@ export function FileMoreMenu({
             void setShowAssetsFolders(!showAssetsFolders)
           }}
         >
-          <FolderDot className="mr-2 size-4" />
+          <PackageOpen className="mr-2 size-4" />
           <span>{t('showAssetsFolders')}</span>
           <Switch
             className="ml-auto"

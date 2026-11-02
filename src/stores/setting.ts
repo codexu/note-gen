@@ -589,6 +589,11 @@ const useSettingStore = create<SettingState>((set, get) => ({
   initSettingData: (options) => withSettingsHydration(async () => {
     const store = await Store.load('store.json');
     if (!options?.hydrateOnly) {
+      // Detect existing RAG users before first-run defaults install an embedding model.
+      const { initializeWikiPreferences } = await import('@/lib/wiki/settings')
+      await initializeWikiPreferences()
+    }
+    if (!options?.hydrateOnly) {
       const { restoreManagedWorkspaceSettings } = await import('@/lib/managed-workspace')
       await restoreManagedWorkspaceSettings(store)
     }

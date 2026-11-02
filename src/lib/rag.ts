@@ -74,6 +74,8 @@ const QUERY_EMBEDDING_CACHE_TTL = 5 * 60 * 1000;
 const QUERY_EMBEDDING_CACHE_LIMIT = 50;
 
 async function getQueryEmbedding(query: string): Promise<number[] | null> {
+  const settingsStore = await Store.load('store.json');
+  if (await settingsStore.get<boolean>('wikiSemanticSearchEnabled') === false) return null;
   const cacheKey = query.normalize('NFKC').trim();
   const cached = queryEmbeddingCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
@@ -1390,11 +1392,12 @@ async function finalizeSearchResults(
     content: result.content,
     similarity: result.normalizedScore
   }));
-  const rerankedDocuments = await rerankDocuments(
+  const semanticEnabled = await (await Store.load('store.json')).get<boolean>('wikiSemanticSearchEnabled') !== false;
+  const rerankedDocuments = semanticEnabled ? await rerankDocuments(
     query,
     rerankDocumentsInput,
     strategy.rerankThreshold
-  );
+  ) : rerankDocumentsInput;
   let finalResults = rerankedDocuments.slice(0, resultCount).map(document => ({
     ...rerankCandidates[document.id],
     rawScore: document.similarity,

@@ -1,5 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { getSyncMetadataKey } from './sync-context'
+import { captureFileSyncWorkspaceGuard, getFileSyncProofKey, recordFileSyncProof } from './file-sync-proof'
 import { getWorkspaceOverwriteVersion, readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
 import { prepareWorkspacePathUpload, retryWorkspacePathMoves } from './workspace-path-moves'
 import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
@@ -190,6 +191,7 @@ export class SyncManager {
    * 推送文件到远程
    */
   async pushFile(path: string, content: string | Uint8Array, overwrite = false): Promise<SyncResult> {
+    const proofWorkspaceIsCurrent = captureFileSyncWorkspaceGuard()
     if (isFileDeletionPending(path)) {
       return { success: true, action: 'none', message: '文件正在删除' }
     }
@@ -217,6 +219,8 @@ export class SyncManager {
       const platform = await this.getCurrentPlatform() as 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
       await prepareWorkspacePathUpload(path)
       const metadataKey = await getSyncMetadataKey(path, platform)
+      const proofKey = /^notegen-wiki-data:/m.test(decodeSyncText(path, bytes) || '')
+        ? await getFileSyncProofKey(path, platform).catch(() => null) : null
       const acceptedVersion = overwrite
         ? await getWorkspaceOverwriteVersion(path, platform)
         : await getLocalRecordedSha(path)
@@ -240,6 +244,9 @@ export class SyncManager {
       }
       if (version) {
         await setLocalRecordedSha(path, version, metadataKey)
+        if (proofKey && proofWorkspaceIsCurrent() && proofKey === await getFileSyncProofKey(path, platform).catch(() => null)) {
+          await recordFileSyncProof(proofKey, bytes, version, proofWorkspaceIsCurrent).catch(error => console.warn('Unable to record accepted upload:', error))
+        }
         if (platform === 's3') useSyncStore.getState().updateS3FileEtag(path, version)
         if (platform === 'webdav') useSyncStore.getState().updateWebDAVFileEtag(path, version)
         await this.logSync(path, 'push', true)
@@ -262,7 +269,9 @@ export class SyncManager {
     // Direct pulls capture at function entry. Callers that perform version
     // checks first pass the revision captured before those awaits.
     initialEditorMutationRevision = getEditorPathMutationRevision(path),
+    localGuard?: { expectedHash?: string; expectedMissing?: boolean },
   ): Promise<SyncResult> {
+    const proofWorkspaceIsCurrent = captureFileSyncWorkspaceGuard()
     if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
     try {
       const store = await Store.load('store.json')
@@ -280,9 +289,10 @@ export class SyncManager {
         : { path: `article/${safePath}`, baseDir: BaseDirectory.AppData }
       await retryWorkspacePathMoves()
       const pullMetadataKey = await getSyncMetadataKey(path, platform)
+      const proofKey = /\.md$/i.test(path) ? await getFileSyncProofKey(path, platform).catch(() => null) : null
       const targetIsCurrent = async () => {
         const currentWorkspace = await getWorkspacePath()
-        return currentWorkspace.path === workspace.path && currentWorkspace.isCustom === workspace.isCustom
+        return proofWorkspaceIsCurrent() && currentWorkspace.path === workspace.path && currentWorkspace.isCustom === workspace.isCustom
           && !await store.get('platformSwitchRecovery')
           && await this.getCurrentPlatform() === platform && await getSyncMetadataKey(path, platform) === pullMetadataKey
       }
@@ -316,6 +326,10 @@ export class SyncManager {
               ? await readFile(localPathOptions.path, { baseDir: localPathOptions.baseDir })
               : await readFile(localPathOptions.path)
             : null
+
+          if ((localGuard?.expectedMissing && stableFileExists)
+            || (localGuard?.expectedHash !== undefined
+              && (stableContent === null || await calculateFileSha(stableContent) !== localGuard.expectedHash))) return false
 
           const restoreStableContent = async () => {
             if (stableContent !== null) {
@@ -372,6 +386,10 @@ export class SyncManager {
         void (async () => {
           if (acceptedVersion) await setLocalRecordedSha(path, acceptedVersion, pullMetadataKey)
           await updateFileSyncTime(path, pullMetadataKey)
+          if (proofKey && proofWorkspaceIsCurrent() && /^notegen-wiki-data:/m.test(decodedContent || '')
+            && proofKey === await getFileSyncProofKey(path, platform).catch(() => null)) {
+            await recordFileSyncProof(proofKey, remoteFile.content, acceptedVersion, proofWorkspaceIsCurrent)
+          }
           await this.logSync(path, 'pull', true)
         })().catch(error => {
           console.error('Failed to finalize pull metadata:', error)

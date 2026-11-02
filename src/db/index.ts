@@ -154,6 +154,7 @@ async function initializeAllDatabases() {
   const { initConversationSyncStateDb } = await import('./conversation-sync-state');
   const { initImageAnalysisCacheDb } = await import('./image-analysis-cache');
   const { initKnowledgeDb } = await import('./knowledge');
+  const { initWikiDb } = await import('./wiki');
   const { initSelfHostedSyncDb } = await import('./self-hosted-sync');
 
   // 执行初始化：先确保基础表存在，再做 conversations 对 chats 的迁移/补列。
@@ -170,7 +171,10 @@ async function initializeAllDatabases() {
   await initCanvasesDb();
   await initActivityDb();
   await initKnowledgeDb();
+  await initWikiDb();
   await initSelfHostedSyncDb();
+  const { initializeWikiPreferences } = await import('@/lib/wiki/settings');
+  await initializeWikiPreferences();
   const { bootstrapStructuredKnowledgeRegistry } = await import('@/lib/knowledge-index');
   await bootstrapStructuredKnowledgeRegistry();
 

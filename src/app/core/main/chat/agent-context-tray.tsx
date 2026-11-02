@@ -21,6 +21,8 @@ import useTagStore from "@/stores/tag"
 import type { AgentSkillSummary } from "@/lib/agent/types"
 import { cn } from "@/lib/utils"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
+import { Badge } from '@/components/ui/badge'
+import { useWikiNavigation } from '@/components/wiki/use-wiki-navigation'
 
 export interface RagSourceDetail {
   filepath: string
@@ -37,6 +39,8 @@ export interface RagSourceDetail {
     nodeIds?: string[]
   }
   updatedAt?: number
+  evidenceKind?: 'wiki' | 'source'
+  wikiPageId?: string
 }
 
 interface AgentContextTrayProps {
@@ -51,6 +55,7 @@ export function AgentContextTray({
   loadedSkills = [],
 }: AgentContextTrayProps) {
   const t = useTranslations('record.chat.ragSources')
+  const wiki = useTranslations('wiki')
   const locale = useLocale()
   const [showRag, setShowRag] = React.useState(false)
   const [showSkills, setShowSkills] = React.useState(false)
@@ -58,6 +63,7 @@ export function AgentContextTray({
   const { setActiveFilePath } = useArticleStore()
   const router = useRouter()
   const pathname = usePathname()
+  const { openPage: openWikiPage } = useWikiNavigation()
 
   const detailMap = React.useMemo(
     () => new Map(ragSourceDetails.map((detail) => [detail.filename, detail])),
@@ -66,8 +72,10 @@ export function AgentContextTray({
 
   const sourceSummary = React.useMemo(() => {
     const counts = { article: 0, record: 0, canvas: 0, unknown: 0 }
-    ragSources.forEach((source) => {
-      const sourceType = detailMap.get(source)?.sourceType
+    ragSources.forEach((source, index) => {
+      const indexedDetail = ragSourceDetails[index]
+      const detail = indexedDetail?.filename === source ? indexedDetail : detailMap.get(source)
+      const sourceType = detail?.sourceType
       if (sourceType) counts[sourceType] += 1
       else counts.unknown += 1
     })
@@ -78,7 +86,7 @@ export function AgentContextTray({
       counts.unknown ? t('sourceCount', { count: counts.unknown }) : '',
     ].filter(Boolean)
     return new Intl.ListFormat(locale, { style: 'short', type: 'conjunction' }).format(parts)
-  }, [detailMap, locale, ragSources, t])
+  }, [detailMap, locale, ragSources, ragSourceDetails, t])
 
   const openRagSource = async (detail: RagSourceDetail) => {
     if (detail.sourceType === 'record' && detail.locator?.markId) {
@@ -171,10 +179,12 @@ export function AgentContextTray({
 
           {showRag && (
             <div className="flex flex-col gap-1 pl-6">
-              {ragSources.map((source) => {
-                const detail = detailMap.get(source)
+              {ragSources.map((source, index) => {
+                const indexedDetail = ragSourceDetails[index]
+                const detail = indexedDetail?.filename === source ? indexedDetail : detailMap.get(source)
+                const sourceIdentity = detail?.sourceKey || `${source}:${index}`
                 return (
-                  <div key={source} className="flex flex-col gap-1 py-1 text-xs">
+                  <div key={sourceIdentity} className="flex flex-col gap-1 py-1 text-xs">
                     <Marker>
                       <MarkerIcon>{sourceIcon(detail?.sourceType)}</MarkerIcon>
                       <MarkerContent className="flex-1 truncate">{source}</MarkerContent>
@@ -188,6 +198,10 @@ export function AgentContextTray({
                         </button>
                       )}
                     </Marker>
+                    {detail?.evidenceKind === 'wiki' ? <div className="flex flex-wrap items-center gap-2 pl-6">
+                      <Badge variant="secondary">{wiki('evidence')}</Badge>
+                      {detail.wikiPageId ? <button type="button" className="text-primary hover:underline" onClick={() => void openWikiPage(detail.wikiPageId)}>{wiki('viewPage')}</button> : null}
+                    </div> : null}
                     {detail && (
                       <div className="truncate pl-6 text-[11px] text-muted-foreground">
                         {[

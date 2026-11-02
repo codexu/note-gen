@@ -33,6 +33,7 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
+import { WikiMetadata } from './wiki-metadata-extension'
 import { SearchReplacePanel } from './search-replace-panel'
 import { useEffect, useId, useLayoutEffect, useRef, useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -2879,6 +2880,7 @@ export function TipTapEditor({
       InlineMath,
       BlockMath,
       MermaidDiagram,
+      WikiMetadata,
       Image.extend({
         addAttributes() {
           return {

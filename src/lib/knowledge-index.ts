@@ -26,7 +26,8 @@ let drainPromise: Promise<void> | null = null
 
 async function isAutoIndexEnabled() {
   const store = await Store.load('store.json')
-  return await store.get<boolean>('autoVectorEnabled') ?? true
+  return (await getKnowledgeSettings()).semanticSearchEnabled
+    && (await store.get<boolean>('autoVectorEnabled') ?? true)
 }
 
 async function hasStructuredIndexConsent() {
@@ -129,12 +130,16 @@ async function drainQueue() {
 }
 
 export function enqueueKnowledgeSourceIndex(sourceKey: string) {
+  void import('@/lib/wiki/queue').then(({ enqueueWikiSource }) => enqueueWikiSource(sourceKey))
+    .catch(error => console.error('Failed to schedule Wiki source:', error))
   pendingKeys.add(sourceKey)
   void drainQueue()
 }
 
 export async function removeKnowledgeSourceIndex(sourceKey: string) {
   pendingKeys.delete(sourceKey)
+  const { removeWikiSource } = await import('@/lib/wiki/queue')
+  await removeWikiSource(sourceKey)
   await deleteVectorDocumentsByFilename(sourceKey)
   await deleteKnowledgeSource(sourceKey)
 }

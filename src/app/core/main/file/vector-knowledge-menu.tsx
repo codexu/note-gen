@@ -9,6 +9,7 @@ import { useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { computedParentPath } from "@/lib/path"
 import useVectorStore from "@/stores/vector"
+import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 
 interface VectorKnowledgeMenuProps {
   item: DirTree
@@ -136,6 +137,8 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
         {t('context.knowledgeBase')}
       </ContextMenuSubTrigger>
       <ContextMenuSubContent>
+        <WikiMenuItems kind="article" id={filePath} label={item.name} sourceKey={`article:${filePath}`} />
+        <ContextMenuSeparator />
         <ContextMenuItem inset onClick={handleVectorCalculation} menuType="file">
           <Database className="mr-2 h-4 w-4" />
           {hasVector ? t('context.updateVectors') : t('context.calculateVectors')}

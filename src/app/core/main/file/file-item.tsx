@@ -8,7 +8,7 @@ import useArticleStore, { DirTree } from "@/stores/article";
 import { BaseDirectory, exists, rename, writeTextFile } from "@tauri-apps/plugin-fs";
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 import { withWorkspacePathMove } from '@/lib/sync/workspace-path-moves'
-import { Copy, Database, Download, ExternalLink, File, FileCode, FileJson, FileLock, FileText, FileUp, FolderOpen, ImageIcon, LoaderCircle, Trash2 } from "lucide-react"
+import { Copy, Download, ExternalLink, File, FileCode, FileJson, FileLock, FileText, FileUp, FolderOpen, ImageIcon, LoaderCircle, Trash2 } from "lucide-react"
 import { useEffect, useRef, useState, useCallback } from "react";
 import { platform } from '@tauri-apps/plugin-os';
 import { cloneDeep } from "lodash-es";
@@ -36,7 +36,7 @@ import { FileTreeRenameProgress, FileTreeRow, type FileTreeItemProps } from "./f
 import { Badge } from '@/components/ui/badge'
 import { getFileTreeSyncStatus, getSyncConfiguration, validateFileTreeName, type FileTreeSyncStatus } from "./file-tree-action-policy";
 import { useSettingsDialogStore } from "@/stores/settings-dialog";
-import { FileTreeDecorations } from "./file-tree-decorations";
+import { FileTreeDecorations, type FileTreeRagStatus } from "./file-tree-decorations";
 import { rewriteWorkspaceMarkdownMediaPaths } from '@/lib/markdown-media-path'
 import {
   prepareActiveEditorDeactivationDurably,
@@ -214,27 +214,9 @@ export function FileItem({
   }
   const canOpenInNewWindow = item.isLocale && item.name !== '' && canOpenInEditorWindow(standaloneTab)
 
-  // 向量计算状态图标
-  const renderVectorIcon = () => {
-    if (!showKnowledgeBaseStatus || isInSkillsFolder(path)) return null
-
-    const status = item.vectorCalcStatus
-
-    if (status === 'calculating') {
-      return (
-        <span title={t('context.knowledgeBase')} aria-label={t('context.knowledgeBase')}>
-          <LoaderCircle className={`${iconSize} shrink-0 animate-spin text-muted-foreground`} />
-        </span>
-      )
-    } else if (status === 'completed' || hasVector) {
-      return (
-        <span title={t('context.knowledgeBase')} aria-label={t('context.knowledgeBase')}>
-          <Database className={`${iconSize} shrink-0 text-muted-foreground opacity-60`} />
-        </span>
-      )
-    }
-    return null
-  }
+  const ragStatus: FileTreeRagStatus | undefined = showKnowledgeBaseStatus && !isInSkillsFolder(path)
+    ? { status: item.vectorCalcStatus === 'calculating' ? 'calculating' : hasVector ? 'indexed' : 'idle' }
+    : undefined
 
   const renderFileTypeIcon = () => {
     if (item.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i)) {
@@ -900,8 +882,9 @@ export function FileItem({
                   <span className={`text-${fileManagerTextSize} min-w-0 flex-1 truncate`}>{item.name}</span>
                 </div>
                 <FileTreeDecorations
+                  path={path}
                   iconSize={iconSize}
-                  knowledge={renderVectorIcon()}
+                  rag={ragStatus}
                   syncStatus={syncStatus}
                   syncTitle={syncStatusTitle}
                 />
@@ -953,8 +936,9 @@ export function FileItem({
                   <span className={`text-${fileManagerTextSize} min-w-0 flex-1 truncate`}>{item.name}</span>
                 </div>
                 <FileTreeDecorations
+                  path={path}
                   iconSize={iconSize}
-                  knowledge={renderVectorIcon()}
+                  rag={ragStatus}
                   syncStatus={syncStatus}
                   syncTitle={syncStatusTitle}
                 />

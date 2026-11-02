@@ -8,8 +8,8 @@ import { s3ListObjects } from '@/lib/sync/s3'
 import { webdavListObjects } from '@/lib/sync/webdav'
 import { androidCloudFolderWorkspaceList, supportsCloudFolderWorkspace, type CloudFolderObject } from '@/lib/sync/cloud-folder'
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
-import { hasNetworkConnection, ensureDirectoryExists, pullRemoteFile, saveLocalFile } from '@/lib/sync/auto-sync'
-import { isSyncConfigured, syncOnOpen } from '@/lib/sync/sync-manager'
+import { hasNetworkConnection, ensureDirectoryExists } from '@/lib/sync/auto-sync'
+import { getSyncManager, isSyncConfigured, syncOnOpen } from '@/lib/sync/sync-manager'
 import { isSyncTextPath } from '@/lib/sync/file-content'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
 import { getCurrentFolder, computedParentPath } from '@/lib/path'
@@ -29,6 +29,7 @@ import emitter from '@/lib/emitter'
 import { prefetchMarkdownTokens, warmMarkdownLexerWorker } from '@/app/core/main/editor/markdown/markdown-lexer-async'
 import type { Events } from '@/lib/emitter'
 import { isSkillsFolder } from '@/lib/skills/utils'
+import { isWikiRootFolder } from '@/lib/wiki/path'
 import { buildVectorIndexedMap, getVectorDocumentKey } from '@/lib/vector-document-key'
 import { buildRemotePathsToLoad } from './article-remote-sync'
 import { debugSyncPath } from '@/lib/sync/remote-file'
@@ -1272,14 +1273,18 @@ const useArticleStore = create<NoteState>((set, get) => ({
     // 复制树结构，避免直接修改原始数据
     const sortedTree = cloneDeep(tree)
 
-    // skills 文件夹始终置顶（在任何排序方式下，包括 sortType 为 'none' 时）
+    // Wiki is first, followed by skills, regardless of sort mode or direction.
     const sortFunction = (a: DirTree, b: DirTree) => {
+      const aIsWiki = a.isDirectory && isWikiRootFolder(computedParentPath(a))
+      const bIsWiki = b.isDirectory && isWikiRootFolder(computedParentPath(b))
+      if (aIsWiki && !bIsWiki) return -1
+      if (!aIsWiki && bIsWiki) return 1
       const aIsSkills = a.isDirectory && isSkillsFolder(a.name)
       const bIsSkills = b.isDirectory && isSkillsFolder(b.name)
       if (aIsSkills && !bIsSkills) return -1
       if (!aIsSkills && bIsSkills) return 1
 
-      // 如果排序类型为 'none'，在 skills 置顶后，文件夹在文件上方
+      // With no explicit sort, keep other folders above files in their existing order.
       if (sortType === 'none') {
         if (a.isDirectory && !b.isDirectory) return -1
         if (!a.isDirectory && b.isDirectory) return 1
@@ -3510,14 +3515,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
       if (!isCurrentArticleRead()) return
 
       try {
-        const remoteContent = await pullRemoteFile(actualPath)
+        // Use the same byte-preserving guarded pull and accepted version
+        // receipt as ordinary sync; do not save a second decoded snapshot.
+        const result = await getSyncManager().pullFile(actualPath, getEditorPathMutationRevision(actualPath))
         if (!isCurrentArticleRead()) return
-        const saved = await get().runPathWriteTransaction(actualPath, async () => {
-          if (!isCurrentArticleRead()) return false
-          await saveLocalFile(actualPath, remoteContent)
-          return true
-        })
-        if (!saved || !isCurrentArticleRead()) return
+        if (!result.success || result.action !== 'pull' || result.content === undefined) {
+          throw new Error(result.error || '无法获取远程文件内容')
+        }
+        const remoteContent = result.content
 
         if (isCurrentArticleRead()) {
           prefetchMarkdownTokens(actualPath, remoteContent)

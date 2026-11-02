@@ -7,6 +7,7 @@ import useArticleStore, { DirTree } from "@/stores/article";
 import { computedParentPath } from "@/lib/path";
 import { collectMarkdownFiles } from "@/lib/files";
 import { calculateFolderVectors } from "@/lib/folder-vector";
+import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 
 interface FolderVectorMenuProps {
   item: DirTree;
@@ -58,6 +59,12 @@ export function FolderVectorMenu({ item }: FolderVectorMenuProps) {
         checkFileVectorIndexed,
         setVectorCalcStatus,
       });
+
+      if (!result.semanticSearchEnabled) {
+        toast({ title: t('context.calculateVectors'), description: t('folderView.ragGlobalDisabled') });
+        setVectorCalcStatus(path, 'idle');
+        return;
+      }
 
       if (!result.embeddingModelAvailable) {
         toast({
@@ -169,6 +176,7 @@ export function FolderVectorMenu({ item }: FolderVectorMenuProps) {
 
   return (
     <>
+      <WikiMenuItems kind="article-folder" id={path} label={path || item.name} />
       <ContextMenuItem
         inset
         disabled={isCalculating}

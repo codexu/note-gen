@@ -15,6 +15,8 @@ import { AgentRunTimeline } from "./agent-run-timeline"
 import type { AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
 import type { Chat } from "@/db/chats"
 import { ChatUiMessages } from "@/components/chat-ui/chat-ui-messages"
+import { Badge } from '@/components/ui/badge'
+import { useWikiNavigation } from '@/components/wiki/use-wiki-navigation'
 
 interface RagSourceDetail {
   filepath: string
@@ -31,6 +33,8 @@ interface RagSourceDetail {
     nodeIds?: string[]
   }
   updatedAt?: number
+  evidenceKind?: 'wiki' | 'source'
+  wikiPageId?: string
 }
 
 interface AgentPanelWithRagProps {
@@ -124,6 +128,7 @@ export function AgentPanelWithRag({
   const locale = useLocale()
   const router = useRouter()
   const pathname = usePathname()
+  const { openPage: openWikiPage } = useWikiNavigation()
   const [isRagExpanded, setIsRagExpanded] = useState(false)
   const [expandedFiles, setExpandedFiles] = useState<string[]>([])
   const { setActiveFilePath } = useArticleStore()
@@ -155,8 +160,10 @@ export function AgentPanelWithRag({
 
   const sourceSummary = React.useMemo(() => {
     const counts = { article: 0, record: 0, canvas: 0, unknown: 0 }
-    ragSources.forEach((source) => {
-      const sourceType = detailMap.get(source)?.sourceType
+    ragSources.forEach((source, index) => {
+      const indexedDetail = ragSourceDetails[index]
+      const detail = indexedDetail?.filename === source ? indexedDetail : detailMap.get(source)
+      const sourceType = detail?.sourceType
       if (sourceType) counts[sourceType] += 1
       else counts.unknown += 1
     })
@@ -167,7 +174,7 @@ export function AgentPanelWithRag({
       counts.unknown ? t('record.chat.ragSources.sourceCount', { count: counts.unknown }) : '',
     ].filter(Boolean)
     return new Intl.ListFormat(locale, { style: 'short', type: 'conjunction' }).format(parts)
-  }, [detailMap, locale, ragSources, t])
+  }, [detailMap, locale, ragSources, ragSourceDetails, t])
 
   const handleOpenSource = async (e: React.MouseEvent, detail: RagSourceDetail) => {
     e.stopPropagation()
@@ -216,11 +223,11 @@ export function AgentPanelWithRag({
   }
 
   // 切换单个文件的展开状态
-  const toggleFileExpansion = (filename: string) => {
+  const toggleFileExpansion = (sourceIdentity: string) => {
     setExpandedFiles((prev) =>
-      prev.includes(filename)
-        ? prev.filter((f) => f !== filename)
-        : [...prev, filename]
+      prev.includes(sourceIdentity)
+        ? prev.filter((f) => f !== sourceIdentity)
+        : [...prev, sourceIdentity]
     )
   }
 
@@ -282,17 +289,19 @@ export function AgentPanelWithRag({
               </li>
 
               {/* 文件列表 */}
-              {isRagExpanded && ragSources.map((source) => {
-                const hasDetail = detailMap.has(source)
-                const detail = detailMap.get(source)
-                const isFileExpanded = expandedFiles.includes(source)
+              {isRagExpanded && ragSources.map((source, index) => {
+                const indexedDetail = ragSourceDetails[index]
+                const detail = indexedDetail?.filename === source ? indexedDetail : detailMap.get(source)
+                const sourceIdentity = detail?.sourceKey || `${source}:${index}`
+                const hasDetail = Boolean(detail)
+                const isFileExpanded = expandedFiles.includes(sourceIdentity)
 
                 return (
-                  <li key={source} className="mt-1">
+                  <li key={sourceIdentity} className="mt-1">
                     <button
                       type="button"
                       className="group flex min-h-11 w-full items-center gap-2 py-1 text-left disabled:cursor-default"
-                      onClick={() => hasDetail && toggleFileExpansion(source)}
+                      onClick={() => hasDetail && toggleFileExpansion(sourceIdentity)}
                       disabled={!hasDetail}
                       aria-expanded={hasDetail ? isFileExpanded : undefined}
                     >
@@ -321,6 +330,11 @@ export function AgentPanelWithRag({
                         )}
                       </div>
                     </button>
+
+                    {detail?.evidenceKind === 'wiki' ? <div className="flex flex-wrap items-center gap-2 pl-10">
+                      <Badge variant="secondary">{t('wiki.evidence')}</Badge>
+                      {detail.wikiPageId ? <button type="button" className="text-xs text-primary hover:underline" onClick={() => void openWikiPage(detail.wikiPageId)}>{t('wiki.viewPage')}</button> : null}
+                    </div> : null}
 
                     {/* 展开的详情内容 */}
                     {isFileExpanded && hasDetail && detail?.content && (

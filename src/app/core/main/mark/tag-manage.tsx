@@ -25,6 +25,7 @@ import useTagStore from '@/stores/tag'
 import useMarkStore from '@/stores/mark'
 import useChatStore from '@/stores/chat'
 import { MarkList } from './mark-list'
+import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 
 type TagAction = { kind: 'create'; parent: string } | { kind: 'rename' | 'delete'; tag: Tag }
 const parentPath = (path: string) => path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
@@ -264,6 +265,8 @@ export function TagManage() {
     const Item = mobile ? DropdownMenuItem : ContextMenuItem
     const MenuSeparator = mobile ? DropdownMenuSeparator : ContextMenuSeparator
     return <>
+      <WikiMenuItems variant={mobile ? 'dropdown' : 'context'} kind="record-tag" id={node.path} label={node.path} />
+      <MenuSeparator />
       <Group>
         <Item onSelect={() => beginAction({ kind: 'create', parent: node.path })}><FolderPlus />{old('newChildTag')}</Item>
         <Item disabled={!node.tag || node.tag.isLocked} onSelect={() => node.tag && beginAction({ kind: 'rename', tag: node.tag })}><Pencil />{old('rename')}</Item>

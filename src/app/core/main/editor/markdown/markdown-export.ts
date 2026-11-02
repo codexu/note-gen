@@ -6,6 +6,7 @@ import type { JSONContent } from '@tiptap/core'
 import TaskItem from '@tiptap/extension-task-item'
 import TaskList from '@tiptap/extension-task-list'
 import { MarkdownManager } from '@tiptap/markdown'
+import { WikiMetadata } from './wiki-metadata-extension'
 import StarterKit from '@tiptap/starter-kit'
 import { renderMarkdownExportFragment } from '@/lib/markdown/export-document'
 import { checkIsTauri } from '@/lib/check'
@@ -253,6 +254,7 @@ function getMarkdownManager() {
         StarterKit.configure({ blockquote: false }),
         TaskList,
         TaskItem.configure({ nested: true }),
+        WikiMetadata,
       ],
       indentation: {
         style: 'space',

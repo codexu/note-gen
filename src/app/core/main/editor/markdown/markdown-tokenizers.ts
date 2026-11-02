@@ -2,6 +2,7 @@ import { getExtensionField, type AnyExtension, type MarkdownTokenizer } from '@t
 import { ColorHighlight, TextColor } from './color-marks'
 import { OrderedList, TaskList } from '@tiptap/extension-list'
 import Underline from '@tiptap/extension-underline'
+import { wikiMetadataTokenizer } from './wiki-metadata-tokenizer'
 import { Lexer, Marked, type MarkedOptions, type Token, type TokenizerExtension } from 'marked'
 
 export const inlineMathTokenizer: MarkdownTokenizer = {
@@ -112,6 +113,7 @@ const markdownTokenizers: readonly MarkdownTokenizer[] = [
   inlineMathTokenizer,
   blockMathTokenizer,
   mermaidTokenizer,
+  wikiMetadataTokenizer,
 ]
 
 export const MARKDOWN_TOKENIZER_NAMES = markdownTokenizers.map(tokenizer => tokenizer.name)

@@ -277,6 +277,26 @@ async function searchWithConfiguredProvider(
       signal
     )
     rawSources = asArray(asRecord(asRecord(payload)?.web)?.results)
+  } else if (provider === 'keenable') {
+    payload = await fetchJson('https://api.keenable.ai/v1/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+        'X-Keenable-Title': 'NoteGen',
+      },
+      body: JSON.stringify({
+        query,
+        max_results: MAX_SEARCH_RESULTS,
+      }),
+    }, signal)
+    // `description` is often empty and `snippet` can hold a whole page: keep it short.
+    rawSources = asArray(asRecord(payload)?.results).map((item) => {
+      const record = asRecord(item)
+      if (!record) return item
+      const snippet = asString(record.snippet)
+      return { ...record, snippet: snippet.length > 1_200 ? snippet.slice(0, 1_200) : snippet }
+    })
   } else {
     payload = await fetchJson('https://api.exa.ai/search', {
       method: 'POST',
@@ -298,7 +318,7 @@ async function searchWithConfiguredProvider(
       title: ['title', 'name'],
       url: ['url', 'link'],
       snippet: ['content', 'description', 'snippet', 'text'],
-      publishedAt: ['published_date', 'publishedDate', 'age'],
+      publishedAt: ['published_date', 'publishedDate', 'published_at', 'age'],
     })
     if (!source) return []
 

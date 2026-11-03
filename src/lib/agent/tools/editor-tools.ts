@@ -6,9 +6,11 @@ import { replaceLinesInRange } from '@/lib/agent/react-diff-helpers'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions } from '@/lib/workspace'
 import type { AgentEditorStateSnapshot } from '../types'
+import { agentDebugLog, agentDebugText } from '../debug-log'
 
 const EDITOR_TOOL_RESPONSE_TIMEOUT_MS = 200
 let storeBackedContentVersion = 0
+let editorSnapshotReadSequence = 0
 
 function incrementStoreBackedContentVersion() {
   storeBackedContentVersion += 1
@@ -36,7 +38,7 @@ function getEditorTargetChangedResult(): ToolResult {
 }
 
 function buildEditorContentPayload(markdown: string, version: number): AgentEditorStateSnapshot & { text: string } {
-  const normalizedMarkdown = markdown.replace(/&nbsp;/g, ' ')
+  const normalizedMarkdown = markdown
   const text = normalizedMarkdown
   const markdownLines = normalizedMarkdown.split('\n')
   const totalLines = markdownLines.length
@@ -57,19 +59,45 @@ function buildEditorContentPayload(markdown: string, version: number): AgentEdit
 }
 
 export async function readCurrentEditorState(): Promise<AgentEditorStateSnapshot> {
+  const readId = ++editorSnapshotReadSequence
+  const startedAt = Date.now()
+  const requestedFilePath = useArticleStore.getState().activeFilePath
   return new Promise((resolve) => {
     let settled = false
 
-    const finalize = (data: AgentEditorStateSnapshot) => {
+    const finalize = (data: AgentEditorStateSnapshot, source: 'editor-event' | 'store-or-disk-fallback') => {
       if (settled) {
         return
       }
       settled = true
+      const articleState = useArticleStore.getState()
+      agentDebugLog('editor_snapshot_read', {
+        readId,
+        source,
+        requestedFilePath,
+        activeFilePath: articleState.activeFilePath,
+        targetChanged: requestedFilePath !== articleState.activeFilePath,
+        durationMs: Date.now() - startedAt,
+        version: data.version,
+        charCount: data.markdown.length,
+        totalLines: data.totalLines,
+        storeCharCount: articleState.currentArticle?.length || 0,
+        matchesStore: data.markdown === (articleState.currentArticle || ''),
+        markdownHead: data.markdown.slice(0, 500),
+        markdownTail: data.markdown.slice(-1000),
+        selection: data.selection ? {
+          from: data.selection.from,
+          to: data.selection.to,
+          charCount: data.selection.text.length,
+        } : undefined,
+      })
+      agentDebugText('editor_snapshot_content', data.markdown, { readId, source, requestedFilePath })
       resolve(data)
     }
 
     const timeoutId = setTimeout(() => {
-      void hydrateStoreBackedEditorContent().then(data => finalize(data ?? getStoreBackedEditorContent()))
+      agentDebugLog('editor_snapshot_timeout', { readId, requestedFilePath, timeoutMs: EDITOR_TOOL_RESPONSE_TIMEOUT_MS })
+      void hydrateStoreBackedEditorContent().then(data => finalize(data ?? getStoreBackedEditorContent(), 'store-or-disk-fallback'))
     }, EDITOR_TOOL_RESPONSE_TIMEOUT_MS)
 
     emitter.emit('editor-get-content', {
@@ -83,7 +111,7 @@ export async function readCurrentEditorState(): Promise<AgentEditorStateSnapshot
           numberedLines: data.numberedLines ?? buildEditorContentPayload(data.markdown, data.version).numberedLines,
           version: data.version,
           selection: data.selection,
-        })
+        }, 'editor-event')
       },
     })
   })

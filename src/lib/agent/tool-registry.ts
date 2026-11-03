@@ -1990,7 +1990,7 @@ function buildTools(): AgentTool[] {
     adaptLegacyTool({
       name: 'editor_replace_lines',
       title: '替换编辑器行',
-      description: 'Replace one contiguous range of exact 1-based editor lines with complete Markdown in replaceContent. Preserve structural markers such as "# ", "- ", and "> ". Prefer this for a single current-document line, section, or block edit.',
+      description: 'Replace one contiguous range of exact 1-based editor lines with complete Markdown in replaceContent. Choose the smallest range needed for the requested edit; do not replace the whole document for a local change. Preserve unrelated text and structural markers such as "# ", "- ", and "> ". Prefer this for a single current-document line, section, or block edit.',
       category: 'editor',
       risk: 'editor-write',
       legacy: replaceEditorContentTool,

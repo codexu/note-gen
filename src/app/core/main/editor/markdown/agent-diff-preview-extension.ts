@@ -1,10 +1,12 @@
 import { Extension, type Editor } from '@tiptap/core'
-import { ChangeSet, type TokenEncoder } from '@tiptap/pm/changeset'
+import { ChangeSet } from '@tiptap/pm/changeset'
 import { DOMSerializer, Slice, type Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { Transform } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { normalizeLatexForKatex } from '@/lib/latex'
+import { agentDebugLog, agentDebugText, isAgentDebugEnabled } from '@/lib/agent/debug-log'
+import { agentDiffTokenEncoder, buildAgentMarkdownEdit } from './agent-markdown-edit'
 
 interface AgentDiffPreviewPayload {
   originalContent: string
@@ -25,22 +27,25 @@ interface AgentDiffPreviewState {
 
 export const agentDiffPreviewPluginKey = new PluginKey<AgentDiffPreviewState>('agentDiffPreview')
 
-// Include marks and attributes so formula-only and formatting-only edits are visible.
-const previewTokenEncoder: TokenEncoder<string> = {
-  encodeCharacter: (character, marks) => marks.length > 0
-    ? JSON.stringify([character, marks.map(mark => mark.toJSON())])
-    : String(character),
-  encodeNodeStart: node => JSON.stringify([node.type.name, node.attrs, node.marks.map(mark => mark.toJSON())]),
-  encodeNodeEnd: node => `end:${node.type.name}`,
-  compareTokens: (left, right) => left === right,
-}
-
-function createInsertedContentWidget(editor: Editor, content: Fragment, position: number) {
+function createInsertedContentWidget(
+  editor: Editor,
+  content: Fragment,
+  position: number,
+  inline: boolean,
+  listContext?: ProseMirrorNode,
+  listValue?: number
+) {
   let disposed = false
 
   return Decoration.widget(position, () => {
-    const element = document.createElement('div')
+    // A list-level insertion needs a list item as its DOM root. Inline changes
+    // must remain spans so paragraphs, headings and code blocks stay valid.
+    const element = document.createElement(inline ? 'span' : listContext ? 'li' : 'div')
     element.className = 'agent-diff-preview-inserted'
+    if (inline) element.classList.add('agent-diff-preview-inline')
+    if (listContext) element.classList.add('agent-diff-preview-list-item')
+    // The extra preview item must not advance the numbering of original items.
+    if (listValue !== undefined) element.setAttribute('value', String(listValue))
     element.dataset.agentDiffType = 'inserted'
     element.contentEditable = 'false'
 
@@ -66,7 +71,10 @@ function createInsertedContentWidget(editor: Editor, content: Fragment, position
       inlineMath: serializeMath,
       blockMath: serializeMath,
     }, DOMSerializer.marksFromSchema(editor.schema))
-    element.append(serializer.serializeFragment(content, { document }))
+    const previewContent = listContext
+      ? serializer.serializeNode(listContext.copy(content), { document })
+      : serializer.serializeFragment(content, { document })
+    element.append(previewContent)
 
     if (mathElements.length > 0) {
       void import('katex').then(({ default: katex }) => {
@@ -86,6 +94,9 @@ function createInsertedContentWidget(editor: Editor, content: Fragment, position
     return element
   }, {
     side: 1,
+    // The serializer supplies the new marks. Inheriting the adjacent original
+    // marks would hide formatting removals (for example bold -> plain text).
+    marks: [],
     // Preview content is read-only and must not invoke editor click/keyboard handlers.
     stopEvent: () => true,
     ignoreSelection: true,
@@ -93,19 +104,70 @@ function createInsertedContentWidget(editor: Editor, content: Fragment, position
   })
 }
 
-interface BlockDiffRange {
+interface DiffPreviewRange {
   fromA: number
   toA: number
   fromB: number
   toB: number
+  inline: boolean
+  depth: number
 }
 
-function expandToBlocks(doc: ProseMirrorNode, from: number, to: number) {
+function expandToChildren(doc: ProseMirrorNode, from: number, to: number, depth: number) {
   const $from = doc.resolve(from)
   const $to = doc.resolve(to)
   return {
-    from: $from.depth > 0 ? $from.before(1) : from,
-    to: $to.depth > 0 ? $to.after(1) : to,
+    from: $from.depth > depth ? $from.before(depth + 1) : from,
+    to: $to.depth > depth ? $to.after(depth + 1) : to,
+  }
+}
+
+function buildPreviewRange(
+  before: ProseMirrorNode,
+  after: ProseMirrorNode,
+  change: Pick<DiffPreviewRange, 'fromA' | 'toA' | 'fromB' | 'toB'>
+): DiffPreviewRange {
+  const $fromA = before.resolve(change.fromA)
+  const $toA = before.resolve(change.toA)
+  const $fromB = after.resolve(change.fromB)
+  const $toB = after.resolve(change.toB)
+  const sharedDepth = Math.min($fromA.sharedDepth(change.toA), $fromB.sharedDepth(change.toB))
+  let depth = 0
+
+  // Only descend through matching containers. A change to a container's own
+  // attributes or structure is reviewed at its parent, while a text change in
+  // a deeply nested list item or table cell stays in that item or cell.
+  for (let candidate = 1; candidate <= sharedDepth; candidate += 1) {
+    const oldParent = $fromA.node(candidate)
+    const newParent = $fromB.node(candidate)
+    if (!oldParent.sameMarkup(newParent)) break
+    // Widgets cannot be divs directly inside tables or rows. Structural table
+    // edits use the containing block; ordinary cell text still descends to it.
+    if (!oldParent.isTextblock && !['table', 'row'].includes(oldParent.type.spec.tableRole || '')) {
+      depth = candidate
+    }
+  }
+
+  const inline = $fromA.sameParent($toA)
+    && $fromB.sameParent($toB)
+    && $fromA.parent.isTextblock
+    && $fromB.parent.isTextblock
+    && $fromA.depth === $fromB.depth
+    && sharedDepth === $fromA.depth
+    && $fromA.parent.sameMarkup($fromB.parent)
+    && depth === $fromA.depth - 1
+
+  if (inline) return { ...change, inline: true, depth: $fromA.depth }
+
+  const oldRange = expandToChildren(before, change.fromA, change.toA, depth)
+  const newRange = expandToChildren(after, change.fromB, change.toB, depth)
+  return {
+    fromA: oldRange.from,
+    toA: oldRange.to,
+    fromB: newRange.from,
+    toB: newRange.to,
+    inline: false,
+    depth,
   }
 }
 
@@ -117,7 +179,9 @@ function buildDiffDecorations(
   const modifiedJson = editor.markdown?.parse(payload.modifiedContent)
   if (!modifiedJson) return DecorationSet.empty
 
-  let modifiedDoc = editor.schema.nodeFromJSON(modifiedJson)
+  let modifiedDoc = payload.from === undefined && payload.to === undefined
+    ? buildAgentMarkdownEdit(editor, payload.originalContent, payload.modifiedContent, currentDoc)
+    : editor.schema.nodeFromJSON(modifiedJson)
   if (payload.from !== undefined && payload.to !== undefined) {
     const from = Math.min(Math.max(0, payload.from), currentDoc.content.size)
     const to = Math.min(Math.max(from, payload.to), currentDoc.content.size)
@@ -135,48 +199,100 @@ function buildDiffDecorations(
     modifiedDoc = transaction.doc
   }
 
+  if (isAgentDebugEnabled()) {
+    const originalJson = payload.from === undefined && payload.to === undefined
+      ? editor.markdown?.parse(payload.originalContent)
+      : undefined
+    agentDebugLog('editor_diff_preview', {
+      from: payload.from,
+      to: payload.to,
+      originalCharCount: payload.originalContent.length,
+      modifiedCharCount: payload.modifiedContent.length,
+      originalRoundTripChanged: originalJson
+        ? !currentDoc.eq(editor.schema.nodeFromJSON(originalJson))
+        : undefined,
+    })
+    agentDebugText('editor_diff_original_markdown', payload.originalContent)
+    agentDebugText('editor_diff_modified_markdown', payload.modifiedContent)
+    agentDebugText('editor_diff_current_document', JSON.stringify(currentDoc.toJSON()))
+    agentDebugText('editor_diff_modified_document', JSON.stringify(modifiedDoc.toJSON()))
+  }
+
   const transform = new Transform(currentDoc).replaceWith(
     0,
     currentDoc.content.size,
     modifiedDoc.content
   )
-  const changeSet = ChangeSet.create(currentDoc, undefined, previewTokenEncoder).addSteps(
+  const changeSet = ChangeSet.create(currentDoc, undefined, agentDiffTokenEncoder).addSteps(
     modifiedDoc,
     transform.mapping.maps,
     'agent'
   )
-  const ranges: BlockDiffRange[] = []
+  const ranges: DiffPreviewRange[] = []
 
-  // Render complete blocks, preserving list/table wrappers and keeping block DOM
-  // out of paragraph widgets. Merge changes within the same enclosing block.
+  // Keep text edits inline and expand structural edits only to children of the
+  // nearest matching container, never unconditionally to a top-level list.
   for (const change of changeSet.changes) {
-    const before = expandToBlocks(currentDoc, change.fromA, change.toA)
-    const after = expandToBlocks(modifiedDoc, change.fromB, change.toB)
-    const range = { fromA: before.from, toA: before.to, fromB: after.from, toB: after.to }
-    const previous = ranges[ranges.length - 1]
-    if (previous && (range.fromA < previous.toA || range.fromB < previous.toB)) {
-      previous.toA = Math.max(previous.toA, range.toA)
-      previous.toB = Math.max(previous.toB, range.toB)
-    } else {
-      ranges.push(range)
+    let range = buildPreviewRange(currentDoc, modifiedDoc, change)
+    let previous = ranges[ranges.length - 1]
+    // Expanding a structural change can overlap more than one earlier text
+    // change. Merge backwards until every preview range is independent.
+    while (previous && (range.fromA < previous.toA || range.fromB < previous.toB)) {
+      ranges.pop()
+      range = buildPreviewRange(currentDoc, modifiedDoc, {
+        fromA: Math.min(previous.fromA, range.fromA),
+        toA: Math.max(previous.toA, range.toA),
+        fromB: Math.min(previous.fromB, range.fromB),
+        toB: Math.max(previous.toB, range.toB),
+      })
+      previous = ranges[ranges.length - 1]
     }
+    ranges.push(range)
   }
 
   const decorations: Decoration[] = []
   for (const range of ranges) {
-    currentDoc.nodesBetween(range.fromA, range.toA, (node, position) => {
-      decorations.push(Decoration.node(position, position + node.nodeSize, {
-        class: 'agent-diff-preview-removed',
-        'data-agent-diff-type': 'removed',
-      }))
-      return false
-    })
+    const removedAttributes = {
+      class: 'agent-diff-preview-removed',
+      'data-agent-diff-type': 'removed',
+    }
+    if (range.toA > range.fromA) {
+      if (range.inline) {
+        decorations.push(Decoration.inline(range.fromA, range.toA, removedAttributes))
+      } else {
+        currentDoc.nodesBetween(range.fromA, range.toA, (node, position) => {
+          // nodesBetween visits enclosing ancestors too. Never mark those as
+          // removed when only a descendant falls inside the changed range.
+          if (position < range.fromA || position + node.nodeSize > range.toA) return true
+          decorations.push(Decoration.node(position, position + node.nodeSize, removedAttributes))
+          return false
+        })
+      }
+    }
 
     if (range.toB > range.fromB) {
+      const newParent = modifiedDoc.resolve(range.fromB).node(range.depth)
+      const isList = ['orderedList', 'bulletList', 'taskList'].includes(newParent.type.name)
+      const listContext = !range.inline && isList
+        ? newParent.type.create({
+          ...newParent.attrs,
+          ...(newParent.type.name === 'orderedList' ? {
+            start: Number(newParent.attrs.start || 1) + modifiedDoc.resolve(range.fromB).index(range.depth),
+          } : {}),
+        })
+        : undefined
+      const $position = currentDoc.resolve(range.toA)
+      const oldParent = $position.node(range.depth)
+      const listValue = listContext && oldParent.type.name === 'orderedList'
+        ? Number(oldParent.attrs.start || 1) + $position.index(range.depth) - 1
+        : undefined
       decorations.push(createInsertedContentWidget(
         editor,
         modifiedDoc.slice(range.fromB, range.toB).content,
-        range.toA
+        range.toA,
+        range.inline,
+        listContext,
+        listValue
       ))
     }
   }
@@ -206,7 +322,7 @@ function applyPreviewMeta(
 
   const decorations = buildDiffDecorations(editor, newState.doc, meta.payload)
   return {
-    active: decorations !== DecorationSet.empty,
+    active: decorations.find().length > 0,
     decorations,
   }
 }

@@ -15,7 +15,7 @@ import { skillManager } from '@/lib/skills'
 import { getSkillWorkspaceIdentity } from '@/lib/skills/runtime'
 import { getWorkspacePath } from '@/lib/workspace'
 import { buildMcpAgentToolCatalog } from '@/lib/mcp/agent-tools'
-import { agentDebugLog, previewText } from './debug-log'
+import { agentDebugLog, agentDebugText, isAgentDebugEnabled, previewText } from './debug-log'
 import { getRagAgentPolicy } from '@/lib/rag-agent-policy'
 import { WebSearchBudget } from './web-search-budget'
 import { parseKnowledgeSourceKey, type KnowledgeWikiPageGrant } from '@/types/knowledge'
@@ -887,6 +887,7 @@ export class AgentRuntime {
 
     const client = await createOpenAIClient(aiConfig)
     let editorStateReadLocked = hasInlineCurrentEditorState(context)
+    let lastLoggedEditorContext: string | undefined
     let editorSelectionReadLocked = hasInlineCurrentEditorSelection(context)
     let finalContent = ''
     let writeActionCompleted = false
@@ -1422,6 +1423,34 @@ export class AgentRuntime {
           },
           ...messages.slice(1),
         ])
+        if (isAgentDebugEnabled()) {
+          const requestSystemContent = requestMessages[0]?.content
+          const prompt = typeof requestSystemContent === 'string' ? requestSystemContent : ''
+          const openingTag = '<current_editor_content>\n'
+          const contentStart = prompt.indexOf(openingTag)
+          const contentEnd = contentStart < 0 ? -1 : prompt.indexOf('\n</current_editor_content>', contentStart + openingTag.length)
+          const injectedContent = contentStart >= 0 && contentEnd >= 0
+            ? prompt.slice(contentStart + openingTag.length, contentEnd)
+            : ''
+          agentDebugLog('model_editor_context', {
+            runId,
+            iteration,
+            activeFilePath: context.activeFilePath,
+            hasSnapshot: Boolean(context.currentEditorState),
+            inlineEligible: hasInlineCurrentEditorState(context),
+            inlinePresentInRequest: contentStart >= 0 && contentEnd >= 0,
+            snapshotVersion: context.currentEditorState?.version,
+            snapshotCharCount: context.currentEditorState?.markdown.length,
+            snapshotTotalLines: context.currentEditorState?.totalLines,
+            matchesNumberedSnapshot: injectedContent === context.currentEditorState?.numberedLines,
+            editorStateToolOffered: offeredToolNames.has('editor_get_state'),
+            editorStateReadLocked,
+          })
+          if (injectedContent !== lastLoggedEditorContext) {
+            agentDebugText('model_editor_context_content', injectedContent, { runId, iteration })
+            lastLoggedEditorContext = injectedContent
+          }
+        }
         const messageTextTokens = requestMessages.reduce(
           (sum, message) => sum + estimateMessageTextTokens(message),
           0

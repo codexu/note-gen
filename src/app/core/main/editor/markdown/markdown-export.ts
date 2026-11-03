@@ -15,6 +15,7 @@ import { convertImageByWorkspace } from '@/lib/utils'
 import { getFilePathOptions } from '@/lib/workspace'
 import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
 import { GitHubAlertBlockquote } from './github-alert-blockquote'
+import { MarkdownOrderedList } from './markdown-ordered-list'
 
 export type MarkdownExportFormat = 'markdown' | 'html' | 'json' | 'pdf'
 
@@ -251,7 +252,8 @@ function getMarkdownManager() {
     markdownManager = new MarkdownManager({
       extensions: [
         GitHubAlertBlockquote,
-        StarterKit.configure({ blockquote: false }),
+        StarterKit.configure({ blockquote: false, orderedList: false }),
+        MarkdownOrderedList,
         TaskList,
         TaskItem.configure({ nested: true }),
         WikiMetadata,

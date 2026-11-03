@@ -1,6 +1,7 @@
 import { getExtensionField, type AnyExtension, type MarkdownTokenizer } from '@tiptap/core'
 import { ColorHighlight, TextColor } from './color-marks'
-import { OrderedList, TaskList } from '@tiptap/extension-list'
+import { TaskList } from '@tiptap/extension-list'
+import { MarkdownOrderedList } from './markdown-ordered-list'
 import Underline from '@tiptap/extension-underline'
 import { wikiMetadataTokenizer } from './wiki-metadata-tokenizer'
 import { Lexer, Marked, type MarkedOptions, type Token, type TokenizerExtension } from 'marked'
@@ -105,7 +106,7 @@ function requireTokenizer(extension: AnyExtension): MarkdownTokenizer {
 // MarkdownManager registers flatten(baseExtensions) in declaration order, rather
 // than the priority-sorted schema order. Marked tries later registrations first.
 const markdownTokenizers: readonly MarkdownTokenizer[] = [
-  requireTokenizer(OrderedList),
+  requireTokenizer(MarkdownOrderedList),
   requireTokenizer(TaskList),
   requireTokenizer(ColorHighlight),
   requireTokenizer(TextColor),

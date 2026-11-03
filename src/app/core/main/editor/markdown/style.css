@@ -155,6 +155,20 @@
   margin-bottom: 0;
 }
 
+.tiptap-editor .ProseMirror .agent-diff-preview-inline {
+  display: inline;
+  width: auto;
+  overflow: visible;
+  margin: 0;
+  white-space: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-preview-list-item {
+  list-style: none;
+}
+
 .tiptap-editor .ProseMirror .agent-diff-preview-inserted [data-type="block-math"] {
   overflow-x: auto;
 }

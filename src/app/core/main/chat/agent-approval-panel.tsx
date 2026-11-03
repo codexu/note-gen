@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ApprovalUi, type ApprovalUiModel } from "@/components/chat-ui/approval-ui"
 import { formatConfirmationPreview } from "@/lib/agent/tool-confirmation-display"
+import { agentDebugLog } from "@/lib/agent/debug-log"
 import emitter from "@/lib/emitter"
 import { formatAgentToolName } from "./agent-display-utils"
 
@@ -69,6 +70,12 @@ export function AgentApprovalPanel({
 
   React.useEffect(() => {
     if (readOnly) return
+    agentDebugLog("editor_diff_approval_state", {
+      toolName: pendingConfirmation?.toolName,
+      filePath: pendingConfirmation?.filePath,
+      hasOriginal: pendingConfirmation?.originalContent !== undefined,
+      hasModified: pendingConfirmation?.modifiedContent !== undefined,
+    })
     if (
       pendingConfirmation?.originalContent === undefined ||
       pendingConfirmation.modifiedContent === undefined

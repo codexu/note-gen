@@ -1,4 +1,14 @@
 {
+  "agentDiffNavigation": {
+    "label": "Agent change navigation",
+    "previous": "Previous change",
+    "next": "Next change",
+    "position": "Change {current} / {total}",
+    "jump": "Go to change {index}",
+    "inserted": "Added",
+    "removed": "Deleted",
+    "replaced": "Replaced"
+  },
   "screenshotPin": {
     "title": "Pinned screenshot",
     "drag": "Move pinned image",

@@ -32,6 +32,7 @@ function createInsertedContentWidget(
   content: Fragment,
   position: number,
   inline: boolean,
+  groupId: string,
   listContext?: ProseMirrorNode,
   listValue?: number
 ) {
@@ -47,6 +48,7 @@ function createInsertedContentWidget(
     // The extra preview item must not advance the numbering of original items.
     if (listValue !== undefined) element.setAttribute('value', String(listValue))
     element.dataset.agentDiffType = 'inserted'
+    element.dataset.agentDiffGroup = groupId
     element.contentEditable = 'false'
 
     const mathElements: { element: HTMLElement; latex: string; displayMode: boolean }[] = []
@@ -251,10 +253,35 @@ function buildDiffDecorations(
   }
 
   const decorations: Decoration[] = []
-  for (const range of ranges) {
+  for (const [index, range] of ranges.entries()) {
+    if (ranges.length > 1) {
+      // Inline changes can start midway through a sentence. Anchor their
+      // navigation before the text block so the controls own a row at its left edge.
+      const $from = currentDoc.resolve(range.fromA)
+      const navigationPosition = range.inline ? $from.before($from.depth) : range.fromA
+      decorations.push(Decoration.widget(navigationPosition, () => {
+        const $position = currentDoc.resolve(navigationPosition)
+        const listParent = ['orderedList', 'bulletList', 'taskList'].includes($position.parent.type.name)
+        const host = document.createElement(listParent ? 'li' : 'span')
+        if (listParent) {
+          // Navigation must not advance the numbering of the original list.
+          host.setAttribute('value', String(Number($position.parent.attrs.start || 1) + $position.index() - 1))
+        }
+        host.className = 'agent-diff-navigation-host'
+        host.dataset.agentDiffNavigation = String(index)
+        host.contentEditable = 'false'
+        return host
+      }, {
+        side: -1,
+        marks: [],
+        ignoreSelection: true,
+        stopEvent: () => true,
+      }))
+    }
     const removedAttributes = {
       class: 'agent-diff-preview-removed',
       'data-agent-diff-type': 'removed',
+      'data-agent-diff-group': String(index),
     }
     if (range.toA > range.fromA) {
       if (range.inline) {
@@ -291,6 +318,7 @@ function buildDiffDecorations(
         modifiedDoc.slice(range.fromB, range.toB).content,
         range.toA,
         range.inline,
+        String(index),
         listContext,
         listValue
       ))

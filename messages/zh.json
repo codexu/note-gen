@@ -1,4 +1,14 @@
 {
+  "agentDiffNavigation": {
+    "label": "Agent 改动导航",
+    "previous": "上一处改动",
+    "next": "下一处改动",
+    "position": "第 {current} / {total} 处",
+    "jump": "跳转到第 {index} 处改动",
+    "inserted": "新增",
+    "removed": "删除",
+    "replaced": "替换"
+  },
   "screenshotPin": {
     "title": "贴图",
     "drag": "拖动贴图",

@@ -1876,3 +1876,77 @@
   border: 0;
   border-radius: 0;
 }
+
+/* Overview decorations share the scrollbar track; the translucent thumb sits above them. */
+.tiptap-editor .agent-diff-map-removed {
+  background: hsl(var(--destructive));
+}
+
+.tiptap-editor .agent-diff-map-inserted {
+  background: #22c55e;
+}
+
+.tiptap-editor .agent-diff-map-marker {
+  opacity: 0.75;
+}
+
+.tiptap-editor .agent-diff-map-marker[aria-current="location"] {
+  opacity: 1;
+  box-shadow: 0 0 0 1px hsl(var(--foreground) / 0.35);
+}
+
+.tiptap-editor .ProseMirror .agent-diff-navigation-target {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-navigation-host {
+  display: flex;
+  position: relative;
+  z-index: 50;
+  clear: both;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  margin: 0;
+  padding-block: 6px;
+  line-height: normal;
+  list-style: none;
+  text-decoration: none;
+  user-select: none;
+}
+
+.tiptap-editor:has(.agent-diff-overview) .editor-custom-scrollbar {
+  border-left: 1px solid hsl(var(--border) / 0.5);
+  background: hsl(var(--muted) / 0.15);
+}
+
+.tiptap-editor:has(.agent-diff-overview) .editor-custom-scrollbar-thumb {
+  border: 0;
+  border-radius: 0;
+  background: hsl(var(--foreground) / 0.18);
+}
+
+.tiptap-editor:has(.agent-diff-overview) .editor-custom-scrollbar:hover .editor-custom-scrollbar-thumb,
+.tiptap-editor:has(.agent-diff-overview) .editor-custom-scrollbar:focus-visible .editor-custom-scrollbar-thumb {
+  background: hsl(var(--foreground) / 0.3);
+}
+
+.tiptap-editor .agent-diff-navigation-bar {
+  position: relative;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  border-color: hsl(var(--foreground));
+}
+
+.tiptap-editor .agent-diff-navigation-bar [data-slot="button"] {
+  color: inherit;
+  background: transparent;
+}
+
+.tiptap-editor .agent-diff-navigation-bar [data-slot="button"]:hover {
+  color: inherit;
+  background: hsl(var(--background) / 0.2);
+}

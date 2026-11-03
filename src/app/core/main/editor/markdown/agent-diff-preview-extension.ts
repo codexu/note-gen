@@ -78,6 +78,38 @@ function createInsertedContentWidget(
       : serializer.serializeFragment(content, { document })
     element.append(previewContent)
 
+    // Outside markers extend into the list's padding. Reserve enough room for
+    // every digit so the preview's horizontal scroll container cannot clip them.
+    element.querySelectorAll('ol').forEach(list => {
+      // Nested markers already have the ancestor list's gutter around them.
+      // Enlarging every level would change the indentation relative to the source.
+      if (list.parentElement?.closest('ol, ul')) return
+      let number = Number(list.getAttribute('start') ?? 1)
+      let markerDigits = String(number).length
+      for (const item of Array.from(list.children)) {
+        if (item.tagName !== 'LI') continue
+        const explicitValue = item.getAttribute('value')
+        if (explicitValue !== null) number = Number(explicitValue)
+        markerDigits = Math.max(markerDigits, String(number).length)
+        number += 1
+      }
+      list.style.paddingLeft = `max(1.5em, calc(${markerDigits}ch + 0.75em))`
+    })
+
+    const gutters: string[] = []
+    for (const rootList of Array.from(element.children)) {
+      if (!(rootList instanceof HTMLElement) || !['OL', 'UL'].includes(rootList.tagName)) continue
+      const gutter = rootList.dataset.type === 'taskList' ? '0px' : rootList.style.paddingLeft || '1.5em'
+      rootList.style.setProperty('--agent-diff-root-list-gutter', gutter)
+      gutters.push(gutter)
+    }
+    if (gutters.length > 0) {
+      // Reserve a marker column outside the original text column, including
+      // previews that contain multiple lists or a mix of lists and paragraphs.
+      element.classList.add('agent-diff-preview-list-aligned')
+      element.style.setProperty('--agent-diff-list-gutter', `max(${gutters.join(', ')})`)
+    }
+
     if (mathElements.length > 0) {
       void import('katex').then(({ default: katex }) => {
         if (disposed) return
@@ -252,11 +284,28 @@ function buildDiffDecorations(
     ranges.push(range)
   }
 
+  // Group navigation by paragraph without expanding the actual highlighted
+  // ranges: unchanged text between two edits must remain unchanged in the diff.
+  const paragraphGroups = new Map<string, number>()
+  const groupAnchors: DiffPreviewRange[] = []
+  const groupIds = ranges.map(range => {
+    const paragraph = range.inline
+      ? `${currentDoc.resolve(range.fromA).start()}:${modifiedDoc.resolve(range.fromB).start()}`
+      : undefined
+    const existing = paragraph === undefined ? undefined : paragraphGroups.get(paragraph)
+    if (existing !== undefined) return existing
+    const id = groupAnchors.length
+    groupAnchors.push(range)
+    if (paragraph !== undefined) paragraphGroups.set(paragraph, id)
+    return id
+  })
+
   const decorations: Decoration[] = []
-  for (const [index, range] of ranges.entries()) {
-    if (ranges.length > 1) {
-      // Inline changes can start midway through a sentence. Anchor their
-      // navigation before the text block so the controls own a row at its left edge.
+  for (const [rangeIndex, range] of ranges.entries()) {
+    const index = groupIds[rangeIndex]
+    if (groupAnchors.length > 1 && groupAnchors[index] === range) {
+      // Inline changes share one paragraph-level navigation control. Float it
+      // beside the text rather than creating an empty numbered line above it.
       const $from = currentDoc.resolve(range.fromA)
       const navigationPosition = range.inline ? $from.before($from.depth) : range.fromA
       decorations.push(Decoration.widget(navigationPosition, () => {
@@ -265,9 +314,10 @@ function buildDiffDecorations(
         const host = document.createElement(listParent ? 'li' : 'span')
         if (listParent) {
           // Navigation must not advance the numbering of the original list.
-          host.setAttribute('value', String(Number($position.parent.attrs.start || 1) + $position.index() - 1))
+          host.setAttribute('value', String(Number($position.parent.attrs.start ?? 1) + $position.index() - 1))
         }
         host.className = 'agent-diff-navigation-host'
+        if (range.inline) host.classList.add('agent-diff-navigation-inline')
         host.dataset.agentDiffNavigation = String(index)
         host.contentEditable = 'false'
         return host
@@ -304,14 +354,14 @@ function buildDiffDecorations(
         ? newParent.type.create({
           ...newParent.attrs,
           ...(newParent.type.name === 'orderedList' ? {
-            start: Number(newParent.attrs.start || 1) + modifiedDoc.resolve(range.fromB).index(range.depth),
+            start: Number(newParent.attrs.start ?? 1) + modifiedDoc.resolve(range.fromB).index(range.depth),
           } : {}),
         })
         : undefined
       const $position = currentDoc.resolve(range.toA)
       const oldParent = $position.node(range.depth)
       const listValue = listContext && oldParent.type.name === 'orderedList'
-        ? Number(oldParent.attrs.start || 1) + $position.index(range.depth) - 1
+        ? Number(oldParent.attrs.start ?? 1) + $position.index(range.depth) - 1
         : undefined
       decorations.push(createInsertedContentWidget(
         editor,

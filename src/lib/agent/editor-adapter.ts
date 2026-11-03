@@ -6,6 +6,7 @@ export type EditorTransactionOperation =
       startLine: number
       endLine: number
       content: string
+      preserveListStructure?: boolean
     }
   | {
       type: 'insert_after_line' | 'insert_before_line'
@@ -43,6 +44,40 @@ function operationIndex(operation: EditorTransactionOperation) {
   return operation.type === 'insert_before_line'
     ? operation.line - 1
     : operation.line
+}
+
+/** Keep list gutters for body-only edits; explicit structural edits opt out. */
+export function preserveListLineStructure(
+  markdown: string,
+  startLine: number,
+  endLine: number,
+  content: string
+): string {
+  const source = markdown.split('\n')
+  const replacement = content.split('\n')
+  if (!Number.isInteger(startLine) || !Number.isInteger(endLine)
+    || startLine < 1 || endLine > source.length
+    || replacement.length !== endLine - startLine + 1) return content
+
+  let fence: { marker: string; length: number } | undefined
+  for (let index = 0; index < endLine; index += 1) {
+    const line = source[index]
+    const delimiter = /^\s*(`{3,}|~{3,})(.*)$/.exec(line)
+    if (delimiter) {
+      if (!fence) fence = { marker: delimiter[1][0], length: delimiter[1].length }
+      else if (delimiter[1][0] === fence.marker && delimiter[1].length >= fence.length
+        && !delimiter[2].trim()) fence = undefined
+      continue
+    }
+    if (fence || index < startLine - 1) continue
+    const offset = index - startLine + 1
+    const original = /^([ \t]*)(\d+[.)]|[-+*])([ \t]+)(.*)$/.exec(line)
+    const modified = /^([ \t]*)(\d+[.)]|[-+*])([ \t]+)(.*)$/.exec(replacement[offset])
+    if (original && modified && original[2] === modified[2]) {
+      replacement[offset] = original[1] + original[2] + original[3] + modified[4]
+    }
+  }
+  return replacement.join('\n')
 }
 
 export function prepareEditorLineTransaction(
@@ -104,7 +139,10 @@ export function prepareEditorLineTransaction(
         type: 'replace_lines',
         startLine,
         endLine,
-        content: operation.content,
+        content: operation.preserveListStructure === false
+          ? operation.content
+          : preserveListLineStructure(markdown, startLine, endLine, operation.content),
+        preserveListStructure: operation.preserveListStructure !== false,
       })
       continue
     }

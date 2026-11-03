@@ -71,7 +71,7 @@ import type {
   ToolResult,
 } from './types'
 import type { EditorTransactionInput } from './editor-adapter'
-import { buildEditorChange, prepareEditorLineTransaction } from './editor-adapter'
+import { buildEditorChange, prepareEditorLineTransaction, preserveListLineStructure } from './editor-adapter'
 import {
   ensureSafeWorkspaceRelativePath,
   toWorkspaceRelativePath,
@@ -352,6 +352,7 @@ export async function buildEditorApprovalPreview(
 
   const before = state.markdown
   let after = before
+  let previewParams = input
 
   if (toolName === 'editor_apply_transaction') {
     const transaction = input as unknown as EditorTransactionInput
@@ -363,10 +364,15 @@ export async function buildEditorApprovalPreview(
       return undefined
     }
     after = prepared.markdown
+    previewParams = { ...input, operations: prepared.orderedOperations }
   } else if (toolName === 'editor_replace_lines') {
     const startLine = typeof input.startLine === 'number' ? input.startLine : 1
     const endLine = typeof input.endLine === 'number' ? input.endLine : startLine
-    const replacement = typeof input.replaceContent === 'string' ? input.replaceContent : ''
+    const rawReplacement = typeof input.replaceContent === 'string' ? input.replaceContent : ''
+    const replacement = input.preserveListStructure === false
+      ? rawReplacement
+      : preserveListLineStructure(before, startLine, endLine, rawReplacement)
+    previewParams = { ...input, replaceContent: replacement }
     const lines = before.split('\n')
     lines.splice(
       Math.max(0, startLine - 1),
@@ -381,7 +387,7 @@ export async function buildEditorApprovalPreview(
   }
 
   return {
-    previewParams: input,
+    previewParams,
     originalContent: before,
     modifiedContent: after,
     filePath: useArticleStore.getState().activeFilePath || (
@@ -510,7 +516,15 @@ async function executeEditorLegacyWrite(input: Record<string, unknown>, legacy: 
     }
   }
 
-  const legacyResult = await legacy.execute(input as Record<string, any>)
+  const writeInput = before !== undefined && typeof input.startLine === 'number'
+    && typeof input.endLine === 'number' && typeof input.replaceContent === 'string'
+    && input.preserveListStructure !== false
+    ? {
+      ...input,
+      replaceContent: preserveListLineStructure(before, input.startLine, input.endLine, input.replaceContent),
+    }
+    : input
+  const legacyResult = await legacy.execute(writeInput)
   const normalized = resultFromLegacy(legacyResult)
 
   if (!normalized.ok) {
@@ -1045,7 +1059,7 @@ async function executeStructuralToolWithChange(
 const editorApplyTransactionTool: AgentTool = {
   name: 'editor_apply_transaction',
   title: '应用编辑器事务',
-  description: 'Apply line insertion or multiple non-overlapping line edits to the current Markdown editor in one approval. Operations accept only replace_lines, insert_before_line, or insert_after_line. Every insertion operation must include an integer line; use insert_after_line with line=totalLines to append at the end. Never use replace_range inside operations. Use editor_replace_lines for one contiguous replacement and editor_replace_range only for an exact quoted selection.',
+  description: 'Apply line insertion or multiple non-overlapping line edits to the current Markdown editor in one approval. Operations accept only replace_lines, insert_before_line, or insert_after_line. Line numbers refer to numberedLines in the editor snapshot, never list item numbers. Preserve list markers and exact leading whitespace for body edits; set preserveListStructure=false only for explicitly requested structural changes. Every insertion operation must include an integer line; use insert_after_line with line=totalLines to append at the end. Never use replace_range inside operations. Use editor_replace_lines for one contiguous replacement and editor_replace_range only for an exact quoted selection.',
   category: 'editor',
   risk: 'editor-write',
   inputSchema: {
@@ -1067,6 +1081,10 @@ const editorApplyTransactionTool: AgentTool = {
             endLine: { type: 'number' },
             line: { type: 'number', description: 'Required integer for insert_before_line/insert_after_line. Use totalLines to append after the document end.' },
             content: { type: 'string' },
+            preserveListStructure: {
+              type: 'boolean',
+              description: 'Defaults to true: preserve existing indentation and marker spacing for corresponding list items. Set false only when the user explicitly requests list restructuring, indentation, or hierarchy changes.',
+            },
           },
           required: ['type', 'content'],
           additionalProperties: false,
@@ -1990,7 +2008,7 @@ function buildTools(): AgentTool[] {
     adaptLegacyTool({
       name: 'editor_replace_lines',
       title: '替换编辑器行',
-      description: 'Replace one contiguous range of exact 1-based editor lines with complete Markdown in replaceContent. Choose the smallest range needed for the requested edit; do not replace the whole document for a local change. Preserve unrelated text and structural markers such as "# ", "- ", and "> ". Prefer this for a single current-document line, section, or block edit.',
+      description: 'Replace one contiguous range of exact 1-based editor lines with complete Markdown in replaceContent. Line numbers refer to numberedLines in the editor snapshot, never list item numbers. Choose the smallest range needed for the requested edit; do not replace the whole document for a local change. Preserve unrelated text, list numbers, exact leading whitespace, and structural markers such as "# ", "- ", and "> ". Existing list indentation is preserved by default; set preserveListStructure=false only when the user explicitly requests hierarchy or structural changes. Prefer this for a single current-document line, section, or block edit.',
       category: 'editor',
       risk: 'editor-write',
       legacy: replaceEditorContentTool,
@@ -2001,6 +2019,10 @@ function buildTools(): AgentTool[] {
           startLine: { type: 'number' },
           endLine: { type: 'number' },
           replaceContent: { type: 'string' },
+          preserveListStructure: {
+            type: 'boolean',
+            description: 'Defaults to true: preserve existing indentation and marker spacing for corresponding list items. Set false only when the user explicitly requests list restructuring, indentation, or hierarchy changes.',
+          },
           version: { type: 'number' },
         },
         required: ['filePath', 'startLine', 'endLine', 'replaceContent'],

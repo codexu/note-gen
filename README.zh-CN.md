@@ -51,6 +51,7 @@
 | [AIHubMix](https://aihubmix.com/?aff=6rfO) | 为项目提供赞助模型服务支持。 |
 | [PackyCode](https://www.packyapi.ai/register?aff=NqBq) | 统一 API 接入主流大模型，提供 Codex、Claude Code 专属通道。 |
 | [无限星河](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link) | 兼容 OpenAI 接口，支持多模态与知识库能力。 |
+| [讯度云](https://xunduyun.com) | 香港大宽带云服务器。 |
 
 ## 记录，不必打断当下的思路
 

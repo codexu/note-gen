@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -15,7 +14,6 @@ interface ChangeRegion {
   inserted: boolean
   removed: boolean
   elements: HTMLElement[]
-  navigationHost?: HTMLElement
 }
 
 export function AgentDiffNavigation({ editor, scrollContainerRef }: {
@@ -25,6 +23,7 @@ export function AgentDiffNavigation({ editor, scrollContainerRef }: {
   const t = useTranslations('agentDiffNavigation')
   const [regions, setRegions] = useState<ChangeRegion[]>([])
   const [current, setCurrent] = useState(0)
+  const [announcement, setAnnouncement] = useState('')
   const [dimensions, setDimensions] = useState({ content: 1, viewport: 0 })
   const currentId = useRef<string | null>(null)
   const highlightCleanup = useRef<(() => void) | null>(null)
@@ -82,11 +81,6 @@ export function AgentDiffNavigation({ editor, scrollContainerRef }: {
         })
       }
       measured = [...groups.values()].sort((a, b) => Number(a.id) - Number(b.id))
-      for (const region of measured) {
-        region.navigationHost = editor.view.dom.querySelector<HTMLElement>(
-          `[data-agent-diff-navigation="${region.id}"]`
-        ) ?? undefined
-      }
       setRegions(measured)
       setDimensions({ content: Math.max(1, container.scrollHeight), viewport: container.clientHeight })
       updateCurrent()
@@ -113,7 +107,7 @@ export function AgentDiffNavigation({ editor, scrollContainerRef }: {
     }
   }, [editor, scrollContainerRef])
 
-  const jumpTo = (index: number) => {
+  const jumpTo = useCallback((index: number, kind?: 'inserted' | 'removed') => {
     const container = scrollContainerRef.current
     const region = regions[index]
     if (!container || !region) return
@@ -126,42 +120,63 @@ export function AgentDiffNavigation({ editor, scrollContainerRef }: {
       highlightCleanup.current = null
     }
     currentId.current = region.id
+    const target = kind ? region.elements.find(element => element.dataset.agentDiffType === kind) : undefined
+    const targetTop = target
+      ? target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop
+      : region.top
     container.scrollTo({
-      top: Math.max(0, region.top - container.clientHeight * 0.3),
+      top: Math.max(0, targetTop - container.clientHeight * 0.3),
       behavior: 'instant',
     })
     setCurrent(index)
-  }
+    const changeKind = region.inserted && region.removed ? 'replaced' : region.inserted ? 'inserted' : 'removed'
+    setAnnouncement(`${t('position', { current: index + 1, total: regions.length })} · ${t(kind ?? changeKind)}`)
+  }, [regions, scrollContainerRef, t])
+
+  useEffect(() => {
+    const shell = scrollContainerRef.current?.closest('.tiptap-editor')
+    if (!shell || !regions.length) return
+    const handleKeyDown = (event: Event) => {
+      if (!(event instanceof KeyboardEvent) || !event.altKey || event.ctrlKey || event.metaKey
+        || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
+      event.preventDefault()
+      const index = regions.findIndex(region => region.id === currentId.current)
+      jumpTo(Math.max(0, Math.min(regions.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1))))
+    }
+    shell.addEventListener('keydown', handleKeyDown)
+    return () => shell.removeEventListener('keydown', handleKeyDown)
+  }, [jumpTo, regions, scrollContainerRef])
 
   if (!regions.length) return null
 
   return (
     <>
-      {regions.length > 1 && regions.map((region, index) => region.navigationHost && createPortal(
-        <span role="group" aria-label={t('label')} className="agent-diff-navigation-bar inline-flex max-w-full items-center gap-1 rounded-md border p-0.5 font-sans shadow-sm" onMouseDown={event => event.preventDefault()}>
-          <Button type="button" variant="ghost" size="icon-xs" aria-label={t('previous')} title={t('previous')} disabled={index === 0} onClick={() => jumpTo(index - 1)}>
-            <ChevronUp />
-          </Button>
-          <span className="px-1 text-xs font-normal tabular-nums">
-            {t('position', { current: index + 1, total: regions.length })}
-          </span>
-          <Button type="button" variant="ghost" size="icon-xs" aria-label={t('next')} title={t('next')} disabled={index === regions.length - 1} onClick={() => jumpTo(index + 1)}>
-            <ChevronDown />
-          </Button>
-        </span>, region.navigationHost, region.id
-      ))}
+      <div role="group" aria-label={t('label')} className="agent-diff-navigation-bar absolute right-6 top-2 z-40 inline-flex max-w-[calc(100%-3rem)] flex-wrap items-center gap-1 rounded-md border p-1 font-sans shadow-sm">
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={t('previous')} aria-keyshortcuts="Alt+ArrowUp" title={`${t('previous')} (Alt+↑)`} disabled={current === 0} onClick={() => jumpTo(current - 1)}>
+          <ChevronUp />
+        </Button>
+        <span className="px-1 text-xs font-normal tabular-nums">
+          {t('position', { current: current + 1, total: regions.length })}
+        </span>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={t('next')} aria-keyshortcuts="Alt+ArrowDown" title={`${t('next')} (Alt+↓)`} disabled={current === regions.length - 1} onClick={() => jumpTo(current + 1)}>
+          <ChevronDown />
+        </Button>
+        <Button type="button" variant="ghost" size="xs" disabled={!regions[current]?.removed} onClick={() => jumpTo(current, 'removed')}>{t('before')}</Button>
+        <Button type="button" variant="ghost" size="xs" disabled={!regions[current]?.inserted} onClick={() => jumpTo(current, 'inserted')}>{t('after')}</Button>
+      </div>
+      <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</span>
       {dimensions.content > dimensions.viewport && (
-        <div role="group" aria-label={t('label')} className="agent-diff-overview pointer-events-none absolute inset-y-0 right-0 z-30 w-3">
+        <div role="group" aria-label={t('label')} className="agent-diff-overview pointer-events-none absolute inset-y-0 right-3 z-30 w-3">
           {regions.map((region, index) => {
-            const height = Math.min(dimensions.viewport, Math.max(3, (region.bottom - region.top) / dimensions.content * dimensions.viewport))
+            const height = Math.min(dimensions.viewport, Math.max(8, (region.bottom - region.top) / dimensions.content * dimensions.viewport))
             const top = Math.max(0, Math.min(dimensions.viewport - height, region.top / dimensions.content * dimensions.viewport))
             const kind = region.inserted && region.removed ? 'replaced' : region.inserted ? 'inserted' : 'removed'
             const label = `${t('jump', { index: index + 1 })} · ${t(kind)}`
             return (
-              <span key={region.id} aria-label={label} aria-current={current === index ? 'location' : undefined} className="agent-diff-map-marker absolute inset-x-0 flex overflow-hidden" style={{ top, height }}>
+              <button type="button" key={region.id} aria-label={label} title={label} aria-current={current === index ? 'location' : undefined} tabIndex={-1} onClick={() => jumpTo(index)} className="agent-diff-map-marker pointer-events-auto absolute inset-x-0 flex cursor-pointer overflow-hidden" style={{ top, height }}>
                 {region.removed && <span className="agent-diff-map-removed h-full flex-1" />}
                 {region.inserted && <span className="agent-diff-map-inserted h-full flex-1" />}
-              </span>
+              </button>
             )
           })}
         </div>

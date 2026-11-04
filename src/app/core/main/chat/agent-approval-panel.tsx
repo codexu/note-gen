@@ -9,10 +9,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ApprovalUi, type ApprovalUiModel } from "@/components/chat-ui/approval-ui"
 import { formatConfirmationPreview } from "@/lib/agent/tool-confirmation-display"
 import { agentDebugLog } from "@/lib/agent/debug-log"
+import type { AgentEditPreview } from "@/lib/agent/types"
 import emitter from "@/lib/emitter"
 import { formatAgentToolName } from "./agent-display-utils"
+import { EditorChangeDiff } from "./agent-change-diff"
 
-export interface PendingAgentConfirmation {
+export { EditorChangeDiff } from "./agent-change-diff"
+
+export interface PendingAgentConfirmation extends AgentEditPreview {
   id?: string
   runId?: string
   chatId?: number
@@ -21,12 +25,6 @@ export interface PendingAgentConfirmation {
   workspacePath?: string
   toolName: string
   params: Record<string, unknown>
-  previewParams?: Record<string, unknown>
-  originalContent?: string
-  modifiedContent?: string
-  filePath?: string
-  from?: number
-  to?: number
   canApproveForSession?: boolean
   sessionApprovalType?: "runtime-script"
   sessionApprovalKey?: string
@@ -38,6 +36,8 @@ interface AgentApprovalPanelProps {
   onCancel?: () => void
   readOnly?: boolean
   embedded?: boolean
+  showProposedDiff?: boolean
+  outcome?: "applied" | "not-applied" | "cancelled" | "stale" | "unverified"
 }
 
 interface RemoteSkillRiskWarning {
@@ -60,16 +60,32 @@ export function AgentApprovalPanel({
   onCancel,
   readOnly = false,
   embedded = false,
+  showProposedDiff = false,
+  outcome,
 }: AgentApprovalPanelProps) {
   const t = useTranslations()
   const [expanded, setExpanded] = React.useState(false)
+  const [previewSkipped, setPreviewSkipped] = React.useState(false)
+  const [previewStale, setPreviewStale] = React.useState(false)
+
+  React.useEffect(() => {
+    setPreviewStale(false)
+    if (readOnly) return
+    const stale = ({ filePath, version }: { filePath: string; version?: number }) => {
+      if (pendingConfirmation?.filePath === filePath
+        && (version === undefined || version === pendingConfirmation.version)) setPreviewStale(true)
+    }
+    emitter.on('editor-agent-diff-stale', stale)
+    return () => emitter.off('editor-agent-diff-stale', stale)
+  }, [pendingConfirmation, readOnly])
 
   React.useEffect(() => {
     setExpanded(false)
   }, [pendingConfirmation?.id, pendingConfirmation?.toolName, pendingConfirmation?.params])
 
   React.useEffect(() => {
-    if (readOnly) return
+    setPreviewSkipped(false)
+    if (readOnly || pendingConfirmation?.kind === "file") return
     agentDebugLog("editor_diff_approval_state", {
       toolName: pendingConfirmation?.toolName,
       filePath: pendingConfirmation?.filePath,
@@ -90,6 +106,10 @@ export function AgentApprovalPanel({
       filePath: pendingConfirmation.filePath,
       from: pendingConfirmation.from,
       to: pendingConfirmation.to,
+      version: pendingConfirmation.version,
+      baseContent: pendingConfirmation.baseContent,
+      parseInlineMarkdown: pendingConfirmation.parseInlineMarkdown,
+      onSkipped: () => setPreviewSkipped(true),
     })
 
     return () => {
@@ -171,11 +191,10 @@ export function AgentApprovalPanel({
         )
       )
     : []
-  const visibleFields = isRemoteSkillInstall
-    ? approvalPreview.fields.filter(
-        (field) => !["preview_id", "warnings", "skipped_symlinks"].includes(field.name)
-      )
-    : approvalPreview.fields
+  const visibleFields = approvalPreview.fields.filter(field => (
+    !["expectedContent", "workspaceIdentity", "expectedSelection"].includes(field.name)
+    && (!isRemoteSkillInstall || !["preview_id", "warnings", "skipped_symlinks"].includes(field.name))
+  ))
 
   const formatRiskWarning = (warning: RemoteSkillRiskWarning) => {
     const key = `record.chat.input.agent.confirmation.tools.install_remote_skill.risks.${warning.code}`
@@ -253,12 +272,12 @@ export function AgentApprovalPanel({
                 type="button"
                 size="sm"
                 variant="secondary"
-                disabled={!onConfirm}
+                disabled={!onConfirm || previewStale}
                 onClick={() => onConfirm?.("conversation")}
               >
                 {t("record.chat.input.agent.confirmation.session")}
               </Button>}
-              <Button type="button" size="sm" disabled={!onConfirm} onClick={() => onConfirm?.("once")}>
+              <Button type="button" size="sm" disabled={!onConfirm || previewStale} onClick={() => onConfirm?.("once")}>
                 <CheckCircle2 data-icon="inline-start" />
                 {isRemoteSkillInstall
                   ? riskWarnings.length > 0
@@ -275,6 +294,21 @@ export function AgentApprovalPanel({
             </>}
           </div>
         </CardHeader>
+
+        {pendingConfirmation.originalContent !== undefined && pendingConfirmation.modifiedContent !== undefined && (
+          <CardContent className="flex min-w-0 flex-col gap-2">
+            {outcome && <p role="status" className="text-sm text-muted-foreground">{t(`record.chat.input.agent.changes.${outcome}`)}</p>}
+            {previewStale && !outcome && <p role="status" className="text-sm text-muted-foreground">{t("record.chat.input.agent.changes.stalePreview")}</p>}
+            {previewSkipped && !previewStale && !outcome && <p role="status" className="text-sm text-muted-foreground">{t("record.chat.input.agent.changes.inlineUnavailable")}</p>}
+            <EditorChangeDiff
+              before={pendingConfirmation.originalContent}
+              after={pendingConfirmation.modifiedContent}
+              defaultOpen={!readOnly || showProposedDiff}
+              proposed={outcome !== "applied"}
+              showLineEndings={pendingConfirmation.from === undefined && pendingConfirmation.to === undefined}
+            />
+          </CardContent>
+        )}
 
         {model.warnings.length > 0 && <CardContent className="min-w-0">
           <ApprovalUi model={{ ...model, fields: [] }} />

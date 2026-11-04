@@ -1,21 +1,14 @@
 import { Tool, ToolResult } from '../types'
 import emitter from '@/lib/emitter'
 import useArticleStore from '@/stores/article'
-import { markEditorPathMutation } from '@/lib/editor-deactivation'
-import { replaceLinesInRange } from '@/lib/agent/react-diff-helpers'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { getFilePathOptions } from '@/lib/workspace'
 import type { AgentEditorStateSnapshot } from '../types'
 import { agentDebugLog, agentDebugText } from '../debug-log'
 
 const EDITOR_TOOL_RESPONSE_TIMEOUT_MS = 200
-let storeBackedContentVersion = 0
+const storeBackedContentVersion = 0
 let editorSnapshotReadSequence = 0
-
-function incrementStoreBackedContentVersion() {
-  storeBackedContentVersion += 1
-  return storeBackedContentVersion
-}
 
 function normalizeEditorFilePath(filePath: string) {
   return filePath.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+/g, '/').trim()
@@ -27,14 +20,6 @@ function isCurrentEditorTarget(filePath: unknown): filePath is string {
     && filePath.length > 0
     && Boolean(activeFilePath)
     && normalizeEditorFilePath(filePath) === normalizeEditorFilePath(activeFilePath || '')
-}
-
-function getEditorTargetChangedResult(): ToolResult {
-  return {
-    success: false,
-    error: 'EDITOR_TARGET_CHANGED',
-    message: '活动编辑器已切换，未执行写入',
-  }
 }
 
 function buildEditorContentPayload(markdown: string, version: number): AgentEditorStateSnapshot & { text: string } {
@@ -159,203 +144,11 @@ async function hydrateStoreBackedEditorContent(expectedFilePath?: string) {
   }
 }
 
-function replaceNthOccurrence(content: string, searchContent: string, replaceContent: string, occurrence: number) {
-  let searchFrom = 0
-  let foundIndex = -1
-
-  for (let index = 0; index < occurrence; index += 1) {
-    foundIndex = content.indexOf(searchContent, searchFrom)
-    if (foundIndex === -1) {
-      return null
-    }
-    searchFrom = foundIndex + searchContent.length
-  }
-
-  return `${content.slice(0, foundIndex)}${replaceContent}${content.slice(foundIndex + searchContent.length)}`
-}
-
-async function saveStoreBackedEditorContent(markdown: string, expectedFilePath?: string) {
-  const articleStore = useArticleStore.getState()
-  if (expectedFilePath && !isCurrentEditorTarget(expectedFilePath)) {
-    return false
-  }
-  incrementStoreBackedContentVersion()
-  articleStore.setCurrentArticle(markdown)
-
-  const targetFilePath = expectedFilePath || articleStore.activeFilePath
-  if (!targetFilePath) {
-    return true
-  }
-
-  try {
-    if (expectedFilePath && !isCurrentEditorTarget(expectedFilePath)) {
-      return false
-    }
-    markEditorPathMutation(targetFilePath)
-    await articleStore.saveCurrentArticle(markdown, targetFilePath)
-    await articleStore.flushPendingArticleSave(targetFilePath)
-  } catch {
-    return false
-  }
-  return true
-}
-
-async function insertIntoStoreBackedEditor(params: Record<string, any>): Promise<ToolResult> {
-  if (!isCurrentEditorTarget(params.filePath)) return getEditorTargetChangedResult()
-  const storeContent = await hydrateStoreBackedEditorContent(params.filePath)
-  if (!storeContent || !isCurrentEditorTarget(params.filePath)) {
-    return getEditorTargetChangedResult()
-  }
-  const currentMarkdown = storeContent.markdown
-  const insertContent = (params.content || '') as string
-  const articleStore = useArticleStore.getState()
-  const activeFilePath = articleStore.activeFilePath
-  const savedViewState = activeFilePath
-    ? articleStore.getEditorViewState(activeFilePath)
-    : null
-  const requestedPosition = typeof params.position === 'number'
-    ? params.position
-    : savedViewState
-      ? Math.max(savedViewState.selectionFrom, savedViewState.selectionTo)
-      : currentMarkdown.length
-  const insertPosition = Math.min(Math.max(requestedPosition, 0), currentMarkdown.length)
-  const updatedMarkdown = `${currentMarkdown.slice(0, insertPosition)}${insertContent}${currentMarkdown.slice(insertPosition)}`
-
-  if (!await saveStoreBackedEditorContent(updatedMarkdown, params.filePath)) {
-    return getEditorTargetChangedResult()
-  }
-
-  return {
-    success: true,
-    data: {
-      success: true,
-      insertedLength: insertContent.length,
-      newCursorPosition: insertPosition + insertContent.length,
-    },
-    message: `成功插入 ${insertContent.length} 个字符`,
-  }
-}
-
 function getEditorSelectionFallbackResult(): ToolResult {
   return {
     success: false,
     data: { text: '', from: 0, to: 0, startLine: 1, endLine: 1 },
     message: '当前没有活跃编辑器，无法获取选中内容',
-  }
-}
-
-function getInsertFallbackResult(): ToolResult {
-  return {
-    success: false,
-    error: 'No active editor',
-    message: '当前没有活跃编辑器，无法按光标位置插入内容',
-  }
-}
-
-async function replaceEditorContentWithStore(params: Record<string, any>): Promise<ToolResult> {
-  if (!isCurrentEditorTarget(params.filePath)) return getEditorTargetChangedResult()
-  const storeContent = await hydrateStoreBackedEditorContent(params.filePath)
-  if (!storeContent || !isCurrentEditorTarget(params.filePath)) {
-    return getEditorTargetChangedResult()
-  }
-  const currentMarkdown = storeContent.markdown
-  const replaceContent = (params.content || params.replaceContent || '') as string
-
-  if (params.version !== undefined && params.version !== storeContent.version) {
-    return {
-      success: false,
-      error: 'Content has changed, please get editor content again',
-      message: '编辑器内容已变化，请重新获取内容后再操作',
-    }
-  }
-
-  if (params.startLine !== undefined && params.endLine !== undefined) {
-    let updatedMarkdown = ''
-    try {
-      updatedMarkdown = replaceLinesInRange(
-        currentMarkdown,
-        params.startLine,
-        params.endLine,
-        replaceContent.split('\n')
-      )
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        message: error instanceof Error ? error.message : '替换失败',
-      }
-    }
-
-    if (!await saveStoreBackedEditorContent(updatedMarkdown, params.filePath)) {
-      return getEditorTargetChangedResult()
-    }
-
-    return {
-      success: true,
-      data: {
-        success: true,
-        insertedLength: replaceContent.length,
-        message: `成功替换第 ${params.startLine}-${params.endLine} 行内容`,
-      },
-      message: `成功替换第 ${params.startLine}-${params.endLine} 行内容`,
-    }
-  }
-
-  if (params.from !== undefined && params.to !== undefined) {
-    const from = Math.max(0, Math.min(params.from, currentMarkdown.length))
-    const to = Math.max(from, Math.min(params.to, currentMarkdown.length))
-    const updatedMarkdown = `${currentMarkdown.slice(0, from)}${replaceContent}${currentMarkdown.slice(to)}`
-
-    if (!await saveStoreBackedEditorContent(updatedMarkdown, params.filePath)) {
-      return getEditorTargetChangedResult()
-    }
-
-    return {
-      success: true,
-      data: {
-        success: true,
-        insertedLength: replaceContent.length,
-        message: `成功替换 ${to - from} 个字符`,
-      },
-      message: `成功替换 ${to - from} 个字符`,
-    }
-  }
-
-  if (params.searchContent) {
-    const updatedMarkdown = replaceNthOccurrence(
-      currentMarkdown,
-      params.searchContent,
-      replaceContent,
-      params.occurrence || 1
-    )
-
-    if (updatedMarkdown === null) {
-      return {
-        success: false,
-        error: `找不到文本 "${params.searchContent}"`,
-        message: `找不到文本 "${params.searchContent}"`,
-      }
-    }
-
-    if (!await saveStoreBackedEditorContent(updatedMarkdown, params.filePath)) {
-      return getEditorTargetChangedResult()
-    }
-
-    return {
-      success: true,
-      data: {
-        success: true,
-        insertedLength: replaceContent.length,
-        message: `成功替换匹配文本 "${params.searchContent}"`,
-      },
-      message: `成功替换匹配文本 "${params.searchContent}"`,
-    }
-  }
-
-  return {
-    success: false,
-    error: 'No active editor',
-    message: '当前没有活跃编辑器，仅支持按行号或按文本搜索替换',
   }
 }
 
@@ -477,13 +270,6 @@ export const insertAtCursorTool: Tool = {
       let settled = false
       const articleStore = useArticleStore.getState()
       const activeFilePath = articleStore.activeFilePath
-      const savedViewState = activeFilePath
-        ? articleStore.getEditorViewState(activeFilePath)
-        : null
-      const cursorPosition = savedViewState
-        ? Math.max(savedViewState.selectionFrom, savedViewState.selectionTo)
-        : undefined
-
       const finalize = (result: ToolResult) => {
         if (settled) {
           return
@@ -493,23 +279,15 @@ export const insertAtCursorTool: Tool = {
       }
 
       const timeoutId = setTimeout(() => {
-        if (params.replaceSelection === true) {
-          finalize({
-            success: false,
-            error: 'Active selection unavailable',
-            message: '当前活动选区不可用，未执行替换',
-          })
-          return
-        }
-        void insertIntoStoreBackedEditor({
-          ...params,
-          position: cursorPosition,
-        }).then(finalize).catch(() => finalize(getInsertFallbackResult()))
+        finalize({ success: false, error: 'EDITOR_UNAVAILABLE', message: '编辑器未及时响应，已取消插入，不会回退为直接覆盖笔记。' })
       }, EDITOR_TOOL_RESPONSE_TIMEOUT_MS)
 
       emitter.emit('editor-insert', {
+        isCancelled: () => settled,
         filePath: typeof params.filePath === 'string' ? params.filePath : activeFilePath || '',
         content: params.content,
+        position: typeof params.position === 'number' ? params.position : undefined,
+        expectedVersion: typeof params.version === 'number' ? params.version : undefined,
         replaceSelection: params.replaceSelection === true,
         expectedSelection: params.replaceSelection === true && typeof params.expectedSelection === 'string'
           ? params.expectedSelection
@@ -522,9 +300,10 @@ export const insertAtCursorTool: Tool = {
           finalize({
             success: result.success,
             data: result,
+            error: result.success ? undefined : result.error || (result.versionMismatch ? 'EDITOR_VERSION_MISMATCH' : 'EDITOR_INSERT_FAILED'),
             message: result.success
               ? `成功插入 ${result.insertedLength} 个字符`
-              : '插入失败',
+              : result.error || '插入失败',
           })
         },
       })
@@ -658,10 +437,15 @@ When the user quotes content from the editor and exact selection positions are p
       }
 
       const timeoutId = setTimeout(() => {
-        void replaceEditorContentWithStore(params).then(finalize)
+        finalize({
+          success: false,
+          error: 'EDITOR_UNAVAILABLE',
+          message: '编辑器未及时响应，已取消写入。请等待编辑器就绪后重新读取状态，不会回退为直接覆盖笔记。',
+        })
       }, EDITOR_TOOL_RESPONSE_TIMEOUT_MS)
 
       emitter.emit('editor-replace', {
+        isCancelled: () => settled,
         filePath: typeof params.filePath === 'string'
           ? params.filePath
           : useArticleStore.getState().activeFilePath || '',

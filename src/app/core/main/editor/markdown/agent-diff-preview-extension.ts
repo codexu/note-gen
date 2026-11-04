@@ -1,18 +1,107 @@
 import { Extension, type Editor } from '@tiptap/core'
-import { ChangeSet } from '@tiptap/pm/changeset'
-import { DOMSerializer, Slice, type Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model'
+import { DOMSerializer, type Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
-import { Transform } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { normalizeLatexForKatex } from '@/lib/latex'
 import { agentDebugLog, agentDebugText, isAgentDebugEnabled } from '@/lib/agent/debug-log'
-import { agentDiffTokenEncoder, buildAgentMarkdownEdit } from './agent-markdown-edit'
+import { documentChanges, buildAgentMarkdownEdit, buildAgentRangeEdit, buildPreviewRange, assertAgentChangeLocal, type DiffPreviewRange } from './agent-markdown-edit'
+import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
+
+export interface AgentDiffPreviewLabels {
+  inserted: string
+  removed: string
+  attributes: string
+  before: string
+  after: string
+  imageLoading: string
+  imageError: string
+  linkUrl: string
+  imageSource: string
+  imageDescription: string
+  title: string
+}
+
+interface AgentDiffPreviewOptions {
+  resolveImageSource?: (source: string) => Promise<string>
+  labels: AgentDiffPreviewLabels
+}
+
+interface AttributeChange {
+  label: string
+  before: string
+  after: string
+}
+
+function collectReviewAttributes(content: Fragment) {
+  const attributes: { type: string; values: Record<string, string> }[] = []
+  content.descendants(node => {
+    if (node.type.name === 'image') {
+      attributes.push({ type: 'image', values: {
+        imageSource: String(node.attrs.relativeSrc || node.attrs.src || ''),
+        imageDescription: String(node.attrs.alt || ''),
+        title: String(node.attrs.title || ''),
+      } })
+    }
+    for (const mark of node.marks) {
+      if (mark.type.name !== 'link') continue
+      const entry = { type: 'link', values: {
+        linkUrl: String(mark.attrs.href || ''),
+        title: String(mark.attrs.title || ''),
+      } }
+      if (JSON.stringify(attributes[attributes.length - 1]) !== JSON.stringify(entry)) attributes.push(entry)
+    }
+  })
+  return attributes
+}
+
+function describeAttributeChanges(before: Fragment, after: Fragment, labels: AgentDiffPreviewLabels): AttributeChange[] {
+  const oldAttributes = collectReviewAttributes(before)
+  const newAttributes = collectReviewAttributes(after)
+  const changes: AttributeChange[] = []
+  for (let index = 0; index < Math.max(oldAttributes.length, newAttributes.length); index += 1) {
+    const oldEntry = oldAttributes[index]
+    const newEntry = newAttributes[index]
+    const names = new Set([...Object.keys(oldEntry?.values ?? {}), ...Object.keys(newEntry?.values ?? {})])
+    for (const name of names) {
+      const previous = oldEntry?.values[name] ?? ''
+      const next = newEntry?.values[name] ?? ''
+      if (previous !== next) changes.push({ label: labels[name as keyof AgentDiffPreviewLabels], before: previous, after: next })
+    }
+  }
+  return changes
+}
+
+function createAttributeSummary(changes: AttributeChange[], labels: AgentDiffPreviewLabels) {
+  const summary = document.createElement('span')
+  summary.className = 'agent-diff-attributes'
+  summary.setAttribute('role', 'note')
+  summary.setAttribute('aria-label', labels.attributes)
+  for (const change of changes) {
+    const line = document.createElement('span')
+    line.className = 'agent-diff-attribute'
+    const label = document.createElement('span')
+    label.textContent = `${change.label}: `
+    const before = document.createElement('del')
+    before.setAttribute('aria-label', `${labels.before}: ${change.before || '∅'}`)
+    before.textContent = change.before || '∅'
+    const arrow = document.createElement('span')
+    arrow.textContent = ' → '
+    arrow.setAttribute('aria-hidden', 'true')
+    const after = document.createElement('ins')
+    after.setAttribute('aria-label', `${labels.after}: ${change.after || '∅'}`)
+    after.textContent = change.after || '∅'
+    line.append(label, before, arrow, after)
+    summary.append(line)
+  }
+  return summary
+}
 
 interface AgentDiffPreviewPayload {
   originalContent: string
   modifiedContent: string
   from?: number
   to?: number
+  parseInlineMarkdown?: boolean
 }
 
 interface AgentDiffPreviewMeta {
@@ -33,25 +122,74 @@ function createInsertedContentWidget(
   position: number,
   inline: boolean,
   groupId: string,
+  options: AgentDiffPreviewOptions,
   listContext?: ProseMirrorNode,
-  listValue?: number
+  listValue?: number,
+  tableRow = false,
+  attributeChanges: AttributeChange[] = [],
+  side = 1
 ) {
   let disposed = false
 
   return Decoration.widget(position, () => {
-    // A list-level insertion needs a list item as its DOM root. Inline changes
-    // must remain spans so paragraphs, headings and code blocks stay valid.
-    const element = document.createElement(inline ? 'span' : listContext ? 'li' : 'div')
-    element.className = 'agent-diff-preview-inserted'
-    if (inline) element.classList.add('agent-diff-preview-inline')
-    if (listContext) element.classList.add('agent-diff-preview-list-item')
-    // The extra preview item must not advance the numbering of original items.
-    if (listValue !== undefined) element.setAttribute('value', String(listValue))
-    element.dataset.agentDiffType = 'inserted'
-    element.dataset.agentDiffGroup = groupId
-    element.contentEditable = 'false'
-
+    // Each preview root follows its parent's content model: phrasing content
+    // inside text blocks, list items inside lists, and real rows inside tables.
     const mathElements: { element: HTMLElement; latex: string; displayMode: boolean }[] = []
+    const diagrams: { preview: HTMLElement; source: HTMLDetailsElement; code: string }[] = []
+    const images: { image: HTMLImageElement; source: string; status: HTMLElement }[] = []
+    const serializeImage = (node: ProseMirrorNode) => {
+      const wrapper = document.createElement('span')
+      wrapper.className = 'agent-diff-image'
+      const image = document.createElement('img')
+      const source = String(node.attrs.relativeSrc || node.attrs.src || '')
+      image.alt = String(node.attrs.alt || '')
+      image.title = String(node.attrs.title || '')
+      image.loading = 'lazy'
+      image.decoding = 'async'
+      for (const dimension of ['width', 'height'] as const) {
+        const value = Number(node.attrs[dimension])
+        if (Number.isFinite(value) && value > 0) {
+          image.setAttribute(dimension, String(value))
+          image.style[dimension] = `${value}px`
+        }
+      }
+      const status = document.createElement('span')
+      status.className = 'agent-diff-image-status'
+      status.setAttribute('role', 'status')
+      status.textContent = options.labels.imageLoading
+      wrapper.setAttribute('aria-busy', 'true')
+      image.addEventListener('load', () => {
+        status.hidden = true
+        wrapper.removeAttribute('aria-busy')
+      })
+      image.addEventListener('error', () => {
+        wrapper.removeAttribute('aria-busy')
+        status.hidden = false
+        status.textContent = `${options.labels.imageError}: ${source}`
+      })
+      wrapper.append(image, status)
+      images.push({ image, source, status })
+      return wrapper
+    }
+    const serializeMermaid = (node: ProseMirrorNode) => {
+      const wrapper = document.createElement('div')
+      wrapper.className = 'agent-diff-mermaid'
+      const preview = document.createElement('div')
+      preview.className = 'agent-diff-mermaid-preview'
+      const source = document.createElement('details')
+      source.open = true
+      const summary = document.createElement('summary')
+      summary.textContent = 'Mermaid'
+      const pre = document.createElement('pre')
+      const code = document.createElement('code')
+      const content = String(node.attrs.code || '')
+      code.textContent = content
+      pre.append(code)
+      source.append(summary, pre)
+      wrapper.append(preview, source)
+      diagrams.push({ preview, source, code: content })
+      return wrapper
+    }
     const serializeMath = (node: ProseMirrorNode) => {
       const displayMode = node.type.name === 'blockMath'
       const wrapper = document.createElement(displayMode ? 'div' : 'span')
@@ -72,11 +210,53 @@ function createInsertedContentWidget(
       ...DOMSerializer.nodesFromSchema(editor.schema),
       inlineMath: serializeMath,
       blockMath: serializeMath,
+      mermaidDiagram: serializeMermaid,
+      image: serializeImage,
     }, DOMSerializer.marksFromSchema(editor.schema))
-    const previewContent = listContext
-      ? serializer.serializeNode(listContext.copy(content), { document })
-      : serializer.serializeFragment(content, { document })
-    element.append(previewContent)
+    const rowNode = tableRow ? content.firstChild : null
+    const element = rowNode
+      ? serializer.serializeNode(rowNode, { document }) as HTMLElement
+      : document.createElement(inline ? 'ins' : listContext ? 'li' : 'div')
+    element.classList.add('agent-diff-preview-inserted')
+    element.setAttribute('aria-description', options.labels.inserted)
+    if (inline) element.classList.add('agent-diff-preview-inline')
+    if (listContext) element.classList.add('agent-diff-preview-list-item')
+    if (tableRow) element.classList.add('agent-diff-preview-table-row')
+    if (!inline && !listContext && !tableRow) element.setAttribute('role', 'insertion')
+    if (listValue !== undefined) element.setAttribute('value', String(listValue))
+    element.dataset.agentDiffType = 'inserted'
+    element.dataset.agentDiffGroup = groupId
+    element.contentEditable = 'false'
+    element.addEventListener('click', event => {
+      if (event.target instanceof Element && event.target.closest('a')) event.preventDefault()
+    })
+    if (!rowNode) {
+      const previewContent = listContext
+        ? serializer.serializeNode(listContext.copy(content), { document })
+        : serializer.serializeFragment(content, { document })
+      element.append(previewContent)
+    }
+    if (attributeChanges.length > 0) {
+      const host = tableRow ? element.querySelector('td, th') : element
+      host?.append(createAttributeSummary(attributeChanges, options.labels))
+    }
+
+    for (const image of images) {
+      void (async () => {
+        try {
+          const source = shouldTransformImageSrcToWorkspaceAsset(image.source)
+            ? await options.resolveImageSource?.(image.source)
+            : image.source
+          if (disposed) return
+          if (!source) throw new Error(options.labels.imageError)
+          image.image.src = source
+        } catch {
+          if (disposed) return
+          image.image.parentElement?.removeAttribute('aria-busy')
+          image.status.textContent = `${options.labels.imageError}: ${image.source}`
+        }
+      })()
+    }
 
     // Outside markers extend into the list's padding. Reserve enough room for
     // every digit so the preview's horizontal scroll container cannot clip them.
@@ -110,6 +290,22 @@ function createInsertedContentWidget(
       element.style.setProperty('--agent-diff-list-gutter', `max(${gutters.join(', ')})`)
     }
 
+    if (diagrams.length > 0) {
+      void import('./mermaid-extension').then(async ({ renderMermaid }) => {
+        for (const diagram of diagrams) {
+          if (disposed) return
+          try {
+            const svg = await renderMermaid(diagram.code, () => !disposed)
+            if (disposed || !svg) continue
+            diagram.preview.innerHTML = svg
+            diagram.source.open = false
+          } catch {
+            // Keep the full source visible when a diagram cannot render.
+          }
+        }
+      }).catch(() => { /* Source remains available if the renderer cannot load. */ })
+    }
+
     if (mathElements.length > 0) {
       void import('katex').then(({ default: katex }) => {
         if (disposed) return
@@ -127,7 +323,7 @@ function createInsertedContentWidget(
 
     return element
   }, {
-    side: 1,
+    side,
     // The serializer supplies the new marks. Inheriting the adjacent original
     // marks would hide formatting removals (for example bold -> plain text).
     marks: [],
@@ -138,100 +334,18 @@ function createInsertedContentWidget(
   })
 }
 
-interface DiffPreviewRange {
-  fromA: number
-  toA: number
-  fromB: number
-  toB: number
-  inline: boolean
-  depth: number
-}
-
-function expandToChildren(doc: ProseMirrorNode, from: number, to: number, depth: number) {
-  const $from = doc.resolve(from)
-  const $to = doc.resolve(to)
-  return {
-    from: $from.depth > depth ? $from.before(depth + 1) : from,
-    to: $to.depth > depth ? $to.after(depth + 1) : to,
-  }
-}
-
-function buildPreviewRange(
-  before: ProseMirrorNode,
-  after: ProseMirrorNode,
-  change: Pick<DiffPreviewRange, 'fromA' | 'toA' | 'fromB' | 'toB'>
-): DiffPreviewRange {
-  const $fromA = before.resolve(change.fromA)
-  const $toA = before.resolve(change.toA)
-  const $fromB = after.resolve(change.fromB)
-  const $toB = after.resolve(change.toB)
-  const sharedDepth = Math.min($fromA.sharedDepth(change.toA), $fromB.sharedDepth(change.toB))
-  let depth = 0
-
-  // Only descend through matching containers. A change to a container's own
-  // attributes or structure is reviewed at its parent, while a text change in
-  // a deeply nested list item or table cell stays in that item or cell.
-  for (let candidate = 1; candidate <= sharedDepth; candidate += 1) {
-    const oldParent = $fromA.node(candidate)
-    const newParent = $fromB.node(candidate)
-    if (!oldParent.sameMarkup(newParent)) break
-    // Widgets cannot be divs directly inside tables or rows. Structural table
-    // edits use the containing block; ordinary cell text still descends to it.
-    if (!oldParent.isTextblock && !['table', 'row'].includes(oldParent.type.spec.tableRole || '')) {
-      depth = candidate
-    }
-  }
-
-  const inline = $fromA.sameParent($toA)
-    && $fromB.sameParent($toB)
-    && $fromA.parent.isTextblock
-    && $fromB.parent.isTextblock
-    && $fromA.depth === $fromB.depth
-    && sharedDepth === $fromA.depth
-    && $fromA.parent.sameMarkup($fromB.parent)
-    && depth === $fromA.depth - 1
-
-  if (inline) return { ...change, inline: true, depth: $fromA.depth }
-
-  const oldRange = expandToChildren(before, change.fromA, change.toA, depth)
-  const newRange = expandToChildren(after, change.fromB, change.toB, depth)
-  return {
-    fromA: oldRange.from,
-    toA: oldRange.to,
-    fromB: newRange.from,
-    toB: newRange.to,
-    inline: false,
-    depth,
-  }
-}
-
 function buildDiffDecorations(
   editor: Editor,
   currentDoc: ProseMirrorNode,
-  payload: AgentDiffPreviewPayload
+  payload: AgentDiffPreviewPayload,
+  options: AgentDiffPreviewOptions
 ) {
-  const modifiedJson = editor.markdown?.parse(payload.modifiedContent)
-  if (!modifiedJson) return DecorationSet.empty
-
-  let modifiedDoc = payload.from === undefined && payload.to === undefined
-    ? buildAgentMarkdownEdit(editor, payload.originalContent, payload.modifiedContent, currentDoc)
-    : editor.schema.nodeFromJSON(modifiedJson)
-  if (payload.from !== undefined && payload.to !== undefined) {
-    const from = Math.min(Math.max(0, payload.from), currentDoc.content.size)
-    const to = Math.min(Math.max(from, payload.to), currentDoc.content.size)
-    const $from = currentDoc.resolve(from)
-    const $to = currentDoc.resolve(to)
-    // Match the editor's range replacement behavior without dispatching or saving.
-    const transaction = editor.state.tr
-    if (!payload.modifiedContent) {
-      transaction.deleteRange(from, to)
-    } else if (!payload.modifiedContent.includes('\n') && $from.sameParent($to) && $from.parent.isTextblock) {
-      transaction.insertText(payload.modifiedContent, from, to)
-    } else {
-      transaction.replaceRange(from, to, new Slice(modifiedDoc.content, 0, 0))
-    }
-    modifiedDoc = transaction.doc
-  }
+  const modifiedDoc = payload.from !== undefined && payload.to !== undefined
+    ? buildAgentRangeEdit(editor, payload.modifiedContent, {
+      from: payload.from,
+      to: payload.to,
+    }, payload.parseInlineMarkdown).doc
+    : buildAgentMarkdownEdit(editor, payload.originalContent, payload.modifiedContent, currentDoc)
 
   if (isAgentDebugEnabled()) {
     const originalJson = payload.from === undefined && payload.to === undefined
@@ -252,21 +366,11 @@ function buildDiffDecorations(
     agentDebugText('editor_diff_modified_document', JSON.stringify(modifiedDoc.toJSON()))
   }
 
-  const transform = new Transform(currentDoc).replaceWith(
-    0,
-    currentDoc.content.size,
-    modifiedDoc.content
-  )
-  const changeSet = ChangeSet.create(currentDoc, undefined, agentDiffTokenEncoder).addSteps(
-    modifiedDoc,
-    transform.mapping.maps,
-    'agent'
-  )
   const ranges: DiffPreviewRange[] = []
 
   // Keep text edits inline and expand structural edits only to children of the
   // nearest matching container, never unconditionally to a top-level list.
-  for (const change of changeSet.changes) {
+  for (const change of documentChanges(currentDoc, modifiedDoc)) {
     let range = buildPreviewRange(currentDoc, modifiedDoc, change)
     let previous = ranges[ranges.length - 1]
     // Expanding a structural change can overlap more than one earlier text
@@ -280,6 +384,9 @@ function buildDiffDecorations(
         toB: Math.max(previous.toB, range.toB),
       })
       previous = ranges[ranges.length - 1]
+    }
+    if (payload.from === undefined || payload.to === undefined) {
+      assertAgentChangeLocal(currentDoc, modifiedDoc, range)
     }
     ranges.push(range)
   }
@@ -303,39 +410,15 @@ function buildDiffDecorations(
   const decorations: Decoration[] = []
   for (const [rangeIndex, range] of ranges.entries()) {
     const index = groupIds[rangeIndex]
-    if (groupAnchors.length > 1 && groupAnchors[index] === range) {
-      // Inline changes share one paragraph-level navigation control. Float it
-      // beside the text rather than creating an empty numbered line above it.
-      const $from = currentDoc.resolve(range.fromA)
-      const navigationPosition = range.inline ? $from.before($from.depth) : range.fromA
-      decorations.push(Decoration.widget(navigationPosition, () => {
-        const $position = currentDoc.resolve(navigationPosition)
-        const listParent = ['orderedList', 'bulletList', 'taskList'].includes($position.parent.type.name)
-        const host = document.createElement(listParent ? 'li' : 'span')
-        if (listParent) {
-          // Navigation must not advance the numbering of the original list.
-          host.setAttribute('value', String(Number($position.parent.attrs.start ?? 1) + $position.index() - 1))
-        }
-        host.className = 'agent-diff-navigation-host'
-        if (range.inline) host.classList.add('agent-diff-navigation-inline')
-        host.dataset.agentDiffNavigation = String(index)
-        host.contentEditable = 'false'
-        return host
-      }, {
-        side: -1,
-        marks: [],
-        ignoreSelection: true,
-        stopEvent: () => true,
-      }))
-    }
     const removedAttributes = {
       class: 'agent-diff-preview-removed',
       'data-agent-diff-type': 'removed',
       'data-agent-diff-group': String(index),
+      'aria-description': options.labels.removed,
     }
     if (range.toA > range.fromA) {
       if (range.inline) {
-        decorations.push(Decoration.inline(range.fromA, range.toA, removedAttributes))
+        decorations.push(Decoration.inline(range.fromA, range.toA, { ...removedAttributes, nodeName: 'del' }))
       } else {
         currentDoc.nodesBetween(range.fromA, range.toA, (node, position) => {
           // nodesBetween visits enclosing ancestors too. Never mark those as
@@ -349,6 +432,21 @@ function buildDiffDecorations(
 
     if (range.toB > range.fromB) {
       const newParent = modifiedDoc.resolve(range.fromB).node(range.depth)
+      const content = modifiedDoc.slice(range.fromB, range.toB).content
+      const oldContent = currentDoc.slice(range.fromA, range.toA).content
+      if (!range.inline && newParent.type.spec.tableRole === 'table') {
+        // Real row roots keep the surrounding tbody valid and do not duplicate
+        // unchanged rows or add cells to the original row's column layout.
+        content.forEach((row, offset, rowIndex) => {
+          const oldRow = oldContent.maybeChild(rowIndex)
+          const changes = describeAttributeChanges(oldRow?.content ?? row.content.cut(0, 0), row.content, options.labels)
+          decorations.push(createInsertedContentWidget(
+            editor, content.cut(offset, offset + row.nodeSize), range.toA,
+            false, String(index), options, undefined, undefined, true, changes, rowIndex + 1
+          ))
+        })
+        continue
+      }
       const isList = ['orderedList', 'bulletList', 'taskList'].includes(newParent.type.name)
       const listContext = !range.inline && isList
         ? newParent.type.create({
@@ -365,12 +463,15 @@ function buildDiffDecorations(
         : undefined
       decorations.push(createInsertedContentWidget(
         editor,
-        modifiedDoc.slice(range.fromB, range.toB).content,
+        content,
         range.toA,
         range.inline,
         String(index),
+        options,
         listContext,
-        listValue
+        listValue,
+        false,
+        describeAttributeChanges(oldContent, content, options.labels)
       ))
     }
   }
@@ -382,7 +483,8 @@ function applyPreviewMeta(
   editor: Editor,
   transaction: Transaction,
   state: AgentDiffPreviewState,
-  newState: EditorState
+  newState: EditorState,
+  options: AgentDiffPreviewOptions
 ): AgentDiffPreviewState {
   const meta = transaction.getMeta(agentDiffPreviewPluginKey) as AgentDiffPreviewMeta | undefined
   if (!meta) {
@@ -398,15 +500,26 @@ function applyPreviewMeta(
     }
   }
 
-  const decorations = buildDiffDecorations(editor, newState.doc, meta.payload)
+  const decorations = buildDiffDecorations(editor, newState.doc, meta.payload, options)
   return {
     active: decorations.find().length > 0,
     decorations,
   }
 }
 
-export const AgentDiffPreview = Extension.create({
+export const AgentDiffPreview = Extension.create<AgentDiffPreviewOptions>({
   name: 'agentDiffPreview',
+
+  addOptions() {
+    return {
+      labels: {
+        inserted: 'Inserted', removed: 'Removed', attributes: 'Attribute changes',
+        before: 'Before', after: 'After', imageLoading: 'Loading image…',
+        imageError: 'Image unavailable', linkUrl: 'Link address', imageSource: 'Image source',
+        imageDescription: 'Image description', title: 'Title',
+      },
+    }
+  },
 
   addProseMirrorPlugins() {
     const editor = this.editor
@@ -420,7 +533,7 @@ export const AgentDiffPreview = Extension.create({
             decorations: DecorationSet.empty,
           }),
           apply: (transaction, value, _oldState, newState) => (
-            applyPreviewMeta(editor, transaction, value, newState)
+            applyPreviewMeta(editor, transaction, value, newState, this.options)
           ),
         },
         filterTransaction: (transaction, state) => {

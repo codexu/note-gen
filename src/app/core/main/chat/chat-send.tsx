@@ -22,7 +22,7 @@ import { getToolByName } from "@/lib/agent/tools"
 import { getSessionApprovalScope, matchesSessionApproval } from "@/lib/agent/session-approval"
 import { ImageAttachment } from "./image-attachments"
 import { cn } from "@/lib/utils"
-import type { AgentTraceEvent, ConfirmationRecord } from "@/lib/agent/types"
+import type { AgentEditPreview, AgentTraceEvent, ConfirmationRecord } from "@/lib/agent/types"
 import type { AgentApprovalDecision, AgentSteeringPayload } from "@/lib/agent/types"
 import { serializeChatAttachments, type RuntimeChatAttachment } from '@/lib/chat-attachments'
 import { retainCompletedAgentTraceEvents } from '@/lib/agent/trace-retention'
@@ -68,9 +68,34 @@ function resolveRecordedApprovalEvent(event: AgentTraceEvent, records: Confirmat
   return {
     ...event,
     approvalDecision: approved ? 'approved' : record.status === 'superseded' ? 'steered' : 'denied',
+    editOutcome: !approved && event.approvalPreview ? 'cancelled' : event.editOutcome,
     status: approved ? 'success' : 'error',
     message: approved ? '用户已确认操作。' : '本次确认已取消。',
   }
+}
+
+function finalizeInterruptedAgentEvent(event: AgentTraceEvent, finishedAt: number): AgentTraceEvent {
+  if (event.status !== 'running' && event.status !== 'pending') return event
+  if (event.type === 'approval') {
+    return {
+      ...event,
+      approvalDecision: 'denied',
+      editOutcome: event.approvalPreview ? 'cancelled' : event.editOutcome,
+      status: 'success',
+      message: '本次确认已取消。',
+      duration: event.duration ?? Math.max(0, finishedAt - event.timestamp),
+    }
+  }
+  if (event.approvalPreview && (event.type === 'tool_call' || event.type === 'tool_result')) {
+    return {
+      ...event,
+      editOutcome: event.status === 'pending' ? 'cancelled' : 'unverified',
+      status: 'error',
+      message: event.status === 'pending' ? '改动已取消。' : '应用结果待核对，请查看当前文件。',
+      duration: event.duration ?? Math.max(0, finishedAt - event.timestamp),
+    }
+  }
+  return event
 }
 
 function getLastDisplayableAgentContent(
@@ -291,14 +316,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
   const requestConfirmation = (
     toolName: string,
     params: Record<string, any>,
-    context?: {
-      previewParams?: Record<string, any>
-      originalContent?: string
-      modifiedContent?: string
-      filePath?: string
-      from?: number
-      to?: number
-    },
+    context?: AgentEditPreview,
     target?: { chatId: number; conversationId?: number; workspacePath: string },
   ): Promise<AgentApprovalDecision> => {
     const tool = getToolByName(toolName)
@@ -489,7 +507,9 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
       )
       const stoppedAt = Date.now()
       const completedTraceEvents = (currentState.agentState.traceEvents || []).map(rawEvent => {
-        const event = resolveRecordedApprovalEvent(rawEvent, currentState.agentState.confirmationHistory)
+        const event = finalizeInterruptedAgentEvent(
+          resolveRecordedApprovalEvent(rawEvent, currentState.agentState.confirmationHistory), stoppedAt
+        )
         if (event.status !== 'running') {
           return event
         }
@@ -611,7 +631,8 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
         }
         const completedAt = Date.now()
         const completedTraceEvents = (agentState.traceEvents || []).map(rawEvent => {
-          const event = resolveRecordedApprovalEvent(rawEvent, agentState.confirmationHistory)
+          const recordedEvent = resolveRecordedApprovalEvent(rawEvent, agentState.confirmationHistory)
+          const event = effectivelyStopped ? finalizeInterruptedAgentEvent(recordedEvent, completedAt) : recordedEvent
           if (event.status !== 'running') {
             return event
           }

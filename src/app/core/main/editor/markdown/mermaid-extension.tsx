@@ -35,7 +35,7 @@ async function getMermaid(): Promise<MermaidApi> {
   return await mermaidPromise
 }
 
-async function renderMermaid(
+export async function renderMermaid(
   code: string,
   shouldRender: () => boolean
 ): Promise<string | null> {

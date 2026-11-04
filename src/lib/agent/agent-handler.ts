@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { AgentRuntime, isRequestAbortError } from './runtime'
-import type { AgentApprovalDecision, AgentChange, AgentPermissionMode, AgentQuoteSnapshot, AgentRuntimeResult, AgentSteeringPayload, AgentStep, AgentTraceEvent, ToolCall } from './types'
+import type { AgentApprovalDecision, AgentEditPreview, AgentChange, AgentPermissionMode, AgentQuoteSnapshot, AgentRuntimeResult, AgentSteeringPayload, AgentStep, AgentTraceEvent, ToolCall } from './types'
 import type { RuntimeChatAttachment } from '@/lib/chat-attachments'
 import type { AgentImageAttachment } from '@/lib/chat-image-context'
 import { retainCompletedAgentTraceEvents } from './trace-retention'
@@ -35,14 +35,7 @@ export interface AgentHandlerConfig {
   requestConfirmation?: (
     toolName: string,
     params: Record<string, any>,
-    context?: {
-      previewParams?: Record<string, any>
-      originalContent?: string
-      modifiedContent?: string
-      filePath?: string
-      from?: number
-      to?: number
-    }
+    context?: AgentEditPreview
   ) => Promise<AgentApprovalDecision>
   currentQuote?: AgentQuoteSnapshot
   attachments?: RuntimeChatAttachment[]

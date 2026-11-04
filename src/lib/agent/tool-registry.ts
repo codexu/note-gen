@@ -29,6 +29,7 @@ import {
 import {
   listMarkdownFilesTool,
   readMarkdownFileTool,
+  readNoteFileSnapshot,
   openMarkdownFileTool,
   createFileTool,
   updateMarkdownFileTool,
@@ -46,7 +47,7 @@ import { saveMemoryTool, listMemoriesTool, deleteMemoryTool, clearMemoriesTool }
 import { attachmentTools } from './tools/attachment-tools'
 import { skillRuntimeTools } from './tools/skill-runtime-tools'
 import { skillArtifactTools } from './tools/skill-artifact-tools'
-import { getSkillRuntimeContext } from '@/lib/skills/runtime'
+import { getSkillRuntimeContext, getSkillWorkspaceIdentity } from '@/lib/skills/runtime'
 import { isMobileDevice } from '@/lib/check'
 import { imageTools } from './tools/image-tools'
 import { canvasTools } from './tools/canvas-tools'
@@ -71,9 +72,10 @@ import type {
   ToolResult,
 } from './types'
 import type { EditorTransactionInput } from './editor-adapter'
-import { buildEditorChange, prepareEditorLineTransaction, preserveListLineStructure } from './editor-adapter'
+import { buildEditorChange, prepareEditorLineTransaction, preserveEditorLineStructure } from './editor-adapter'
 import {
   ensureSafeWorkspaceRelativePath,
+  getWorkspacePath,
   toWorkspaceRelativePath,
 } from '@/lib/workspace'
 
@@ -297,102 +299,157 @@ export interface EditorApprovalPreview {
   previewParams: Record<string, unknown>
   originalContent: string
   modifiedContent: string
-  filePath?: string
+  kind: 'editor' | 'file'
+  operation?: 'create' | 'update' | 'delete'
+  filePath: string
+  version?: number
+  baseContent?: string
+  parseInlineMarkdown?: boolean
   from?: number
   to?: number
+}
+
+const EDIT_PREVIEW_TOOLS = new Set([
+  'editor_apply_transaction', 'editor_replace_lines', 'editor_replace_range', 'editor_insert_at_cursor',
+  'note_create_file', 'note_update_file', 'note_delete_file',
+])
+
+export function hasFileEditPreview(toolName: string) {
+  return EDIT_PREVIEW_TOOLS.has(toolName)
 }
 
 export async function buildEditorApprovalPreview(
   toolName: string,
   input: Record<string, unknown>
 ): Promise<EditorApprovalPreview | undefined> {
-  if (!['editor_apply_transaction', 'editor_replace_lines', 'editor_replace_range'].includes(toolName)) {
-    return undefined
-  }
+  if (!hasFileEditPreview(toolName)) return undefined
 
-  if (toolName === 'editor_replace_range') {
-    const from = typeof input.from === 'number' ? Math.max(0, input.from) : undefined
-    const to = typeof input.to === 'number' && from !== undefined
-      ? Math.max(from, input.to)
-      : undefined
-    const replacement = typeof input.content === 'string' ? input.content : undefined
-    if (from === undefined || to === undefined || replacement === undefined) {
-      return undefined
-    }
-
-    const selectionResult = await getEditorSelectionTool.execute({})
-    const selection = selectionResult.data && typeof selectionResult.data === 'object'
-      ? selectionResult.data as { text?: unknown; from?: unknown; to?: unknown }
-      : undefined
-    const selectedText = selection?.from === from && selection?.to === to && typeof selection.text === 'string'
-      ? selection.text
-      : ''
-
+  if (toolName.startsWith('note_')) {
+    const workspaceIdentity = getSkillWorkspaceIdentity(await getWorkspacePath())
+    const filePath = await normalizeAgentWorkspacePath(getRequestedFilePath(input))
+    const original = await readNoteFileSnapshot(filePath)
+    if (getSkillWorkspaceIdentity(await getWorkspacePath()) !== workspaceIdentity) throw new Error('WORKSPACE_CHANGED')
+    const operation = toolName === 'note_create_file' ? 'create' : toolName === 'note_delete_file' ? 'delete' : 'update'
+    if (operation !== 'create' && original === undefined) throw new Error('FILE_NOT_FOUND')
+    const modifiedContent = operation === 'delete' ? '' : asString(input.content)
     return {
-      previewParams: input,
-      originalContent: selectedText,
-      modifiedContent: replacement,
-      filePath: useArticleStore.getState().activeFilePath || (
-        typeof input.filePath === 'string' ? input.filePath : undefined
-      ),
-      from,
-      to,
+      kind: 'file', operation, filePath,
+      originalContent: original ?? '', modifiedContent,
+      baseContent: original,
+      previewParams: operation === 'create'
+        ? { ...input, workspaceIdentity, fileName: filePath.split('/').pop(), folderPath: filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : undefined }
+        : { ...input, workspaceIdentity, filePath, expectedContent: original },
     }
   }
 
+  const filePath = asString(input.filePath)
+  if (!targetsActiveEditor(filePath)) throw new Error('EDITOR_TARGET_CHANGED')
   const stateResult = await getEditorContentTool.execute({})
-  if (!stateResult.success || !stateResult.data || typeof stateResult.data !== 'object') {
-    return undefined
+  if (!targetsActiveEditor(filePath)) throw new Error('EDITOR_TARGET_CHANGED')
+  const state = asObject(stateResult.data)
+  if (!stateResult.success || typeof state.markdown !== 'string' || typeof state.version !== 'number') {
+    throw new Error('EDITOR_UNAVAILABLE')
   }
-
-  const state = stateResult.data as { markdown?: unknown }
-  if (typeof state.markdown !== 'string') {
-    return undefined
-  }
-
   const before = state.markdown
-  let after = before
-  let previewParams = input
+  const version = typeof input.version === 'number' ? input.version : state.version
+  let previewParams: Record<string, unknown> = { ...input, filePath, version }
 
-  if (toolName === 'editor_apply_transaction') {
-    const transaction = input as unknown as EditorTransactionInput
-    if (!Array.isArray(transaction.operations) || transaction.operations.length === 0) {
-      return undefined
+  if (toolName === 'editor_replace_range' || toolName === 'editor_insert_at_cursor') {
+    const selection = asObject(state.selection)
+    const selectionFrom = typeof selection.from === 'number' ? selection.from : undefined
+    const selectionTo = typeof selection.to === 'number' ? selection.to : undefined
+    const replacingSelection = toolName === 'editor_replace_range' || input.replaceSelection === true
+    const from = toolName === 'editor_replace_range' ? input.from : replacingSelection ? selectionFrom : selectionTo
+    const to = toolName === 'editor_replace_range' ? input.to : selectionTo
+    if (typeof from !== 'number' || typeof to !== 'number' || !Number.isInteger(from) || !Number.isInteger(to)
+      || from < 0 || to < from || typeof input.content !== 'string') throw new Error('INVALID_EDITOR_RANGE')
+    if (replacingSelection && (selectionFrom !== from || selectionTo !== to || typeof selection.text !== 'string')) {
+      throw new Error('EDITOR_SELECTION_CHANGED')
     }
-    const prepared = prepareEditorLineTransaction(before, transaction.operations)
-    if (!prepared.ok) {
-      return undefined
-    }
-    after = prepared.markdown
-    previewParams = { ...input, operations: prepared.orderedOperations }
-  } else if (toolName === 'editor_replace_lines') {
-    const startLine = typeof input.startLine === 'number' ? input.startLine : 1
-    const endLine = typeof input.endLine === 'number' ? input.endLine : startLine
-    const rawReplacement = typeof input.replaceContent === 'string' ? input.replaceContent : ''
-    const replacement = input.preserveListStructure === false
-      ? rawReplacement
-      : preserveListLineStructure(before, startLine, endLine, rawReplacement)
-    previewParams = { ...input, replaceContent: replacement }
-    const lines = before.split('\n')
-    lines.splice(
-      Math.max(0, startLine - 1),
-      Math.max(0, endLine - startLine + 1),
-      ...replacement.split('\n')
-    )
-    after = lines.join('\n')
+    const originalContent = replacingSelection ? asString(selection.text) : ''
+    previewParams = toolName === 'editor_insert_at_cursor'
+      ? { ...previewParams, ...(replacingSelection ? { expectedSelection: originalContent } : { position: from }) }
+      : previewParams
+    return { kind: 'editor', filePath, version, baseContent: before, previewParams,
+      originalContent, modifiedContent: input.content, from, to,
+      parseInlineMarkdown: toolName === 'editor_insert_at_cursor' }
   }
 
-  if (after === before) {
+  let after: string
+  if (toolName === 'editor_apply_transaction') {
+    if (!Array.isArray(input.operations)) throw new Error('INVALID_EDITOR_TRANSACTION')
+    const prepared = prepareEditorLineTransaction(before, input.operations)
+    if (!prepared.ok) throw new Error(prepared.error)
+    after = prepared.markdown
+    previewParams = { ...previewParams, operations: prepared.orderedOperations.map(operation =>
+      operation.type === 'replace_lines' ? { ...operation, preserveListStructure: false } : operation) }
+  } else {
+    const startLine = input.startLine
+    const endLine = input.endLine
+    if (typeof startLine !== 'number' || typeof endLine !== 'number' || typeof input.replaceContent !== 'string') {
+      throw new Error('INVALID_EDITOR_TRANSACTION')
+    }
+    const prepared = prepareEditorLineTransaction(before, [{ type: 'replace_lines', startLine, endLine,
+      content: input.replaceContent, preserveListStructure: input.preserveListStructure }])
+    if (!prepared.ok) throw new Error(prepared.error)
+    after = prepared.markdown
+    previewParams = { ...previewParams, replaceContent: prepared.orderedOperations[0].content, preserveListStructure: false }
+  }
+  return { kind: 'editor', filePath, version, baseContent: before, previewParams,
+    originalContent: before, modifiedContent: after }
+}
+
+/** Approval and execution must refer to the same document revision and target. */
+export async function validateEditApprovalPreview(preview: EditorApprovalPreview): Promise<AgentToolResult | undefined> {
+  const stale = (error: string): AgentToolResult => ({ ok: false, error,
+    message: '内容或编辑位置已变化，本次改动未应用。请基于当前内容重新生成差异。' })
+  if (preview.kind === 'file') {
+    if (getSkillWorkspaceIdentity(await getWorkspacePath()) !== preview.previewParams.workspaceIdentity) return stale('WORKSPACE_CHANGED')
+    const current = await readNoteFileSnapshot(preview.filePath)
+    if (current !== preview.baseContent) return stale('FILE_CONTENT_CHANGED')
+    if (preview.operation === 'create' && current !== undefined) return stale('FILE_ALREADY_EXISTS')
     return undefined
   }
+  if (!targetsActiveEditor(preview.filePath)) return stale('EDITOR_TARGET_CHANGED')
+  const result = await getEditorContentTool.execute({})
+  const state = asObject(result.data)
+  if (!targetsActiveEditor(preview.filePath) || state.markdown !== preview.baseContent || state.version !== preview.version) {
+    return stale('EDITOR_VERSION_MISMATCH')
+  }
+  if (preview.from !== undefined && preview.to !== undefined) {
+    const selection = asObject(state.selection)
+    if (typeof preview.previewParams.position === 'number') {
+      if (selection.to !== preview.from) return stale('EDITOR_SELECTION_CHANGED')
+    } else if (selection.from !== preview.from || selection.to !== preview.to || selection.text !== preview.originalContent) {
+      return stale('EDITOR_SELECTION_CHANGED')
+    }
+  }
+  return undefined
+}
 
+function unverifiedEditorWrite(filePath: string, before: string | undefined): AgentToolResult {
   return {
-    previewParams,
-    originalContent: before,
-    modifiedContent: after,
-    filePath: useArticleStore.getState().activeFilePath || (
-      typeof input.filePath === 'string' ? input.filePath : undefined
-    ),
+    ok: false,
+    message: '编辑操作已返回，暂时无法核对应用后的内容。请查看当前文件。',
+    error: 'EDITOR_CHANGE_VERIFICATION_FAILED',
+    changes: [{ ...buildEditorChange(filePath, before, undefined), reversible: false, outcome: 'unverified', summary: '编辑结果待核对' }],
+  }
+}
+
+/** A rejected command can still have dispatched steps before a plugin reported failure. */
+async function retainFailedEditorWrite(
+  result: AgentToolResult,
+  filePath: string,
+  before: string | undefined,
+): Promise<AgentToolResult> {
+  if (before === undefined || !targetsActiveEditor(filePath)) return result
+  const after = await readEditorMarkdown().catch(() => undefined)
+  if (!targetsActiveEditor(filePath) || after === undefined || after === before) return result
+  return {
+    ...result,
+    error: 'EDITOR_CHANGE_VERIFICATION_FAILED',
+    message: '编辑器内容发生了变化，应用结果需要核对。请查看实际差异。',
+    changes: [{ ...buildEditorChange(filePath, before, after), outcome: 'unverified', summary: '编辑结果待核对' }],
   }
 }
 
@@ -474,25 +531,21 @@ async function executeEditorTransaction(input: Record<string, unknown>): Promise
   })
 
   const normalized = resultFromLegacy(replaceResult)
-  if (!targetsActiveEditor(transaction.filePath)) {
-    return {
-      ok: false,
-      message: '编辑期间活动编辑器已切换，无法安全验证事务结果。',
-      error: 'EDITOR_TARGET_CHANGED',
-    }
-  }
-  if (!normalized.ok) {
-    return normalized
-  }
+  if (!normalized.ok) return retainFailedEditorWrite(normalized, transaction.filePath, before)
+  if (!targetsActiveEditor(transaction.filePath)) return unverifiedEditorWrite(transaction.filePath, before)
 
   if (resultReportsNoChange(normalized)) {
     return normalized
   }
 
+  const actualAfter = await readEditorMarkdownAfterWrite(before)
+  if (!targetsActiveEditor(transaction.filePath) || actualAfter === undefined) {
+    return unverifiedEditorWrite(transaction.filePath, before)
+  }
   return {
     ...normalized,
-    changes: [
-      buildEditorChange(transaction.filePath || useArticleStore.getState().activeFilePath || 'current editor', before, after),
+    changes: actualAfter === before ? [] : [
+      buildEditorChange(transaction.filePath, before, actualAfter),
     ],
   }
 }
@@ -521,23 +574,15 @@ async function executeEditorLegacyWrite(input: Record<string, unknown>, legacy: 
     && input.preserveListStructure !== false
     ? {
       ...input,
-      replaceContent: preserveListLineStructure(before, input.startLine, input.endLine, input.replaceContent),
+      replaceContent: preserveEditorLineStructure(before, input.startLine, input.endLine, input.replaceContent),
     }
     : input
   const legacyResult = await legacy.execute(writeInput)
   const normalized = resultFromLegacy(legacyResult)
 
-  if (!normalized.ok) {
-    return normalized
-  }
+  if (!normalized.ok) return retainFailedEditorWrite(normalized, requestedFilePath, before)
 
-  if (!targetsActiveEditor(requestedFilePath)) {
-    return {
-      ok: false,
-      message: '编辑期间活动编辑器已切换，无法安全验证结果。',
-      error: 'EDITOR_TARGET_CHANGED',
-    }
-  }
+  if (!targetsActiveEditor(requestedFilePath)) return unverifiedEditorWrite(requestedFilePath, before)
 
   const after = await readEditorMarkdownAfterWrite(before)
   if (before === after && before !== undefined) {
@@ -550,12 +595,8 @@ async function executeEditorLegacyWrite(input: Record<string, unknown>, legacy: 
       message: `${normalized.message}\n编辑器内容已是目标状态，无需重复修改。`,
     }
   }
-  if (before === undefined || after === undefined) {
-    return {
-      ok: false,
-      message: '编辑器操作已返回，但无法验证操作后的内容。为避免重复写入，已停止自动重试。',
-      error: 'EDITOR_CHANGE_VERIFICATION_FAILED',
-    }
+  if (before === undefined || after === undefined || !targetsActiveEditor(requestedFilePath)) {
+    return unverifiedEditorWrite(requestedFilePath, before)
   }
 
   return {
@@ -567,17 +608,7 @@ async function executeEditorLegacyWrite(input: Record<string, unknown>, legacy: 
 }
 
 async function readNoteContentForChange(filePath: string) {
-  if (!filePath) {
-    return undefined
-  }
-
-  const result = await readMarkdownFileTool.execute({ filePath })
-  if (!result.success || !result.data || typeof result.data !== 'object') {
-    return undefined
-  }
-
-  const data = result.data as { content?: string }
-  return typeof data.content === 'string' ? data.content : undefined
+  return filePath ? readNoteFileSnapshot(filePath) : undefined
 }
 
 async function executeReadFileFromEditor(input: Record<string, unknown>): Promise<AgentToolResult> {
@@ -747,12 +778,26 @@ function filePathFromCreateResult(input: Record<string, unknown>, result: AgentT
   return folderPath ? `${folderPath}/${fileName}` : fileName
 }
 
+function retainAppliedFileChange(result: AgentToolResult): AgentToolResult {
+  const applied = asObject(asObject(result.data).appliedChange)
+  if (typeof applied.filePath !== 'string') return result
+  return {
+    ...result,
+    error: 'FILE_CHANGE_VERIFICATION_FAILED',
+    message: '文件内容已修改，但界面状态未完成更新。请重新打开文件核对。',
+    changes: [{ ...buildFileChange({ target: applied.filePath,
+      before: typeof applied.before === 'string' ? applied.before : undefined,
+      after: typeof applied.after === 'string' ? applied.after : undefined,
+      summary: '文件改动待核对',
+      reversible: typeof applied.after === 'string',
+    }), outcome: 'unverified' }],
+  }
+}
+
 async function executeCreateFileWithChange(input: Record<string, unknown>): Promise<AgentToolResult> {
   const normalized = resultFromLegacy(await createFileTool.execute(input as Record<string, any>))
 
-  if (!normalized.ok) {
-    return normalized
-  }
+  if (!normalized.ok) return retainAppliedFileChange(normalized)
 
   if (resultReportsNoChange(normalized)) {
     return normalized
@@ -774,68 +819,24 @@ async function executeCreateFileWithChange(input: Record<string, unknown>): Prom
 async function executeUpdateFileWithChange(input: Record<string, unknown>): Promise<AgentToolResult> {
   const filePath = asString(input.filePath)
   if (targetsActiveEditor(filePath)) {
-    const stateResult = await getEditorContentTool.execute({})
-    if (!stateResult.success || !stateResult.data || typeof stateResult.data !== 'object') {
-      return resultFromLegacy(stateResult)
-    }
-
-    const state = stateResult.data as {
-      markdown?: unknown
-      totalLines?: unknown
-      version?: unknown
-    }
-    if (
-      typeof state.markdown !== 'string' ||
-      typeof state.totalLines !== 'number' ||
-      typeof state.version !== 'number'
-    ) {
-      return {
-        ok: false,
-        message: '当前编辑器状态不完整，无法安全更新文件。',
-        error: 'EDITOR_STATE_INCOMPLETE',
-      }
-    }
-
-    const before = state.markdown
-    const after = asString(input.content)
-    if (before === after) {
-      return {
-        ok: true,
-        message: `当前编辑器内容已是目标状态，无需重复更新: ${filePath}`,
-        data: { filePath, source: 'editor', unchanged: true },
-      }
-    }
-
-    const replaceResult = resultFromLegacy(await replaceEditorContentTool.execute({
-      startLine: 1,
-      endLine: state.totalLines,
-      replaceContent: after,
-      version: state.version,
-    }))
-    if (!replaceResult.ok) {
-      return replaceResult
-    }
-
     return {
-      ...replaceResult,
-      message: `已通过实时编辑器更新当前文件: ${filePath}`,
-      data: {
-        ...(replaceResult.data && typeof replaceResult.data === 'object' ? replaceResult.data : {}),
-        filePath,
-        source: 'editor',
-      },
-      changes: [
-        buildEditorChange(filePath, before, after),
-      ],
+      ok: false,
+      message: '本次改动未应用。当前笔记需要通过编辑器局部修改，请重新生成局部差异。',
+      error: 'ACTIVE_EDITOR_FULL_WRITE_BLOCKED',
     }
   }
 
   const before = await readNoteContentForChange(filePath)
+  if (targetsActiveEditor(filePath)) {
+    return {
+      ok: false,
+      message: '目标笔记已切换为活动编辑器，已取消文件覆盖。请改用局部编辑工具。',
+      error: 'ACTIVE_EDITOR_FULL_WRITE_BLOCKED',
+    }
+  }
   const normalized = resultFromLegacy(await updateMarkdownFileTool.execute(input as Record<string, any>))
 
-  if (!normalized.ok) {
-    return normalized
-  }
+  if (!normalized.ok) return retainAppliedFileChange(normalized)
 
   if (resultReportsNoChange(normalized)) {
     return normalized
@@ -859,9 +860,7 @@ async function executeDeleteFileWithChange(input: Record<string, unknown>): Prom
   const before = await readNoteContentForChange(filePath)
   const normalized = resultFromLegacy(await deleteMarkdownFileTool.execute(input as Record<string, any>))
 
-  if (!normalized.ok) {
-    return normalized
-  }
+  if (!normalized.ok) return retainAppliedFileChange(normalized)
 
   const alreadyAbsent = Boolean(
     normalized.data &&
@@ -880,7 +879,7 @@ async function executeDeleteFileWithChange(input: Record<string, unknown>): Prom
         target: filePath,
         before,
         summary: `删除文件 ${filePath}`,
-        reversible: Boolean(before),
+        reversible: before !== undefined,
       }),
     ],
   }
@@ -1083,7 +1082,7 @@ const editorApplyTransactionTool: AgentTool = {
             content: { type: 'string' },
             preserveListStructure: {
               type: 'boolean',
-              description: 'Defaults to true: preserve existing indentation and marker spacing for corresponding list items. Set false only when the user explicitly requests list restructuring, indentation, or hierarchy changes.',
+              description: 'Defaults to true: preserve original leading whitespace for corresponding lines (including table rows, formulas, fenced code, and list continuations), and marker spacing for matching list items. Set false only when the user explicitly requests list restructuring, indentation, or hierarchy changes.',
             },
           },
           required: ['type', 'content'],
@@ -1980,7 +1979,7 @@ function buildTools(): AgentTool[] {
       },
       execute: (input, executionContext) => executeEditorLegacyWrite({
         ...input,
-        expectedSelection: executionContext.context.currentQuote?.fullContent,
+        expectedSelection: typeof input.expectedSelection === 'string' ? input.expectedSelection : executionContext.context.currentQuote?.fullContent,
         expectedSelectionToken: executionContext.context.currentQuote?.selectionToken,
       }, insertAtCursorTool),
     }),
@@ -2008,7 +2007,7 @@ function buildTools(): AgentTool[] {
     adaptLegacyTool({
       name: 'editor_replace_lines',
       title: '替换编辑器行',
-      description: 'Replace one contiguous range of exact 1-based editor lines with complete Markdown in replaceContent. Line numbers refer to numberedLines in the editor snapshot, never list item numbers. Choose the smallest range needed for the requested edit; do not replace the whole document for a local change. Preserve unrelated text, list numbers, exact leading whitespace, and structural markers such as "# ", "- ", and "> ". Existing list indentation is preserved by default; set preserveListStructure=false only when the user explicitly requests hierarchy or structural changes. Prefer this for a single current-document line, section, or block edit.',
+      description: 'Replace one contiguous range of exact 1-based editor lines with complete Markdown in replaceContent. Line numbers refer to numberedLines in the editor snapshot, never list item numbers. Choose the smallest range needed for the requested edit; do not replace the whole document for a local change. Preserve unrelated text, list numbers, exact leading whitespace, and structural markers such as "# ", "- ", and "> ". Original line indentation (including table rows, formulas, fenced code, and list continuations) is preserved by default; set preserveListStructure=false only when the user explicitly requests hierarchy or structural changes. Prefer this for a single current-document line, section, or block edit.',
       category: 'editor',
       risk: 'editor-write',
       legacy: replaceEditorContentTool,
@@ -2021,7 +2020,7 @@ function buildTools(): AgentTool[] {
           replaceContent: { type: 'string' },
           preserveListStructure: {
             type: 'boolean',
-            description: 'Defaults to true: preserve existing indentation and marker spacing for corresponding list items. Set false only when the user explicitly requests list restructuring, indentation, or hierarchy changes.',
+            description: 'Defaults to true: preserve original leading whitespace for corresponding lines (including table rows, formulas, fenced code, and list continuations), and marker spacing for matching list items. Set false only when the user explicitly requests list restructuring, indentation, or hierarchy changes.',
           },
           version: { type: 'number' },
         },

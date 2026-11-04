@@ -145,6 +145,79 @@
   background: color-mix(in srgb, #22c55e 18%, transparent);
   color: #15803d;
   white-space: normal;
+  text-decoration: none;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-preview-table-row {
+  display: table-row;
+  width: auto;
+  overflow: visible;
+  margin: 0;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-preview-table-row > td,
+.tiptap-editor .ProseMirror .agent-diff-preview-table-row > th {
+  background: color-mix(in srgb, #22c55e 18%, transparent);
+}
+
+.tiptap-editor .ProseMirror tr.agent-diff-preview-removed > td,
+.tiptap-editor .ProseMirror tr.agent-diff-preview-removed > th {
+  background: color-mix(in srgb, hsl(var(--destructive)) 18%, transparent);
+}
+
+.tiptap-editor .ProseMirror .agent-diff-attributes {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-width: 100%;
+  margin: 0.25rem 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.3rem;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.75rem;
+  font-weight: normal;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-attribute del {
+  color: hsl(var(--destructive));
+}
+
+.tiptap-editor .ProseMirror .agent-diff-attribute ins {
+  color: #15803d;
+  text-decoration: none;
+}
+
+.dark .tiptap-editor .ProseMirror .agent-diff-attribute ins {
+  color: #86efac;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-image {
+  display: inline-flex;
+  max-width: 100%;
+  flex-direction: column;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-image img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.3rem;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-image-status {
+  padding: 0.35rem;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-image-status[hidden] {
+  display: none;
 }
 
 .tiptap-editor .ProseMirror .agent-diff-preview-inserted > :first-child {
@@ -167,6 +240,23 @@
 
 .tiptap-editor .ProseMirror .agent-diff-preview-list-item {
   list-style: none;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-mermaid {
+  padding: 0.75rem;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-mermaid-preview {
+  overflow-x: auto;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-mermaid summary {
+  cursor: pointer;
+}
+
+.tiptap-editor .ProseMirror .agent-diff-preview-removed .mermaid-preview {
+  background: transparent;
+  border-color: hsl(var(--destructive));
 }
 
 .tiptap-editor .ProseMirror .agent-diff-preview-list-aligned {
@@ -1891,7 +1981,7 @@
   border-radius: 0;
 }
 
-/* Overview decorations share the scrollbar track; the translucent thumb sits above them. */
+/* A narrow overview beside the scrollbar remains clickable without blocking its thumb. */
 .tiptap-editor .agent-diff-map-removed {
   background: hsl(var(--destructive));
 }
@@ -1902,6 +1992,8 @@
 
 .tiptap-editor .agent-diff-map-marker {
   opacity: 0.75;
+  padding: 0;
+  border: 0;
 }
 
 .tiptap-editor .agent-diff-map-marker[aria-current="location"] {
@@ -1914,31 +2006,8 @@
   outline-offset: 2px;
 }
 
-.tiptap-editor .ProseMirror .agent-diff-navigation-host {
-  display: flex;
-  position: relative;
-  z-index: 50;
-  clear: both;
-  justify-content: flex-start;
-  align-items: center;
-  width: 100%;
-  min-height: 44px;
-  box-sizing: border-box;
-  margin: 0;
-  padding-block: 6px;
-  line-height: normal;
-  list-style: none;
-  text-decoration: none;
-  user-select: none;
-}
-
-.tiptap-editor .ProseMirror .agent-diff-navigation-inline {
-  float: right;
-  clear: none;
-  width: auto;
-  min-height: 0;
-  margin-left: 0.5em;
-  padding-block: 0;
+.tiptap-editor:has(.agent-diff-navigation-bar) .ProseMirror {
+  padding-top: 4.5rem;
 }
 
 .tiptap-editor:has(.agent-diff-overview) .editor-custom-scrollbar {
@@ -1958,7 +2027,6 @@
 }
 
 .tiptap-editor .agent-diff-navigation-bar {
-  position: relative;
   background: hsl(var(--foreground));
   color: hsl(var(--background));
   border-color: hsl(var(--foreground));

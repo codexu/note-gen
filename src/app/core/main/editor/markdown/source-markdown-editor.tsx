@@ -7,6 +7,7 @@ import {
   history,
   historyKeymap,
   indentWithTab,
+  invertedEffects,
   isolateHistory,
   redo,
   redoDepth,
@@ -25,6 +26,7 @@ import { highlightSelectionMatches, openSearchPanel, searchKeymap } from '@codem
 import {
   Compartment,
   EditorState,
+  MapMode,
   StateEffect,
   StateField,
   Transaction,
@@ -45,6 +47,7 @@ import {
 } from '@codemirror/view'
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
+import { buildTextEdits } from '@/lib/agent/text-diff'
 
 export interface SourceMarkdownRemoteCursor {
   deviceId: string
@@ -76,6 +79,7 @@ interface SourceMarkdownEditorProps {
 }
 
 export interface SourceMarkdownEditorController {
+  setEditable: (editable: boolean) => void
   isComposing: () => boolean
   applyEdits: (edits: readonly { from: number; to: number; text: string }[]) => void
   setSelection: (from: number, to: number) => void
@@ -95,6 +99,110 @@ export interface SourceMarkdownEditorViewState {
   selection: { from: number; to: number }
   scrollTop: number
 }
+
+type SourceLineEnding = { position: number; ending: '\n' | '\r\n' | '\r' }
+
+interface SourceSnapshot {
+  value: string
+  normalized: string
+  endings: SourceLineEnding[]
+  crlfPositions: { raw: number; normalized: number }[]
+  preferredEnding: SourceLineEnding['ending']
+}
+
+// CodeMirror counts every line break as one position. Keep its coordinates
+// separate from the exact Markdown string used by files, tools and history.
+function createSourceSnapshot(value: string): SourceSnapshot {
+  const endings: SourceLineEnding[] = []
+  const crlfPositions: SourceSnapshot['crlfPositions'] = []
+  const counts = new Map<SourceLineEnding['ending'], number>()
+  let extraCharacters = 0
+  const normalized = value.replace(/\r\n?|\n/g, (ending: string, raw: number) => {
+    const position = raw - extraCharacters
+    const lineEnding = ending as SourceLineEnding['ending']
+    endings.push({ position, ending: lineEnding })
+    counts.set(lineEnding, (counts.get(lineEnding) ?? 0) + 1)
+    if (ending === '\r\n') {
+      crlfPositions.push({ raw, normalized: position })
+      extraCharacters++
+    }
+    return '\n'
+  })
+  let preferredEnding: SourceLineEnding['ending'] = '\n'
+  let highestCount = 0
+  for (const [ending, count] of counts) {
+    if (count > highestCount) {
+      preferredEnding = ending
+      highestCount = count
+    }
+  }
+  return { value, normalized, endings, crlfPositions, preferredEnding }
+}
+
+function precedingCrlf(snapshot: SourceSnapshot, position: number, coordinate: 'raw' | 'normalized') {
+  let low = 0
+  let high = snapshot.crlfPositions.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (snapshot.crlfPositions[middle][coordinate] < position) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
+function toEditorPosition(snapshot: SourceSnapshot, position: number) {
+  const bounded = Math.max(0, Math.min(position, snapshot.value.length))
+  return bounded - precedingCrlf(snapshot, bounded, 'raw')
+}
+
+function toSourcePosition(snapshot: SourceSnapshot, position: number) {
+  const bounded = Math.max(0, Math.min(position, snapshot.normalized.length))
+  return bounded + precedingCrlf(snapshot, bounded, 'normalized')
+}
+
+const setSourceLineEndings = StateEffect.define<readonly SourceLineEnding[]>({
+  map: (endings, changes) => endings.flatMap(({ position, ending }) => {
+    const mapped = changes.mapPos(position, 1, MapMode.TrackAfter)
+    return mapped === null ? [] : [{ position: mapped, ending }]
+  }),
+})
+
+const sourceSnapshotField = StateField.define<SourceSnapshot>({
+  create: state => createSourceSnapshot(state.doc.toString()),
+  update(snapshot, transaction) {
+    const overrides = transaction.effects.filter(effect => effect.is(setSourceLineEndings))
+    if (!transaction.docChanged && overrides.length === 0) return snapshot
+    const endings = new Map<number, SourceLineEnding['ending']>()
+    for (const { position, ending } of snapshot.endings) {
+      const mapped = transaction.changes.mapPos(position, 1, MapMode.TrackAfter)
+      if (mapped !== null) endings.set(mapped, ending)
+    }
+    for (const effect of overrides) {
+      for (const { position, ending } of effect.value) endings.set(position, ending)
+    }
+    return createSourceSnapshot(transaction.newDoc.toString().replace(/\n/g, (_match, position: number) => (
+      endings.get(position) ?? snapshot.preferredEnding
+    )))
+  },
+})
+
+// Record only affected line endings alongside CodeMirror's text history. This
+// also makes a pure CRLF/LF change undoable without saving full file snapshots.
+const sourceLineEndingHistory = invertedEffects.of(transaction => {
+  const overrides = new Map<number, SourceLineEnding['ending']>()
+  for (const effect of transaction.effects) {
+    if (effect.is(setSourceLineEndings)) {
+      for (const { position, ending } of effect.value) overrides.set(position, ending)
+    }
+  }
+  if (!transaction.docChanged && overrides.size === 0) return []
+  const restore: SourceLineEnding[] = []
+  for (const entry of transaction.startState.field(sourceSnapshotField).endings) {
+    const mapped = transaction.changes.mapPos(entry.position, 1, MapMode.TrackAfter)
+    if (mapped === null || (overrides.has(mapped) && overrides.get(mapped) !== entry.ending)) restore.push(entry)
+  }
+  return restore.length ? [setSourceLineEndings.of(restore)] : []
+})
 
 const REMOTE_CURSOR_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2']
 
@@ -324,24 +432,27 @@ export function SourceMarkdownEditor({
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    const initialSelectionFrom = Math.max(0, Math.min(selection?.from ?? 0, value.length))
+    const initialSnapshot = createSourceSnapshot(value)
+    const initialSelectionFrom = toEditorPosition(initialSnapshot, selection?.from ?? 0)
     const initialSelectionTo = Math.max(
       initialSelectionFrom,
-      Math.min(selection?.to ?? initialSelectionFrom, value.length)
+      toEditorPosition(initialSnapshot, selection?.to ?? selection?.from ?? 0)
     )
 
     const view = new EditorView({
       parent: container,
       state: EditorState.create({
-        doc: value,
+        doc: initialSnapshot.normalized,
         selection: { anchor: initialSelectionFrom, head: initialSelectionTo },
         extensions: [
           EditorState.transactionFilter.of(transaction => (
-            transaction.docChanged
+            (transaction.docChanged || transaction.effects.some(effect => effect.is(setSourceLineEndings)))
             && transaction.startState.facet(EditorState.readOnly)
             && !isApplyingExternalValueRef.current
           ) ? [] : transaction),
           highlightSpecialChars(),
+          sourceSnapshotField.init(() => initialSnapshot),
+          sourceLineEndingHistory,
           history(),
           drawSelection(),
           indentOnInput(),
@@ -369,11 +480,17 @@ export function SourceMarkdownEditor({
             spellcheck: 'false',
           })),
           EditorView.updateListener.of((update) => {
-            if (update.selectionSet) {
+            const snapshot = update.state.field(sourceSnapshotField)
+            const rawChanged = snapshot.value !== update.startState.field(sourceSnapshotField).value
+            appliedValueRef.current = snapshot.value
+            if (update.selectionSet || rawChanged) {
               const selection = update.state.selection.main
-              onSelectionChangeRef.current?.({ from: selection.from, to: selection.to })
+              onSelectionChangeRef.current?.({
+                from: toSourcePosition(snapshot, selection.from),
+                to: toSourcePosition(snapshot, selection.to),
+              })
             }
-            if (!update.docChanged) return
+            if (!rawChanged) return
 
             onUndoRedoChangeRef.current?.({
               undo: undoDepth(update.state) > 0,
@@ -381,9 +498,7 @@ export function SourceMarkdownEditor({
             })
             if (isApplyingExternalValueRef.current) return
 
-            const nextValue = update.state.doc.toString()
-            appliedValueRef.current = nextValue
-            onChangeRef.current(nextValue)
+            onChangeRef.current(snapshot.value)
           }),
         ],
       }),
@@ -402,7 +517,29 @@ export function SourceMarkdownEditor({
       undo: !view.state.facet(EditorState.readOnly) && undoDepth(view.state) > 0,
       redo: !view.state.facet(EditorState.readOnly) && redoDepth(view.state) > 0,
     })
+    const dispatchSourceValue = (nextValue: string, nextSelection?: { from: number; to: number }) => {
+      const before = view.state.field(sourceSnapshotField)
+      const after = createSourceSnapshot(nextValue)
+      const changes = buildTextEdits(before.normalized, after.normalized)
+      view.dispatch({
+        changes: changes.map(edit => ({ from: edit.from, to: edit.to, insert: edit.text })),
+        effects: setSourceLineEndings.of(after.endings),
+        ...(nextSelection ? { selection: {
+          anchor: toEditorPosition(after, nextSelection.from),
+          head: toEditorPosition(after, nextSelection.to),
+        } } : {}),
+        annotations: isolateHistory.of('full'),
+      })
+      if (view.state.field(sourceSnapshotField).value !== nextValue) {
+        throw new PluginError('EditorBusy', 'The source editor did not accept the edit')
+      }
+    }
     onControllerChangeRef.current?.({
+      setEditable: (nextEditable) => {
+        view.dispatch({ effects: editableCompartmentRef.current.reconfigure([
+          EditorState.readOnly.of(!nextEditable), EditorView.editable.of(nextEditable),
+        ]) })
+      },
       isFocused: () => view.hasFocus,
       undo: () => {
         if (view.state.facet(EditorState.readOnly)) return false
@@ -419,14 +556,15 @@ export function SourceMarkdownEditor({
       getUndoRedoState,
       openSearch: () => openSearchPanel(view),
       find: (query) => {
-        const normalizedQuery = query.trim().toLocaleLowerCase()
+        const normalizedText = createSourceSnapshot(query.trim()).normalized
+        const normalizedQuery = normalizedText.toLocaleLowerCase()
         if (!normalizedQuery) return false
 
         const index = view.state.doc.toString().toLocaleLowerCase().indexOf(normalizedQuery)
         if (index < 0) return false
 
         view.dispatch({
-          selection: { anchor: index, head: index + query.trim().length },
+          selection: { anchor: index, head: index + normalizedText.length },
           scrollIntoView: true,
         })
         view.focus()
@@ -434,43 +572,59 @@ export function SourceMarkdownEditor({
       },
       replaceValue: (nextValue, nextSelection) => {
         if (view.state.facet(EditorState.readOnly)) throw new PluginError('EditorBusy', 'The source editor is read-only')
+        const before = view.state.field(sourceSnapshotField)
         const selectionFrom = Math.max(
           0,
-          Math.min(nextSelection?.from ?? view.state.selection.main.from, nextValue.length)
+          Math.min(nextSelection?.from ?? toSourcePosition(before, view.state.selection.main.from), nextValue.length)
         )
         const selectionTo = Math.max(
           selectionFrom,
           Math.min(nextSelection?.to ?? selectionFrom, nextValue.length)
         )
-        view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: nextValue },
-          selection: { anchor: selectionFrom, head: selectionTo },
-          annotations: isolateHistory.of('full'),
-        })
+        dispatchSourceValue(nextValue, { from: selectionFrom, to: selectionTo })
       },
       isComposing: () => view.composing,
       applyEdits: edits => {
         if (view.composing || view.state.facet(EditorState.readOnly)) throw new PluginError('EditorBusy', 'The source editor is composing or read-only')
-        view.dispatch({ changes: edits.map(edit => ({ from: edit.from, to: edit.to, insert: edit.text })), annotations: isolateHistory.of('full') })
+        const before = view.state.field(sourceSnapshotField).value
+        const parts: string[] = []
+        let offset = 0
+        for (const edit of [...edits].sort((left, right) => left.from - right.from || left.to - right.to)) {
+          if (!Number.isInteger(edit.from) || !Number.isInteger(edit.to)
+            || edit.from < offset || edit.to < edit.from || edit.to > before.length) {
+            throw new RangeError('Invalid or overlapping source edit range')
+          }
+          parts.push(before.slice(offset, edit.from), edit.text)
+          offset = edit.to
+        }
+        parts.push(before.slice(offset))
+        dispatchSourceValue(parts.join(''))
       },
       setSelection: (from, to) => {
-        view.dispatch({ selection: { anchor: from, head: to }, scrollIntoView: true })
+        const snapshot = view.state.field(sourceSnapshotField)
+        view.dispatch({ selection: {
+          anchor: toEditorPosition(snapshot, from), head: toEditorPosition(snapshot, to),
+        }, scrollIntoView: true })
         view.focus()
       },
     })
     onUndoRedoChangeRef.current?.(getUndoRedoState())
     const initialSelection = view.state.selection.main
     onSelectionChangeRef.current?.({
-      from: initialSelection.from,
-      to: initialSelection.to,
+      from: toSourcePosition(initialSnapshot, initialSelection.from),
+      to: toSourcePosition(initialSnapshot, initialSelection.to),
     })
     return () => {
       view.contentDOM.removeEventListener('focus', handleFocus)
       view.contentDOM.removeEventListener('blur', handleBlur)
       if (restoreScrollFrame) window.cancelAnimationFrame(restoreScrollFrame)
       const finalSelection = view.state.selection.main
+      const finalSnapshot = view.state.field(sourceSnapshotField)
       onViewStateChangeRef.current?.({
-        selection: { from: finalSelection.from, to: finalSelection.to },
+        selection: {
+          from: toSourcePosition(finalSnapshot, finalSelection.from),
+          to: toSourcePosition(finalSnapshot, finalSelection.to),
+        },
         scrollTop: view.scrollDOM.scrollTop,
       })
       onControllerChangeRef.current?.(null)
@@ -519,12 +673,17 @@ export function SourceMarkdownEditor({
     const view = viewRef.current
     if (!view) return
     const valueChanged = appliedValueRef.current !== value
+    const currentSnapshot = view.state.field(sourceSnapshotField)
+    const nextSnapshot = valueChanged ? createSourceSnapshot(value) : currentSnapshot
     const currentSelection = view.state.selection.main
-    const requestedSelection = selection ?? currentSelection
-    const nextSelectionFrom = Math.max(0, Math.min(requestedSelection.from, value.length))
+    const requestedSelection = selection ?? {
+      from: toSourcePosition(currentSnapshot, currentSelection.from),
+      to: toSourcePosition(currentSnapshot, currentSelection.to),
+    }
+    const nextSelectionFrom = toEditorPosition(nextSnapshot, requestedSelection.from)
     const nextSelectionTo = Math.max(
       nextSelectionFrom,
-      Math.min(requestedSelection.to, value.length)
+      toEditorPosition(nextSnapshot, requestedSelection.to)
     )
     const selectionChanged = (
       currentSelection.from !== nextSelectionFrom
@@ -541,7 +700,8 @@ export function SourceMarkdownEditor({
     isApplyingExternalValueRef.current = true
     try {
       view.dispatch({
-        changes: { from: 0, to: currentLength, insert: value },
+        changes: { from: 0, to: currentLength, insert: nextSnapshot.normalized },
+        effects: setSourceLineEndings.of(nextSnapshot.endings),
         selection: { anchor: nextSelectionFrom, head: nextSelectionTo },
         annotations: Transaction.addToHistory.of(false),
       })
@@ -554,7 +714,12 @@ export function SourceMarkdownEditor({
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
-    view.dispatch({ effects: setRemoteCursors.of(remoteCursors) })
+    const snapshot = view.state.field(sourceSnapshotField)
+    view.dispatch({ effects: setRemoteCursors.of(remoteCursors.map(cursor => ({
+      ...cursor,
+      anchor: toEditorPosition(snapshot, cursor.anchor),
+      head: toEditorPosition(snapshot, cursor.head),
+    }))) })
   }, [remoteCursors])
 
   return (

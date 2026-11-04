@@ -327,6 +327,23 @@ export async function getChatById(id: number): Promise<Chat | undefined> {
   return chats[0]
 }
 
+/** Update only the review history, without overwriting a concurrent message edit. */
+export async function updateChatAgentHistory(chatId: number, expected: string | undefined, history: string): Promise<boolean> {
+  const db = await getDb()
+  const syncUpdatedAt = await nextConversationSyncTimestamp()
+  const result = await db.execute(
+    'update chats set agentHistory = $1, syncUpdatedAt = $2 where id = $3 and agentHistory is $4',
+    [history, syncUpdatedAt, chatId, expected ?? null],
+  )
+  if (result.rowsAffected === 0) return false
+  const chats = await db.select<Array<{ conversationId: number | null }>>(
+    'select conversationId from chats where id = $1', [chatId],
+  )
+  await touchConversationSyncVersion(chats[0]?.conversationId, syncUpdatedAt)
+  enqueueConversationAutoSync('agent-change-reverted')
+  return true
+}
+
 export async function updateChatUiBlocks(chatId: number, uiBlocks: string): Promise<void> {
   const db = await getDb()
   const chats = await db.select<Array<{ conversationId: number | null }>>(

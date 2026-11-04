@@ -12,7 +12,7 @@ import useMarkStore from "@/stores/mark"
 import { useSidebarStore } from "@/stores/sidebar"
 import useTagStore from "@/stores/tag"
 import { AgentRunTimeline } from "./agent-run-timeline"
-import type { AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
+import type { AgentChange, AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
 import type { Chat } from "@/db/chats"
 import { ChatUiMessages } from "@/components/chat-ui/chat-ui-messages"
 import { Badge } from '@/components/ui/badge'
@@ -94,6 +94,7 @@ interface AgentPanelWithRagProps {
 }
 
 interface StructuredAgentHistory {
+  changes?: AgentChange[]
   modelName?: string
   runId?: string
   status?: AgentRunStatus
@@ -149,7 +150,7 @@ export function AgentPanelWithRag({
   const hasStructuredHistory = Boolean(
     structuredHistory?.runId ||
     structuredHistory?.status ||
-    structuredHistory?.traceEvents?.length
+    structuredHistory?.traceEvents?.length || structuredHistory?.changes?.length
   )
 
   // 创建文件名到详情的映射
@@ -250,6 +251,7 @@ export function AgentPanelWithRag({
         status={structuredHistory?.status || "completed"}
         isRunning={false}
         traceEvents={structuredHistory?.traceEvents || []}
+        changes={structuredHistory?.changes || []}
         toolCalls={structuredHistory?.toolCalls || []}
         ragSources={ragSources}
         ragSourceDetails={ragSourceDetails}

@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  CircleMinus,
   Loader2,
   Layers,
   MessageSquare,
@@ -13,7 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react"
-import type { AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
+import type { AgentChange, AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
 import { Separator } from "@/components/ui/separator"
@@ -37,6 +38,7 @@ import { ChatUiMessages } from "@/components/chat-ui/chat-ui-messages"
 import { parseChatUiBlocks } from "@/lib/chat-ui/serialization"
 import { associateChatUiBlocks } from "@/lib/chat-ui/timeline"
 import { AgentApprovalPanel } from "./agent-approval-panel"
+import { AgentChangeList } from "./agent-change-list"
 import { cancelPendingAgentAction, confirmPendingAgentAction } from "./agent-approval-actions"
 import { AgentQuestionPanel, AgentQuestionResult } from "./agent-question-panel"
 import { getAgentArtifactPaths } from "@/lib/agent/artifacts"
@@ -47,13 +49,26 @@ interface AgentRunTimelineProps {
   status?: AgentRunStatus
   isRunning?: boolean
   traceEvents?: AgentTraceEvent[]
+  changes?: AgentChange[]
   toolCalls?: ToolCall[]
   ragSources?: string[]
   ragSourceDetails?: RagSourceDetail[]
   loadedSkills?: AgentSkillSummary[]
 }
 
+function isFileChange(value: unknown): value is AgentChange {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const change = value as Record<string, unknown>
+  return typeof change.id === "string" && typeof change.target === "string"
+    && (change.type === "file" || change.type === "editor") && typeof change.reversible === "boolean"
+    && (change.before === undefined || typeof change.before === "string")
+    && (change.after === undefined || typeof change.after === "string")
+}
+
 function eventIcon(event: AgentTraceEvent) {
+  if (event.editSkipped || (event.editOutcome && event.editOutcome !== "applied")) {
+    return <CircleMinus />
+  }
   if (event.status === "error") {
     return <AlertTriangle />
   }
@@ -198,13 +213,15 @@ function compactTraceInput(event: AgentTraceEvent) {
   const value = event.input
 
   if (
-    (event.toolName === "attachment_list" || event.toolName === "attachment_read") &&
     value &&
     typeof value === "object" &&
     !Array.isArray(value)
   ) {
     const visibleInput = { ...value as Record<string, unknown> }
-    delete visibleInput.attachmentId
+    delete visibleInput.expectedContent
+    delete visibleInput.workspaceIdentity
+    delete visibleInput.expectedSelection
+    if (event.toolName === "attachment_list" || event.toolName === "attachment_read") delete visibleInput.attachmentId
     return hasMeaningfulTraceDetail(visibleInput) ? visibleInput : undefined
   }
 
@@ -306,6 +323,7 @@ export function AgentRunTimeline({
   status = "idle",
   isRunning = false,
   traceEvents = [],
+  changes = [],
   toolCalls = [],
   ragSources = [],
   ragSourceDetails = [],
@@ -346,6 +364,53 @@ export function AgentRunTimeline({
 
     return toolCalls.map(eventFromToolCall)
   }, [traceEvents, toolCalls])
+  const fileChanges = React.useMemo(() => {
+    const byId = new Map<string, AgentChange>()
+    const add = (value: unknown) => {
+      if (isFileChange(value)) byId.set(value.id, { ...byId.get(value.id), ...value })
+    }
+    traceEvents.filter(event => event.type === "change").forEach(event => add(event.output))
+    toolCalls.forEach(call => {
+      if (Array.isArray(call.result?.changes)) call.result.changes.forEach(add)
+    })
+    if (Array.isArray(changes)) changes.forEach(add)
+    return [...byId.values()]
+  }, [changes, traceEvents, toolCalls])
+  const liveApproval = isRunning && chat?.id === activeChatId ? pendingApproval : undefined
+  const reviewEvents = React.useMemo(() => {
+    const byProposal = new Map<string, AgentTraceEvent>()
+    const recordedChangeIds = new Set(fileChanges.map(change => change.id))
+    const hasRecordedChange = (event: AgentTraceEvent) => {
+      if (!event.output || typeof event.output !== "object" || Array.isArray(event.output)) return false
+      const outputChanges = (event.output as { changes?: unknown }).changes
+      return Array.isArray(outputChanges) && outputChanges.some(change => isFileChange(change) && recordedChangeIds.has(change.id))
+    }
+    for (const event of traceEvents) {
+      const preview = event.approvalPreview
+      if (!preview || preview.originalContent === undefined || preview.modifiedContent === undefined) continue
+      if (liveApproval && (liveApproval.traceEventId === event.id
+        || (!liveApproval.traceEventId && event.type === "approval" && event.status === "running" && liveApproval.toolName === event.toolName))) continue
+      if (event.type !== "approval" && !event.editSkipped && !event.editOutcome && !hasRecordedChange(event)) continue
+      const key = JSON.stringify([
+        event.runId, event.toolName, preview.filePath, preview.operation,
+        preview.version, preview.from, preview.to, preview.originalContent, preview.modifiedContent,
+      ])
+      // Fold the execution result into its approval before deciding whether the
+      // file card replaces it. Selection previews contain fragments, not files.
+      byProposal.set(key, event)
+    }
+    return [...byProposal.values()].filter(event => {
+      const applied = event.editOutcome === "applied" || (!event.editOutcome && !event.editSkipped
+        && event.type !== "approval" && event.status === "success")
+      if (applied && hasRecordedChange(event)) return false
+      const preview = event.approvalPreview
+      return !(event.type === "approval" && event.approvalDecision === "approved" && !event.editOutcome
+        && preview?.from === undefined && preview?.to === undefined
+        && fileChanges.some(change => change.target === preview?.filePath && change.after === preview?.modifiedContent))
+    })
+  }, [traceEvents, liveApproval, fileChanges])
+  const detachedReviewIds = React.useMemo(() => new Set(reviewEvents.map(event => event.id)), [reviewEvents])
+
   const allUiBlocks = React.useMemo(() => parseChatUiBlocks(chat?.uiBlocks), [chat?.uiBlocks])
   const uiBlocks = React.useMemo(() => allUiBlocks.filter(block => block.placement === undefined || block.placement === 'step'), [allUiBlocks])
   const hasUnreadableUi = Boolean(chat?.uiBlocks && chat.uiBlocks.trim() !== '[]' && allUiBlocks.length === 0)
@@ -406,7 +471,7 @@ export function AgentRunTimeline({
     setExpandedEvents(current => ({ ...current, [id]: !expanded }))
   }
 
-  if (!isRunning && traceEvents.length === 0 && events.length === 0 && ragSources.length === 0 && loadedSkills.length === 0 && uiBlocks.length === 0) {
+  if (!isRunning && traceEvents.length === 0 && events.length === 0 && fileChanges.length === 0 && ragSources.length === 0 && loadedSkills.length === 0 && uiBlocks.length === 0) {
     return hasUnreadableUi && chat ? <ChatUiMessages chat={chat} /> : null
   }
 
@@ -430,6 +495,8 @@ export function AgentRunTimeline({
     const hasUi = eventUi.length > 0
     const waitingForUi = eventUi.some(block => block.id === pendingUiId && block.status === 'pending')
     const isApproval = event.type === 'approval'
+    const reviewOutsideProcess = detachedReviewIds.has(event.id) || Boolean(liveApproval && isApproval
+      && (liveApproval.traceEventId === event.id || (!liveApproval.traceEventId && event.status === 'running' && liveApproval.toolName === event.toolName)))
     const isQuestion = event.toolName === 'ask_user_question'
     const ownsRun = Boolean(isRunning && chat && chat.id === activeChatId)
     const activeApproval = isApproval && ownsRun && pendingApproval
@@ -444,26 +511,27 @@ export function AgentRunTimeline({
       : approvalConfirmed ? 'input.agent.confirmation.confirmed'
         : event.approvalDecision === 'denied' || event.approvalDecision === 'steered' || event.status === 'error'
           ? 'input.agent.confirmation.cancelled' : 'input.agent.ui.expired'
-    const storedExpanded = expandedEvents[event.id] ?? eventUi.some(block => block.mode === 'display')
+    const storedExpanded = expandedEvents[event.id] ?? (event.editSkipped || eventUi.some(block => block.mode === 'display'))
     const isModelEvent = event.type === "model_call" || event.type === "model_response"
-    const eventLabel = hasUi ? eventUi[0].title : event.toolName
+    const eventLabel = event.editOutcome && event.editOutcome !== "applied" ? t(`input.agent.changes.${event.editOutcome}`)
+      : event.editSkipped ? t("input.agent.editorEditSkipped") : hasUi ? eventUi[0].title : event.toolName
       ? formatAgentToolActivity(event)
       : event.title
     const visibleMessage = !hasUi && !hasHostUi && shouldShowEventMessage(event) ? event.message : undefined
     const modelResponseContent = getModelResponseContent(event)
     const modelReasoningContent = getModelReasoningContent(event)
-    const inputDetail = hasUi || hasHostUi ? undefined : compactTraceInput(event)
-    const outputDetail = hasUi || hasHostUi || modelResponseContent ? undefined : compactTraceOutput(event, visibleMessage)
+    const inputDetail = hasUi || hasHostUi || event.editSkipped ? undefined : compactTraceInput(event)
+    const outputDetail = hasUi || hasHostUi || modelResponseContent || event.editOutcome ? undefined : compactTraceOutput(event, visibleMessage)
     const hasTraceDetails = Boolean(
       visibleMessage || inputDetail !== undefined || outputDetail !== undefined
     )
     const hasDetails = Boolean(
       hasUi ||
-      hasHostUi ||
+      (hasHostUi && !reviewOutsideProcess) ||
       modelReasoningContent ||
       hasTraceDetails
     )
-    const forceExpanded = waitingForUi || Boolean(activeApproval || activeQuestion) || (isModelEvent && event.status === "running")
+    const forceExpanded = waitingForUi || Boolean((activeApproval && !reviewOutsideProcess) || activeQuestion) || (isModelEvent && event.status === "running")
     const expanded = forceExpanded || storedExpanded
     const canToggle = hasDetails && !forceExpanded
     const displayDuration = event.duration ?? (
@@ -490,7 +558,7 @@ export function AgentRunTimeline({
                 {eventLabel}
               </span>
               {hasUi && <Badge variant="secondary">{t(`input.agent.ui.${eventUi[0].status === 'pending' ? waitingForUi ? 'waiting' : 'expired' : eventUi[0].status}`)}</Badge>}
-              {isApproval && <Badge variant="secondary">{t(approvalStatus)}</Badge>}
+              {isApproval && <Badge variant="secondary">{event.editOutcome ? t(`input.agent.changes.${event.editOutcome}`) : t(approvalStatus)}</Badge>}
               {isQuestion && <Badge variant="secondary">{t(`input.agent.ui.${activeQuestion ? 'waiting' : hasRecordedQuestionAnswers(event) ? 'submitted' : event.status === 'error' ? 'cancelled' : 'expired'}`)}</Badge>}
               {displayDuration !== undefined && (
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -512,11 +580,13 @@ export function AgentRunTimeline({
           </button>
         </Marker>}
 
-        {expanded && isApproval && event.toolName && (
+        {expanded && isApproval && event.toolName && !reviewOutsideProcess && (
           <div className="mt-2 min-w-0 pb-2">
             <AgentApprovalPanel
               pendingConfirmation={activeApproval ?? { toolName: event.toolName, params: event.input ?? {}, ...event.approvalPreview }}
               readOnly={!activeApproval}
+              showProposedDiff={!activeApproval && approvalStatus === 'input.agent.confirmation.cancelled'}
+              outcome={event.editOutcome}
               embedded
               onConfirm={scope => confirmPendingAgentAction(scope, activeApproval?.id)}
               onCancel={() => cancelPendingAgentAction(activeApproval?.id)}
@@ -599,7 +669,7 @@ export function AgentRunTimeline({
           {segments.map(segment => {
             if (segment.kind === 'event' || segment.events.length === 1) return renderEvent(segment.events[0])
             const running = isRunning && segment.events.some(event => event.status === 'running' || event.status === 'pending')
-            const failed = segment.events.some(event => event.status === 'error')
+            const failed = segment.events.some(event => event.status === 'error' && !event.editOutcome && !event.editSkipped)
             const tools = segment.events.filter(event => event.toolName)
             const firstIcon = getAgentToolIcon(tools[0]?.toolName)
             const GroupIcon = tools.length > 0 && tools.every(event => getAgentToolIcon(event.toolName) === firstIcon)
@@ -644,7 +714,7 @@ export function AgentRunTimeline({
   )
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <Collapsible className="flex min-w-0 flex-col gap-2" open={processOpen} onOpenChange={setProcessOpen}>
         <CollapsibleTrigger asChild>
           <Marker asChild>
@@ -660,6 +730,23 @@ export function AgentRunTimeline({
           {hasUnreadableUi && chat && <ChatUiMessages chat={chat} />}
         </CollapsibleContent>
       </Collapsible>
+      {liveApproval && <AgentApprovalPanel
+        key={liveApproval.id ?? liveApproval.traceEventId ?? liveApproval.toolName}
+        pendingConfirmation={liveApproval}
+        onConfirm={scope => confirmPendingAgentAction(scope, liveApproval.id)}
+        onCancel={() => cancelPendingAgentAction(liveApproval.id)}
+      />}
+      {reviewEvents.map(event => (
+        <AgentApprovalPanel
+          key={event.id}
+          pendingConfirmation={{ toolName: event.toolName ?? "", params: event.input ?? {}, ...event.approvalPreview }}
+          readOnly
+          embedded
+          outcome={event.editOutcome ?? (event.editSkipped ? "not-applied"
+            : event.approvalDecision === "denied" || event.approvalDecision === "steered" ? "cancelled" : undefined)}
+        />
+      ))}
+      <AgentChangeList changes={fileChanges} chatId={chat?.id} isRunning={isRunning} />
       {!isRunning && status === "stopped" && (
         <Button
           type="button"

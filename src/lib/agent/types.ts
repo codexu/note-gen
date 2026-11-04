@@ -142,6 +142,24 @@ export interface AgentChange {
   after?: string
   reversible: boolean
   summary?: string
+  /** Workspace identity captured before the write; never infer it from the current UI. */
+  workspacePath?: string
+  revertedAt?: number
+  outcome?: 'applied' | 'unverified'
+}
+
+export interface AgentEditPreview {
+  parseInlineMarkdown?: boolean
+  kind?: 'editor' | 'file'
+  operation?: 'create' | 'update' | 'delete'
+  version?: number
+  baseContent?: string
+  previewParams?: Record<string, unknown>
+  originalContent?: string
+  modifiedContent?: string
+  filePath?: string
+  from?: number
+  to?: number
 }
 
 export interface AgentToolResult {
@@ -185,15 +203,10 @@ export type AgentRunStatus =
   | 'failed'
 
 export interface AgentTraceEvent {
+  editSkipped?: boolean
+  editOutcome?: 'applied' | 'not-applied' | 'cancelled' | 'stale' | 'unverified'
   approvalDecision?: AgentApprovalDecision
-  approvalPreview?: {
-    previewParams?: Record<string, unknown>
-    originalContent?: string
-    modifiedContent?: string
-    filePath?: string
-    from?: number
-    to?: number
-  }
+  approvalPreview?: AgentEditPreview
   id: string
   runId: string
   type:
@@ -221,7 +234,7 @@ export interface AgentTraceEvent {
   streamedCharacterCount?: number
 }
 
-export interface AgentApprovalRequest {
+export interface AgentApprovalRequest extends AgentEditPreview {
   id: string
   runId: string
   toolName: string
@@ -406,7 +419,7 @@ export interface AgentState {
   changes?: AgentChange[]
   maxIterations: number
   currentIteration: number
-  pendingConfirmation?: {
+  pendingConfirmation?: AgentEditPreview & {
     id?: string
     runId?: string
     chatId?: number

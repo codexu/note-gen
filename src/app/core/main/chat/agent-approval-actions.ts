@@ -2,6 +2,7 @@ import { agentDebugLog } from "@/lib/agent/debug-log"
 import type { ConfirmationRecord } from "@/lib/agent/types"
 import useChatStore from "@/stores/chat"
 import useSettingStore from "@/stores/setting"
+import emitter from "@/lib/emitter"
 
 export type AgentApprovalScope = "once" | "conversation"
 
@@ -55,6 +56,8 @@ export function confirmPendingAgentAction(scope: AgentApprovalScope = "once", ex
 
   agentDebugLog("approval_user_confirmed", confirmationRecord)
 
+  emitter.emit("editor-agent-diff-clear")
+
   latestState.setAgentState({
     pendingConfirmation: undefined,
     confirmationHistory: [...latestState.agentState.confirmationHistory, confirmationRecord],
@@ -81,6 +84,8 @@ export function cancelPendingAgentAction(expectedId?: string) {
   }
 
   agentDebugLog("approval_user_cancelled", confirmationRecord)
+
+  emitter.emit("editor-agent-diff-clear")
 
   latestState.setAgentState({
     pendingConfirmation: undefined,

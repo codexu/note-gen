@@ -93,6 +93,12 @@ const SEARCH_PROVIDERS: Array<{
     avatar: 'E',
     apiKeyUrl: 'https://dashboard.exa.ai/api-keys',
   },
+  {
+    id: 'keenable',
+    name: 'Keenable',
+    avatar: 'K',
+    apiKeyUrl: 'https://keenable.ai/',
+  },
 ]
 
 type CheckState = 'idle' | 'checking' | 'ok' | 'error'

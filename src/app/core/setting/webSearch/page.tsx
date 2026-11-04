@@ -93,6 +93,12 @@ const SEARCH_PROVIDERS: Array<{
     avatar: 'E',
     apiKeyUrl: 'https://dashboard.exa.ai/api-keys',
   },
+  {
+    id: 'serply',
+    name: 'Serply',
+    avatar: 'S',
+    apiKeyUrl: 'https://serply.io',
+  },
 ]
 
 type CheckState = 'idle' | 'checking' | 'ok' | 'error'

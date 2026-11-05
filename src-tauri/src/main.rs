@@ -131,7 +131,24 @@ fn get_desktop_update_target(app: tauri::AppHandle) -> Result<Option<String>, St
     }
 }
 
+/// Linux 上关掉 WebKitGTK 的 DMABUF 渲染器。
+///
+/// 不关的话，GTK3 每一帧都得把整块 GPU 画面读回内存（DMABUF 渲染器交给它的是
+/// GPU 纹理，而 cairo 用不了纹理），窗口越大越慢——本机 hover 因此只有约 15 次/秒，
+/// 跟不上鼠标。关掉后走共享内存路径，约 21 次/秒。
+/// 详见本次提交信息。用户自己设了该环境变量则以用户为准。
+#[cfg(target_os = "linux")]
+fn apply_webkit_dmabuf_workaround() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_some() {
+        return;
+    }
+    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+}
+
 fn main() {
+    #[cfg(target_os = "linux")]
+    apply_webkit_dmabuf_workaround();
+
     tauri::Builder::default()
         // 单实例插件必须最先加载，避免 Windows 文件关联二次启动时继续初始化托盘等资源。
         .plugin(tauri_plugin_single_instance::init(

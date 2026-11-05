@@ -599,8 +599,9 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     setFolderLoading(true)
     try {
       await setCollapsibleList(path, true)
+      // 只等本地扫描；远程目录由 loadCollapsibleFiles 内部 void 触发，
+      // 在这里 await 会让进入目录卡到网络返回（最长 20s 超时）。
       await loadCollapsibleFiles(path)
-      await loadFolderRemoteFiles(path)
       setCurrentDir(path)
       setSearchQuery('')
     } finally {

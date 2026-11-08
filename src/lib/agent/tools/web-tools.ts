@@ -3,7 +3,7 @@ import type { WebSearchResponse } from '@/lib/web-search/types'
 import type { AgentTool } from '../types'
 
 const SEARCH_PROVIDERS: WebSearchResponse['provider'][] = [
-  'native', 'zhipu', 'tavily', 'brave', 'exa', 'keenable', 'bing', 'duckduckgo', 'sogou', 'so', 'baidu',
+  'native', 'zhipu', 'tavily', 'brave', 'exa', 'keenable', 'specstream', 'bing', 'duckduckgo', 'sogou', 'so', 'baidu',
 ]
 
 const searchWebTool: AgentTool = {

@@ -22,6 +22,7 @@ export const WEB_SEARCH_API_PROVIDERS: WebSearchApiProvider[] = [
   'brave',
   'exa',
   'keenable',
+  'specstream',
 ]
 
 export interface WebSearchSettings {
@@ -78,6 +79,7 @@ function isWebSearchProvider(value: unknown): value is WebSearchProvider {
     || value === 'brave'
     || value === 'exa'
     || value === 'keenable'
+    || value === 'specstream'
 }
 
 function findSelectedModel(aiConfigs: AiConfig[], modelId: unknown): ModelConfig | undefined {

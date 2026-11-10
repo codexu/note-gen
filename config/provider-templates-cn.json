@@ -37,6 +37,14 @@
       "enabled": true
     },
     {
+      "key": "qiuqiutoken",
+      "title": "球球Token",
+      "baseURL": "https://api.qiuqiutoken.net/v1",
+      "apiKeyUrl": "https://go.qiuqiutoken.net/ABK",
+      "icon": "https://files.seeusercontent.com/2026/11/10/U3cy/qiuqiutoken-logo-transparent.png",
+      "enabled": true
+    },
+    {
       "key": "shengsuanyun",
       "title": "胜算云",
       "baseURL": "https://router.shengsuanyun.com/api/v1",

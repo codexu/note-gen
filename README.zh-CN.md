@@ -52,7 +52,7 @@
 | [PackyCode](https://www.packyapi.ai/register?aff=NqBq) | 统一 API 接入主流大模型，提供 Codex、Claude Code 专属通道。 |
 | [无限星河](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link) | 兼容 OpenAI 接口，支持多模态与知识库能力。 |
 | [讯度云](https://xunduyun.com) | 香港大宽带云服务器。 |
-| [![球球Token](https://files.seeusercontent.com/2026/11/10/cYw5/qiuqiutoken-mobile-320x100.png)](https://go.qiuqiutoken.net/ABK) | 一站式主流 AI 聚合 API（Claude / GPT / Gemini / Grok），优质线路、集群容灾、自建号池，按量计费且支持对公开票；注册即享免费试用额度与新人专享套餐！ |
+| [![球球 Token](https://files.seeusercontent.com/2026/11/10/cYw5/qiuqiutoken-mobile-320x100.png)](https://go.qiuqiutoken.net/ABK) | 一站式主流 AI 聚合 API（Claude / GPT / Gemini / Grok），优质线路、集群容灾、自建号池，按量计费且支持对公开票；注册即享免费试用额度与新人专享套餐！ |
 
 ## 记录，不必打断当下的思路
 

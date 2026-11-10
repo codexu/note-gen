@@ -36,7 +36,7 @@
     },
     {
       "key": "qiuqiutoken",
-      "title": "Qiuqiu Token",
+      "title": "球球 Token",
       "baseURL": "https://api.qiuqiutoken.net/v1",
       "apiKeyUrl": "https://go.qiuqiutoken.net/ABK",
       "icon": "https://files.seeusercontent.com/2026/11/10/U3cy/qiuqiutoken-logo-transparent.png",

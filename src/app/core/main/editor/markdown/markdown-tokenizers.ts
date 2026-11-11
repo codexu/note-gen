@@ -4,7 +4,8 @@ import { TaskList } from '@tiptap/extension-list'
 import { MarkdownOrderedList } from './markdown-ordered-list'
 import Underline from '@tiptap/extension-underline'
 import { wikiMetadataTokenizer } from './wiki-metadata-tokenizer'
-import { Lexer, Marked, type MarkedOptions, type Token, type TokenizerExtension } from 'marked'
+import { Lexer, type Marked, type MarkedOptions, type Token, type TokenizerExtension } from 'marked'
+import { createCjkMarkdownLexer } from '@/lib/markdown/cjk-emphasis'
 
 export const inlineMathTokenizer: MarkdownTokenizer = {
   name: 'inline_math',
@@ -120,7 +121,7 @@ const markdownTokenizers: readonly MarkdownTokenizer[] = [
 export const MARKDOWN_TOKENIZER_NAMES = markdownTokenizers.map(tokenizer => tokenizer.name)
 
 export function createIsolatedMarkdownLexer(): Marked {
-  const isolated = new Marked()
+  const isolated = createCjkMarkdownLexer()
   // Tiptap constructs helper lexers without options. They must inherit this
   // isolated instance's extensions, including for nested lists and inline marks.
   isolated.Lexer = class EditorLexer<ParserOutput = string, RendererOutput = string>

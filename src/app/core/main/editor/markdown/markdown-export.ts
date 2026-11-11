@@ -16,6 +16,7 @@ import { getFilePathOptions } from '@/lib/workspace'
 import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
 import { GitHubAlertBlockquote } from './github-alert-blockquote'
 import { MarkdownOrderedList } from './markdown-ordered-list'
+import { createIsolatedMarkdownLexer } from './markdown-tokenizers'
 
 export type MarkdownExportFormat = 'markdown' | 'html' | 'json' | 'pdf'
 
@@ -250,6 +251,7 @@ async function saveTextExport(
 function getMarkdownManager() {
   if (!markdownManager) {
     markdownManager = new MarkdownManager({
+      marked: createIsolatedMarkdownLexer() as unknown as NonNullable<ConstructorParameters<typeof MarkdownManager>[0]>['marked'],
       extensions: [
         GitHubAlertBlockquote,
         StarterKit.configure({ blockquote: false, orderedList: false }),

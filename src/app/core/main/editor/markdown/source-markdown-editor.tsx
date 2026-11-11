@@ -14,7 +14,6 @@ import {
   undo,
   undoDepth,
 } from '@codemirror/commands'
-import { markdown } from '@codemirror/lang-markdown'
 import { css } from '@codemirror/lang-css'
 import {
   bracketMatching,
@@ -48,6 +47,7 @@ import {
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { buildTextEdits } from '@/lib/agent/text-diff'
+import { sourceMarkdownLanguage } from './source-markdown-language'
 
 export interface SourceMarkdownRemoteCursor {
   deviceId: string
@@ -458,7 +458,7 @@ export function SourceMarkdownEditor({
           indentOnInput(),
           bracketMatching(),
           syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-          languageCompartmentRef.current.of(language === 'css' ? css() : markdown()),
+          languageCompartmentRef.current.of(language === 'css' ? css() : sourceMarkdownLanguage()),
           placeholderCompartmentRef.current.of(placeholder ? editorPlaceholder(placeholder) : []),
           remoteCursorDecorations,
           highlightActiveLine(),
@@ -638,7 +638,7 @@ export function SourceMarkdownEditor({
     if (!view) return
     view.dispatch({
       effects: [
-        languageCompartmentRef.current.reconfigure(language === 'css' ? css() : markdown()),
+        languageCompartmentRef.current.reconfigure(language === 'css' ? css() : sourceMarkdownLanguage()),
         placeholderCompartmentRef.current.reconfigure(placeholder ? editorPlaceholder(placeholder) : []),
       ],
     })

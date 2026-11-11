@@ -3229,7 +3229,7 @@ export function TipTapEditor({
         : null
       const editorContent = parsedContent ?? content
       const chain = targetEditor.chain()
-      let expectedDocument: ProseMirrorNode | undefined
+      let contentTransaction: Transaction | undefined
       if (options.resetHistory) {
         chain.command(({ tr }) => {
           closeHistory(tr)
@@ -3242,7 +3242,7 @@ export function TipTapEditor({
           emitUpdate: options.emitUpdate,
         })
         .command(({ tr }) => {
-          expectedDocument = tr.doc
+          contentTransaction = tr
           if (!previousState) return true
           const start = previousState.doc.content.findDiffStart(tr.doc.content)
           const end = previousState.doc.content.findDiffEnd(tr.doc.content)
@@ -3257,8 +3257,25 @@ export function TipTapEditor({
           tr.setSelection(previousState.selection.getBookmark().map(mapping).resolve(tr.doc))
           return true
         })
-        .run()
-      if (!expectedDocument || !targetEditor.state.doc.eq(expectedDocument)) return false
+
+      // Plugins may append valid changes, such as a trailing paragraph after
+      // a list. Observe acceptance of the root transaction instead of comparing
+      // its document with the final, normalized document. Filtered transactions
+      // do not emit Tiptap's transaction event.
+      let contentApplied = false
+      const handleContentTransaction = ({ transaction }: { transaction: Transaction }) => {
+        if (transaction === contentTransaction) contentApplied = true
+      }
+      let commandsSucceeded = false
+      targetEditor.on('transaction', handleContentTransaction)
+      try {
+        commandsSucceeded = chain.run()
+      } finally {
+        targetEditor.off('transaction', handleContentTransaction)
+      }
+      if (!commandsSucceeded || !contentApplied) {
+        throw new Error('The editor did not accept the Markdown content')
+      }
       if (options.resetHistory) {
         resetEditorHistory(targetEditor)
         emitEditorUndoRedoState(targetEditor)

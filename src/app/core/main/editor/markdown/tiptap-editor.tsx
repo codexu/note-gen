@@ -3975,12 +3975,23 @@ export function TipTapEditor({
     let dragFrame: number | null = null
     let gutterFrame: number | null = null
     let pendingGutterEvent: MouseEvent | null = null
+    // 指针只要还在同一行里，就不必重新命中测试，也不必重新量尺寸。
+    // 读矩形和读计算样式都会触发样式/布局同步，鼠标每动一帧都付一次代价太贵。
+    let activeRow: { from: number; doc: unknown; left: number; top: number; bottom: number } | null = null
+    let cachedViewportRect: DOMRect | null = null
+    let cachedEditorRect: DOMRect | null = null
+    const invalidateGeometry = () => {
+      activeRow = null
+      cachedViewportRect = null
+      cachedEditorRect = null
+    }
     const cancelGutterUpdate = () => {
       if (gutterFrame !== null) cancelAnimationFrame(gutterFrame)
       gutterFrame = null
       pendingGutterEvent = null
     }
     const hideControls = () => {
+      activeRow = null
       const controls = editorDragHandleElementRef.current
       if (controls) {
         controls.style.visibility = 'hidden'
@@ -3998,8 +4009,10 @@ export function TipTapEditor({
       if (!controls || editorBlockMenuOpenRef.current || editorBlockPointerDragStateRef.current) return
 
       const viewport = scrollContainerRef.current
-      const viewportBounds = viewport?.getBoundingClientRect()
-      const editorBounds = editor.view.dom.getBoundingClientRect()
+      if (viewport && !cachedViewportRect) cachedViewportRect = viewport.getBoundingClientRect()
+      if (!cachedEditorRect) cachedEditorRect = editor.view.dom.getBoundingClientRect()
+      const viewportBounds = cachedViewportRect
+      const editorBounds = cachedEditorRect
       // The document can extend behind the footer; only its visible viewport
       // may activate the fixed-position block controls.
       if (!viewport || !viewportBounds || viewportBounds.width <= 0 || viewportBounds.height <= 0
@@ -4017,15 +4030,16 @@ export function TipTapEditor({
         return
       }
 
-      const current = resolveEditorBlockTarget(editorDragHandleTargetRef.current)
-      const currentDom = current ? editor.view.nodeDOM(current.from) : null
-      if (current && currentDom instanceof HTMLElement) {
-        const bounds = getEditorBlockHandleGeometry(editor, current.from, currentDom)
-        // Keep the target only inside its own row while crossing to its handle.
-        if (controls.style.visibility !== 'hidden'
-          && event.clientY >= bounds.top && event.clientY < bounds.bottom
-          && event.clientX >= bounds.left - 57 && event.clientX < bounds.left) return
+      // 手柄已经亮在某一行上，指针没有离开这一行（含左侧留白和正文区），就沿用原结果。
+      const { doc: currentDoc } = editor.state
+      // 命中测试允许 6px 的纵向容忍带、列表项左侧 64px 的 gutter 带，块自己的矩形右缘
+      // 只是文字宽度；缓存判定沿用同一区间，否则指针停在边界外几像素就会每帧重算。
+      if (activeRow && controls.style.visibility !== 'hidden' && activeRow.doc === currentDoc
+        && event.clientY >= activeRow.top - 6 && event.clientY <= activeRow.bottom + 6
+        && event.clientX >= activeRow.left - 64 && event.clientX < viewportBounds.right) {
+        return
       }
+      activeRow = null
 
       const target = getEditorBlockTargetAtPoint(editor, event.clientX, event.clientY)
       const dom = target ? editor.view.nodeDOM(target.from) : null
@@ -4040,10 +4054,18 @@ export function TipTapEditor({
         return
       }
       editorDragHandleTargetRef.current = target
-      controls.dataset.gutterHover = 'true'
-      Object.assign(controls.style, {
-        position: 'fixed', left: `${bounds.left - 53}px`, top: `${bounds.handleTop}px`, visibility: 'visible',
-      })
+      activeRow = {
+        from: target.from, doc: currentDoc, left: bounds.left, top: bounds.top, bottom: bounds.bottom,
+      }
+      if (controls.dataset.gutterHover !== 'true') controls.dataset.gutterHover = 'true'
+      // 写入相同的值同样会让样式失效，重复移动时先比较再写。
+      const nextLeft = `${bounds.left - 53}px`
+      const nextTop = `${bounds.handleTop}px`
+      if (controls.style.visibility !== 'visible' || controls.style.left !== nextLeft || controls.style.top !== nextTop) {
+        Object.assign(controls.style, {
+          position: 'fixed', left: nextLeft, top: nextTop, visibility: 'visible',
+        })
+      }
     }
 
     const handleGutterMouseMove = (event: MouseEvent) => {
@@ -4229,7 +4251,16 @@ export function TipTapEditor({
         cancelDrag()
       }
     }
-    const handleScroll = () => {
+    const handleScroll = (event: Event) => {
+      // 只有编辑器自身视口的滚动才会移动行内几何；页面上其它滚动（例如聊天区
+      // 自动滚到底部）不该每帧作废缓存，否则缓存等同于不存在。
+      const target = event.target
+      const viewport = scrollContainerRef.current
+      if (target instanceof Node && viewport
+        && (target === viewport || viewport.contains(target)
+          || target === document || target === document.documentElement)) {
+        invalidateGeometry()
+      }
       cancelGutterUpdate()
       const state = editorBlockPointerDragStateRef.current
       if (state?.editor === editor && state.moved && !editor.isDestroyed && editor.state.doc === state.startDoc) {
@@ -4246,6 +4277,7 @@ export function TipTapEditor({
       }
     }
     const handleDocumentUpdate = () => {
+      invalidateGeometry()
       const state = editorBlockPointerDragStateRef.current
       if (state?.editor === editor && editor.state.doc !== state.startDoc) cancelDrag()
     }
@@ -4259,6 +4291,7 @@ export function TipTapEditor({
     document.addEventListener('keydown', handleKeyDown, true)
     document.addEventListener('scroll', handleScroll, true)
     window.addEventListener('blur', cancelDrag)
+    window.addEventListener('resize', invalidateGeometry)
     editor.on('update', handleDocumentUpdate)
 
     return () => {
@@ -4271,6 +4304,7 @@ export function TipTapEditor({
       document.removeEventListener('keydown', handleKeyDown, true)
       document.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('blur', cancelDrag)
+      window.removeEventListener('resize', invalidateGeometry)
       editor.off('update', handleDocumentUpdate)
       cancelGutterUpdate()
       if (dragFrame !== null) cancelAnimationFrame(dragFrame)

@@ -129,6 +129,43 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
     }
   }, [])
 
+  // 安卓返回键：写作页的编辑器是同一路由内的视图切换，系统默认要么回到上一个路由、
+  // 要么退出应用。编辑器打开期间接管返回键，让它和左上角返回按钮走同一条关闭流程；
+  // 关闭后立即注销监听，返回键恢复系统默认行为。
+  useEffect(() => {
+    if (!isActive || view !== 'editor') return
+
+    let disposed = false
+    let unregister: (() => void) | null = null
+
+    const listenToBackButton = async () => {
+      try {
+        const { addPluginListener, isTauri } = await import('@tauri-apps/api/core')
+        if (!isTauri()) return
+        const { platform } = await import('@tauri-apps/plugin-os')
+        if (platform() !== 'android') return
+
+        const listener = await addPluginListener('app', 'back-button', () => {
+          void closeEditor()
+        })
+        if (disposed) {
+          await listener.unregister()
+          return
+        }
+        unregister = () => void listener.unregister()
+      } catch (error) {
+        console.error('Failed to intercept the Android back button in the mobile editor:', error)
+      }
+    }
+
+    void listenToBackButton()
+
+    return () => {
+      disposed = true
+      unregister?.()
+    }
+  }, [closeEditor, isActive, view])
+
   return (
     <div id="mobile-writing" className='w-full h-full min-h-0 flex flex-col overflow-clip'>
       {deletionProgress?.hasRemote ? (

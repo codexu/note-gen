@@ -1,5 +1,5 @@
 ---
-id: TASK-1
+id: NOTEG-1
 title: Unify desktop record inputs
 status: Done
 assignee:

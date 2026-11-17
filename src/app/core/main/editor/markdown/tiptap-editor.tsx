@@ -8,7 +8,8 @@ import { CurrentNodePlaceholder } from './current-node-placeholder'
 import { PendingEditorUploads, createUploadPlaceholder, trackEditorRange } from './async-editor-operations'
 import Link from '@tiptap/extension-link'
 import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
+import { MarkdownListItem, MarkdownTaskItem } from './markdown-list-item'
+import { MarkdownOrderedList } from './markdown-ordered-list'
 import CharacterCount from '@tiptap/extension-character-count'
 import { ColorHighlight, TextColor, normalizeTextColor } from './color-marks'
 import Underline from '@tiptap/extension-underline'
@@ -39,6 +40,7 @@ import { RecurringTask } from './recurring-task-extension'
 import { Wikilink } from './wikilink-extension'
 import { BasesBlock } from './bases-block-extension' // Fork (2-3b)：```base 區塊
 import { withRawTableRoundtrip } from './table-raw-extension'
+import { WikiMetadata } from './wiki-metadata-extension'
 import { SearchReplacePanel } from './search-replace-panel'
 import { useEffect, useId, useLayoutEffect, useRef, useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -61,11 +63,15 @@ import { isMobileDevice } from '@/lib/check'
 import { pickImagesFromPhotoLibrary } from '@/lib/image-picker'
 import { useTranslations } from 'next-intl'
 import { replaceLinesInRange } from '@/lib/agent/react-diff-helpers'
+import { agentDebugLog } from '@/lib/agent/debug-log'
+import { buildEditorTextEdits, EDITOR_EDIT_SKIPPED, EditorEditSkipped } from '@/lib/agent/editor-adapter'
+import { buildAgentMarkdownEdit, buildAgentRangeEdit, buildAgentRangeMarkdown, applyAgentDocumentEdit, applyAgentSnapshotRestore, assertAgentMarkdownChangeLocal } from './agent-markdown-edit'
 import { BubbleMenu as BubbleMenuComponent } from './bubble-menu'
 import { ImageBubbleMenu } from './image-bubble-menu'
 import { toast } from '@/hooks/use-toast'
 import { TableContextToolbar } from './table-context-toolbar'
 import { TableScrollbar } from './table-scrollbar'
+import { AgentDiffNavigation } from './agent-diff-navigation'
 import { PluginEditorInlineViews } from '@/components/plugins/plugin-embedded-views'
 import { FooterBar } from './footer-bar/index'
 import { Outline } from './outline'
@@ -85,6 +91,9 @@ import { AISuggestion } from './ai-suggestion'
 import { AISuggestionFloating } from './ai-suggestion-floating'
 import { AiSuggestionHighlight } from './ai-suggestion-highlight'
 import { AgentDiffPreview, agentDiffPreviewPluginKey } from './agent-diff-preview-extension'
+import { buildTextEdits } from '@/lib/agent/text-diff'
+import { cancelPendingAgentAction } from '../../chat/agent-approval-actions'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import emitter, { type Events } from '@/lib/emitter'
 import { registerPluginEditor } from '@/lib/plugins/editor-bridge'
 import {
@@ -2335,7 +2344,9 @@ function runDeferredEditorCommand(onSuccess: () => void, onError: (error: unknow
     try {
       onSuccess()
     } catch (error) {
-      console.error('[TipTap Editor] Deferred editor command failed:', error)
+      if (!(error instanceof EditorEditSkipped)) {
+        console.error('[TipTap Editor] Deferred editor command failed:', error)
+      }
       onError(error)
     }
   }, 0)
@@ -2492,6 +2503,7 @@ export function TipTapEditor({
   const tMermaid = useTranslations('editor.mermaid.templates')
   const tImage = useTranslations('editor.image')
   const tSourceMode = useTranslations('settings.editor.sourceMode')
+  const tAgentDiff = useTranslations('agentDiffNavigation')
   const pendingQuote = useChatStore((state) => state.pendingQuote)
   const pendingSearchKeyword = useArticleStore((state) => state.pendingSearchKeyword)
   const setPendingSearchKeyword = useArticleStore((state) => state.setPendingSearchKeyword)
@@ -2503,9 +2515,14 @@ export function TipTapEditor({
     state.readOnlyFiles[readingKey(readingWorkspacePath, activeFilePath)],
   ))
   const readOnly = inheritedReadOnly || fileReadOnly
+  const [agentReviewActive, setAgentReviewActive] = useState(false)
+  const agentReviewActiveRef = useRef(false)
+  const [agentFileMutationPath, setAgentFileMutationPath] = useState<string>()
+  const agentFileMutationActive = Boolean(agentFileMutationPath
+    && normalizePathForCompare(agentFileMutationPath) === normalizePathForCompare(activeFilePath))
   const readOnlyRef = useRef(readOnly)
-  readOnlyRef.current = readOnly
-  const editable = editingAllowed && !readOnly
+  readOnlyRef.current = readOnly || agentFileMutationActive
+  const editable = editingAllowed && !readOnly && !agentReviewActive && !agentFileMutationActive
   const applyingReadOnlySnapshotRef = useRef(false)
   const isEditorUnmountingRef = useRef(false)
   const initialEditorViewState = activeFilePath
@@ -2668,6 +2685,13 @@ export function TipTapEditor({
 
   // Content version ref for race condition prevention between editor and agent
   const contentVersionRef = useRef(0)
+  const agentCoordinateModeRef = useRef(isSourceView)
+  useEffect(() => {
+    if (agentCoordinateModeRef.current !== isSourceView) {
+      contentVersionRef.current++
+      agentCoordinateModeRef.current = isSourceView
+    }
+  }, [isSourceView])
   const sourceSelectionQuoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const collaborationChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -2830,6 +2854,8 @@ export function TipTapEditor({
       StarterKit.configure({
         document: false, // Fork (2-4, Issue #18)
         blockquote: false,
+        listItem: false,
+        orderedList: false,
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },
@@ -2840,6 +2866,8 @@ export function TipTapEditor({
         dropcursor: false,
       }),
       MarkdownParagraph,
+      MarkdownListItem,
+      MarkdownOrderedList,
       PendingEditorUploads,
       CurrentNodePlaceholder.configure({
         placeholder: placeholderText,
@@ -2850,7 +2878,7 @@ export function TipTapEditor({
         protocols: ['file'],
       }),
       TaskList,
-      TaskItem.configure({
+      MarkdownTaskItem.configure({
         nested: true,
       }),
       RecurringTask,
@@ -2891,10 +2919,27 @@ export function TipTapEditor({
       QuoteMark,
       AISuggestion,
       AiSuggestionHighlight,
-      AgentDiffPreview,
+      AgentDiffPreview.configure({
+        resolveImageSource: async (source: string) => {
+          const filePath = activeFilePathRef.current || useArticleStore.getState().activeFilePath
+          if (!filePath) throw new Error('Image context unavailable')
+          if (isRecordTabPath(filePath)) return convertImage(source.replace(/^\.?\//, ''))
+          const relativePath = resolveImagePathFromMarkdown(filePath, source)
+          if (await ensureLocalLibraryFile(relativePath)) useArticleStore.getState().markFileLocal(relativePath)
+          return convertImageByWorkspace(relativePath)
+        },
+        labels: {
+          inserted: tAgentDiff('inserted'), removed: tAgentDiff('removed'),
+          attributes: tAgentDiff('attributes'), before: tAgentDiff('before'), after: tAgentDiff('after'),
+          imageLoading: tAgentDiff('imageLoading'), imageError: tAgentDiff('imageError'),
+          linkUrl: tAgentDiff('linkUrl'), imageSource: tAgentDiff('imageSource'),
+          imageDescription: tAgentDiff('imageDescription'), title: tAgentDiff('title'),
+        },
+      }),
       InlineMath,
       BlockMath,
       MermaidDiagram,
+      WikiMetadata,
       Image.extend({
         addAttributes() {
           return {
@@ -3186,6 +3231,15 @@ export function TipTapEditor({
       : []
     applyingReadOnlySnapshotRef.current = true
     try {
+      if (agentReviewActiveRef.current) {
+        const pending = useChatStore.getState().agentState.pendingConfirmation
+        emitter.emit('editor-agent-diff-stale', { filePath: activeFilePathRef.current, version: pending?.version })
+        emitter.emit('editor-agent-diff-clear')
+        // This also covers updates arriving while event listeners are rebinding.
+        targetEditor.view.dispatch(targetEditor.state.tr.setMeta(agentDiffPreviewPluginKey, { type: 'clear' }))
+        agentReviewActiveRef.current = false
+        setAgentReviewActive(false)
+      }
       const parsedContent = options.preparedTokens?.source === content
         ? parsePreparedMarkdown(targetEditor, options.preparedTokens)
         : null
@@ -3193,6 +3247,7 @@ export function TipTapEditor({
       // 退回編輯器解析時必須先把 frontmatter 換成標記，否則 --- 會變成分隔線加標題。
       const editorContent = parsedContent ?? encodeFrontmatterForEditor(content)
       const chain = targetEditor.chain()
+      let contentTransaction: Transaction | undefined
       if (options.resetHistory) {
         chain.command(({ tr }) => {
           closeHistory(tr)
@@ -3205,6 +3260,7 @@ export function TipTapEditor({
           emitUpdate: options.emitUpdate,
         })
         .command(({ tr }) => {
+          contentTransaction = tr
           if (!previousState) return true
           const start = previousState.doc.content.findDiffStart(tr.doc.content)
           const end = previousState.doc.content.findDiffEnd(tr.doc.content)
@@ -3219,11 +3275,32 @@ export function TipTapEditor({
           tr.setSelection(previousState.selection.getBookmark().map(mapping).resolve(tr.doc))
           return true
         })
-        .run()
+
+      // Plugins may append valid changes, such as a trailing paragraph after
+      // a list. Observe acceptance of the root transaction instead of comparing
+      // its document with the final, normalized document. Filtered transactions
+      // do not emit Tiptap's transaction event.
+      let contentApplied = false
+      const handleContentTransaction = ({ transaction }: { transaction: Transaction }) => {
+        if (transaction === contentTransaction) contentApplied = true
+      }
+      let commandsSucceeded = false
+      targetEditor.on('transaction', handleContentTransaction)
+      try {
+        commandsSucceeded = chain.run()
+      } finally {
+        targetEditor.off('transaction', handleContentTransaction)
+      }
+      if (!commandsSucceeded || !contentApplied) {
+        throw new Error('The editor did not accept the Markdown content')
+      }
       if (options.resetHistory) {
         resetEditorHistory(targetEditor)
         emitEditorUndoRedoState(targetEditor)
       }
+      // An unchanged visual document must retain its original source, including
+      // syntax that the visual schema can only partially represent.
+      visualMarkdownSnapshotRef.current = { doc: targetEditor.state.doc, markdown: content }
       setMarkdownParseError(null)
       setHasUnparsedSourceChanges(false)
       return true
@@ -3269,7 +3346,7 @@ export function TipTapEditor({
   classifyCanonicalMarkdownRef.current = classifyCanonicalMarkdown
 
   const handleSourceMarkdownChange = useCallback((value: string) => {
-    if (readOnlyRef.current) return
+    if (readOnlyRef.current || agentReviewActiveRef.current) return
     const normalizedValue = stripUnsupportedMarkdownControlCharacters(value)
     markEditorPathMutation(activeFilePathRef.current)
     selfHostedCollaborationRef.current?.markLocalActivity()
@@ -3591,8 +3668,9 @@ export function TipTapEditor({
         }
         return
       }
-      readOnlyRef.current = event.readOnly
-      editor?.setEditable(editingAllowed && !event.readOnly && !isInitializingVisualContentRef.current, false)
+      readOnlyRef.current = inheritedReadOnly || event.readOnly || agentFileMutationActive
+      editor?.setEditable(editingAllowed && !readOnlyRef.current && !agentReviewActiveRef.current && !isInitializingVisualContentRef.current, false)
+      sourceEditorControllerRef.current?.setEditable(editingAllowed && !readOnlyRef.current && !agentReviewActiveRef.current)
       if (event.readOnly) {
         editor?.commands.blur()
         setMobileSheetMode(null)
@@ -3602,7 +3680,7 @@ export function TipTapEditor({
     emitter.on('editor-reading-mode', handleReadingMode)
     return () => emitter.off('editor-reading-mode', handleReadingMode)
   }, [activeFilePath, editingAllowed, editor, getCurrentMarkdownSnapshot,
-    hasPendingSuggestion, readingWorkspacePath])
+    hasPendingSuggestion, readingWorkspacePath, inheritedReadOnly, agentFileMutationActive])
 
   const handleSourceSelectionChange = useCallback((selection: { from: number; to: number }) => {
     sourceSelectionRef.current = selection
@@ -3675,6 +3753,7 @@ export function TipTapEditor({
   const handleSourceControllerChange = useCallback((controller: SourceMarkdownEditorController | null) => {
     sourceEditorControllerRef.current = controller
     if (!controller) return
+    controller.setEditable(editingAllowed && !readOnlyRef.current && !agentReviewActiveRef.current)
 
     const pendingKeyword = useArticleStore.getState().pendingSearchKeyword.trim()
     if (pendingKeyword) {
@@ -3693,7 +3772,7 @@ export function TipTapEditor({
         || path !== activeFilePathRef.current || sourceEditorControllerRef.current !== controller) return
       controller.openSearch()
     })
-  }, [setPendingSearchKeyword])
+  }, [editingAllowed, setPendingSearchKeyword])
 
   const handleSourceUndoRedoChange = useCallback((state: { undo: boolean; redo: boolean }) => {
     if (!isActive) return
@@ -7057,6 +7136,14 @@ export function TipTapEditor({
 
       const markdown = getCurrentMarkdownSnapshot()
       const text = isSourceView ? markdown : editor.getText()
+      agentDebugLog('editor_snapshot_emitted', {
+        filePath: activeFilePath,
+        sourceView: isSourceView,
+        ready: isReadyRef.current,
+        version: contentVersionRef.current,
+        charCount: markdown.length,
+        markdownTail: markdown.slice(-1000),
+      })
       const markdownLines = markdown.split('\n')
       const totalLines = markdownLines.length
       const lineNumberWidth = String(totalLines).length
@@ -7078,6 +7165,7 @@ export function TipTapEditor({
 
     // Insert content at cursor
     const handleInsert = ({
+      isCancelled,
       filePath,
       content,
       position,
@@ -7086,13 +7174,14 @@ export function TipTapEditor({
       expectedSelection,
       resolve,
     }: {
+      isCancelled?: () => boolean;
       filePath: string;
       content: string;
       position?: number;
       replaceSelection?: boolean;
       expectedVersion?: number;
       expectedSelection?: string;
-      resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number; versionMismatch?: boolean }) => void;
+      resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number; versionMismatch?: boolean; error?: string }) => void;
     }) => {
       if (
         !editor
@@ -7129,17 +7218,23 @@ export function TipTapEditor({
           resolve({ success: false, insertedLength: 0 })
           return
         }
-        const nextMarkdown = `${markdown.slice(0, insertFrom)}${content}${markdown.slice(insertTo)}`
         const nextSelection = {
           from: insertFrom + content.length,
           to: insertFrom + content.length,
         }
         const sourceController = sourceEditorControllerRef.current
-        if (sourceController) {
-          sourceController.replaceValue(nextMarkdown, nextSelection)
-        } else {
-          handleSourceMarkdownChange(nextMarkdown)
+        try {
+          if (!sourceController) throw new Error('源码编辑器未就绪，已取消写入。')
+          if (insertFrom === 0 && insertTo === markdown.length && markdown.length > 0) {
+            throw new EditorEditSkipped('本次源码编辑会替换全文，已拒绝执行；请拆分为局部修改。')
+          }
+          if (isCancelled?.()) throw new Error('编辑操作已取消，未写入。')
+          sourceController.applyEdits([{ from: insertFrom, to: insertTo, text: content }])
+          sourceController.setSelection(nextSelection.from, nextSelection.to)
           sourceSelectionRef.current = nextSelection
+        } catch (error) {
+          resolve({ success: false, insertedLength: 0, error: error instanceof EditorEditSkipped ? EDITOR_EDIT_SKIPPED : String(error) })
+          return
         }
         resolve({
           success: true,
@@ -7154,6 +7249,7 @@ export function TipTapEditor({
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
         const isCurrentOperation = captureEditorOperation()
         runDeferredEditorCommand(() => {
+          if (isCancelled?.()) throw new Error('The editor operation was cancelled before the edit')
           if (!isCurrentOperation()) throw new Error('The editor context changed before the edit')
           if (readOnlyRef.current) throw new Error('Editor is read-only')
           if (isInitializingVisualContentRef.current) throw new Error('The editor is not ready')
@@ -7161,9 +7257,8 @@ export function TipTapEditor({
             throw new Error('The editor revision changed before the edit')
           }
           if (replaceSelection && typeof position !== 'number' && expectedSelection !== undefined) {
-            const { from, to } = editor.state.selection
-            const quote = buildQuoteDataFromRange(from, to)
-            if (!quote || (expectedSelection !== quote.quote && expectedSelection !== quote.fullContent)) {
+            const selection = getCurrentEditorSelection()
+            if (expectedSelection !== selection.text) {
               throw new Error('The editor selection changed before the edit')
             }
           }
@@ -7174,7 +7269,15 @@ export function TipTapEditor({
             editor.commands.setTextSelection(editor.state.selection.to)
           }
 
-          editor.commands.insertContent(content, { contentType: 'markdown' })
+          const currentMarkdown = getCurrentMarkdownSnapshot()
+          const insertionScope = { from: editor.state.selection.from, to: editor.state.selection.to }
+          const transaction = buildAgentRangeEdit(editor, content, insertionScope, true)
+          const updatedMarkdown = buildAgentRangeMarkdown(editor, currentMarkdown, transaction.doc)
+          editor.view.dispatch(transaction)
+          if (!editor.state.doc.eq(transaction.doc)) throw new EditorEditSkipped('改动未应用。')
+          visualMarkdownSnapshotRef.current = { doc: editor.state.doc, markdown: updatedMarkdown }
+          if (transaction.docChanged) editor.view.dispatch(closeHistory(editor.state.tr))
+          flushMarkdownChange(editor)
 
           // Use the actual cursor position after transaction
           const newPosition = editor.state.selection.from
@@ -7185,7 +7288,7 @@ export function TipTapEditor({
             newCursorPosition: newPosition,
           })
         }, (error) => {
-          resolve({ success: false, insertedLength: 0, versionMismatch: String(error).includes('revision changed') })
+          resolve({ success: false, insertedLength: 0, versionMismatch: String(error).includes('revision changed'), error: error instanceof EditorEditSkipped ? EDITOR_EDIT_SKIPPED : undefined })
         })
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
@@ -7195,6 +7298,7 @@ export function TipTapEditor({
 
     // Replace content in range
     const handleReplace = ({
+      isCancelled,
       filePath,
       content,
       range,
@@ -7205,6 +7309,7 @@ export function TipTapEditor({
       expectedVersion,
       resolve,
     }: {
+      isCancelled?: () => boolean
       filePath: string
       content?: string
       range?: { from: number; to: number }
@@ -7256,6 +7361,9 @@ export function TipTapEditor({
             }
             const from = range.from
             const to = range.to
+            if (from === 0 && to === markdown.length && markdown.length > 0) {
+              throw new EditorEditSkipped('本次源码编辑会替换全文，已拒绝执行；请拆分为局部修改。')
+            }
             nextMarkdown = `${markdown.slice(0, from)}${newContent}${markdown.slice(to)}`
             replacedLength = to - from
             newCursorPosition = from + newContent.length
@@ -7299,22 +7407,19 @@ export function TipTapEditor({
             return
           }
 
+          if (!range) assertAgentMarkdownChangeLocal(editor, markdown, nextMarkdown)
           const sourceController = sourceEditorControllerRef.current
+          if (!sourceController) throw new Error('源码编辑器未就绪，已取消写入。')
+          if (isCancelled?.()) throw new Error('编辑操作已取消，未写入。')
+          const sourceEdits = buildEditorTextEdits(markdown, nextMarkdown)
+          if (sourceEdits.length > 0) sourceController.applyEdits(sourceEdits)
           if (newCursorPosition !== undefined) {
             const nextSelection = {
               from: newCursorPosition,
               to: newCursorPosition,
             }
-            if (sourceController) {
-              sourceController.replaceValue(nextMarkdown, nextSelection)
-            } else {
-              handleSourceMarkdownChange(nextMarkdown)
-              sourceSelectionRef.current = nextSelection
-            }
-          } else if (sourceController) {
-            sourceController.replaceValue(nextMarkdown)
-          } else {
-            handleSourceMarkdownChange(nextMarkdown)
+            sourceController.setSelection(nextSelection.from, nextSelection.to)
+            sourceSelectionRef.current = nextSelection
           }
           resolve({
             success: true,
@@ -7323,7 +7428,7 @@ export function TipTapEditor({
             newCursorPosition,
           })
         } catch (error) {
-          resolve({ success: false, insertedLength: 0, error: String(error) })
+          resolve({ success: false, insertedLength: 0, error: error instanceof EditorEditSkipped ? EDITOR_EDIT_SKIPPED : String(error) })
         }
         return
       }
@@ -7405,11 +7510,15 @@ export function TipTapEditor({
         // Wrap in setTimeout to avoid React lifecycle flushSync conflict
         const isCurrentOperation = captureEditorOperation()
         runDeferredEditorCommand(() => {
+          if (isCancelled?.()) throw new Error('The editor operation was cancelled before the edit')
           if (!isCurrentOperation()) throw new Error('The editor context changed before the edit')
           if (readOnlyRef.current) throw new Error('Editor is read-only')
           if (isInitializingVisualContentRef.current) throw new Error('The editor is not ready')
+          if (expectedVersion !== undefined && expectedVersion !== contentVersionRef.current) {
+            throw new Error('The editor revision changed before the edit')
+          }
           if (replacementMode === 'line' && startLine !== undefined && endLine !== undefined) {
-            const currentMarkdown = normalizeMarkdownPlaceholders(editor.getMarkdown())
+            const currentMarkdown = getCurrentMarkdownSnapshot()
             const updatedMarkdown = replaceLinesInRange(
               currentMarkdown,
               startLine,
@@ -7417,6 +7526,7 @@ export function TipTapEditor({
               newContent.split('\n')
             )
 
+            assertAgentMarkdownChangeLocal(editor, currentMarkdown, updatedMarkdown)
             classifyCanonicalMarkdown(updatedMarkdown)
             if (shouldDeferVisualParsingRef.current || isSourceViewRef.current) {
               sourceMarkdownRef.current = updatedMarkdown
@@ -7432,29 +7542,26 @@ export function TipTapEditor({
               return
             }
 
-            editor.commands.setContent(encodeFrontmatterForEditor(updatedMarkdown), { contentType: 'markdown' })
-          } else {
-            const $from = editor.state.doc.resolve(from)
-            const $to = editor.state.doc.resolve(to)
-            const isInlineTextReplacement = !newContent.includes('\n')
-              && $from.sameParent($to)
-              && $from.parent.isTextblock
-
-            if (isInlineTextReplacement) {
-              editor.chain()
-                .focus()
-                .command(({ tr }) => {
-                  tr.insertText(newContent, from, to)
-                  return true
-                })
-                .run()
-            } else {
-              editor.chain()
-                .focus()
-                .deleteRange({ from, to })
-                .insertContent(newContent, { contentType: 'markdown' })
-                .run()
+            const updatedDoc = buildAgentMarkdownEdit(editor, currentMarkdown, updatedMarkdown)
+            const documentChanged = !editor.state.doc.eq(updatedDoc)
+            applyAgentDocumentEdit(editor, updatedDoc)
+            visualMarkdownSnapshotRef.current = { doc: editor.state.doc, markdown: updatedMarkdown }
+            if (!documentChanged) {
+              // Equivalent Markdown (including EOF whitespace) still changes
+              // the file even when ProseMirror has no document transaction.
+              sourceMarkdownRef.current = updatedMarkdown
+              setSourceMarkdown(updatedMarkdown)
+              onChangeRef.current?.(updatedMarkdown)
             }
+          } else {
+            const currentMarkdown = getCurrentMarkdownSnapshot()
+            const transaction = buildAgentRangeEdit(editor, newContent, { from, to })
+            const updatedMarkdown = buildAgentRangeMarkdown(editor, currentMarkdown, transaction.doc)
+            editor.view.dispatch(transaction)
+            if (!editor.state.doc.eq(transaction.doc)) throw new EditorEditSkipped('改动未应用。')
+            visualMarkdownSnapshotRef.current = { doc: editor.state.doc, markdown: updatedMarkdown }
+            if (transaction.docChanged) editor.view.dispatch(closeHistory(editor.state.tr))
+            flushMarkdownChange(editor)
           }
 
           // Increment version after successful replacement
@@ -7464,13 +7571,13 @@ export function TipTapEditor({
             success: true,
             insertedLength: newContent.length,
             message: `成功替换 ${to - from} 个字符为 ${newContent.length} 个字符`,
-            newCursorPosition: from + newContent.length,
+            newCursorPosition: editor.state.selection.from,
           })
         }, (error) => {
-          resolve({ success: false, insertedLength: 0, error: String(error) })
+          resolve({ success: false, insertedLength: 0, error: error instanceof EditorEditSkipped ? EDITOR_EDIT_SKIPPED : String(error) })
         })
       } catch (error) {
-        resolve({ success: false, insertedLength: 0, error: String(error) })
+        resolve({ success: false, insertedLength: 0, error: error instanceof EditorEditSkipped ? EDITOR_EDIT_SKIPPED : String(error) })
       }
     }
 
@@ -7508,7 +7615,7 @@ export function TipTapEditor({
 
     // Handle undo/redo from TabBar buttons
     const handleUndo = () => {
-      if (readOnlyRef.current) return
+      if (readOnlyRef.current || agentReviewActiveRef.current) return
       if (isSourceView) {
         sourceEditorControllerRef.current?.undo()
         return
@@ -7518,7 +7625,7 @@ export function TipTapEditor({
     }
 
     const handleRedo = () => {
-      if (readOnlyRef.current) return
+      if (readOnlyRef.current || agentReviewActiveRef.current) return
       if (isSourceView) {
         sourceEditorControllerRef.current?.redo()
         return
@@ -7533,21 +7640,54 @@ export function TipTapEditor({
       filePath,
       from,
       to,
+      onSkipped,
+      version,
+      baseContent,
+      parseInlineMarkdown,
     }: {
       originalContent: string
       modifiedContent: string
       filePath?: string
       from?: number
       to?: number
+      onSkipped?: () => void
+      version?: number
+      baseContent?: string
+      parseInlineMarkdown?: boolean
     }) => {
+      agentDebugLog('editor_diff_event_received', {
+        filePath,
+        activeFilePath,
+        hasEditor: Boolean(editor),
+        isSourceView,
+      })
       if (!editor || (filePath && activeFilePath && filePath !== activeFilePath)) {
         return
       }
 
-      editor.view.dispatch(editor.state.tr.setMeta(agentDiffPreviewPluginKey, {
-        type: 'show',
-        payload: { originalContent, modifiedContent, from, to },
-      }))
+      if ((version !== undefined && version !== contentVersionRef.current)
+        || (baseContent !== undefined && baseContent !== getCurrentMarkdownSnapshot())) {
+        emitter.emit('editor-agent-diff-stale', { filePath: activeFilePath, version })
+        onSkipped?.()
+        return
+      }
+      agentReviewActiveRef.current = true
+      setAgentReviewActive(true)
+      editor.setEditable(false, false)
+      sourceEditorControllerRef.current?.setEditable(false)
+      if (isSourceView) return // The same source diff is always available in the chat card.
+
+      try {
+        editor.view.dispatch(editor.state.tr.setMeta(agentDiffPreviewPluginKey, {
+          type: 'show',
+          payload: { originalContent, modifiedContent, from, to, parseInlineMarkdown },
+        }))
+      } catch (error) {
+        agentDebugLog('editor_diff_preview_failed', { filePath, error: String(error) })
+        // A rendering problem is reported in the review card, never as a red toast.
+        onSkipped?.()
+        return
+      }
 
       window.requestAnimationFrame(() => {
         if (editor.isDestroyed || !scrollContainerRef.current) return
@@ -7586,8 +7726,55 @@ export function TipTapEditor({
     }
 
     const handleAgentDiffClear = () => {
-      if (!editor) return
+      agentReviewActiveRef.current = false
+      setAgentReviewActive(false)
+      if (!editor || editor.isDestroyed) return
       editor.view.dispatch(editor.state.tr.setMeta(agentDiffPreviewPluginKey, { type: 'clear' }))
+      editor.setEditable(editingAllowed && !readOnlyRef.current && !isInitializingVisualContentRef.current, false)
+      sourceEditorControllerRef.current?.setEditable(editingAllowed && !readOnlyRef.current)
+    }
+
+    const handleAgentFileLock = ({ filePath, locked }: { filePath: string; locked: boolean }) => {
+      if (normalizePathForCompare(filePath) !== normalizePathForCompare(activeFilePath)) return
+      readOnlyRef.current = inheritedReadOnly || useEditorReadingStore.getState().readOnlyFiles[readingKey(readingWorkspacePath, activeFilePath)] === true || locked
+      setAgentFileMutationPath(locked ? filePath : undefined)
+      editor?.setEditable(editingAllowed && !readOnlyRef.current && !agentReviewActiveRef.current && !isInitializingVisualContentRef.current, false)
+      sourceEditorControllerRef.current?.setEditable(editingAllowed && !readOnlyRef.current && !agentReviewActiveRef.current)
+    }
+
+    const handleAgentRestore = ({ filePath, expectedContent, content, resolve }: {
+      filePath: string
+      expectedContent: string
+      content: string
+      resolve: (result: { ok: boolean; reason?: 'changed' | 'unavailable' | 'failed' | 'busy' }) => void
+    }) => {
+      if (!editor || editor.isDestroyed || normalizePathForCompare(filePath) !== normalizePathForCompare(activeFilePath)) return
+      if (readOnlyRef.current || agentReviewActiveRef.current || (!isSourceView && isInitializingVisualContentRef.current)) {
+        resolve({ ok: false, reason: 'busy' })
+        return
+      }
+      try {
+        if (getCurrentMarkdownSnapshot() !== expectedContent) {
+          resolve({ ok: false, reason: 'changed' })
+          return
+        }
+        if (isSourceView) {
+          const controller = sourceEditorControllerRef.current
+          if (!controller) { resolve({ ok: false, reason: 'unavailable' }); return }
+          controller.applyEdits(buildTextEdits(expectedContent, content))
+        } else {
+          applyAgentSnapshotRestore(editor, content)
+          visualMarkdownSnapshotRef.current = { doc: editor.state.doc, markdown: content }
+          flushMarkdownChange(editor)
+          sourceMarkdownRef.current = content
+          setSourceMarkdown(content)
+          contentVersionRef.current++
+          onChangeRef.current?.(content)
+        }
+        resolve({ ok: getCurrentMarkdownSnapshot() === content, reason: 'failed' })
+      } catch {
+        resolve({ ok: false, reason: 'unavailable' })
+      }
     }
 
     const handleMobileToggleOutline = () => {
@@ -7597,7 +7784,7 @@ export function TipTapEditor({
 
     // Handle query for undo/redo capability
     const handleCanUndoRedo = ({ resolve }: { resolve: (can: { undo: boolean; redo: boolean }) => void }) => {
-      if (readOnlyRef.current) {
+      if (readOnlyRef.current || agentReviewActiveRef.current) {
         resolve({ undo: false, redo: false })
         return
       }
@@ -7655,6 +7842,16 @@ export function TipTapEditor({
       })
       disposePluginEditor = pluginRegistration.dispose
 
+      emitter.on('editor-agent-restore', handleAgentRestore)
+      emitter.on('editor-agent-file-lock', handleAgentFileLock)
+      emitter.on('editor-agent-diff-preview', handleAgentDiffPreview)
+      emitter.on('editor-agent-diff-clear', handleAgentDiffClear)
+      const pending = useChatStore.getState().agentState.pendingConfirmation
+      if (pending?.kind !== 'file' && pending?.filePath === activeFilePath
+        && pending.originalContent !== undefined && pending.modifiedContent !== undefined) {
+        handleAgentDiffPreview({ ...pending, originalContent: pending.originalContent, modifiedContent: pending.modifiedContent })
+      }
+
       if (isSourceView) {
         // Keep the Markdown-aware Agent bridge active, while leaving commands that
         // target the hidden ProseMirror view (history, diffs and node insertion)
@@ -7678,8 +7875,6 @@ export function TipTapEditor({
       emitter.on('get-quote-from-editor', handleGetQuote)
       emitter.on('editor-undo', handleUndo)
       emitter.on('editor-redo', handleRedo)
-      emitter.on('editor-agent-diff-preview', handleAgentDiffPreview)
-      emitter.on('editor-agent-diff-clear', handleAgentDiffClear)
       emitter.on('mobile-editor-toggle-outline', handleMobileToggleOutline)
       emitter.on('editor-can-undo-redo', handleCanUndoRedo)
       editor.on('selectionUpdate', scheduleSelectionQuote)
@@ -7703,6 +7898,9 @@ export function TipTapEditor({
       emitter.off('editor-redo', handleRedo)
       emitter.off('editor-agent-diff-preview', handleAgentDiffPreview)
       emitter.off('editor-agent-diff-clear', handleAgentDiffClear)
+      emitter.off('editor-agent-restore', handleAgentRestore)
+      emitter.off('editor-agent-file-lock', handleAgentFileLock)
+      handleAgentDiffClear()
       emitter.off('mobile-editor-toggle-outline', handleMobileToggleOutline)
       emitter.off('editor-can-undo-redo', handleCanUndoRedo)
       if (quoteSyncTimer !== null) clearTimeout(quoteSyncTimer)
@@ -7734,6 +7932,10 @@ export function TipTapEditor({
     exposeToPluginHost,
     getCurrentMarkdownSnapshot,
     handleSourceMarkdownChange,
+    flushMarkdownChange,
+    editingAllowed,
+    inheritedReadOnly,
+    readingWorkspacePath,
     isActive,
     isSourceView,
     trySetMarkdownContent,
@@ -7831,7 +8033,7 @@ export function TipTapEditor({
           <span className="text-xs text-muted-foreground">{selfHostedCollaborators.length}</span>
         </div>
       ) : null}
-      {!readOnly && isMobile && effectiveViewMode === 'visual' && (
+      {editable && isMobile && effectiveViewMode === 'visual' && (
         <MobileEditorContextBar
           mode={mobileContext?.mode ?? 'text'}
           previewText={mobileContext?.mode === 'text' ? mobileContext.previewText : undefined}
@@ -7848,6 +8050,15 @@ export function TipTapEditor({
       )}
 
       {/* Editor content - scrollable area */}
+      {agentReviewActive && <Alert className="shrink-0 rounded-none border-x-0">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+          <span>{tAgentDiff('reviewing')}</span>
+          <Button type="button" variant="ghost" size="sm" onClick={() => {
+            cancelPendingAgentAction(useChatStore.getState().agentState.pendingConfirmation?.id)
+            emitter.emit('editor-agent-diff-clear')
+          }}>{tAgentDiff('returnToEditing')}</Button>
+        </AlertDescription>
+      </Alert>}
       <div className={cn('relative min-h-0', scrollable ? 'flex-1' : 'min-h-full')}>
         <div
           ref={scrollContainerRef}
@@ -7983,7 +8194,7 @@ export function TipTapEditor({
           </div>
         ) : (
           <>
-            {!readOnly && editorDragHandleElement ? createPortal(
+            {editable && editorDragHandleElement ? createPortal(
               <BlockHandleControls
                 editor={editor}
                 pluginsEnabled={exposeToPluginHost}
@@ -8030,17 +8241,17 @@ export function TipTapEditor({
               <SmartFileLink editor={editor} activeFilePath={activeFilePath} />
               <WikilinkSuggest editor={editor} activeFilePath={activeFilePath} />
 
-              {!readOnly && !isMobile && <ImageBubbleMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
+              {editable && !isMobile && <ImageBubbleMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
 
-              {!readOnly && isActive && <AISuggestionFloating
+              {editable && isActive && <AISuggestionFloating
                 key={activeFilePath}
                 editor={editor}
                 onPendingChange={handleAiSuggestionPendingChange}
               />}
 
-              {!readOnly && !isMobile && exposeToPluginHost && <PluginEditorInlineViews editor={editor} />}
+              {editable && !isMobile && exposeToPluginHost && <PluginEditorInlineViews editor={editor} />}
 
-              {!readOnly && !isMobile && (
+              {editable && !isMobile && (
                 <BubbleMenuComponent
                   pluginsEnabled={exposeToPluginHost}
                   editor={editor}
@@ -8058,7 +8269,7 @@ export function TipTapEditor({
 
             <SearchReplacePanel
               editor={editor}
-              readOnly={readOnly}
+              readOnly={!editable}
               open={searchReplaceOpen}
               focusRequest={searchFocusRequest}
               onOpenChange={setSearchReplaceOpen}
@@ -8067,6 +8278,9 @@ export function TipTapEditor({
         )}
         </div>
         </div>
+        {isActive && scrollable && effectiveViewMode === 'visual' ? (
+          <AgentDiffNavigation editor={editor} scrollContainerRef={scrollContainerRef} />
+        ) : null}
         {scrollable && !isMobile && effectiveViewMode === 'visual' ? (
           <EditorScrollbar
             refreshKey={viewMode}
@@ -8093,14 +8307,14 @@ export function TipTapEditor({
         </Button>
       )}
 
-      {!readOnly && isMobile && effectiveViewMode === 'visual' && showMobileEditorToolbar && !mobileContext && (
+      {editable && isMobile && effectiveViewMode === 'visual' && showMobileEditorToolbar && !mobileContext && (
         <MobileWritingToolbar
           activeActions={mobileWritingActiveActions}
           onAction={runMobileWritingAction}
         />
       )}
 
-      {!readOnly && isMobile && (
+      {editable && isMobile && (
         <MobileEditorMoreSheet
           editor={editor}
           pluginsEnabled={exposeToPluginHost}
@@ -8157,7 +8371,7 @@ export function TipTapEditor({
         <MainStatusBarPortal active={isActive} inline={isMobile || standalone}>
           <FooterBar
             editor={editor}
-            readOnly={readOnly}
+            readOnly={!editable}
             outlineOpen={effectiveOutlineOpen}
             onToggleOutline={handleOutlineToggle}
             viewMode={effectiveViewMode}
@@ -8170,7 +8384,7 @@ export function TipTapEditor({
         </MainStatusBarPortal>
       ) : null}
 
-      {!readOnly && isActive ? <SlashCommandPortal editor={editor} /> : null}
+      {editable && isActive ? <SlashCommandPortal editor={editor} /> : null}
 
       {mathDialogOpen ? (
         <MathEditorDialog

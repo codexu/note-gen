@@ -8,7 +8,7 @@ import useRagSettingsStore from '@/stores/ragSettings';
 import { Store } from '@tauri-apps/plugin-store';
 import { useEffect, useState } from 'react';
 
-export function ModelSetting() {
+export function ModelSetting({ kind }: { kind?: 'embedding' | 'reranking' } = {}) {
   const t = useTranslations('settings.defaultModel');
   const ragT = useTranslations('settings.rag');
   const { hasEmbeddingModel, hasRerankModel, checkEmbeddingModel, checkRerankModel } = useVectorStore();
@@ -63,7 +63,7 @@ export function ModelSetting() {
   return (
     <ItemGroup className="gap-4">
       {
-        modelOptions.map((option) => (
+        modelOptions.filter(option => !kind || option.modelKey === kind).map((option) => (
           <Item
             key={option.modelKey}
             className="max-md:grid max-md:grid-cols-[auto_minmax(0,1fr)] max-md:items-start"

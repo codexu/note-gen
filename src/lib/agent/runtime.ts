@@ -1,3 +1,4 @@
+import { buildEditorTextEdits, EDITOR_EDIT_SKIPPED, EditorEditSkipped } from './editor-adapter'
 import type OpenAI from 'openai'
 import { takeToolDisplayTitle } from './tool-display'
 import { createAssistantToolCallMessage, createChatCompletionStreamWithToolChoiceFallback, createOpenAIClient, getAISettings, getChatTokenLimitParams, getSystemPromptContent, handleAIError, validateAIService, withFastAiRequestOptions } from '@/lib/ai/utils'
@@ -10,14 +11,15 @@ import { memoryContextService } from '@/lib/context/loader'
 import { AgentRecoveryManager } from './recovery-manager'
 import { PendingMessageQueue } from './pending-message-queue'
 import { createAgentId, AgentTraceRecorder } from './trace-recorder'
-import { agentToolRegistry, buildEditorApprovalPreview, LOADED_SKILL_TOOL_NAMES } from './tool-registry'
+import { agentToolRegistry, buildEditorApprovalPreview, hasFileEditPreview, validateEditApprovalPreview, LOADED_SKILL_TOOL_NAMES } from './tool-registry'
 import { skillManager } from '@/lib/skills'
 import { getSkillWorkspaceIdentity } from '@/lib/skills/runtime'
 import { getWorkspacePath } from '@/lib/workspace'
 import { buildMcpAgentToolCatalog } from '@/lib/mcp/agent-tools'
-import { agentDebugLog, previewText } from './debug-log'
+import { agentDebugLog, agentDebugText, isAgentDebugEnabled, previewText } from './debug-log'
 import { getRagAgentPolicy } from '@/lib/rag-agent-policy'
 import { WebSearchBudget } from './web-search-budget'
+import { parseKnowledgeSourceKey, type KnowledgeWikiPageGrant } from '@/types/knowledge'
 import { getChatResponseText, parseChatResponseSpec } from '@/lib/chat-ui/response-catalog'
 import { createChatResponseStream } from '@/lib/chat-ui/response-stream'
 import type {
@@ -115,6 +117,9 @@ function stringifyToolResult(result: AgentToolResult) {
     data: result.data,
     error: result.error,
     changes: result.changes,
+    wikiPages: result.wikiPages?.map(page => ({ pageId: page.pageId, title: page.title,
+      excerpt: page.excerpt, sourceCount: page.sourceRefs.length,
+      relevanceScore: page.relevanceScore, updatedAt: page.updatedAt })),
   }
 
   return JSON.stringify(payload)
@@ -884,6 +889,7 @@ export class AgentRuntime {
 
     const client = await createOpenAIClient(aiConfig)
     let editorStateReadLocked = hasInlineCurrentEditorState(context)
+    let lastLoggedEditorContext: string | undefined
     let editorSelectionReadLocked = hasInlineCurrentEditorSelection(context)
     let finalContent = ''
     let writeActionCompleted = false
@@ -900,11 +906,23 @@ export class AgentRuntime {
     const webSearchBudget = new WebSearchBudget()
     let knowledgeSearchCount = 0
     const readKnowledgeSourceKeys = new Set<string>()
+    const originalSourceGrants = new Set<string>()
+    const readWikiPageIds = new Set<string>()
+    const readEvidenceSourceKeys = new Set<string>()
+    const wikiPageGrants = new Map<string, KnowledgeWikiPageGrant[]>()
     const knowledgeReadLimit = ragAgentPolicy.strategy === 'fast'
       ? 1
       : ragAgentPolicy.strategy === 'deep' ? 5 : 3
     let directAnswerEvidenceChecked = false
     let knowledgeCitationChecked = false
+    const isExplicitSource = (sourceKey: string) => {
+      const source = parseKnowledgeSourceKey(sourceKey)
+      if (source?.sourceType === 'canvas') return source.sourceId === context.activeCanvasId
+      if (source?.sourceType !== 'article') return false
+      const normalize = (path: string) => path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+/g, '/')
+      return [context.activeFilePath, context.currentQuote?.articlePath]
+        .some(path => typeof path === 'string' && normalize(path) === normalize(source.sourceId))
+    }
     const executeToolWithBudget = async (
       tool: AgentTool,
       args: Record<string, unknown>
@@ -932,6 +950,10 @@ export class AgentRuntime {
           return typeof sourceKey === 'string' ? [sourceKey] : []
         })
         const nextKeys = requestedKeys.filter(sourceKey => !readKnowledgeSourceKeys.has(sourceKey))
+        if (requestedKeys.some(sourceKey => !originalSourceGrants.has(sourceKey) && !isExplicitSource(sourceKey))) {
+          return { ok: false, message: '请先使用 knowledge_search 搜索目标原文，再读取返回的来源候选；Wiki 页面证据不会自动授权读取所有原文。',
+            error: 'KNOWLEDGE_SEARCH_REQUIRED' }
+        }
         if (readKnowledgeSourceKeys.size + new Set(nextKeys).size > knowledgeReadLimit) {
           return {
             ok: false,
@@ -940,6 +962,29 @@ export class AgentRuntime {
           }
         }
         requestedKeys.forEach(sourceKey => readKnowledgeSourceKeys.add(sourceKey))
+      }
+      if (tool.name === 'knowledge_read_wiki') {
+        const requests = Array.isArray(args.requests) ? args.requests : []
+        const pageIds = requests.flatMap(request => {
+          if (!request || typeof request !== 'object') return []
+          const pageId = (request as { pageId?: unknown }).pageId
+          return typeof pageId === 'string' ? [pageId] : []
+        })
+        if (pageIds.some(pageId => !wikiPageGrants.has(pageId))) return {
+          ok: false, message: '请先搜索并读取本次检索范围内的 Wiki 页面。', error: 'WIKI_SEARCH_REQUIRED',
+        }
+        const newPages = new Set(pageIds.filter(pageId => !readWikiPageIds.has(pageId)))
+        if (readWikiPageIds.size + newPages.size > knowledgeReadLimit) return {
+          ok: false, message: '已达到本次知识读取预算，请使用最相关的页面。', error: 'KNOWLEDGE_READ_BUDGET_EXHAUSTED',
+        }
+        pageIds.forEach(pageId => readWikiPageIds.add(pageId))
+        args = { ...args, wikiGrants: Object.fromEntries(pageIds.map(pageId => [pageId, wikiPageGrants.get(pageId)!])) }
+      }
+      if (tool.name === 'knowledge_cite_sources') {
+        const keys = Array.isArray(args.sourceKeys) ? args.sourceKeys : []
+        if (keys.some(key => typeof key !== 'string' || !readEvidenceSourceKeys.has(key))) return {
+          ok: false, message: '只能引用本次已读取的 Wiki 证据或原文来源。', error: 'KNOWLEDGE_EVIDENCE_NOT_READ',
+        }
       }
 
       const result = await executeAgentTool(
@@ -952,7 +997,31 @@ export class AgentRuntime {
         runWorkspaceIdentity,
         callbacks.requestUserInteraction,
       )
+      // Do not discard a completed write if the workspace changed while it ran.
+      // The caller records its outcome before checking the workspace again.
       if (tool.name === 'web_search') webSearchBudget.recordResult(result)
+      if (result.ok && tool.name === 'knowledge_search') {
+        for (const page of result.wikiPages ?? []) {
+          const previous = wikiPageGrants.get(page.pageId) ?? []
+          wikiPageGrants.set(page.pageId, [...previous, { contextId: page.contextId,
+            sourceRefs: page.sourceRefs, scope: page.scope }])
+        }
+      }
+      if (result.ok && Array.isArray(result.data)) {
+        for (const item of result.data) {
+          if (!item || typeof item !== 'object') continue
+          const value = item as { sourceKey?: unknown; sourceRefs?: unknown }
+          if (tool.name === 'knowledge_search' && typeof value.sourceKey === 'string') originalSourceGrants.add(value.sourceKey)
+          if (tool.name === 'knowledge_read_sources' && typeof value.sourceKey === 'string') readEvidenceSourceKeys.add(value.sourceKey)
+          if (tool.name === 'knowledge_read_wiki' && Array.isArray(value.sourceRefs)) {
+            for (const reference of value.sourceRefs) {
+              if (reference && typeof reference === 'object' && typeof (reference as { sourceKey?: unknown }).sourceKey === 'string') {
+                readEvidenceSourceKeys.add((reference as { sourceKey: string }).sourceKey)
+              }
+            }
+          }
+        }
+      }
       return result
     }
     const appendToolResult = (
@@ -966,6 +1035,15 @@ export class AgentRuntime {
         tool_call_id: toolCallId,
         content: stringifyToolResult(result),
       })
+      if (!result.ok && hasFileEditPreview(toolName)
+        && !recorder.all().some(event => event.toolName === toolName && event.input === args)) {
+        const event = recorder.add({ type: 'tool_result', title: '改动未应用', status: 'error',
+          toolName, input: args, output: result, editSkipped: true,
+          editOutcome: /CHANGED|MISMATCH|STALE/.test(result.error || '') ? 'stale' : 'not-applied',
+          message: '本次改动未应用。',
+        })
+        callbacks.onTrace?.(event)
+      }
       // Failed attempts may have fresh execution IDs, paths, or timings, but
       // those do not establish progress. Keep the error in model context.
       if (!result.ok) return
@@ -1357,6 +1435,34 @@ export class AgentRuntime {
           },
           ...messages.slice(1),
         ])
+        if (isAgentDebugEnabled()) {
+          const requestSystemContent = requestMessages[0]?.content
+          const prompt = typeof requestSystemContent === 'string' ? requestSystemContent : ''
+          const openingTag = '<current_editor_content>\n'
+          const contentStart = prompt.indexOf(openingTag)
+          const contentEnd = contentStart < 0 ? -1 : prompt.indexOf('\n</current_editor_content>', contentStart + openingTag.length)
+          const injectedContent = contentStart >= 0 && contentEnd >= 0
+            ? prompt.slice(contentStart + openingTag.length, contentEnd)
+            : ''
+          agentDebugLog('model_editor_context', {
+            runId,
+            iteration,
+            activeFilePath: context.activeFilePath,
+            hasSnapshot: Boolean(context.currentEditorState),
+            inlineEligible: hasInlineCurrentEditorState(context),
+            inlinePresentInRequest: contentStart >= 0 && contentEnd >= 0,
+            snapshotVersion: context.currentEditorState?.version,
+            snapshotCharCount: context.currentEditorState?.markdown.length,
+            snapshotTotalLines: context.currentEditorState?.totalLines,
+            matchesNumberedSnapshot: injectedContent === context.currentEditorState?.numberedLines,
+            editorStateToolOffered: offeredToolNames.has('editor_get_state'),
+            editorStateReadLocked,
+          })
+          if (injectedContent !== lastLoggedEditorContext) {
+            agentDebugText('model_editor_context_content', injectedContent, { runId, iteration })
+            lastLoggedEditorContext = injectedContent
+          }
+        }
         const messageTextTokens = requestMessages.reduce(
           (sum, message) => sum + estimateMessageTextTokens(message),
           0
@@ -1966,6 +2072,44 @@ export class AgentRuntime {
             continue
           }
 
+          let approvalPreview: Awaited<ReturnType<typeof buildEditorApprovalPreview>>
+          let previewFailure: AgentToolResult | undefined
+          if (hasFileEditPreview(tool.name)) {
+            try {
+              approvalPreview = await buildEditorApprovalPreview(tool.name, args)
+              if (approvalPreview) {
+                args = approvalPreview.previewParams
+                toolCall.params = args
+                if (approvalPreview.kind === 'editor' && approvalPreview.from === undefined && approvalPreview.to === undefined) {
+                  buildEditorTextEdits(approvalPreview.originalContent, approvalPreview.modifiedContent)
+                  if (approvalPreview.originalContent === approvalPreview.modifiedContent) {
+                    previewFailure = { ok: false, error: 'EDITOR_NO_CHANGES', message: '内容没有变化，本次未应用新的改动。' }
+                  }
+                }
+                previewFailure ??= await validateEditApprovalPreview(approvalPreview)
+              }
+            } catch (error) {
+              previewFailure = { ok: false,
+                error: error instanceof EditorEditSkipped ? EDITOR_EDIT_SKIPPED : 'EDIT_PREVIEW_UNAVAILABLE',
+                message: '本次改动未应用。可以保留当前内容，并根据拟议差异调整修改范围。',
+              }
+              agentDebugLog('edit_preview_unavailable', { runId, toolName, error: String(error) })
+            }
+          }
+          if (previewFailure) {
+            toolCall.status = 'error'
+            toolCall.result = toolResultToLegacy(previewFailure)
+            callbacks.onToolCall?.(toolCall)
+            const skipped = recorder.add({ type: 'tool_result', title: '改动未应用', status: 'error', toolName,
+              editOutcome: /CHANGED|MISMATCH|STALE/.test(previewFailure.error || '') ? 'stale' : 'not-applied',
+              editSkipped: true, approvalPreview, input: args, output: previewFailure,
+              message: previewFailure.message,
+            })
+            callbacks.onTrace?.(skipped)
+            appendToolResult(toolUse.id, toolName, args, previewFailure)
+            return completeFinalResponse(approvalPreview
+              ? '改动未应用，可以在对话中查看拟议差异。' : '改动未应用，原有内容保持不变。')
+          }
           if (permission.requiresApproval) {
             callbacks.onStatus?.('waiting_approval')
             agentDebugLog('approval_request', {
@@ -1982,7 +2126,6 @@ export class AgentRuntime {
             })
             callbacks.onTrace?.(approvalTrace)
 
-            const approvalPreview = await buildEditorApprovalPreview(tool.name, args)
             if (approvalPreview) {
               const previewTrace = recorder.update(approvalTrace.id, { approvalPreview })
               if (previewTrace) callbacks.onTrace?.(previewTrace)
@@ -2023,6 +2166,7 @@ export class AgentRuntime {
               callbacks.onToolCall?.(toolCall)
               const updatedApprovalTrace = recorder.update(approvalTrace.id, {
                 approvalDecision: 'steered',
+                editOutcome: 'cancelled',
                 status: 'error',
                 message: supersededResult.message,
                 output: supersededResult,
@@ -2043,6 +2187,7 @@ export class AgentRuntime {
               callbacks.onToolCall?.(toolCall)
               const updatedApprovalTrace = recorder.update(approvalTrace.id, {
                 approvalDecision: 'denied',
+                editOutcome: 'cancelled',
                 status: 'error',
                 message: deniedResult.message,
                 output: deniedResult,
@@ -2102,6 +2247,7 @@ export class AgentRuntime {
             status: 'running',
             toolName,
             input: args,
+            approvalPreview,
           })
           callbacks.onTrace?.(trace)
           toolCall.status = 'running'
@@ -2133,7 +2279,13 @@ export class AgentRuntime {
             repeatedFailedMutation,
             repeatedSuccessfulMutation,
           })
-          const result: AgentToolResult = repeatedSuccessfulMutation
+          const proposalConflict = approvalPreview
+            ? await validateEditApprovalPreview(approvalPreview).catch((): AgentToolResult => ({
+                ok: false, error: 'EDIT_SNAPSHOT_UNAVAILABLE', message: '暂时无法核对文件内容，本次改动未应用。',
+              }))
+            : undefined
+          if (this.stopped) throw new Error('USER_STOPPED')
+          const result: AgentToolResult = proposalConflict ?? (repeatedSuccessfulMutation
             ? {
                 ok: true,
                 message: '相同的写入操作已在本次任务中成功执行，本次重复调用已忽略。请直接完成回答。',
@@ -2153,9 +2305,16 @@ export class AgentRuntime {
                   '本轮已经读取过相同的编辑器状态，请直接使用此前返回的内容，不要再次读取。',
                 ].join('\n\n'),
               }
-            : await executeToolWithBudget(tool, args)
+            : await executeToolWithBudget(tool, args))
+          const actualChange = result.changes?.at(-1)
+          if (result.ok && approvalPreview && actualChange?.after !== undefined
+            && approvalPreview.from === undefined && approvalPreview.to === undefined
+            && approvalPreview.operation !== 'delete' && actualChange.after !== approvalPreview.modifiedContent) {
+            result.ok = false
+            result.error = 'EDITOR_RESULT_DIFFERS'
+            result.message = '内容已更新，实际结果与拟议差异不同，请核对已应用的改动。'
+          }
           const folderAttachmentProgress = getFolderAttachmentProgress(tool.name, args, result)
-          if (this.stopped) throw new Error('USER_STOPPED')
           const duration = Date.now() - startedAt
           agentDebugLog('tool_execute_end', {
             runId,
@@ -2170,6 +2329,9 @@ export class AgentRuntime {
 
           if (result.changes) {
             for (const change of result.changes) {
+              change.workspacePath = runWorkspaceIdentity
+              change.outcome = /(?:EDITOR|FILE)_CHANGE_VERIFICATION_FAILED|EDITOR_RESULT_DIFFERS/.test(result.error || '')
+                ? 'unverified' : 'applied'
               changes.push(change)
               callbacks.onChange?.(change)
               const changeTrace = recorder.add({
@@ -2192,13 +2354,36 @@ export class AgentRuntime {
           steps.push(step)
           callbacks.onStep?.(step)
 
+          const editOutcome = hasFileEditPreview(tool.name)
+            ? /(?:EDITOR|FILE)_CHANGE_VERIFICATION_FAILED|EDITOR_RESULT_DIFFERS/.test(result.error || '') ? 'unverified' as const
+              : result.ok ? 'applied' as const
+              : /CHANGED|MISMATCH|STALE/.test(result.error || '') ? 'stale' as const : 'not-applied' as const
+            : undefined
           const updatedTrace = recorder.update(trace.id, {
             status: result.ok ? 'success' : 'error',
             duration,
             output: result,
-            message: [result.message, folderAttachmentProgress].filter(Boolean).join('\n\n'),
+            editOutcome,
+            editSkipped: editOutcome === 'not-applied' || editOutcome === 'stale',
+            approvalPreview,
+            message: editOutcome === 'unverified' ? result.message : editOutcome === 'stale'
+              ? '内容或编辑位置已变化，本次改动未应用。'
+              : editOutcome === 'not-applied' ? '本次改动未应用。'
+                : [result.message, folderAttachmentProgress].filter(Boolean).join('\n\n'),
           })
           if (updatedTrace) callbacks.onTrace?.(updatedTrace)
+          // An in-flight write can finish after Stop. Record its actual result first.
+          if (this.stopped) throw new Error('USER_STOPPED')
+          await assertRunWorkspace()
+          if (editOutcome === 'unverified') {
+            appendToolResult(toolUse.id, toolName, args, result)
+            return completeFinalResponse(result.message)
+          }
+          if (editOutcome === 'not-applied' || editOutcome === 'stale') {
+            appendToolResult(toolUse.id, toolName, args, result)
+            return completeFinalResponse(approvalPreview
+              ? '改动未应用，可以在对话中查看拟议差异。' : '改动未应用。')
+          }
 
           if (tool.name === 'render_response' && !result.ok) clearResponsePreview()
 

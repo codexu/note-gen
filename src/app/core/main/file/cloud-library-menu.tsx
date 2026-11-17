@@ -1,7 +1,7 @@
 'use client'
 
 import { confirm } from '@tauri-apps/plugin-dialog'
-import { ArrowDownAZ, Calendar, Clock, Cloud, Database, DatabaseZap, Download, EllipsisVertical, FolderDot, LoaderCircle, PackageOpen, RefreshCw, SortAsc, SortDesc, Upload } from 'lucide-react'
+import { ArrowDownAZ, Calendar, Clock, Cloud, Database, DatabaseZap, Download, EllipsisVertical, LoaderCircle, PackageOpen, RefreshCw, SortAsc, SortDesc, Upload } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -223,7 +223,7 @@ export function CloudLibraryMenu({
         {
           key: 'show-assets-folders',
           label: t('showAssetsFolders'),
-          icon: <FolderDot />,
+          icon: <PackageOpen />,
           groupLabel: t('fileView'),
           keepOpen: true,
           onSelect: () => setShowAssetsFolders(!showAssetsFolders),

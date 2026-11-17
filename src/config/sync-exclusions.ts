@@ -101,6 +101,17 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   // Index execution and consent belong to this device's local database.
   'ragKnowledgeIndexPaused',
   'ragStructuredKnowledgeConsent',
+  // Portable Wiki scope/language settings live in its Markdown index. Execution
+  // preferences and workspace-local identities stay on this device.
+  'wikiDeviceId',
+  'wikiRemoteIdentities',
+  'wikiSettingsByContext',
+  'wikiGeneratedNotes',
+  'wikiPreferencesInitialized',
+  'wikiWorkspaceModelsInitialized',
+  'wikiDefaultEnabled',
+  'wikiModel',
+  'wikiLastContextsByWorkspace',
   'vectorAutoCalcDisabled',
   'vectorExcludedFiles',
   'learnedContextWindows',

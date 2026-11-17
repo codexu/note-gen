@@ -5,9 +5,11 @@ import { getAllMarkdownFiles, MarkdownFile } from '@/lib/files'
 import {
   ensureSafeWorkspaceRelativePath,
   getFilePathOptions,
+  getWorkspacePath,
   toWorkspaceRelativePath,
 } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
+import { getSkillWorkspaceIdentity } from '@/lib/skills/runtime'
 import useChatStore from '@/stores/chat'
 import { isLinkedFolder } from '@/lib/files'
 import emitter from '@/lib/emitter'
@@ -21,6 +23,22 @@ import {
   prepareActiveEditorPathMutationDurably,
   runEditorPathWriteTransaction,
 } from '@/lib/editor-deactivation'
+
+async function isEditWorkspaceCurrent(params: Record<string, unknown>) {
+  return typeof params.workspaceIdentity !== 'string'
+    || getSkillWorkspaceIdentity(await getWorkspacePath()) === params.workspaceIdentity
+}
+
+async function assertEditWorkspace(params: Record<string, unknown>) {
+  if (!await isEditWorkspaceCurrent(params)) throw new Error('WORKSPACE_CHANGED')
+}
+
+async function getEditFilePathOptions(filePath: string, params: Record<string, unknown>) {
+  await assertEditWorkspace(params)
+  const options = await getFilePathOptions(filePath)
+  await assertEditWorkspace(params)
+  return options
+}
 
 function activeEditorMutationBlockedResult(): ToolResult {
   return {
@@ -184,6 +202,15 @@ export const listMarkdownFilesTool: Tool = {
   },
 }
 
+/** Read an authoritative file snapshot without model-context deduplication. */
+export async function readNoteFileSnapshot(filePath: string): Promise<string | undefined> {
+  const normalizedFilePath = await ensureSafeWorkspaceRelativePath(filePath)
+  const { path, baseDir } = await getFilePathOptions(normalizedFilePath)
+  const fileExists = baseDir ? await exists(path, { baseDir }) : await exists(path)
+  if (!fileExists) return undefined
+  return baseDir ? readTextFile(path, { baseDir }) : readTextFile(path)
+}
+
 // Read the saved on-disk content for a note file.
 // Prefer get_editor_content for the currently open note so unsaved/runtime state is included.
 export const readMarkdownFileTool: Tool = {
@@ -209,11 +236,10 @@ export const readMarkdownFileTool: Tool = {
 
       // 如果有关联的文件（非文件夹），且路径匹配，则提示内容已在上下文中
       if (linkedResource && !isLinkedFolder(linkedResource)) {
-        // 提取文件名进行比较，支持相对路径和绝对路径的匹配
-        const requestedFileName = normalizedFilePath.split('/').pop() || normalizedFilePath
-        const linkedFileName = linkedResource.relativePath.split('/').pop() || linkedResource.relativePath
+        // 使用完整工作区相对路径，避免不同目录中的同名文件被误判。
+        const linkedPath = linkedResource.relativePath.replace(/\\/g, '/').replace(/^\.\//, '')
 
-        if (requestedFileName === linkedFileName) {
+        if (normalizedFilePath === linkedPath) {
           return {
             success: true,
             data: {
@@ -344,7 +370,9 @@ export const createFileTool: Tool = {
     },
   ],
   execute: async (params): Promise<ToolResult> => {
+    let appliedChange: { filePath: string; before?: string; after?: string } | undefined
     try {
+      await assertEditWorkspace(params)
       let normalizedFolderPath = params.folderPath
         ? await ensureSafeWorkspaceRelativePath(params.folderPath)
         : undefined
@@ -374,8 +402,8 @@ export const createFileTool: Tool = {
       }
 
       const filePath = await ensureSafeWorkspaceRelativePath(joinRelativePath(normalizedFolderPath, fileName))
-      const isSpecialSkillPath =
-        filePath.startsWith('skills/') || filePath.startsWith('outputs/')
+      const isSpecialSkillPath = typeof params.workspaceIdentity !== 'string'
+        && (filePath.startsWith('skills/') || filePath.startsWith('outputs/'))
 
       // 统一使用 getFilePathOptions 来处理路径
       const specialArticleRelativePath = isSpecialSkillPath
@@ -383,7 +411,7 @@ export const createFileTool: Tool = {
         : undefined
       const { path, baseDir } = specialArticleRelativePath
         ? { path: specialArticleRelativePath as string, baseDir: BaseDirectory.AppData }
-        : await getFilePathOptions(filePath)
+        : await getEditFilePathOptions(filePath, params)
 
       // 在创建文件前，确保父目录存在
       const parentFolderPath = filePath.substring(0, filePath.lastIndexOf('/'))
@@ -426,7 +454,7 @@ export const createFileTool: Tool = {
           : undefined
         const { path: parentPath, baseDir: parentBaseDir } = specialParentRelativePath
           ? { path: specialParentRelativePath as string, baseDir: BaseDirectory.AppData }
-          : await getFilePathOptions(parentFolderPath)
+          : await getEditFilePathOptions(parentFolderPath, params)
         const { mkdir } = await import('@tauri-apps/plugin-fs')
         if (parentBaseDir) {
           await mkdir(parentPath, { baseDir: parentBaseDir, recursive: true })
@@ -435,21 +463,20 @@ export const createFileTool: Tool = {
         }
       }
 
+      await assertEditWorkspace(params)
       if (baseDir) {
-        await writeTextFile(path, params.content, { baseDir })
+        await writeTextFile(path, params.content, { baseDir, createNew: true })
       } else {
-        await writeTextFile(path, params.content)
+        await writeTextFile(path, params.content, { createNew: true })
       }
 
-      // 获取完整路径用于返回
-      const { getWorkspacePath } = await import('@/lib/workspace')
-      const workspace = await getWorkspacePath()
-      const workspacePath = workspace.isCustom
-        ? workspace.path
-        : `${await appDataDir()}/article`
+      appliedChange = { filePath, after: params.content }
 
-      // 构建工作区完整路径
-      const fullPath = `${workspacePath}/${filePath}`
+      // Keep the result bound to the path used for the write, even after a workspace switch.
+      const fullPath = baseDir ? `${await appDataDir()}/${path}` : path
+      if (!await isEditWorkspaceCurrent(params)) {
+        return { success: true, data: { filePath, fullPath }, message: `成功创建文件: ${filePath}` }
+      }
 
       const createdContent = params.content
       const inserted = articleStore.insertLocalEntry(filePath, false)
@@ -486,6 +513,7 @@ export const createFileTool: Tool = {
       return {
         success: false,
         error: `创建文件失败: ${error}`,
+        data: appliedChange ? { appliedChange } : undefined,
       }
     }
   },
@@ -517,11 +545,12 @@ export const updateMarkdownFileTool: Tool = {
     },
   ],
   execute: async (params): Promise<ToolResult> => {
+    let appliedChange: { filePath: string; before?: string; after?: string } | undefined
     try {
       const normalizedFilePath = await ensureSafeWorkspaceRelativePath(params.filePath)
 
       // 统一使用 getFilePathOptions 来处理路径
-      const { path, baseDir } = await getFilePathOptions(normalizedFilePath)
+      const { path, baseDir } = await getEditFilePathOptions(normalizedFilePath, params)
 
       if (params.expectedModifiedAt) {
         const expectedModifiedAt = new Date(params.expectedModifiedAt)
@@ -554,6 +583,9 @@ export const updateMarkdownFileTool: Tool = {
       const currentContent = baseDir
         ? await readTextFile(path, { baseDir })
         : await readTextFile(path)
+      if (typeof params.expectedContent === 'string' && currentContent !== params.expectedContent) {
+        return { success: false, error: 'FILE_CONTENT_CHANGED', message: '文件内容已变化，本次改动未应用。' }
+      }
       if (currentContent === params.content) {
         const currentStat = baseDir
           ? await stat(path, { baseDir })
@@ -577,6 +609,7 @@ export const updateMarkdownFileTool: Tool = {
           : await readTextFile(path)
         if (latestContent !== currentContent) return false
 
+        await assertEditWorkspace(params)
         try {
           if (baseDir) {
             await writeTextFile(path, updatedContent, { baseDir })
@@ -616,6 +649,11 @@ export const updateMarkdownFileTool: Tool = {
         }
       }
 
+      appliedChange = { filePath: normalizedFilePath, before: currentContent, after: updatedContent }
+      if (!await isEditWorkspaceCurrent(params)) {
+        return { success: true, data: { filePath: normalizedFilePath }, message: `成功更新文件: ${normalizedFilePath}` }
+      }
+
       emitter.emit('editor-file-content-updated', {
         path: normalizedFilePath,
         content: updatedContent,
@@ -644,6 +682,7 @@ export const updateMarkdownFileTool: Tool = {
       return {
         success: false,
         error: `更新文件失败: ${error}`,
+        data: appliedChange ? { appliedChange } : undefined,
       }
     }
   },
@@ -663,6 +702,8 @@ export const deleteMarkdownFileTool: Tool = {
     },
   ],
   execute: async (params): Promise<ToolResult> => {
+    let appliedChange: { filePath: string; before?: string; after?: string } | undefined
+    let lockedEditorPath: string | undefined
     try {
       const articleStore = useArticleStore.getState()
       const normalizedFilePath = await ensureSafeWorkspaceRelativePath(params.filePath)
@@ -674,21 +715,47 @@ export const deleteMarkdownFileTool: Tool = {
         return activeEditorMutationBlockedResult()
       }
 
+      if (useArticleStore.getState().activeFilePath === normalizedFilePath) {
+        lockedEditorPath = normalizedFilePath
+        emitter.emit('editor-agent-file-lock', { filePath: lockedEditorPath, locked: true })
+      }
+
       // 统一使用 getFilePathOptions 来处理路径
-      const { path, baseDir } = await getFilePathOptions(normalizedFilePath)
+      const { path, baseDir } = await getEditFilePathOptions(normalizedFilePath, params)
       const fileExists = baseDir
         ? await exists(path, { baseDir })
         : await exists(path)
 
       if (fileExists) {
-        if (baseDir) {
-          await remove(path, { baseDir })
-        } else {
-          await remove(path)
+        const beforeDelete = baseDir ? await readTextFile(path, { baseDir }) : await readTextFile(path)
+        if (typeof params.expectedContent === 'string' && beforeDelete !== params.expectedContent) {
+          return { success: false, error: 'FILE_CONTENT_CHANGED', message: '文件内容已变化，本次删除未应用。' }
         }
+        const didDelete = await runEditorPathWriteTransaction(normalizedFilePath, async ({ hasQueuedSave }) => {
+          const latest = baseDir ? await readTextFile(path, { baseDir }) : await readTextFile(path)
+          if (latest !== beforeDelete || hasQueuedSave()) return false
+          await assertEditWorkspace(params)
+          if (baseDir) await remove(path, { baseDir })
+          else await remove(path)
+          appliedChange = { filePath: normalizedFilePath, before: beforeDelete }
+          if ((useArticleStore.getState().activeFilePath === normalizedFilePath && !prepareActiveEditorDeactivation()) || hasQueuedSave()) {
+            if (baseDir) await writeTextFile(path, beforeDelete, { baseDir })
+            else await writeTextFile(path, beforeDelete)
+            appliedChange = undefined
+            return false
+          }
+          return true
+        })
+        if (!didDelete) return { success: false, error: 'FILE_CONTENT_CHANGED', message: '检测到新的编辑，本次删除未应用。' }
+        appliedChange = { filePath: normalizedFilePath, before: beforeDelete }
       }
 
-      await articleStore.cleanTabsByDeletedFile(normalizedFilePath)
+      if (!await isEditWorkspaceCurrent(params)) {
+        return { success: true, data: { filePath: normalizedFilePath, alreadyAbsent: !fileExists },
+          message: fileExists ? `成功删除文件: ${normalizedFilePath}` : `文件已不存在: ${normalizedFilePath}` }
+      }
+
+      await articleStore.cleanTabsByDeletedFile(normalizedFilePath, undefined, { preservePendingSaves: true })
 
       // 删除向量数据库中的记录
       const filename = normalizedFilePath.split('/').pop() || normalizedFilePath
@@ -718,7 +785,10 @@ export const deleteMarkdownFileTool: Tool = {
       return {
         success: false,
         error: `删除文件失败: ${error}`,
+        data: appliedChange ? { appliedChange } : undefined,
       }
+    } finally {
+      if (lockedEditorPath) emitter.emit('editor-agent-file-lock', { filePath: lockedEditorPath, locked: false })
     }
   },
 }

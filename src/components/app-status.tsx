@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Store } from '@tauri-apps/plugin-store'
 
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
@@ -10,61 +9,109 @@ import {
   warmupRepositoryChecks,
 } from '@/lib/sync/repository-check'
 import { SYNC_REPO_PLATFORMS, type SyncRepoPlatform } from '@/lib/sync/workspace-repos'
-import type { CloudFolderConfig, S3Config, SyncPlatform, WebDAVConfig } from '@/types/sync'
+import type { SyncPlatform } from '@/types/sync'
 
-let nonGitStartupCheck: Promise<void> | undefined
+const nonGitStartupChecks = new Map<string, Promise<void>>()
+let startupTarget: string | undefined
 
-function warmupOtherSyncProviders(): Promise<void> {
-  if (nonGitStartupCheck) return nonGitStartupCheck
-  nonGitStartupCheck = (async () => {
-    try {
-      const store = await Store.load('store.json')
-      const [s3, webdav, cloudFolder, { getDb, initAllDatabases }, { checkSyncProviderStatus }] = await Promise.all([
-        store.get<S3Config>('s3SyncConfig'),
-        store.get<WebDAVConfig>('webdavSyncConfig'),
-        store.get<CloudFolderConfig>('cloudFolderSyncConfig'),
-        import('@/db'),
-        import('@/lib/sync/provider-status'),
-      ])
-      const platforms: SyncPlatform[] = []
-      if (s3?.accessKeyId && s3.secretAccessKey && s3.region && s3.bucket) platforms.push('s3')
-      if (webdav?.url && webdav.username && webdav.password) platforms.push('webdav')
-      if (cloudFolder?.path) platforms.push('cloudFolder')
-      const checks = platforms.map(checkSyncProviderStatus)
-      checks.push((async () => {
-        await initAllDatabases()
-        const database = await getDb()
-        const profiles = await database.select<Array<{ total: number }>>('select count(*) as total from self_hosted_sync_profiles')
-        if ((profiles[0]?.total ?? 0) > 0) await checkSyncProviderStatus('selfHosted')
-      })().catch(error => {
-        console.error('Failed to initialize self-hosted sync status:', error)
-        if (!useSyncStore.getState().providerChecks.selfHosted) {
-          useSyncStore.getState().setProviderCheckSettled('selfHosted')
-        }
-      }))
-      await Promise.allSettled(checks)
-    } catch (error) {
-      console.error('Failed to initialize sync provider status:', error)
-      for (const platform of ['s3', 'webdav', 'cloudFolder', 'selfHosted'] as const) {
-        if (!useSyncStore.getState().providerChecks[platform]) {
-          useSyncStore.getState().setProviderCheckSettled(platform)
-        }
-      }
-    }
-  })()
-  return nonGitStartupCheck
+function isGitPlatform(platform: SyncPlatform): platform is SyncRepoPlatform {
+  return SYNC_REPO_PLATFORMS.some(candidate => candidate === platform)
 }
 
-interface PreviousTargets {
+function warmupCurrentSyncProvider(platform: SyncPlatform, workspacePath: string): Promise<void> {
+  const isActive = () => {
+    const settings = useSettingStore.getState()
+    return useSettingsHydrationStore.getState().status === 'ready'
+      && settings.primaryBackupMethod === platform && settings.workspacePath === workspacePath
+  }
+  if (!isActive()) return Promise.resolve()
+  const key = JSON.stringify([platform, workspacePath])
+  if (startupTarget !== key) {
+    startupTarget = key
+    nonGitStartupChecks.clear()
+  }
+  if (platform === 'local' || isGitPlatform(platform)) return Promise.resolve()
+  const existing = nonGitStartupChecks.get(key)
+  if (existing) return existing
+  const check = (async () => {
+    if (!isActive()) return
+    const { checkSyncProviderStatus } = await import('@/lib/sync/provider-status')
+    if (!isActive()) return
+    await checkSyncProviderStatus(platform, { isActive })
+  })().catch(error => {
+    if (!isActive()) return
+    console.error('Failed to initialize sync provider status:', error)
+    useSyncStore.getState().setProviderCheckSettled(platform)
+  }).finally(() => {
+    // A skipped stale warmup must not suppress a later activation of this target.
+    if (!isActive() && nonGitStartupChecks.get(key) === check) nonGitStartupChecks.delete(key)
+  })
+  nonGitStartupChecks.set(key, check)
+  return check
+}
+
+interface SelfHostedMonitor {
+  subscribers: number
+  stop: () => void
+}
+
+let selfHostedMonitor: SelfHostedMonitor | undefined
+
+function subscribeSelfHostedAvailability(): () => void {
+  if (!selfHostedMonitor) {
+    let disposed = false
+    const isActive = () => !disposed
+      && useSettingsHydrationStore.getState().status === 'ready'
+      && useSettingStore.getState().primaryBackupMethod === 'selfHosted'
+    const check = () => {
+      if (!isActive() || document.visibilityState === 'hidden') return
+      void import('@/lib/sync/provider-status').then(({ checkSyncProviderStatus }) => {
+        if (isActive()) return checkSyncProviderStatus('selfHosted', { isActive })
+      }).catch(error => {
+        if (isActive()) console.warn('[self-hosted-sync] Service availability check failed', error)
+      })
+    }
+    const offline = () => {
+      if (isActive()) useSyncStore.getState().setSelfHostedServiceAvailable(false)
+    }
+    const timer = setInterval(check, 30_000)
+    window.addEventListener('online', check)
+    window.addEventListener('offline', offline)
+    document.addEventListener('visibilitychange', check)
+    selfHostedMonitor = {
+      subscribers: 0,
+      stop: () => {
+        disposed = true
+        clearInterval(timer)
+        window.removeEventListener('online', check)
+        window.removeEventListener('offline', offline)
+        document.removeEventListener('visibilitychange', check)
+      },
+    }
+  }
+  const monitor = selfHostedMonitor
+  monitor.subscribers++
+  return () => {
+    monitor.subscribers--
+    if (monitor.subscribers === 0) {
+      monitor.stop()
+      if (selfHostedMonitor === monitor) selfHostedMonitor = undefined
+    }
+  }
+}
+
+interface PreviousTarget {
+  platform: SyncRepoPlatform
   workspacePath: string
-  repos: Record<SyncRepoPlatform, string>
-  credentials: Record<SyncRepoPlatform, string>
+  repo: string
+  credentials: string
 }
 
 export default function AppStatus() {
   const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
   const selfHostedConnected = useSyncStore(state => state.selfHostedConnected)
   const {
+    primaryBackupMethod,
     accessToken,
     giteeAccessToken,
     gitlabAccessToken,
@@ -80,81 +127,60 @@ export default function AppStatus() {
     giteaCustomSyncRepo,
   } = useSettingStore()
   const [cacheRevision, setCacheRevision] = useState(0)
-  const previousTargetsRef = useRef<PreviousTargets | null>(null)
-  const githubCredential = JSON.stringify([accessToken])
-  const giteeCredential = JSON.stringify([giteeAccessToken])
-  const gitlabCredential = JSON.stringify([gitlabAccessToken, gitlabInstanceType, gitlabCustomUrl])
-  const giteaCredential = JSON.stringify([giteaAccessToken, giteaInstanceType, giteaCustomUrl])
+  const previousTargetRef = useRef<PreviousTarget | null>(null)
+  const platform = isGitPlatform(primaryBackupMethod) ? primaryBackupMethod : null
+  const repos: Record<SyncRepoPlatform, string> = {
+    github: githubCustomSyncRepo,
+    gitee: giteeCustomSyncRepo,
+    gitlab: gitlabCustomSyncRepo,
+    gitea: giteaCustomSyncRepo,
+  }
+  const credentials: Record<SyncRepoPlatform, string> = {
+    github: JSON.stringify([accessToken]),
+    gitee: JSON.stringify([giteeAccessToken]),
+    gitlab: JSON.stringify([gitlabAccessToken, gitlabInstanceType, gitlabCustomUrl]),
+    gitea: JSON.stringify([giteaAccessToken, giteaInstanceType, giteaCustomUrl]),
+  }
+  const currentRepo = platform ? repos[platform].trim() || (workspacePath ? '' : RepoNames.sync) : ''
+  const currentCredentials = platform ? credentials[platform] : ''
 
   useEffect(() => {
-    if (!settingsReady || !selfHostedConnected) return
-    let disposed = false
-    const check = () => {
-      if (document.visibilityState === 'hidden') return
-      void import('@/lib/sync/provider-status').then(({ checkSyncProviderStatus }) => {
-        if (!disposed) return checkSyncProviderStatus('selfHosted')
-      }).catch(error => console.warn('[self-hosted-sync] Service availability check failed', error))
-    }
-    const offline = () => useSyncStore.getState().setSelfHostedServiceAvailable(false)
-    check()
-    const timer = setInterval(check, 30_000)
-    window.addEventListener('online', check)
-    window.addEventListener('offline', offline)
-    document.addEventListener('visibilitychange', check)
-    return () => {
-      disposed = true
-      clearInterval(timer)
-      window.removeEventListener('online', check)
-      window.removeEventListener('offline', offline)
-      document.removeEventListener('visibilitychange', check)
-    }
-  }, [settingsReady, selfHostedConnected])
+    if (!settingsReady || primaryBackupMethod !== 'selfHosted' || !selfHostedConnected) return
+    return subscribeSelfHostedAvailability()
+  }, [settingsReady, primaryBackupMethod, selfHostedConnected])
 
   useEffect(() => {
     if (!settingsReady) return
-    const unsubscribe = subscribeRepositoryChecks(() => setCacheRevision(revision => revision + 1))
-    void warmupRepositoryChecks()
-    void warmupOtherSyncProviders()
-    return unsubscribe
+    return subscribeRepositoryChecks(() => setCacheRevision(revision => revision + 1))
   }, [settingsReady])
 
   useEffect(() => {
     if (!settingsReady) return
-    const previous = previousTargetsRef.current
-    const repos: Record<SyncRepoPlatform, string> = {
-      github: githubCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync),
-      gitee: giteeCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync),
-      gitlab: gitlabCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync),
-      gitea: giteaCustomSyncRepo.trim() || (workspacePath ? '' : RepoNames.sync),
-    }
-    const credentials: Record<SyncRepoPlatform, string> = {
-      github: githubCredential,
-      gitee: giteeCredential,
-      gitlab: gitlabCredential,
-      gitea: giteaCredential,
-    }
-    previousTargetsRef.current = { workspacePath, repos, credentials }
+    void warmupCurrentSyncProvider(primaryBackupMethod, workspacePath)
+  }, [settingsReady, primaryBackupMethod, workspacePath])
 
-    void Promise.all(SYNC_REPO_PLATFORMS.map(platform => {
-      const credentialsChanged = previous !== null && previous.credentials[platform] !== credentials[platform]
-      const bindingChanged = previous !== null && previous.workspacePath === workspacePath && previous.repos[platform] !== repos[platform]
-      return restoreGitSyncProviderStatus(platform, { check: credentialsChanged || bindingChanged })
-    })).catch(error => {
+  useEffect(() => {
+    if (!settingsReady || !platform) {
+      previousTargetRef.current = null
+      return
+    }
+    const previous = previousTargetRef.current
+    previousTargetRef.current = { platform, workspacePath, repo: currentRepo, credentials: currentCredentials }
+    const credentialsChanged = previous?.platform === platform && previous.credentials !== currentCredentials
+    const bindingChanged = previous?.platform === platform && previous.workspacePath === workspacePath
+      && previous.repo !== currentRepo
+
+    let disposed = false
+    void (async () => {
+      await warmupRepositoryChecks()
+      const settings = useSettingStore.getState()
+      if (disposed || settings.primaryBackupMethod !== platform || settings.workspacePath !== workspacePath) return
+      await restoreGitSyncProviderStatus(platform, { check: credentialsChanged || bindingChanged })
+    })().catch(error => {
       console.error('Failed to restore cached repository status:', error)
     })
-  }, [
-    settingsReady,
-    cacheRevision,
-    githubCredential,
-    giteeCredential,
-    gitlabCredential,
-    giteaCredential,
-    workspacePath,
-    githubCustomSyncRepo,
-    giteeCustomSyncRepo,
-    gitlabCustomSyncRepo,
-    giteaCustomSyncRepo,
-  ])
+    return () => { disposed = true }
+  }, [settingsReady, cacheRevision, platform, workspacePath, currentRepo, currentCredentials])
 
   return null
 }

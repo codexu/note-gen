@@ -14,6 +14,7 @@ import { debugSyncPerf } from './remote-file'
 import { buildSyncCommitMessage, generateGitSyncCommitMessage } from './commit-message'
 import { decodeSyncText, sameFileBytes } from './file-content'
 import { getSyncMetadataKey } from './sync-context'
+import { captureFileSyncWorkspaceGuard, getFileSyncProofKey, recordFileSyncProof } from './file-sync-proof'
 import { prepareWorkspacePathUpload, resumeWorkspacePathMoves } from './workspace-path-moves'
 import { supportsCloudFolderWorkspace } from './cloud-folder'
 import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
@@ -182,7 +183,7 @@ class SyncPushQueue {
   }
 
   /**
-   * 添加任务到队列 - 只保留最新的任务
+   * 添加任务到队列 - 每个文件只保留最新的任务
    * 每次调用都会重新开始 10 秒计时
    */
   addTask(path: string) {
@@ -202,16 +203,11 @@ class SyncPushQueue {
     // 重置 lastInputTime，确保从现在开始计算 10 秒
     this.lastInputTime = now
 
-    // 如果当前有任务正在处理
-    if (this.isProcessing) {
-      // Bug fix: Instead of silently dropping, add the task to queue for processing
-      // This ensures all file changes are eventually synced
-      this.queue.push(task)
-      return
-    }
-
-    // 清空队列，只保留最新任务
-    this.queue = [task]
+    // AI may save several Wiki Markdown files in one batch. Deduplicate only
+    // this file so another note's pending upload is never discarded.
+    this.queue = this.queue.filter(pending => pending.path !== path || pending.workspacePath !== task.workspacePath)
+    this.queue.push(task)
+    if (this.isProcessing) return
 
     // 设置防抖定时器
     this.scheduleFlush()
@@ -362,6 +358,8 @@ class SyncPushQueue {
   }
 
   private async pushToRemote(path: string, task: PushTask): Promise<{ success: boolean; sha?: string }> {
+    const proofWorkspaceIsCurrent = captureFileSyncWorkspaceGuard()
+    const proofIsCurrent = () => proofWorkspaceIsCurrent() && this.isTaskCurrent(task)
     const maxRetries = 3
     const syncStartedAt = getPerfNow()
     let previousPerfAt = syncStartedAt
@@ -409,6 +407,8 @@ class SyncPushQueue {
           ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
           : await readFile(pathOptions.path)
         const textContent = decodeSyncText(path, content)
+        const proofKey = /^notegen-wiki-data:/m.test(textContent || '')
+          ? await getFileSyncProofKey(path, provider).catch(() => null) : null
         logPerf('readLocalFile', {
           attempt,
           workspaceCustom: !pathOptions.baseDir,
@@ -446,6 +446,10 @@ class SyncPushQueue {
         if (matchingVersion) {
           if (!this.isTaskCurrent(task)) return { success: false }
           await setLocalRecordedSha(path, matchingVersion, taskSyncMetadataKey)
+          if (proofKey && proofIsCurrent() && proofKey === await getFileSyncProofKey(path, provider).catch(() => null)) {
+            await recordFileSyncProof(proofKey, content, matchingVersion, proofIsCurrent)
+              .catch(error => console.warn('Unable to record accepted upload:', error))
+          }
           emitter.emit('sync-push-completed', { path, success: true, sha: matchingVersion })
           logPerf('completed', { attempt, skippedUpload: true, success: true, hasSha: true })
           return { success: true, sha: matchingVersion }
@@ -500,6 +504,10 @@ class SyncPushQueue {
           // 推送成功后，保存远程 SHA 到本地 store
           if (uploadedSha) {
             await setLocalRecordedSha(path, uploadedSha, taskSyncMetadataKey)
+            if (proofKey && proofIsCurrent() && proofKey === await getFileSyncProofKey(path, provider).catch(() => null)) {
+              await recordFileSyncProof(proofKey, content, uploadedSha, proofIsCurrent)
+                .catch(error => console.warn('Unable to record accepted upload:', error))
+            }
             logPerf('recordLocalSha', {
               attempt,
               hasSha: true,
@@ -614,6 +622,7 @@ class SyncPushQueue {
     path: string,
     expectedWorkspacePath = useSettingStore.getState().workspacePath,
   ): Promise<{ success: boolean; sha?: string }> {
+    const proofWorkspaceIsCurrent = captureFileSyncWorkspaceGuard()
     try {
       await this.ready
       if (
@@ -646,6 +655,8 @@ class SyncPushQueue {
         ? await readFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         : await readFile(pathOptions.path)
       const textContent = decodeSyncText(path, content)
+      const proofKey = /^notegen-wiki-data:/m.test(textContent || '')
+        ? await getFileSyncProofKey(path, provider).catch(() => null) : null
 
       const needsCommitMessage = provider !== 's3' && provider !== 'webdav' && provider !== 'cloudFolder'
       const commitMessage = needsCommitMessage
@@ -675,6 +686,10 @@ class SyncPushQueue {
         // 保存新的 SHA
         if (uploadedSha) {
           await setLocalRecordedSha(path, uploadedSha, forceMetadataKey)
+          if (proofKey && proofWorkspaceIsCurrent() && proofKey === await getFileSyncProofKey(path, provider).catch(() => null)) {
+            await recordFileSyncProof(proofKey, content, uploadedSha, proofWorkspaceIsCurrent)
+              .catch(error => console.warn('Unable to record accepted upload:', error))
+          }
         }
         emitter.emit('sync-push-completed', { path, success: true, sha: uploadedSha })
         return { success: true, sha: uploadedSha }

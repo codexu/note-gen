@@ -33,17 +33,25 @@ export function ModelSelect({
   emptyLabel,
   clearTooltip,
   onValueChange,
+  value,
+  persistSelection = true,
 }: {
   modelKey: string
   emptyLabel?: string
   clearTooltip?: string
   onValueChange?: (model: string) => void | Promise<void>
+  value?: string
+  persistSelection?: boolean
 }) {
   const [groupedModels, setGroupedModels] = useState<GroupedModel[]>([])
   const { setCompletionModel, setEditorModel, setMarkDescModel, setPrimaryModel, setImageMethodModel, setAudioModel, setSttModel, setEmbeddingModel, setRerankingModel } = useSettingStore()
   const [model, setModel] = useState<string>('')
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('settings.defaultModel')
+
+  useEffect(() => {
+    if (value !== undefined) setModel(value)
+  }, [value])
 
   // 获取正确的存储键名
   function getStoreKey(modelKey: string): string {
@@ -168,6 +176,10 @@ export function ModelSelect({
     })
 
     setGroupedModels(models)
+    if (value !== undefined) {
+      setModel(value)
+      return
+    }
     
     const storeKey = getStoreKey(modelKey)
     const primaryModel = await store.get<string>(storeKey)
@@ -176,6 +188,11 @@ export function ModelSelect({
   }
 
   async function modelSelectChangeHandler(e: string) {
+    if (!persistSelection) {
+      await onValueChange?.(e)
+      if (value === undefined) setModel(e)
+      return
+    }
     setPrimaryModelHandler(e)
     const store = await Store.load('store.json');
     const storeKey = getStoreKey(modelKey)
@@ -185,6 +202,11 @@ export function ModelSelect({
   }
 
   async function resetDefaultModel() {
+    if (!persistSelection) {
+      await onValueChange?.('')
+      if (value === undefined) setModel('')
+      return
+    }
     const store = await Store.load('store.json');
     const storeKey = getStoreKey(modelKey)
     store.set(storeKey, '')

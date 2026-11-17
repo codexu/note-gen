@@ -7,7 +7,7 @@ import type { Chat } from '@/db/chats'
 import type { AgentArtifactPaths } from '@/lib/agent/artifacts'
 import { responseCatalog, getChatResponseText } from '@/lib/chat-ui/response-catalog'
 import { getChatResponseCompletion, parseChatUiBlocks } from '@/lib/chat-ui/serialization'
-import { getChatResponseSources } from '@/lib/chat-ui/response-host'
+import { getChatResponseCitedSources, getChatResponseWorkspaceFingerprint } from '@/lib/chat-ui/response-host'
 import { getWorkspacePath } from '@/lib/workspace'
 import { getSkillWorkspaceIdentity } from '@/lib/skills/runtime'
 import { cn } from '@/lib/utils'
@@ -135,16 +135,18 @@ export function ChatResponse({ chat, text, streaming = false, artifacts }: ChatR
   const spec = response?.spec ?? preview?.spec
   const context = useMemo(() => ({
     artifacts: artifacts ?? EMPTY_ARTIFACT_LINKS,
-    sources: getChatResponseSources(chat.ragSourceDetails, live?.ragSourceDetails),
-    workspaceFingerprint: response?.workspaceFingerprint,
+    sources: getChatResponseCitedSources(chat.agentHistory, chat.ragSourceDetails, live?.ragSourceDetails),
+    workspaceFingerprint: response?.workspaceFingerprint ?? getChatResponseWorkspaceFingerprint(chat.agentHistory),
     isPreview,
-  }), [artifacts, chat.ragSourceDetails, live?.ragSourceDetails, response?.workspaceFingerprint, isPreview])
+  }), [artifacts, chat.agentHistory, chat.ragSourceDetails, live?.ragSourceDetails, response?.workspaceFingerprint, isPreview])
 
-  if (!spec) return text || streaming ? <ChatPreview text={text} streaming={streaming} artifacts={artifacts} /> : null
+  if (!spec) return text || streaming ? <ChatResponseContext.Provider value={context}>
+    <ChatPreview text={text} streaming={streaming} artifacts={artifacts} />
+  </ChatResponseContext.Provider> : null
 
   const fallbackText = isPreview ? '' : text || getChatResponseText(spec)
   const fallback = isPreview ? null : fallbackText
-    ? <ChatPreview text={fallbackText} artifacts={artifacts} />
+    ? <ChatResponseContext.Provider value={context}><ChatPreview text={fallbackText} artifacts={artifacts} /></ChatResponseContext.Provider>
     : <Alert><AlertDescription>{t('renderError')}</AlertDescription></Alert>
   return <section aria-label={response?.title || preview?.title || responseT('generating')} aria-busy={isPreview}
     className="streamdown-document flex min-w-0 w-full select-text flex-col gap-3" style={{ fontSize: `${(16 * contentTextScale) / 100}px` }}>

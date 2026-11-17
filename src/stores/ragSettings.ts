@@ -132,6 +132,9 @@ const useRagSettingsStore = create<RagSettingsState>((set, get) => ({
         ? 'ragKnowledgeIndexPaused'
         : `rag${key.charAt(0).toUpperCase() + key.slice(1)}`;
       await store.set(storageKey, resolvedValue);
+      if (typeof window !== 'undefined' && (key === 'enabledSourceTypes' || key === 'excludedPaths')) {
+        window.dispatchEvent(new Event('wiki-settings-changed'));
+      }
 
       if (key === 'chunkSize' && get().chunkOverlap >= (resolvedValue as number)) {
         const chunkOverlap = Math.max(0, (resolvedValue as number) - 50);

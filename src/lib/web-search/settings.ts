@@ -21,6 +21,7 @@ export const WEB_SEARCH_API_PROVIDERS: WebSearchApiProvider[] = [
   'tavily',
   'brave',
   'exa',
+  'keenable',
 ]
 
 export interface WebSearchSettings {
@@ -76,6 +77,7 @@ function isWebSearchProvider(value: unknown): value is WebSearchProvider {
     || value === 'tavily'
     || value === 'brave'
     || value === 'exa'
+    || value === 'keenable'
 }
 
 function findSelectedModel(aiConfigs: AiConfig[], modelId: unknown): ModelConfig | undefined {

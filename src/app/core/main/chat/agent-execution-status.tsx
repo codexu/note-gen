@@ -18,6 +18,7 @@ export function AgentExecutionStatus({ chat }: { chat?: Chat }) {
       isRunning={agentState.isRunning}
       toolCalls={agentState.toolCalls}
       traceEvents={agentState.traceEvents || []}
+      changes={agentState.changes || []}
       loadedSkills={agentState.loadedSkills || []}
     />
   )

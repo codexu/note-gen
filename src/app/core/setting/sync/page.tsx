@@ -74,7 +74,7 @@ import { RepoNames, SyncStateEnum } from '@/lib/sync/github.types'
 import { checkSyncProviderStatus } from '@/lib/sync/provider-status'
 import { hasConfiguredSelfHostedSync } from '@/lib/diagnostics/self-hosted'
 import type { SyncRepoPlatform, WorkspaceSyncRepos } from '@/lib/sync/workspace-repos'
-import useSettingStore from '@/stores/setting'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { SYNC_PLATFORMS, SYNC_PLATFORM_INFO, type SyncPlatform } from '@/types/sync'
@@ -104,6 +104,7 @@ export default function SyncPage() {
   const pathname = usePathname()
   const syncSettingsOpen = useSettingsDialogStore(state => state.open && state.activeSection === 'sync')
   const active = syncSettingsOpen || pathname === '/core/setting/sync'
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
   const {
     primaryBackupMethod,
     autoSync,
@@ -141,7 +142,8 @@ export default function SyncPage() {
   const [activeTab, setActiveTab] = useState('connection')
   const [isLoading, setIsLoading] = useState(true)
   const [checkingPlatforms, setCheckingPlatforms] = useState<Set<SyncPlatform>>(new Set())
-  const checkingPlatformsRef = useRef<Set<SyncPlatform>>(new Set())
+  const checkingPlatformsRef = useRef(new Map<SyncPlatform, number>())
+  const checkRequestRef = useRef(0)
   const [workspaceRepos, setWorkspaceRepos] = useState<Record<string, WorkspaceSyncRepos>>({})
   const [hasSelfHostedConfiguration, setHasSelfHostedConfiguration] = useState(false)
 
@@ -223,26 +225,36 @@ export default function SyncPage() {
     void loadPrimaryBackupMethod()
   }, [])
 
-  const checkPlatformStatus = useCallback(async (targetPlatform: SyncPlatform) => {
-    if (targetPlatform === 'local') return
-    if (checkingPlatformsRef.current.has(targetPlatform)) return
+  const checkPlatformStatus = useCallback(async (targetPlatform: SyncPlatform, isActive: () => boolean = () => true) => {
+    if (targetPlatform === 'local' || !isActive()) return
 
-    checkingPlatformsRef.current.add(targetPlatform)
-    setCheckingPlatforms(new Set(checkingPlatformsRef.current))
+    const requestId = ++checkRequestRef.current
+    checkingPlatformsRef.current.set(targetPlatform, requestId)
+    setCheckingPlatforms(new Set(checkingPlatformsRef.current.keys()))
     try {
       if (targetPlatform === 'github' || targetPlatform === 'gitee' || targetPlatform === 'gitlab' || targetPlatform === 'gitea') {
         const { refreshGitSyncProviderStatus } = await import('@/lib/sync/repository-check')
-        await refreshGitSyncProviderStatus(targetPlatform)
+        if (!isActive()) return
+        await refreshGitSyncProviderStatus(targetPlatform, { isActive })
       } else {
-        await checkSyncProviderStatus(targetPlatform)
+        await checkSyncProviderStatus(targetPlatform, { isActive })
       }
     } catch (error) {
       console.error('Failed to refresh sync provider status:', error)
     } finally {
-      checkingPlatformsRef.current.delete(targetPlatform)
-      setCheckingPlatforms(new Set(checkingPlatformsRef.current))
+      if (checkingPlatformsRef.current.get(targetPlatform) === requestId) {
+        checkingPlatformsRef.current.delete(targetPlatform)
+        setCheckingPlatforms(new Set(checkingPlatformsRef.current.keys()))
+      }
     }
   }, [])
+
+  useEffect(() => {
+    if (!active || isLoading || !settingsReady) return
+    let cancelled = false
+    void checkPlatformStatus(platform, () => !cancelled)
+    return () => { cancelled = true }
+  }, [active, isLoading, settingsReady, platform, workspacePath, checkPlatformStatus])
 
   function getSyncState(targetPlatform: SyncPlatform) {
     if (checkingPlatforms.has(targetPlatform)) return SyncStateEnum.checking
@@ -297,6 +309,7 @@ export default function SyncPage() {
   }
 
   function renderSyncContent() {
+    if (isLoading || !settingsReady) return null
     switch (platform) {
       case 'local':
         return (
@@ -321,7 +334,7 @@ export default function SyncPage() {
       case 'cloudFolder':
         return <CloudFolderSync />
       case 'selfHosted':
-        return <SelfHostedSync />
+        return <SelfHostedSync active={active} />
     }
   }
 

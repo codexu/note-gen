@@ -21,6 +21,9 @@ import { codeHighlighter } from '@/lib/code-highlighter'
 import type { AgentArtifactPaths } from '@/lib/agent/artifacts'
 import { ArtifactLink, ArtifactLinksContext, EMPTY_ARTIFACT_LINKS, artifactLinkIndex } from './artifact-link'
 import { remarkArtifacts } from './remark-artifacts'
+import { remarkSourceLinks, sourceLinkIndex } from './remark-source-links'
+import { useChatResponseContext } from '@/components/chat-ui/response-context'
+import { ResponseSourceLink } from '@/components/chat-ui/response-controls'
 import 'katex/dist/katex.min.css'
 import 'streamdown/styles.css'
 import './streamdown-renderer.css'
@@ -65,10 +68,16 @@ const MarkdownInteractionContext = createContext(true)
 
 function StreamdownLink({ children, node, ...props }: ComponentProps<'a'> & { node?: unknown }) {
   const interactive = useContext(MarkdownInteractionContext)
+  const { sources } = useChatResponseContext()
   void node
   if (!interactive) return <span>{children}</span>
   const index = artifactLinkIndex(props.href)
   if (index !== null) return <ArtifactLink index={index} href={props.href!}>{children}</ArtifactLink>
+  const sourceIndex = sourceLinkIndex(props.href)
+  if (sourceIndex !== null) {
+    const source = sources[sourceIndex]
+    return source ? <ResponseSourceLink sourceKey={source.sourceKey} href={props.href!}>{children}</ResponseSourceLink> : <span>{children}</span>
+  }
   return (
     <a {...props} target="_blank" rel="noopener noreferrer">
       {children}
@@ -166,16 +175,19 @@ export function StreamdownRenderer({
   deferImages = false,
   exportCodeHighlighter,
 }: StreamdownRendererProps) {
+  const { sources, workspaceFingerprint } = useChatResponseContext()
   const rendererPlugins = useMemo<PluginConfig>(() => exportCodeHighlighter
     ? { ...plugins, code: exportCodeHighlighter }
     : plugins, [exportCodeHighlighter])
   const remarkPlugins = useMemo<NonNullable<ComponentProps<typeof Streamdown>['remarkPlugins']>>(() => [
     ...Object.values(defaultRemarkPlugins),
     [remarkArtifacts, { targets: artifacts.artifacts, paths: artifacts.paths }],
-  ], [artifacts])
+    [remarkSourceLinks, { sourceKeys: sources.map(source => source.sourceKey) }],
+  ], [artifacts, sources])
   // Streamdown's memo comparison ignores remarkPlugins; new output metadata
   // must also update an otherwise unchanged final reply.
-  const artifactKey = JSON.stringify({ paths: artifacts.paths, targets: artifacts.allowedPaths })
+  const artifactKey = JSON.stringify({ paths: artifacts.paths, targets: artifacts.allowedPaths,
+    sources: sources.map(source => source.sourceKey), workspaceFingerprint })
   return (
     <div className={cn('streamdown-document w-full text-foreground', className)}>
       <MarkdownInteractionContext.Provider value={interactive}>

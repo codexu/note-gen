@@ -6,17 +6,19 @@ import { getBM25Index, parseBM25ChunkKey } from '@/lib/bm25'
 import { getKnowledgeSourceDocument } from '@/lib/knowledge-content'
 import { getKnowledgeSettings, isKnowledgeSourceEnabled } from '@/lib/knowledge-settings'
 import { getIdentifierTerms, getLexicalTerms } from '@/lib/lexical-tokenizer'
+import { DEFAULT_EXCLUDED_RAG_PATHS, isPathAllowedForRag } from '@/lib/rag-retrieval-policy'
 import {
   isKnowledgeSourceType,
   type KnowledgeReadPage,
   type KnowledgeSearchCandidate,
+  type KnowledgeSearchResults,
   type KnowledgeSearchFragment,
   type KnowledgeSource,
   type KnowledgeSourceType,
 } from '@/types/knowledge'
 
 export interface KnowledgeSearchOptions {
-  mode?: 'rag' | 'keyword'
+  mode?: 'auto' | 'rag' | 'keyword'
   sourceTypes?: KnowledgeSourceType[]
   sourceMode?: 'prefer' | 'only'
   folderPath?: string
@@ -109,17 +111,22 @@ function inferDateRange(query: string): { start: number; end: number } | null {
   return null
 }
 
-function matchesScope(source: KnowledgeSource, options: KnowledgeSearchOptions) {
+export function matchesKnowledgeSearchScope(source: KnowledgeSource, options: KnowledgeSearchOptions) {
+  if (options.sourceMode === 'only' && options.sourceTypes?.length
+    && !options.sourceTypes.includes(source.sourceType)) return false
+  if (options.folderPath && source.sourceType !== 'article') return false
+  if (typeof options.tagId === 'number' && options.tagId > 0 && source.sourceType !== 'record') return false
   if (options.folderPath && source.sourceType === 'article') {
-    const path = source.locator.filePath || source.sourceId
-    const folder = options.folderPath.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
+    const normalize = (path: string) => path.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+/g, '/').replace(/\/+$/, '')
+    const path = normalize(source.locator.filePath || source.sourceId)
+    const folder = normalize(options.folderPath)
     if (!(path === folder || path.startsWith(`${folder}/`))) return false
   }
   if (typeof options.tagId === 'number' && options.tagId > 0 && source.sourceType === 'record' &&
     source.locator.tagId !== options.tagId && !source.locator.tagIds?.includes(options.tagId)) {
     return false
   }
-  return true
+  return !options.sourceFilter || options.sourceFilter(source)
 }
 
 function lexicalScore(content: string, query: string) {
@@ -140,7 +147,7 @@ async function resolveFragment(sourceKey: string, chunkId: number, content: stri
   }
 }
 
-export async function searchKnowledge(
+async function searchOriginalKnowledge(
   query: string,
   options: KnowledgeSearchOptions = {}
 ): Promise<KnowledgeSearchCandidate[]> {
@@ -153,14 +160,17 @@ export async function searchKnowledge(
   const resultCount = options.limit ?? await store.get<number>('ragResultCount') ?? 5
   const similarityThreshold = await store.get<number>('ragSimilarityThreshold') ?? 0.25
   const settings = await getKnowledgeSettings()
+  const excludedPaths = await store.get<string[]>('ragExcludedPaths') ?? DEFAULT_EXCLUDED_RAG_PATHS
+  const excludedFiles = new Set(await store.get<string[]>('vectorExcludedFiles') ?? [])
   const shares = sourceShares(normalizedQuery, options)
   const allowedTypes = Object.keys(shares).filter(isKnowledgeSourceType)
   const dateRange = inferDateRange(normalizedQuery)
-  const sources = (await getKnowledgeSources({ sourceTypes: allowedTypes, statuses: ['ready', 'failed'] }))
+  const sources = (await getKnowledgeSources({ sourceTypes: allowedTypes }))
     .filter(source => (
       isKnowledgeSourceEnabled(source, settings)
-      && matchesScope(source, options)
-      && (!options.sourceFilter || options.sourceFilter(source))
+      && (source.sourceType !== 'article' || (isPathAllowedForRag(source.locator.filePath || source.sourceId, { excludedPaths })
+        && !excludedFiles.has(source.locator.filePath || source.sourceId)))
+      && matchesKnowledgeSearchScope(source, options)
       && (!dateRange || (source.updatedAt >= dateRange.start && source.updatedAt < dateRange.end))
     ))
   if (sources.length === 0) return []
@@ -184,7 +194,7 @@ export async function searchKnowledge(
     if (!current || candidate.score > current.score) candidates.set(key, candidate)
   }
 
-  if (options.mode !== 'keyword' && readyVectorKeys.size > 0) {
+  if (options.mode !== 'keyword' && settings.semanticSearchEnabled && readyVectorKeys.size > 0) {
     try {
       const queryEmbedding = await fetchEmbedding(normalizedQuery)
       if (queryEmbedding) {
@@ -260,14 +270,14 @@ export async function searchKnowledge(
     }
   })
   if (sourceCandidates.length === 0) return []
-  const reranked = await rerankDocuments(
+  const rankingInput = sourceCandidates.map((candidate, id) => ({
+    id, filename: candidate.sourceKey, content: candidate.content, similarity: candidate.score,
+  }))
+  const reranked = options.mode === 'keyword' || !settings.semanticSearchEnabled
+    ? rankingInput
+    : await rerankDocuments(
     normalizedQuery,
-    sourceCandidates.map((candidate, id) => ({
-      id,
-      filename: candidate.sourceKey,
-      content: candidate.content,
-      similarity: candidate.score,
-    })),
+    rankingInput,
     similarityThreshold
   )
   const strongestScore = reranked.reduce(
@@ -323,6 +333,100 @@ export async function searchKnowledge(
 }
 
 const READ_PAGE_SIZE = 7000
+
+export async function searchKnowledgeWithWiki(
+  query: string, options: KnowledgeSearchOptions = {},
+): Promise<KnowledgeSearchResults> {
+  const [{ getWikiSettings, isWikiSourceSelected }, { getWikiContext, captureWikiWorkspaceGuard, assertWikiContextCurrent }, { searchWiki },
+    { listWikiSourceStates }, { resolveWikiSourceReference }] = await Promise.all([
+    import('@/lib/wiki/settings'), import('@/lib/wiki/context'), import('@/lib/wiki/search'), import('@/db/wiki'),
+    import('@/lib/wiki/sources'),
+  ])
+  const isCurrent = captureWikiWorkspaceGuard()
+  const context = await getWikiContext()
+  const assertCurrent = async () => {
+    if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
+    await assertWikiContextCurrent(context.id)
+    if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
+  }
+  const settings = await getWikiSettings(context.id)
+  await assertCurrent()
+  const store = await Store.load('store.json')
+  const limit = options.limit ?? await store.get<number>('ragResultCount') ?? 5
+  const hinted = options.sourceTypes?.length ? options.sourceTypes : inferSourceHints(query)
+  const wikiOptions = { ...options, limit,
+    ...(hinted.length && isOnlySourceRequest(query) ? { sourceTypes: hinted, sourceMode: 'only' as const } : {}) }
+  const wiki = settings.enabled ? await searchWiki(query, wikiOptions) : []
+  await assertCurrent()
+  const states = settings.enabled && !settings.semanticSearchEnabled ? new Map<string,
+    Awaited<ReturnType<typeof listWikiSourceStates>>[number]>() : null
+  if (states) for (const state of await listWikiSourceStates(context.id)) {
+    if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
+    // Article/canvas keys are already portable. Only records need resolving a
+    // device-local SQLite ID; avoid rereading every original a second time.
+    const source = state.sourceType === 'record'
+      ? (await resolveWikiSourceReference(state.source))?.source : state.source
+    if (source) states.set(source.sourceKey, { ...state, sourceKey: source.sourceKey, source })
+  }
+  const original = await searchOriginalKnowledge(query, { ...options, limit,
+    sourceFilter: states ? source => {
+      const state = states.get(source.sourceKey)
+      return Boolean(state && !['deleted', 'excluded', 'unavailable'].includes(state.status)
+        && isWikiSourceSelected(state.source, settings) && (!options.sourceFilter || options.sourceFilter(source)))
+    } : options.sourceFilter })
+  await assertCurrent()
+  const results = new Map<string, KnowledgeSearchCandidate>()
+  for (const hit of wiki) {
+    for (const source of hit.sourceRefs) {
+      const current = results.get(source.sourceKey)
+      results.set(source.sourceKey, {
+        sourceKey: source.sourceKey, sourceType: source.sourceType,
+        sourceId: source.sourceKey.slice(source.sourceKey.indexOf(':') + 1), title: source.title,
+        locator: source.locator, updatedAt: hit.page.updatedAt,
+        relevanceScore: Math.max(current?.relevanceScore ?? 0, hit.score),
+        fragments: current?.fragments ?? [],
+        wikiPageIds: [...new Set([...(current?.wikiPageIds ?? []), hit.page.id])], evidenceKind: 'wiki',
+      })
+    }
+  }
+  for (const hit of original) {
+    const previous = results.get(hit.sourceKey)
+    results.set(hit.sourceKey, previous ? { ...hit,
+      relevanceScore: Math.max(previous.relevanceScore, hit.relevanceScore),
+      fragments: [...previous.fragments, ...hit.fragments].slice(0, 3),
+      wikiPageIds: previous.wikiPageIds, evidenceKind: 'wiki' } : { ...hit, evidenceKind: 'source' })
+  }
+  return {
+    sources: [...results.values()].sort((left, right) => right.relevanceScore - left.relevanceScore).slice(0, limit),
+    wikiPages: wiki.map(hit => ({
+      contextId: context.id,
+      pageId: hit.page.id, title: hit.page.title, excerpt: hit.content.slice(0, 2400),
+      relevanceScore: hit.score, updatedAt: hit.page.updatedAt,
+      sourceRefs: hit.sourceRefs.map(source => ({ sourceKey: source.sourceKey,
+        stableId: source.stableId, contentHash: source.contentHash })),
+      scope: { sourceTypes: wikiOptions.sourceTypes, sourceMode: wikiOptions.sourceMode,
+        folderPath: wikiOptions.folderPath, tagId: wikiOptions.tagId, sourceFilter: wikiOptions.sourceFilter },
+    })),
+  }
+}
+
+/** Preserve source-oriented callers while keeping each Wiki preview only once. */
+export async function searchKnowledge(query: string, options: KnowledgeSearchOptions = {}): Promise<KnowledgeSearchCandidate[]> {
+  const results = await searchKnowledgeWithWiki(query, options)
+  const pages = new Map(results.wikiPages.map(page => [page.pageId, page]))
+  const previewed = new Set<string>()
+  return results.sources.map(source => {
+    const previews: KnowledgeSearchFragment[] = []
+    for (const pageId of source.wikiPageIds ?? []) {
+      if (previews.length >= 3) break
+      const page = pages.get(pageId)
+      if (!page || previewed.has(pageId)) continue
+      previewed.add(pageId)
+      previews.push({ content: `[Wiki: ${page.title}]\n${page.excerpt}` })
+    }
+    return { ...source, fragments: [...previews, ...source.fragments].slice(0, 3) }
+  })
+}
 
 export async function readKnowledgeSourcePage(sourceKey: string, cursor?: string): Promise<KnowledgeReadPage | null> {
   const source = await getKnowledgeSource(sourceKey)

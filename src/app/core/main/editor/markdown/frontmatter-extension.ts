@@ -18,6 +18,8 @@ const MARKER_RE = /^<!--notegen:frontmatter:([^>]*)-->(?:\r?\n)*/
 export function encodeFrontmatterForEditor(markdown: string): string {
   const { block, body } = splitFrontmatter(markdown)
   if (!block) return markdown
+  // 上游 LLM Wiki 的 frontmatter 由 WikiMetadata 節點保管（唯讀、Agent 不可改），不包成屬性卡片。
+  if (/^notegen-wiki-origin:/m.test(block)) return markdown
   // 本文前原有的空行跟著 marker 走（marker 的 token raw 會帶著它們），
   // 區塊間距由 BlockRoundtrip 還原；沒有它的編輯器仍是一個空行。
   return `${MARKER_PREFIX}${encodeURIComponent(block)}${MARKER_SUFFIX}\n${body}`

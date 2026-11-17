@@ -348,6 +348,7 @@ export default function RootLayout({
     let stopManagedBackup: (() => void) | undefined
     let stopGitVersionAutoSnapshot: (() => void) | undefined
     let stopQuickRecord: (() => void) | undefined
+    let stopWiki: (() => void) | undefined
 
     void reportAppStart()
 
@@ -374,6 +375,10 @@ export default function RootLayout({
         void reindexPendingMemories()
         await initAutoDataSyncRuntime()
         if (cancelled) return
+        const { initWikiRuntime } = await import('@/lib/wiki/runtime')
+        const cleanupWiki = await initWikiRuntime()
+        if (cancelled) { cleanupWiki(); return }
+        stopWiki = cleanupWiki
         stopManagedBackup = initManagedBackupRuntime()
         stopGitVersionAutoSnapshot = initGitVersionAutoSnapshotRuntime()
 
@@ -408,6 +413,7 @@ export default function RootLayout({
       stopManagedBackup?.()
       stopGitVersionAutoSnapshot?.()
       stopQuickRecord?.()
+      stopWiki?.()
     }
   }, [])
 

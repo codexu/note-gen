@@ -160,7 +160,10 @@ export async function getKnowledgeSourceDocument(sourceKey: string): Promise<Kno
   const parsed = parseKnowledgeSourceKey(sourceKey)
   if (!parsed) return null
   if (parsed.sourceType === 'record') {
-    const mark = await getMarkById(Number(parsed.sourceId))
+    const id = Number(parsed.sourceId)
+    // Portable Wiki identities are UUIDs, never local SQLite row numbers.
+    if (!/^\d+$/.test(parsed.sourceId) || !Number.isSafeInteger(id) || id <= 0) return null
+    const mark = await getMarkById(id)
     return mark ? getRecordKnowledgeDocument(mark) : null
   }
   if (parsed.sourceType === 'canvas') {

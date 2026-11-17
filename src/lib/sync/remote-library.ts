@@ -83,6 +83,8 @@ const STATIC_ASSET_CONTENT_TYPES: Record<string, string> = {
 
 export type RemoteLibraryOptions = {
   includeStaticAssets?: boolean
+  /** Optional workspace subtree; avoids listing unrelated note directories. */
+  folderPath?: string
   platform?: SyncPlatform
   scope?: RemoteRepositoryScope
   onListProgress?: (path: string, files: number) => void
@@ -157,6 +159,8 @@ function isLibraryPath(path: string, options: RemoteLibraryOptions): boolean {
   if (!path || path.startsWith('.') || path.split('/').some(part => part.startsWith('.'))) {
     return false
   }
+  const folder = options.folderPath?.replace(/^\/+|\/+$/g, '')
+  if (folder && !path.startsWith(`${folder}/`)) return false
   return options.includeStaticAssets === true || MARKDOWN_FILE_PATTERN.test(path)
 }
 
@@ -175,7 +179,7 @@ async function listGitRemoteFiles(
 ): Promise<RemoteLibraryFile[]> {
   const repo = await getGitRepository(platform, options.scope || 'workspace')
   const directoryCache = new Map<string, Promise<unknown>>()
-  const queue = ['']
+  const queue = [options.folderPath?.replace(/^\/+|\/+$/g, '') || '']
   const visited = new Set<string>()
   const files: RemoteLibraryFile[] = []
 
@@ -231,7 +235,8 @@ async function listObjectStorageFiles(
   if (platform === 's3') {
     const config = await store.get<S3Config>('s3SyncConfig')
     if (!config) throw new Error('S3 未配置')
-    const objects = await s3ListObjects(config, options.scope === 'data' ? '.data/' : '')
+    const folder = options.folderPath?.replace(/^\/+|\/+$/g, '')
+    const objects = await s3ListObjects(config, options.scope === 'data' ? '.data/' : folder ? `${folder}/` : '')
     return objects
       .filter(object => isLibraryPath(object.key, options))
       .map(object => ({
@@ -244,7 +249,7 @@ async function listObjectStorageFiles(
 
   const config = await store.get<WebDAVConfig>('webdavSyncConfig')
   if (!config) throw new Error('WebDAV 未配置')
-  const queue = ['']
+  const queue = [options.folderPath?.replace(/^\/+|\/+$/g, '') || '']
   const visited = new Set<string>()
   const files: RemoteLibraryFile[] = []
 

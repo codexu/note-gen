@@ -5,6 +5,12 @@ import type { CanvasDocument } from '@/types/canvas'
 
 // 定义事件类型
 interface Events {
+  'workspace-file-changed': {
+    kind: 'created' | 'changed' | 'deleted' | 'moved' | 'rescan'
+    path: string
+    workspaceRoot: string
+    previousPath?: string
+  };
   'self-hosted-workspaces-discovered': { profileId: string };
   'self-hosted-conflicts-changed': undefined;
   'self-hosted-conflict-resolved': { workspaceRoot: string; path: string };
@@ -187,10 +193,22 @@ interface Events {
   // Agent 编辑器工具事件 - 内联定义避免重复
   'editor-get-selection': { resolve: (data: { text: string; from: number; to: number; html?: string; startLine?: number; endLine?: number }) => void };
   'editor-get-content': { resolve: (data: { markdown: string; text: string; wordCount: number; charCount: number; totalLines?: number; numberedLines?: string; version: number; selection?: { text: string; from: number; to: number; startLine: number; endLine: number } }) => void };
-  'editor-insert': { filePath: string; content: string; position?: number; replaceSelection?: boolean; expectedVersion?: number; expectedSelection?: string; expectedSelectionToken?: string; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number; versionMismatch?: boolean }) => void };
+  'editor-insert': { isCancelled?: () => boolean; filePath: string; content: string; position?: number; replaceSelection?: boolean; expectedVersion?: number; expectedSelection?: string; expectedSelectionToken?: string; resolve: (result: { success: boolean; insertedLength: number; newCursorPosition?: number; versionMismatch?: boolean; error?: string }) => void };
   'editor-undo': void;
   'editor-redo': void;
+  'editor-agent-restore': {
+    filePath: string
+    expectedContent: string
+    content: string
+    resolve: (result: { ok: boolean; reason?: 'changed' | 'unavailable' | 'failed' | 'busy' }) => void
+  };
+  'editor-agent-file-lock': { filePath: string; locked: boolean };
+  'editor-agent-diff-stale': { filePath: string; version?: number };
   'editor-agent-diff-preview': {
+    parseInlineMarkdown?: boolean
+    onSkipped?: () => void
+    version?: number
+    baseContent?: string
     originalContent: string;
     modifiedContent: string;
     filePath?: string;
@@ -213,6 +231,7 @@ interface Events {
   'canvas-agent-preview-clear': void;
   'canvas-auto-layout': { recordHistory?: boolean };
   'editor-replace': {
+    isCancelled?: () => boolean
     filePath: string;
     content?: string;
     range?: { from: number; to: number };

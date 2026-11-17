@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import useTagStore from "@/stores/tag"
 import { useTranslations } from 'next-intl'
 import { useTextSize } from "@/contexts/text-size-context"
+import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 
 function ItemIcon({ isLocked=false, isPin=false }) {
   if (isLocked) {
@@ -102,6 +103,7 @@ export function TagItem(
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
+        <WikiMenuItems kind="record-tag" id={tag.name} label={tag.name} />
         <ContextMenuItem inset disabled={tag.isLocked} onClick={togglePin} menuType="record">
           { tag.isPin ? t('record.mark.tag.unpin') : t('record.mark.tag.pin') }
         </ContextMenuItem>

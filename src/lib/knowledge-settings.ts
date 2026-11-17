@@ -4,12 +4,14 @@ import type { KnowledgeSource, KnowledgeSourceType } from '@/types/knowledge'
 export interface KnowledgeSettings {
   enabledSourceTypes: KnowledgeSourceType[]
   globalSemanticSearchEnabled: boolean
+  semanticSearchEnabled: boolean
   indexPaused: boolean
 }
 
 export const DEFAULT_KNOWLEDGE_SETTINGS: KnowledgeSettings = {
   enabledSourceTypes: ['article', 'record', 'canvas'],
   globalSemanticSearchEnabled: true,
+  semanticSearchEnabled: true,
   indexPaused: false,
 }
 
@@ -20,6 +22,8 @@ export async function getKnowledgeSettings(): Promise<KnowledgeSettings> {
       ?? DEFAULT_KNOWLEDGE_SETTINGS.enabledSourceTypes,
     globalSemanticSearchEnabled: await store.get<boolean>('ragGlobalSemanticSearchEnabled')
       ?? DEFAULT_KNOWLEDGE_SETTINGS.globalSemanticSearchEnabled,
+    semanticSearchEnabled: await store.get<boolean>('wikiSemanticSearchEnabled')
+      ?? DEFAULT_KNOWLEDGE_SETTINGS.semanticSearchEnabled,
     indexPaused: await store.get<boolean>('ragKnowledgeIndexPaused')
       ?? DEFAULT_KNOWLEDGE_SETTINGS.indexPaused,
   }

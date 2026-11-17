@@ -33,7 +33,6 @@ export function recordSyncTiming(
     timestamp: Date.now(),
     ...details,
   }
-  console.info(`[${category}]`, JSON.stringify(entry))
   timingWriteQueue = timingWriteQueue
     .then(() => persistSyncTiming(entry))
     .catch(error => console.warn('Failed to persist sync timing:', error))

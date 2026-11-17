@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { exists, readFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
@@ -96,8 +96,15 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [conflictTargetId, setConflictTargetId] = useState('')
   const [currentLocalRoot, setCurrentLocalRoot] = useState('')
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
 
   const refresh = useCallback(async () => {
+    if (!mounted.current) return
     const [{ client }, nextLibraries, conflictRows, localRoot] = await Promise.all([
       authenticatedClient(profileId),
       listLibraries(profileId),
@@ -112,21 +119,26 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
       ),
       getCurrentWorkspaceRoot(),
     ])
+    if (!mounted.current) return
     setLibraries(nextLibraries)
     setCurrentLocalRoot(localRoot)
     setConflicts(conflictRows)
-    setPendingInvitations(await client.pendingInvitations())
+    const invitations = await client.pendingInvitations()
+    if (!mounted.current) return
+    setPendingInvitations(invitations)
     const retainedSelectedId = nextLibraries.some(library => library.id === selectedId)
       ? selectedId
       : null
     const nextSelected = nextLibraries.find(library => library.localRoot === localRoot)?.id
       ?? retainedSelectedId ?? nextLibraries[0]?.id ?? null
     setSelectedId(nextSelected)
-    setMembers(nextSelected ? await client.members(nextSelected).catch(() => []) : [])
+    const nextMembers = nextSelected ? await client.members(nextSelected).catch(() => []) : []
+    if (mounted.current) setMembers(nextMembers)
   }, [profileId, selectedId])
 
   useEffect(() => {
     void refresh().catch(error => {
+      if (!mounted.current) return
       toast.error(error instanceof Error ? error.message : t('operationFailed'))
     })
   }, [refresh, t])

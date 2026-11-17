@@ -51,6 +51,8 @@ A local-first Markdown app that helps you collect scattered information and orga
 | [AIHubMix](https://aihubmix.com/?aff=6rfO) | Sponsors model services for the project. |
 | [PackyCode](https://www.packyapi.ai/register?aff=NqBq) | Unified API access to leading AI models, with dedicated Codex and Claude Code routes. |
 | [Infistar.cc](https://www.infistar.cc/register?aff=G55F2Z5Q&ref_source=link) | OpenAI-compatible model services supporting NoteGen, with multimodal and knowledge base capabilities. |
+| [讯度云](https://xunduyun.com) | High-bandwidth cloud servers in Hong Kong. |
+| [![球球 Token](https://files.seeusercontent.com/2026/11/10/cYw5/qiuqiutoken-mobile-320x100.png)](https://go.qiuqiutoken.net/ABK) | One-stop AI API gateway (Claude / GPT / Gemini / Grok) featuring premium routing, failover clusters, and dedicated account pools. Pay-as-you-go with corporate invoicing—claim your free trial credits and starter perks today! |
 
 ## Capture without interrupting your thoughts
 

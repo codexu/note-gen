@@ -9,6 +9,11 @@ export default function Home() {
   async function init() {
     const store = await Store.load('store.json')
     let currentPage = await store.get<string>('currentPage')
+    if (currentPage?.startsWith('/core/knowledge') || currentPage?.startsWith('/mobile/knowledge')) {
+      currentPage = isMobileDevice() ? '/mobile/chat' : '/core/main'
+      await store.set('currentPage', currentPage)
+      await store.save()
+    }
     
     if (isMobileDevice()) {
       // 移动端逻辑

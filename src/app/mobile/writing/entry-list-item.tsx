@@ -166,17 +166,19 @@ export function EntryListItem({
                 <FileText className="size-4 shrink-0 text-muted-foreground" />
               )}
               <p className="min-w-0 flex-1 truncate text-sm font-medium">{entry.name}</p>
-              <FileTreeDecorations
-                iconSize="size-4"
-                syncStatus={entry.syncStatus}
-                syncTitle={syncStatusLabel}
-                alwaysShowSynced
-              />
             </div>
             {subtitle && (
               <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
             )}
           </button>
+          <FileTreeDecorations
+            path={entry.relativePath}
+            kind={entry.type}
+            iconSize="size-4"
+            syncStatus={entry.syncStatus}
+            syncTitle={syncStatusLabel}
+            alwaysShowSynced
+          />
           <MobileActionDrawer
             title={entry.name}
             trigger={

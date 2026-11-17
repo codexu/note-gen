@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { usePathname } from 'next/navigation'
 
 import { GithubImageHosting } from './github'
 import PicgoImageHosting from './picgo'
@@ -62,7 +63,9 @@ import {
 } from '@/lib/image-hosting-config'
 import { SyncStateEnum } from '@/lib/sync/github.types'
 import useImageStore from '@/stores/imageHosting'
-import useSettingStore from '@/stores/setting'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
+import { useSettingsDialogStore } from '@/stores/settings-dialog'
+import { ImageHostingSettingsActivityProvider } from './use-image-hosting-settings-activity'
 
 type ImageHostingSection = 'local' | ImageHostingType
 
@@ -82,6 +85,13 @@ const IMAGE_HOSTING_ICONS: Record<ImageHostingType, LucideIcon> = {
 
 export default function ImageHostingPage({ mobile = false }: { mobile?: boolean }) {
   const t = useTranslations()
+  const pathname = usePathname()
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const hostingInitialized = useImageStore(state => state.initialized)
+  const dialogActive = useSettingsDialogStore(state => state.open && state.activeSection === 'imageHosting')
+  const settingsActive = settingsReady && hostingInitialized && (dialogActive
+    || pathname === '/core/setting/imageHosting'
+    || pathname === '/mobile/setting/pages/imageHosting')
   const {
     mainImageHosting,
     setMainImageHosting,
@@ -96,7 +106,14 @@ export default function ImageHostingPage({ mobile = false }: { mobile?: boolean 
   const activeSection: ImageHostingSection = useImageRepo
     ? normalizedImageHosting.value
     : 'local'
-  const [section, setSection] = useState<ImageHostingSection>(activeSection)
+  const [selection, setSelection] = useState<{ section: ImageHostingSection; activeSection: ImageHostingSection }>({
+    section: activeSection,
+    activeSection,
+  })
+  // Hydration or changing the enabled provider selects its panel immediately,
+  // before a previously selected provider can start an automatic check.
+  const section = selection.activeSection === activeSection ? selection.section : activeSection
+  const setSection = (section: ImageHostingSection) => setSelection({ section, activeSection })
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
@@ -110,7 +127,7 @@ export default function ImageHostingPage({ mobile = false }: { mobile?: boolean 
   ])
 
   useEffect(() => {
-    setSection(activeSection)
+    setSelection({ section: activeSection, activeSection })
   }, [activeSection])
 
   const provider = section === 'local' ? normalizedImageHosting.value : section
@@ -382,7 +399,9 @@ export default function ImageHostingPage({ mobile = false }: { mobile?: boolean 
                 </CardHeader>
               </Card>
 
-              {renderProviderSettings()}
+              <ImageHostingSettingsActivityProvider active={settingsActive} provider={provider}>
+                {renderProviderSettings()}
+              </ImageHostingSettingsActivityProvider>
             </>
           )}
         </div>

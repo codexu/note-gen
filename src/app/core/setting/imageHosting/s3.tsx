@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +19,7 @@ import {
   ItemTitle,
 } from '@/components/ui/item';
 import { ResponsiveSelect } from '@/components/responsive-select';
+import { useImageHostingSettingsActivity } from './use-image-hosting-settings-activity';
 import type {
   ObjectStorageAddressingStyle,
   ObjectStoragePreset,
@@ -47,9 +48,15 @@ const DEFAULT_CONFIG: S3Config = {
 export function S3ImageHosting() {
   const t = useTranslations();
   const { setS3Config, s3State, setS3State } = useImageStore();
+  const { active, getCheckGuard } = useImageHostingSettingsActivity()
   
   const [config, setConfig] = useState<S3Config>(DEFAULT_CONFIG);
   const [showSecretKey, setShowSecretKey] = useState(false);
+  const [loaded, setLoaded] = useState(false)
+  const configRef = useRef(config)
+  configRef.current = config
+  const requestRef = useRef(0)
+  const saveRevisionRef = useRef(0)
   const preset = config.preset || 'custom'
   const endpoint = getObjectStorageEndpoint(config)
   const credentialLabels = getCredentialLabels(preset)
@@ -64,9 +71,11 @@ export function S3ImageHosting() {
 
   // 初始化配置
   useEffect(() => {
+    let cancelled = false
     const initConfig = async () => {
       const store = await Store.load('store.json');
       const savedConfig = await store.get<S3Config>('s3Config');
+      if (cancelled) return
       if (savedConfig) {
         const normalizedConfig = normalizeObjectStorageConfig({
           ...DEFAULT_CONFIG,
@@ -74,28 +83,41 @@ export function S3ImageHosting() {
         });
         setConfig(normalizedConfig);
         await setS3Config(normalizedConfig);
-        // 如果配置完整，自动进行连接检测
-        if (isObjectStorageConfigComplete(normalizedConfig)) {
-          setS3State(SyncStateEnum.checking);
-          try {
-            const isConnected = await testS3Connection(normalizedConfig);
-            if (isConnected) {
-              setS3State(SyncStateEnum.success);
-            } else {
-              setS3State(SyncStateEnum.fail);
-            }
-          } catch (error) {
-            setS3State(SyncStateEnum.fail);
-            console.error('S3 connection test failed:', error);
-          }
-        }
       }
+      if (!cancelled) setLoaded(true)
     };
-    initConfig();
+    void initConfig().catch(error => console.error('Failed to load S3 image hosting config:', error));
+    return () => { cancelled = true }
   }, [setS3Config]);
+
+  const checkConnection = useCallback(async (testConfig: S3Config, scopeActive = getCheckGuard()) => {
+    if (!scopeActive()) return
+    const request = ++requestRef.current
+    const isCurrent = () => scopeActive() && requestRef.current === request
+    if (!isObjectStorageConfigComplete(testConfig)) {
+      setS3State(SyncStateEnum.fail)
+      return
+    }
+    setS3State(SyncStateEnum.checking)
+    try {
+      const connected = await testS3Connection(testConfig)
+      if (isCurrent()) setS3State(connected ? SyncStateEnum.success : SyncStateEnum.fail)
+    } catch (error) {
+      if (!isCurrent()) return
+      setS3State(SyncStateEnum.fail)
+      console.error('S3 connection test failed:', error)
+    }
+  }, [getCheckGuard, setS3State])
+
+  useEffect(() => {
+    if (active && loaded) void checkConnection(configRef.current)
+  }, [active, loaded, checkConnection])
 
   // 自动保存和测试配置
   const handleConfigChange = async (newConfig: S3Config) => {
+    const scopeActive = getCheckGuard()
+    const revision = ++saveRevisionRef.current
+    requestRef.current++
     setConfig(newConfig);
     
     // 自动保存配置
@@ -105,23 +127,8 @@ export function S3ImageHosting() {
       console.error('Failed to save S3 config:', error);
     }
     
-    // 如果必填字段都已填写，自动测试连接
-    if (isObjectStorageConfigComplete(newConfig)) {
-      setS3State(SyncStateEnum.checking);
-
-      try {
-        const isConnected = await testS3Connection(newConfig);
-        if (isConnected) {
-          setS3State(SyncStateEnum.success);
-        } else {
-          setS3State(SyncStateEnum.fail);
-        }
-      } catch (error) {
-        setS3State(SyncStateEnum.fail);
-        console.error('S3 connection test failed:', error);
-      }
-    } else {
-      setS3State(SyncStateEnum.fail);
+    if (scopeActive() && saveRevisionRef.current === revision) {
+      await checkConnection(newConfig, scopeActive)
     }
   };
 

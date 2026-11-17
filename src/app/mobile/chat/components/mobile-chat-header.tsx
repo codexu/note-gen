@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import dynamic from "next/dynamic"
-import { History, MessageSquareDashed, MessageSquarePlus, Search, Trash2 } from "lucide-react"
+import { BookOpen, History, MessageSquareDashed, MessageSquarePlus, Search, Trash2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -23,6 +23,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { MobileMeSheet } from "@/app/mobile/components/mobile-me-sheet"
+import { useWikiNavigation } from '@/components/wiki/use-wiki-navigation'
 
 const SearchDialog = dynamic(
   () => import('@/components/search-dialog').then(module => module.SearchDialog),
@@ -41,6 +42,8 @@ function formatRelativeTime(timestamp: number, locale: string): string {
 }
 
 export function MobileChatHeader() {
+  const { openFolder: openWikiFolder } = useWikiNavigation()
+  const tWiki = useTranslations('wiki')
   const {
     startNewConversation,
     startTemporaryConversation,
@@ -87,6 +90,7 @@ export function MobileChatHeader() {
         <MobileMeSheet />
 
         <div className="ml-auto flex shrink-0 items-center">
+          <Button variant="ghost" size="icon" aria-label={tWiki('open')} onClick={() => void openWikiFolder()}><BookOpen /></Button>
           <Button
             variant="ghost"
             size="icon"

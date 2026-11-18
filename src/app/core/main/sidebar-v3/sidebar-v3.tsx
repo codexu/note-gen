@@ -23,6 +23,7 @@ import useHomeStore from '@/stores/home'
 import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
+import useSettingStore from '@/stores/setting'
 import useThreadsStore from '@/stores/threads'
 import { FileSidebar } from '../file'
 import { FileActions } from '../file/file-actions'
@@ -186,7 +187,7 @@ export function SidebarV3() {
   useEffect(() => { void load() }, [load])
   // 開發預覽用（不進 production）：截圖時從頁面塞示範檔案樹，window.__almanacSidebar.article.setState({ fileTree })
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') (window as unknown as Record<string, unknown>).__almanacSidebar = { article: useArticleStore }
+    if (process.env.NODE_ENV !== 'production') (window as unknown as Record<string, unknown>).__almanacSidebar = { article: useArticleStore, setting: useSettingStore }
   }, [])
 
   return (

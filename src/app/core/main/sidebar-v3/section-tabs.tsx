@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils'
 import useCollectStore from '@/stores/collect'
 import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
-import type { CollectTab, KnowledgeTab } from '@/lib/sidebar-v3/nav'
+import type { CollectTab } from '@/lib/sidebar-v3/nav'
+import { useKnowledgeTabs } from './use-knowledge-tabs'
 
 const TAB = 'inline-flex h-[26px] cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-[12.5px] text-muted-ink outline-none transition-colors duration-100 hover:bg-hover hover:text-ink focus-visible:ring-1 focus-visible:ring-ring/65'
 const TAB_ACTIVE = 'bg-active font-[560] text-ink'
@@ -60,22 +61,24 @@ export function CollectTabs({ active }: { active: CollectTab }) {
   )
 }
 
-/** 知識頁頁首：時間線｜畫布｜標籤｜提示詞。提示詞庫是自己的頁，切過去仍留在同一組分頁。 */
-export function KnowledgeTabs({ active }: { active: KnowledgeTab }) {
+const BUILT_IN_LABELS: Record<string, string> = { timeline: 'Timeline', canvases: 'Canvas', noteTags: 'Tags', prompts: 'Prompts', outline: 'Outline' }
+
+/** 知識頁頁首：時間線｜畫布｜標籤｜提示詞，加上大綱與外掛視圖。提示詞庫是自己的頁，切過去仍留在同一組分頁。 */
+export function KnowledgeTabs({ active }: { active: string }) {
   const t = useTranslations('sidebarV3.tabs')
   const isV3 = useUiV3()
+  const tabs = useKnowledgeTabs()
   if (!isV3) return null
   const show = useKnowledgeOverlay.getState().show
   return (
     <Tabs
       label={t('knowledgeGroup')}
       active={active}
-      items={[
-        { key: 'timeline', label: 'Timeline', onSelect: () => show('timeline') },
-        { key: 'canvases', label: 'Canvas', onSelect: () => show('canvases') },
-        { key: 'noteTags', label: 'Tags', onSelect: () => show('noteTags') },
-        { key: 'prompts', label: 'Prompts', onSelect: () => usePromptLibraryStore.getState().show() },
-      ]}
+      items={tabs.map(tab => ({
+        key: tab.id,
+        label: tab.title ?? BUILT_IN_LABELS[tab.id] ?? tab.id,
+        onSelect: tab.id === 'prompts' ? () => usePromptLibraryStore.getState().show() : () => show(tab.id),
+      }))}
     />
   )
 }

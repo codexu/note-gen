@@ -206,7 +206,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | fork：`src/app/core/main/today-v3/timeline.tsx`、`today-v3-screen.tsx`、`src/lib/today-v3/layout.ts`；`messages/*.json` | almanac ALMNC-16 整合：排程員的時段提案（`usePendingSlots`）畫在 v5 今天主畫面的時間軸上（虛線框、收下／不要），動作走等你定的 `acceptDecision`／`rejectDecision` | 把 16.1 的提案接到 16.2 的時間軸，對齊 v5 樣稿 |
 | 2026-11-19 | `src/app/core/main/left-sidebar.tsx` | v3 時早退回 `<SidebarV3 />`（import＋一行），classic 路徑不變 | ALMNC-20：v5 側欄方案 B |
 | 2026-11-19 | `src/app/core/main/page.tsx` | v3 時左欄固定 240px（defaultSize／minSize／maxSize 用 px）；classic 維持百分比 | ALMNC-20：側欄固定 240px |
-| 2026-11-19 | `src/app/core/main/home/home-service.tsx` | 知識頁覆蓋層加入互斥、開檔收起，並掛上 `<KnowledgeScreen />` | ALMNC-20：知識導覽項 |
+| 2026-11-19 | `src/app/core/main/home/home-service.tsx` | 知識頁覆蓋層加入互斥、開檔收起，並掛上 `<KnowledgeScreen />`（知識頁含大綱與外掛左側欄視圖分頁） | ALMNC-20：知識導覽項 |
 | 2026-11-19 | `src/app/core/main/collect/collect-screen.tsx` | 頁首加「收集｜Inbox」分頁（v3 才顯示） | ALMNC-20：Inbox 收進收集 |
 | 2026-11-19 | `src/app/core/main/inbox/inbox-screen.tsx` | 頁首加「收集｜Inbox」分頁（v3 才顯示） | ALMNC-20：Inbox 收進收集 |
 | 2026-11-19 | `src/app/core/main/prompt-library/prompt-library-screen.tsx` | 頁首加知識分頁（v3 才顯示） | ALMNC-20：提示詞庫收進知識 |

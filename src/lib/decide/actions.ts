@@ -2,6 +2,7 @@
 // 不在這裡留任何待決紀錄。
 import { agentTaskCenter, applyTaskDraft, discardTaskDrafts } from '@/lib/agent-tasks'
 import { dailyNotePath, toDateKey } from '@/lib/daily/format'
+import { jobCenter } from '@/lib/jobs'
 import { readNote } from '@/lib/daily/note-io'
 import { QUICK_ADD_SECTION } from '@/lib/today/today-actions'
 import useCollectStore from '@/stores/collect'
@@ -53,6 +54,10 @@ export async function acceptDecision(item: DecideItem): Promise<AcceptOutcome> {
         } }
       : {}
   }
+  if (ref.source === 'job') {
+    await jobCenter.act(ref.jobId, ref.stepId, 'accept')
+    return {}
+  }
   await applyTaskDraft(ref.taskId, ref.draftId)
   const draft = agentTaskCenter.get(ref.taskId)?.drafts.find(entry => entry.id === ref.draftId)
   if (draft?.state === 'failed') throw new DraftNotApplied(ref.taskId, draft.error === 'CONFLICT', draft.error)
@@ -62,6 +67,7 @@ export async function acceptDecision(item: DecideItem): Promise<AcceptOutcome> {
 export async function rejectDecision(item: DecideItem): Promise<void> {
   for (const ref of refs(item)) {
     if (ref.source === 'collect') useCollectStore.getState().reject(ref.itemId, ref.proposalId)
+    else if (ref.source === 'job') await jobCenter.act(ref.jobId, ref.stepId, 'reject')
     else await discardTaskDrafts(ref.taskId, [ref.draftId])
   }
 }

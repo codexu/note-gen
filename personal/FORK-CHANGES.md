@@ -161,6 +161,24 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `src/app/core/main/home/cards/needs-list.tsx`、`src/app/core/main/home/cards/tasks-card.tsx`、`src/app/core/main/left-sidebar.tsx`、`src/app/core/main/home/home-service.tsx`、`messages/{zh-TW,zh,en}.json`；fork：`src/app/core/main/decide/`、`src/lib/decide/`、`src/stores/decide.ts`、`src/lib/collect/persist.ts`、`src/stores/collect.ts` | almanac ALMNC-10 等你定：`needs-list` 在新介面（`useUiV3()`）最上面多列等你定項目（最多 3 條＋「全部查看」，各有收下／不要），總數含它；`tasks-card` 新介面不再列整任務的「待審草稿」（草稿已逐條在等你定）；左側欄新介面多一個 Decide 入口與待決數；`home-service` 掛 `<DecideScreen />`；messages 新頂層 key `decide`。清單由收集提案（保存在 store.json 的 `collectItems`）與任務中心待審草稿投影，不另存待決狀態 | ALMNC-10 |
 | 2026-11-18 | `src/components/plugins/plugin-right-sidebar.tsx`、`src/app/core/main/chat/chat-content.tsx`、`src/app/core/main/left-sidebar.tsx`、`src/app/core/main/home/home-service.tsx`、`src/app/core/main/anywhere/chat-panel.tsx`、`messages/{zh-TW,zh,en}.json`；fork：`src/app/core/main/threads/`、`src/lib/threads/`、`src/stores/threads.ts` | almnc14 對話頁（P4-A）：左側欄在新介面多一個 Threads 入口，打開全頁覆蓋層：左邊對話串列表（依專案分組／最近、搜尋、移到專案），右邊就是既有對話面板。`plugin-right-sidebar.tsx` 把 `<Chat />` 包進 `<ChatDock>`（對話頁開著時，把右側欄那份對話面板的 DOM 搬進對話頁，不重新掛載；輸入框、審批、修改比對都沒改）；`chat-content.tsx` 在訊息下加一行 `<ThreadMessageCards>`（提案卡、開工卡結果，v3 才畫）；`left-sidebar.tsx`／`home-service.tsx` 各加入口與掛載；`anywhere/chat-panel.tsx` 的「移到側欄」改成「移到對話頁」。專案分組存 store.json 的 `threadProjects`（syncId → 專案名），不改資料表；新字串在頂層 `threads` | 對話頁需要列出全部對話串、專案分組與訊息內嵌卡片，又不能重寫對話內部 |
 | 2026-11-18 | `src/app/core/main/home/home-service.tsx`；fork：`src/lib/fork-overlays/exclusive.ts` | almanac 段1 整合：首頁、Inbox、提示詞庫、收集、等你定、對話頁六個全頁覆蓋層集中互斥（任一頁打開時關其他頁），切回 classic 時關掉 V3 專屬頁 | 各頁手寫互斥在頁面增加後漏接（等你定與對話頁互不關閉） |
+| 2026-11-18 | `src/app/core/main/chat/chat-content.tsx` | 在訊息流掛載 JobMessages | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/app/core/main/fork-services.tsx` | 啟動主視窗的開工卡狀態訂閱 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/app/core/main/threads/threads-screen.tsx` | 在對話頁加入新增開工卡入口 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/app/core/main/threads/thread-cards.tsx` | 隱藏舊的開工卡示範資料 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/app/core/main/agent-tasks/agent-tasks-sheet.tsx` | 開工卡的任務操作回對話卡片；保留草稿審核 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/db/agent-tasks.ts` | 重啟時保留載入開工卡的任務嘗試紀錄 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/lib/agent-tasks/task-center.ts` | 支援事先保留任務 ID，開工卡任務先持久化再公布狀態 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/lib/agents/index.ts` | P5 派工入口接受排程已保留的任務 ID | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/lib/decide/project.ts` | 合併開工卡的待驗收結果投影 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/lib/decide/use-decisions.ts` | 訂閱開工卡來源並納入統一投影 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/lib/decide/actions.ts` | 開工卡結果的收下與拒絕更新原步驟 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/app/core/main/decide/decide-parts.tsx` | 加入開工卡結果的圖示 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/app/core/main/decide/decide-screen.tsx` | 顯示開工卡的結果、驗收標準及操作 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/app/core/main/decide/decide-needs.tsx` | 首頁的開工卡結果連到等你定詳情 | ALMNC-13：開工卡 |
+| 2026-11-18 | `messages/en.json` | 新增 jobs 英文字串 | ALMNC-13：開工卡 |
+| 2026-11-18 | `messages/zh-TW.json` | 新增 jobs 繁中字串 | ALMNC-13：開工卡 |
+| 2026-11-18 | `messages/zh.json` | 新增 jobs 簡中字串 | ALMNC-13：開工卡 |
+| 2026-11-18 | Fork：`src/lib/jobs/`、`src/app/core/main/jobs/` | 新增開工卡規劃、排程、持久化、結果卡和測試 | ALMNC-13：開工卡 |
 
 ## 刻意不改的東西
 

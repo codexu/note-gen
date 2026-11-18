@@ -10,7 +10,7 @@ import type { DecideItem, DecideKind, DecidePreview, DiffPreview } from '@/lib/d
 import { useAgentTaskStore } from '@/lib/agent-tasks'
 
 export const KIND_ICON: Record<DecideKind, typeof FileText> = {
-  note: FileText, task: ListTodo, event: CalendarClock,
+  job: ListTodo, note: FileText, task: ListTodo, event: CalendarClock,
   create: FilePlus, update: FilePen, delete: Trash2, move: MoveRight, copy: Copy, folder: FolderPlus,
 }
 
@@ -31,7 +31,7 @@ export function DiffBlock({ diff, className }: { diff: DiffPreview, className?: 
 }
 
 /** 這一條接受後寫到哪裡（一句話）。 */
-export function destinationText(t: ReturnType<typeof useTranslations>, preview: DecidePreview): string {
+export function destinationText(t: ReturnType<typeof useTranslations>, preview: Exclude<DecidePreview, { type: 'job' }>): string {
   if (preview.type === 'newNote') return t('dest.note')
   if (preview.type === 'journal') return preview.fileMissing ? t('dest.journalNew', { section: preview.section }) : t('dest.journal', { section: preview.section })
   return preview.targetPath ? `${preview.path} → ${preview.targetPath}` : preview.path

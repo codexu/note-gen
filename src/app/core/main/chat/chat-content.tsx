@@ -49,6 +49,7 @@ import { PluginChatMessageActions } from '@/components/plugins/plugin-embedded-v
 import { getAgentArtifactPaths } from '@/lib/agent/artifacts'
 import { ChatUiMessages } from '@/components/chat-ui/chat-ui-messages'
 import { ChatResponse } from '@/components/chat-ui/chat-response'
+import { JobMessages } from '../jobs/job-result'
 import { ThreadMessageCards } from '../threads/thread-cards'
 
 interface DisplayedConversationCompaction {
@@ -238,6 +239,8 @@ const ChatContent = React.memo(function ChatContent() {
                 <ChatEmpty />
               </MessageScrollerItem>
             )}
+
+            <JobMessages conversationId={currentConversationId} />
 
             {compactionRunning && (
               <MessageScrollerItem className="w-full">

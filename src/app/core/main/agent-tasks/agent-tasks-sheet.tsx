@@ -16,6 +16,8 @@ import {
   inspectTaskDrafts,
   useAgentTaskStore,
 } from '@/lib/agent-tasks'
+import { useUiV3 } from '@/lib/fork-ui'
+import { isJobTaskId } from '@/lib/jobs/task-id'
 import type { DraftReviewView } from '@/lib/agent-tasks/review'
 import type { AgentTask, AgentTaskStatus, DraftChange } from '@/lib/agent-tasks/types'
 
@@ -42,6 +44,7 @@ const GROUP_TONE: Record<Group, string> = {
 
 function TaskRow({ task, onReview }: { task: AgentTask; onReview: () => void }) {
   const t = useTranslations('agentTasks')
+  const managed = isJobTaskId(task.id)
   const pending = task.drafts.filter(draft => draft.state === 'pending').length
   return (
     <div className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent">
@@ -55,16 +58,16 @@ function TaskRow({ task, onReview }: { task: AgentTask; onReview: () => void }) 
         </div>
       </div>
       {task.status === 'awaiting_review' && <Button size="sm" onClick={onReview}>{t('actions.review')}</Button>}
-      {(task.status === 'running' || task.status === 'queued') && (
+      {!managed && (task.status === 'running' || task.status === 'queued') && (
         <Button size="sm" variant="ghost" onClick={() => void agentTaskCenter.cancel(task.id)}>
           {task.status === 'running' ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" />}
           {t('actions.cancel')}
         </Button>
       )}
-      {(task.status === 'interrupted' || task.status === 'failed') && (
+      {!managed && (task.status === 'interrupted' || task.status === 'failed') && (
         <Button size="sm" variant="secondary" onClick={() => void agentTaskCenter.resume(task.id)}><Play className="size-3.5" />{t('actions.resume')}</Button>
       )}
-      {(task.status === 'completed' || task.status === 'cancelled' || task.status === 'interrupted' || task.status === 'failed') && (
+      {!managed && (task.status === 'completed' || task.status === 'cancelled' || task.status === 'interrupted' || task.status === 'failed') && (
         <Button size="icon" variant="ghost" className="size-7" onClick={() => void agentTaskCenter.remove(task.id)} aria-label={t('actions.remove')}><Trash2 className="size-3.5" /></Button>
       )}
     </div>
@@ -191,7 +194,9 @@ function Review({ task, onBack }: { task: AgentTask; onBack: () => void }) {
 
 export function AgentTasksSheet() {
   const t = useTranslations('agentTasks')
-  const { tasks, sheetOpen, reviewTaskId, closeSheet, setReviewTask } = useAgentTaskStore()
+  const v3 = useUiV3()
+  const { tasks: allTasks, sheetOpen, reviewTaskId, closeSheet, setReviewTask } = useAgentTaskStore()
+  const tasks = v3 ? allTasks : allTasks.filter(task => !isJobTaskId(task.id))
   const reviewTask = reviewTaskId ? tasks.find(task => task.id === reviewTaskId) : undefined
 
   return (

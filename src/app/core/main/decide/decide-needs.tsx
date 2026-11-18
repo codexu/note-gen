@@ -14,6 +14,7 @@ export const HOME_DECIDE_LIMIT = 3
 
 export function DecideNeeds() {
   const t = useTranslations('decide')
+  const jobT = useTranslations('jobs')
   const items = useDecisions()
   const show = useDecideStore(state => state.show)
   const { busy, accept, reject } = useDecideActions()
@@ -28,10 +29,19 @@ export function DecideNeeds() {
             <span className="flex shrink-0 items-center gap-1 rounded-md bg-card px-1.5 py-0.5 text-xs text-ink"><Icon className="size-3" aria-hidden />{t('needsLabel')}</span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm" title={item.title}>{item.source === 'draft' ? item.summary || item.title : item.title}</div>
-              <div className="truncate text-xs text-muted-foreground">{[t(`kind.${item.kind}`), item.when, t('from', { origin: item.origin })].filter(Boolean).join(' · ')}</div>
+              <div className="truncate text-xs text-muted-foreground">{[item.kind === 'job' ? jobT('result') : t(`kind.${item.kind}`), item.when, t('from', { origin: item.origin })].filter(Boolean).join(' · ')}</div>
             </div>
-            <Button size="sm" variant="secondary" disabled={busy === item.key} onClick={() => void accept(item)}>{t('accept')}</Button>
-            <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" disabled={busy === item.key} onClick={() => void reject(item)} aria-label={t('reject')} title={t('reject')}><X className="size-3.5" aria-hidden /></Button>
+            {item.source === 'job' ? (
+              <Button size="sm" variant="secondary" onClick={() => {
+                show()
+                useDecideStore.getState().select(item.key)
+              }}>{jobT('openResult')}</Button>
+            ) : (
+              <>
+                <Button size="sm" variant="secondary" disabled={busy === item.key} onClick={() => void accept(item)}>{t('accept')}</Button>
+                <Button size="icon" variant="ghost" className="size-7 text-muted-foreground" disabled={busy === item.key} onClick={() => void reject(item)} aria-label={t('reject')} title={t('reject')}><X className="size-3.5" aria-hidden /></Button>
+              </>
+            )}
           </li>
         )
       })}

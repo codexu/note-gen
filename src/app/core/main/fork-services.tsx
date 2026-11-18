@@ -10,6 +10,7 @@ import { DailyNavShortcuts } from './daily/daily-nav-shortcuts'
 import { ReminderService } from './daily/reminder-service'
 import { LinkRewritePrompt } from './link-rewrite/link-rewrite-prompt'
 import { AgentTaskService } from './agent-tasks/agent-task-service'
+import { JobService } from './jobs/job-service'
 import { HomeService } from './home/home-service'
 import { ConversationSummaryDialog } from './conversation-summary/summary-dialog'
 import { AnywhereService } from './anywhere/anywhere-service'
@@ -43,6 +44,7 @@ export function ForkServices() {
       <ReminderService />
       <LinkRewritePrompt />
       <AgentTaskService />
+      <JobService />
       <HomeService />
       <ConversationSummaryDialog />
       <AnywhereService />

@@ -5,10 +5,12 @@
 // 接受或拒絕是回頭改來源的狀態，項目自然從清單消失。
 import { proposalNoteContent, proposalTaskLine } from '@/lib/collect/builders'
 import { insertLinesInSection } from '@/lib/today/today-model'
+import { projectJobDecisions } from '@/lib/jobs/projection'
+import type { Job } from '@/lib/jobs/schedule'
 import type { Proposal } from '@/lib/collect/types'
 
-export type DecideSource = 'collect' | 'draft'
-export type DecideKind = 'note' | 'task' | 'event' | 'create' | 'update' | 'delete' | 'move' | 'copy' | 'folder'
+export type DecideSource = 'collect' | 'draft' | 'job'
+export type DecideKind = 'job' | 'note' | 'task' | 'event' | 'create' | 'update' | 'delete' | 'move' | 'copy' | 'folder'
 
 /** 接受後檔案會多／少哪幾行。context 是變動處上面最近的一行（讓人看出插在哪）。 */
 export interface DiffPreview {
@@ -20,6 +22,7 @@ export interface DiffPreview {
 }
 
 export type DecidePreview =
+  | { type: 'job', result: string, criterion: string, diff: null }
   | { type: 'journal', section: string, fileMissing: boolean, diff: DiffPreview }
   | { type: 'newNote', diff: DiffPreview }
   | { type: 'file', path: string, targetPath?: string, diff: DiffPreview | null }
@@ -45,6 +48,7 @@ export interface DecideItem {
 }
 
 export type DecideRef =
+  | { source: 'job', jobId: string, stepId: string }
   | { source: 'collect', itemId: string, proposalId: string }
   | { source: 'draft', taskId: string, draftId: string }
 
@@ -90,6 +94,7 @@ export interface ProjectInput {
   items: CollectItemLike[]
   tasks: TaskLike[]
   journal: JournalSnapshot | null
+  jobs?: Job[]
 }
 
 export const PREVIEW_MAX_LINES = 8
@@ -209,7 +214,7 @@ function projectDrafts(tasks: TaskLike[]): DecideItem[] {
 
 /** 等你定清單：兩個來源合併，等得最久的在最上面；同時間維持來源內的原順序。 */
 export function projectDecisions(input: ProjectInput): DecideItem[] {
-  const all = [...projectCollect(input.items, input.journal), ...projectDrafts(input.tasks)]
+  const all = [...projectCollect(input.items, input.journal), ...projectDrafts(input.tasks), ...projectJobDecisions(input.jobs ?? [])]
   return all
     .map((item, index) => ({ item, index }))
     .sort((x, y) => x.item.at - y.item.at || x.index - y.index)

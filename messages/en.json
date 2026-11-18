@@ -7815,6 +7815,91 @@
       "scopeDescription": "Include or exclude original material from Wiki in its folder details. This folder stores organized results and is never used as a source again."
     }
   },
+  "collect": {
+    "title": "Collect",
+    "subtitle": "Drop anything in one box, split it into proposals, take them one by one",
+    "inputLabel": "Content to collect",
+    "placeholder": "Paste a link or some text, or drop in a screenshot or file. A one-line to-do works too.",
+    "detect": {
+      "empty": "Type is detected automatically",
+      "link": {
+        "name": "Link",
+        "hint": "→ saved as a note"
+      },
+      "task": {
+        "name": "To-do",
+        "hint": "→ added to today's journal; a time makes it a slot"
+      },
+      "text": {
+        "name": "Text",
+        "hint": "→ saved as a note, actions pulled out"
+      }
+    },
+    "send": "Collect",
+    "pickFile": "Image or file",
+    "try": "Try:",
+    "sample": {
+      "link": "Paste a link",
+      "text": "Some text",
+      "task": "Budget due tomorrow 3pm",
+      "textValue": "I feel usage-based pricing is fairer, but users can't predict the bill.\n- [ ] Find two usage-based pricing examples\nTODO: Friday 3pm pricing sync with Kai",
+      "taskValue": "Budget sheet due tomorrow 3pm"
+    },
+    "filter": {
+      "label": "Filter by status",
+      "all": "All",
+      "pending": "To review",
+      "done": "Done"
+    },
+    "input": {
+      "text": "Text",
+      "link": "Link",
+      "image": "Image",
+      "file": "File"
+    },
+    "kind": {
+      "note": "Note",
+      "task": "Task",
+      "event": "Slot"
+    },
+    "to": {
+      "inbox": "Note → inbox folder",
+      "today": "Today's journal"
+    },
+    "reading": "Reading",
+    "source": {
+      "ai": "Split by AI",
+      "rules": "Split by rules (AI did not respond or is not set up)"
+    },
+    "accept": "Accept",
+    "edit": "Edit",
+    "reject": "Discard",
+    "editDone": "Done",
+    "acceptAll": "Accept all",
+    "fieldTitle": "Title",
+    "fieldDate": "Date",
+    "fieldTime": "Time",
+    "status": {
+      "ok": "Accepted",
+      "no": "Discarded"
+    },
+    "open": "Open",
+    "undo": "Undo",
+    "accepted": "Accepted: {title}",
+    "acceptedMany": "Accepted {count} proposals",
+    "undoFailed": "The file changed, so it can't be undone",
+    "failed": "Something went wrong, please try again",
+    "fileTooLarge": "{name} is over 8 MB and was not collected",
+    "remove": "Remove this capture",
+    "empty": "Nothing collected yet. Drop in some text, a link or an image.",
+    "emptyFilter": "Nothing in this state.",
+    "records": "Inbox records",
+    "recordsHint": "Unprocessed records in the Inbox can be split into proposals.",
+    "recordsEmpty": "No unprocessed records in the Inbox",
+    "split": "Split",
+    "queued": "Queued",
+    "writeHint": "New notes, tasks and slots are written only when you accept them; discarded proposals leave no file behind."
+  },
   "anywhere": {
     "palette": {
       "title": "Command palette",

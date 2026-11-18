@@ -7462,6 +7462,91 @@
   "editorImage": {
     "changedOnDisk": "圖片已被同步或其他操作更新。請重新開啟圖片後再編輯儲存。"
   },
+  "collect": {
+    "title": "收集",
+    "subtitle": "一個框收所有東西，拆成提案，逐條收下",
+    "inputLabel": "收集內容",
+    "placeholder": "貼上連結、一段文字，或拖入截圖、檔案。直接打一句待辦也可以。",
+    "detect": {
+      "empty": "會自動辨識類型",
+      "link": {
+        "name": "連結",
+        "hint": "→ 存成筆記"
+      },
+      "task": {
+        "name": "待辦",
+        "hint": "→ 加到今日日誌，有時間就排成時段"
+      },
+      "text": {
+        "name": "文字",
+        "hint": "→ 存成筆記，拆出行動"
+      }
+    },
+    "send": "收進來",
+    "pickFile": "圖片或檔案",
+    "try": "試試：",
+    "sample": {
+      "link": "貼連結",
+      "text": "一段文字",
+      "task": "明天三點交預算表",
+      "textValue": "定價我直覺覺得用量計費比較公平，但使用者很難預估費用。\n- [ ] 找兩家用量計費的例子\n待辦：週五下午三點和 Kai 對一次定價",
+      "taskValue": "明天三點交預算表"
+    },
+    "filter": {
+      "label": "依狀態篩選",
+      "all": "全部",
+      "pending": "待收下",
+      "done": "已處理"
+    },
+    "input": {
+      "text": "文字",
+      "link": "連結",
+      "image": "圖片",
+      "file": "檔案"
+    },
+    "kind": {
+      "note": "筆記",
+      "task": "任務",
+      "event": "時段"
+    },
+    "to": {
+      "inbox": "筆記 → 收件資料夾",
+      "today": "今日日誌"
+    },
+    "reading": "辨識中",
+    "source": {
+      "ai": "AI 拆分",
+      "rules": "規則拆分（AI 沒有回應或尚未設定）"
+    },
+    "accept": "收下",
+    "edit": "修改",
+    "reject": "不要",
+    "editDone": "完成",
+    "acceptAll": "全部收下",
+    "fieldTitle": "標題",
+    "fieldDate": "日期",
+    "fieldTime": "時間",
+    "status": {
+      "ok": "已收下",
+      "no": "已丟掉"
+    },
+    "open": "打開",
+    "undo": "復原",
+    "accepted": "已收下：{title}",
+    "acceptedMany": "已收下 {count} 條提案",
+    "undoFailed": "檔案已被修改，無法復原",
+    "failed": "操作失敗，請重試",
+    "fileTooLarge": "{name} 超過 8 MB，沒有收進來",
+    "remove": "移除這筆收集",
+    "empty": "還沒有收集。丟一段文字、連結或圖片進來試試。",
+    "emptyFilter": "這個狀態下沒有收集。",
+    "records": "Inbox 的記錄",
+    "recordsHint": "Inbox 裡還沒整理的記錄，可以拆成提案。",
+    "recordsEmpty": "Inbox 沒有未整理的記錄",
+    "split": "拆分",
+    "queued": "已在收集",
+    "writeHint": "新筆記、任務和時段都要你收下才會寫入；沒有收下的提案不會留下任何檔案。"
+  },
   "anywhere": {
     "palette": {
       "title": "命令面板",

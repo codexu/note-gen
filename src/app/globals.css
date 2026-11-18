@@ -6,6 +6,9 @@
 /* 导入动画库 */
 @import "tw-animate-css";
 
+/* Fork（almanac P0-a）：v5 token 的 Tailwind 對應 */
+@import "./fork-tokens.css";
+
 @source "../../node_modules/streamdown/dist/*.js";
 @source "../../node_modules/@streamdown/math/dist/*.js";
 @source "../../node_modules/@streamdown/cjk/dist/*.js";

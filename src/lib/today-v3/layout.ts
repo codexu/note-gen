@@ -326,3 +326,37 @@ export function buildTodayLayout(input: TodayV3Input): TodayV3Layout {
     captures: buildCaptureRail(input.captures, now),
   }
 }
+
+/** ALMNC-16：排程員提的時段（等你定裡待決的），畫在時間軸上的虛線框。 */
+export interface TimelineProposal {
+  key: string
+  title: string
+  time: string
+  end: string
+  startMin: number
+  endMin: number
+}
+
+export const PROPOSAL_MINUTES = 30
+
+function clockToMinutes(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value)
+  if (!match) return null
+  const minutes = Number(match[1]) * 60 + Number(match[2])
+  return Number(match[1]) < 24 && Number(match[2]) < 60 ? minutes : null
+}
+
+/** 把待決時段轉成時間軸區塊：時間格式錯誤或落在 06–24 之外的不畫，依開始時間排序。 */
+export function buildProposalBlocks(
+  pending: ReadonlyArray<{ key: string, title: string, time: string }>,
+  startHour = TIMELINE_START_HOUR,
+  endHour = TIMELINE_END_HOUR,
+): TimelineProposal[] {
+  return pending.flatMap(slot => {
+    const start = clockToMinutes(slot.time)
+    if (start === null || start < startHour * 60 || start >= endHour * 60) return []
+    const end = Math.min(start + PROPOSAL_MINUTES, endHour * 60)
+    const label = `${String(Math.floor(end / 60) % 24).padStart(2, '0')}:${String(end % 60).padStart(2, '0')}`
+    return [{ key: slot.key, title: slot.title, time: slot.time, end: label, startMin: start, endMin: end }]
+  }).sort((a, b) => a.startMin - b.startMin)
+}

@@ -8172,7 +8172,10 @@
       "task": "Task",
       "anchor": "Journal slot",
       "empty": "Nothing scheduled on the timeline today.",
-      "noAccess": "Calendar access is off, so events will not show here."
+      "noAccess": "Calendar access is off, so events will not show here.",
+      "proposal": "Proposal · Scheduler",
+      "accept": "Accept",
+      "reject": "Dismiss"
     },
     "journal": {
       "label": "Journal",

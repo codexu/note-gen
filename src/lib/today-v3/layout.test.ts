@@ -168,3 +168,20 @@ describe('buildTodayLayout', () => {
     expect(layout.journal.paragraphs).toEqual(['一段日誌'])
   })
 })
+
+describe('buildProposalBlocks (ALMNC-16 時段提案)', () => {
+  it('places pending slots as 30-minute blocks inside 06–24, sorted, skipping invalid times', async () => {
+    const { buildProposalBlocks } = await import('./layout')
+    const blocks = buildProposalBlocks([
+      { key: 'b', title: '寫提案', time: '14:00' },
+      { key: 'a', title: '回信', time: '09:30' },
+      { key: 'x', title: '太早', time: '05:30' },
+      { key: 'y', title: '格式錯', time: '9點' },
+      { key: 'z', title: '跨午夜', time: '23:45' },
+    ])
+    expect(blocks.map(b => b.key)).toEqual(['a', 'b', 'z'])
+    expect(blocks[0]).toMatchObject({ startMin: 570, endMin: 600, time: '09:30', end: '10:00' })
+    expect(blocks[2]).toMatchObject({ startMin: 1425, endMin: 1440, end: '00:00' })
+  })
+})
+

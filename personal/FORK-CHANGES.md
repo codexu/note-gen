@@ -203,6 +203,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `messages/zh-TW.json` | 新增頂層 todayV3 繁中字串 | ALMNC-16.2：v5 今天主畫面 |
 | 2026-11-18 | `messages/zh.json` | 新增頂層 todayV3 簡中字串 | ALMNC-16.2：v5 今天主畫面 |
 | 2026-11-18 | Fork：`src/lib/today-v3/`、`src/app/core/main/today-v3/` | 新增 v5 今天主畫面的版面資料組裝（純函式＋測試）與三欄畫面、記／問輸入列 | ALMNC-16.2：v5 今天主畫面 |
+| 2026-11-18 | fork：`src/app/core/main/today-v3/timeline.tsx`、`today-v3-screen.tsx`、`src/lib/today-v3/layout.ts`；`messages/*.json` | almanac ALMNC-16 整合：排程員的時段提案（`usePendingSlots`）畫在 v5 今天主畫面的時間軸上（虛線框、收下／不要），動作走等你定的 `acceptDecision`／`rejectDecision` | 把 16.1 的提案接到 16.2 的時間軸，對齊 v5 樣稿 |
 
 ## 刻意不改的東西
 

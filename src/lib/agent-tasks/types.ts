@@ -1,7 +1,7 @@
 // Fork（#30）：Agent 任務中心的資料型別。術語見 GLOSSARY.md「Agent 任務」，架構見 docs/adr/0001。
 
 export type AgentRunnerKind = `agent:${string}`
-export type AgentTaskKind = 'chat' | 'report' | 'suggestion' | 'signal' | AgentRunnerKind
+export type AgentTaskKind = 'chat' | 'report' | 'suggestion' | 'signal' | 'organize' | AgentRunnerKind
 
 export function isAgentRunnerKind(kind: AgentTaskKind): kind is AgentRunnerKind {
   return kind.startsWith('agent:')

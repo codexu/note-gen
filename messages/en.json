@@ -8296,5 +8296,23 @@
       "title": "Knowledge",
       "subtitle": "Timeline, canvases and tags; the notes tree is in MyVault on the left"
     }
+  },
+  "organize": {
+    "title": "Auto-organize",
+    "description": "After 60 minutes of inactivity, suggest up to five changes for review in Decide.",
+    "merge": "Merge {detail} into {path}",
+    "tag": "Add #{detail} to {path}",
+    "link": "Link {path} to {detail}",
+    "mergeEffect": "Keep {keeper} and remove {removed}. You can restore the original notes from organize history.",
+    "history": "Organize history",
+    "undo": "Undo",
+    "recover": "Restore originals",
+    "undone": "Organize change undone.",
+    "undoFailed": "Unable to restore the originals. Check for later edits or a recreated file.",
+    "conflict": "A note changed or is unavailable. Check the organize history for any unfinished change.",
+    "settingsError": "Unable to save the auto-organize setting.",
+    "saveSnapshot": "Save the original as a copy",
+    "snapshotSaved": "Saved {count} file(s) with “整理前” in the name",
+    "snapshotFailed": "Could not save the copy"
   }
 }

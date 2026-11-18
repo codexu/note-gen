@@ -2,6 +2,8 @@
 // 不在這裡留任何待決紀錄。
 import { agentTaskCenter, applyTaskDraft, discardTaskDrafts } from '@/lib/agent-tasks'
 import { dailyNotePath, toDateKey } from '@/lib/daily/format'
+import { acceptOrganizeDraft, rejectOrganizeDraft } from '@/lib/organize/review'
+import { ORGANIZE_KIND } from '@/lib/organize/drafts'
 import { jobCenter } from '@/lib/jobs'
 import { readNote } from '@/lib/daily/note-io'
 import { QUICK_ADD_SECTION } from '@/lib/today/today-actions'
@@ -62,6 +64,9 @@ export async function acceptDecision(item: DecideItem): Promise<AcceptOutcome> {
     await jobCenter.act(ref.jobId, ref.stepId, 'accept')
     return {}
   }
+  if (agentTaskCenter.get(ref.taskId)?.kind === ORGANIZE_KIND) {
+    return { undo: await acceptOrganizeDraft(ref.taskId, ref.draftId) }
+  }
   await applyTaskDraft(ref.taskId, ref.draftId)
   const draft = agentTaskCenter.get(ref.taskId)?.drafts.find(entry => entry.id === ref.draftId)
   if (draft?.state === 'failed') throw new DraftNotApplied(ref.taskId, draft.error === 'CONFLICT', draft.error)
@@ -72,6 +77,7 @@ export async function rejectDecision(item: DecideItem): Promise<void> {
   for (const ref of refs(item)) {
     if (ref.source === 'collect') useCollectStore.getState().reject(ref.itemId, ref.proposalId)
     else if (ref.source === 'job') await jobCenter.act(ref.jobId, ref.stepId, 'reject')
+    else if (agentTaskCenter.get(ref.taskId)?.kind === ORGANIZE_KIND) await rejectOrganizeDraft(ref.taskId, ref.draftId)
     else await discardTaskDrafts(ref.taskId, [ref.draftId])
   }
 }

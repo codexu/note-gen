@@ -204,6 +204,23 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `messages/zh.json` | 新增頂層 todayV3 簡中字串 | ALMNC-16.2：v5 今天主畫面 |
 | 2026-11-18 | Fork：`src/lib/today-v3/`、`src/app/core/main/today-v3/` | 新增 v5 今天主畫面的版面資料組裝（純函式＋測試）與三欄畫面、記／問輸入列 | ALMNC-16.2：v5 今天主畫面 |
 | 2026-11-18 | fork：`src/app/core/main/today-v3/timeline.tsx`、`today-v3-screen.tsx`、`src/lib/today-v3/layout.ts`；`messages/*.json` | almanac ALMNC-16 整合：排程員的時段提案（`usePendingSlots`）畫在 v5 今天主畫面的時間軸上（虛線框、收下／不要），動作走等你定的 `acceptDecision`／`rejectDecision` | 把 16.1 的提案接到 16.2 的時間軸，對齊 v5 樣稿 |
+| 2026-11-19 | `src/app/core/setting/general/page.tsx` | 掛載 V3 自動整理設定 | ALMNC-17：自動整理 |
+| 2026-11-19 | `messages/en.json` | 新增 organize 英文字串 | ALMNC-17：自動整理 |
+| 2026-11-19 | `messages/zh-TW.json` | 新增 organize 繁中字串 | ALMNC-17：自動整理 |
+| 2026-11-19 | `messages/zh.json` | 新增 organize 簡中字串 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/db/agent-tasks.ts` | 載入超出近期清單的待審整理草稿 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/lib/agent-tasks/types.ts` | 新增 organize 任務類型 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/lib/agent-tasks/task-center.ts` | 將確定性草稿直接送審並先持久化 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/lib/agent-tasks/index.ts` | 整理提案的寫入由等你定處理 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/lib/decide/project.ts` | 投影本工作區的整理草稿和合併目的 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/lib/decide/actions.ts` | 將整理草稿核准與拒絕交給整理審核 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/app/core/main/fork-services.tsx` | 掛載 V3 閒置整理服務 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/app/core/main/decide/decide-screen.tsx` | 顯示合併說明與復原紀錄 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/app/core/main/decide/decide-parts.tsx` | 顯示整理衝突的提示 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/app/core/main/agent-tasks/agent-tasks-sheet.tsx` | 整理草稿由等你定逐筆審核 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/app/core/main/agent-tasks/background-task-controls.tsx` | 背景任務角標排除等你定的整理草稿 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/app/core/main/home/cards/tasks-card.tsx` | 首頁任務卡沿用等你定入口處理整理草稿 | ALMNC-17：自動整理 |
+| 2026-11-19 | Fork：`src/lib/organize/`、`src/app/core/main/organize/` | 閒置掃描、規則、草稿、復原、設定和測試 | ALMNC-17：自動整理 |
 | 2026-11-19 | `src/app/core/main/left-sidebar.tsx` | v3 時早退回 `<SidebarV3 />`（import＋一行），classic 路徑不變 | ALMNC-20：v5 側欄方案 B |
 | 2026-11-19 | `src/app/core/main/page.tsx` | v3 時左欄固定 240px（defaultSize／minSize／maxSize 用 px）；classic 維持百分比 | ALMNC-20：側欄固定 240px |
 | 2026-11-19 | `src/app/core/main/home/home-service.tsx` | 知識頁覆蓋層加入互斥、開檔收起，並掛上 `<KnowledgeScreen />`（知識頁含大綱與外掛左側欄視圖分頁） | ALMNC-20：知識導覽項 |
@@ -221,6 +238,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-19 | `src/components/ui/command.tsx` | 將無障礙標題放入對話框，關閉後還原焦點，補搜尋輸入列焦點環 | ALMNC-18：命令面板鍵盤操作 |
 | 2026-11-19 | `src/components/ui/dialog.tsx` | 減少動態效果時停用對話框縮放動畫 | ALMNC-18：減少動態效果 |
 | 2026-11-19 | `src/components/ui/dropdown-menu.tsx` | 減少動態效果時停用選單與子選單縮放動畫 | ALMNC-18：減少動態效果 |
+| 2026-11-19 | fork：`src/lib/organize/{detect,scan,history,review}.ts`、`organize-history.tsx`；`messages/*.json` | almanac ALMNC-17 複審修正：接了同步時不提合併；來源檔名在 vault 不唯一時不提合併（上游刪除工具以檔名清向量）；還原後重新索引；已還原與超過 30 天的已套用紀錄清除；無法原地還原時可另存「整理前」副本 | Sonnet 複審 M1–M3 |
 
 ## 刻意不改的東西
 

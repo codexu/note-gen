@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { CalendarClock, FilePen, FilePlus, FileText, FolderPlus, Copy, ListTodo, MoveRight, Trash2 } from 'lucide-react'
 import { acceptDecision, DraftNotApplied, rejectDecision } from '@/lib/decide/actions'
 import type { DecideItem, DecideKind, DecidePreview, DiffPreview } from '@/lib/decide/project'
+import { OrganizeConflict } from '@/lib/organize/transaction'
 import { SlotUnavailable } from '@/lib/timeslots/apply'
 import { useAgentTaskStore } from '@/lib/agent-tasks'
 
@@ -41,6 +42,7 @@ export function destinationText(t: ReturnType<typeof useTranslations>, preview: 
 export function useDecideActions() {
   const t = useTranslations('decide')
   const week = useTranslations('week')
+  const organize = useTranslations('organize')
   const [busy, setBusy] = useState<string | null>(null)
 
   async function accept(item: DecideItem) {
@@ -56,6 +58,8 @@ export function useDecideActions() {
       if (error instanceof DraftNotApplied) {
         const taskId = error.taskId
         toast.error(error.conflict ? t('conflict') : t('failed'), { action: { label: t('openReview'), onClick: () => useAgentTaskStore.getState().openSheet(taskId) } })
+      } else if (error instanceof OrganizeConflict) {
+        toast.error(organize('conflict'))
       } else if (error instanceof SlotUnavailable) {
         toast.error(week('slotUnavailable'))
       } else {

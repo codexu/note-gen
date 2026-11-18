@@ -8361,5 +8361,23 @@
       "title": "知識",
       "subtitle": "時間線、畫布與標籤；筆記檔案樹在左側 MyVault"
     }
+  },
+  "organize": {
+    "title": "自動整理",
+    "description": "閒置 60 分鐘後，最多提出五項變更，在「等你定」逐筆確認。",
+    "merge": "將 {detail} 合併至 {path}",
+    "tag": "為 {path} 補上標籤 #{detail}",
+    "link": "從 {path} 連到 {detail}",
+    "mergeEffect": "保留 {keeper}，移除 {removed}。可從整理紀錄還原原始筆記。",
+    "history": "整理紀錄",
+    "undo": "復原",
+    "recover": "還原原始筆記",
+    "undone": "已復原整理變更。",
+    "undoFailed": "無法還原原始筆記。請確認是否有後續編輯或同名檔案。",
+    "conflict": "筆記已變更或無法存取。若有未完成的變更，可查看整理紀錄。",
+    "settingsError": "無法儲存自動整理設定。",
+    "saveSnapshot": "另存整理前內容",
+    "snapshotSaved": "已另存 {count} 個檔案（檔名加上「整理前」）",
+    "snapshotFailed": "另存失敗"
   }
 }

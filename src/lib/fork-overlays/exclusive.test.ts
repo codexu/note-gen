@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { create } from 'zustand'
 import { hideWhen, linkExclusiveOverlays } from './exclusive'
 
@@ -31,5 +31,21 @@ describe('linkExclusiveOverlays', () => {
     expect(a.getState().visible).toBe(true)
     hideWhen(() => true, [a, b])
     expect(a.getState().visible).toBe(false)
+  })
+})
+
+describe('toggleWorkspace (ALMNC-22)', () => {
+  it('closes every open overlay first, and opens today only when none is open', async () => {
+    const { toggleWorkspace, hideAllOverlays } = await import('./exclusive')
+    const [a, b] = [overlay(), overlay()]
+    const showToday = vi.fn(() => a.getState().show())
+    b.getState().show()
+    expect(toggleWorkspace([a, b], showToday)).toBe('workspace')
+    expect([a.getState().visible, b.getState().visible]).toEqual([false, false])
+    expect(showToday).not.toHaveBeenCalled()
+    expect(toggleWorkspace([a, b], showToday)).toBe('today')
+    expect(a.getState().visible).toBe(true)
+    expect(hideAllOverlays([a, b])).toBe(true)
+    expect(hideAllOverlays([a, b])).toBe(false)
   })
 })

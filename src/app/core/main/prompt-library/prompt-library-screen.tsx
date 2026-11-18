@@ -36,6 +36,7 @@ import useVaultIndexStore from '@/stores/vault-index'
 import { moveFileManagerEntries } from '../file/file-dnd'
 import { PromptDetailPanel } from './prompt-detail-panel'
 import { KnowledgeTabs } from '../sidebar-v3/section-tabs'
+import { useUiV3 } from '@/lib/fork-ui'
 
 const ILLEGAL_NAME_RE = /[\\/:*?"<>|#^[\]\n\r\t]+/g
 
@@ -109,6 +110,7 @@ export function PromptLibraryScreen() {
   const t = useTranslations('promptLibrary')
   const visible = usePromptLibraryStore(state => state.visible)
   const hide = usePromptLibraryStore(state => state.hide)
+  const v3Mode = useUiV3()
   const usage = usePromptLibraryStore(state => state.usage)
   const search = usePromptLibraryStore(state => state.search)
   const setSearch = usePromptLibraryStore(state => state.setSearch)
@@ -176,9 +178,11 @@ export function PromptLibraryScreen() {
           <Button variant="default" size="sm" className="gap-2" onClick={() => setNewPromptOpen(true)}>
             <Plus className="size-4" aria-hidden />{t('newPrompt')}
           </Button>
-          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={hide}>
-            <PanelsTopLeft className="size-4" aria-hidden />{t('backToWorkspace')}
-          </Button>
+          {!v3Mode && (
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={hide}>
+              <PanelsTopLeft className="size-4" aria-hidden />{t('backToWorkspace')}
+            </Button>
+          )}
         </div>
       </header>
 

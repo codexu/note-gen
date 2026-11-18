@@ -373,3 +373,12 @@ code, kbd, pre, samp {
     scroll-behavior: auto !important;
   }
 }
+
+/* ALMNC-22：新介面檔案樹的「目前開著的那篇」用選中底（v5 的 active），和滑過的淡底區分 */
+:where([data-ui="v3"]) .file-manager-item.active {
+  background-color: var(--active);
+  color: var(--ink);
+}
+:where([data-ui="v3"]) .file-manager-item.active::before {
+  background: var(--ink);
+}

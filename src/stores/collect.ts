@@ -40,6 +40,7 @@ interface CollectState {
   show: () => void
   hide: () => void
   submit: (input: CollectInput, options?: { recordId?: number }) => Promise<void>
+  addProposals: (id: string, origin: string, proposals: Proposal[]) => void
   accept: (itemId: string, proposalId: string) => Promise<AcceptResult>
   reject: (itemId: string, proposalId: string) => void
   edit: (itemId: string, proposalId: string, patch: Partial<Pick<Proposal, 'title' | 'due' | 'time'>>) => void
@@ -48,7 +49,7 @@ interface CollectState {
 }
 
 let itemCounter = 0
-let hydrating = false
+let hydration: Promise<void> | undefined
 let persistReady = false
 let persistTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -70,19 +71,16 @@ const useCollectStore = create<CollectState>((set, get) => ({
   },
   hide: () => set({ visible: false }),
 
-  hydrate: async () => {
-    if (hydrating) return
-    hydrating = true
-    try {
-      const restored = await loadItems(Date.now())
+  hydrate: () => hydration ??= loadItems(Date.now())
+    .then(restored => {
       set(state => ({ items: mergeItems(state.items, restored as CaptureItem[]) }))
       persistReady = true
-    } catch (error) {
+    })
+    .catch(error => {
       // 沒有 Tauri（瀏覽器預覽）或讀檔失敗：本次只放記憶體，也不寫檔
-      hydrating = false
+      hydration = undefined
       console.debug('[collect] restore skipped:', error)
-    }
-  },
+    }),
 
   submit: async (input, options) => {
     itemCounter += 1
@@ -95,6 +93,18 @@ const useCollectStore = create<CollectState>((set, get) => ({
         : item),
     }))
   },
+
+  addProposals: (id, origin, proposals) => set(state => {
+    if (!proposals.length || state.items.some(item => item.id === id)) return state
+    return { items: [{
+      id,
+      input: { kind: 'text', text: '', name: origin },
+      createdAt: Date.now(),
+      state: 'ready',
+      source: 'ai',
+      proposals: proposals.map(proposal => ({ ...proposal, status: 'wait' })),
+    }, ...state.items] }
+  }),
 
   accept: async (itemId, proposalId) => {
     const item = get().items.find(entry => entry.id === itemId)

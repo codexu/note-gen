@@ -179,6 +179,25 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `messages/zh-TW.json` | 新增 jobs 繁中字串 | ALMNC-13：開工卡 |
 | 2026-11-18 | `messages/zh.json` | 新增 jobs 簡中字串 | ALMNC-13：開工卡 |
 | 2026-11-18 | Fork：`src/lib/jobs/`、`src/app/core/main/jobs/` | 新增開工卡規劃、排程、持久化、結果卡和測試 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src-tauri/src/lib.rs` | 註冊 `calendar_week` | ALMNC-16.1：週計畫查詢 |
+| 2026-11-18 | `src-tauri/src/calendar.rs` | 以本地週首及週末時間戳唯讀查詢 EventKit，回傳存取狀態 | ALMNC-16.1：七日本地日曆區間 |
+| 2026-11-18 | `src/lib/calendar/calendar.ts` | 共用原生日曆橋接與結果型別，日界線按本地日期計算 | ALMNC-16.1：週／日曆共用與夏令時間 |
+| 2026-11-18 | `src/app/core/main/left-sidebar.tsx` | 掛上 V3 週計畫入口與選取樣式 | ALMNC-16.1：從導覽開啟週計畫 |
+| 2026-11-18 | `src/app/core/main/home/home-service.tsx` | 掛載週計畫與時段服務，將週計畫加入全頁互斥及 classic 收起流程 | ALMNC-16.1：週計畫與主動提案 |
+| 2026-11-18 | `src/lib/collect/ai.ts` | 既有 AI 呼叫支援靜默檢查設定 | ALMNC-16.1：背景排程遇到未設定的模型不跳通知 |
+| 2026-11-18 | `src/lib/collect/types.ts` | 時段提案可保存原任務的工作區、檔案與行定位 | ALMNC-16.1：核准時更新原任務 |
+| 2026-11-18 | `src/lib/collect/persist.ts` | 保存排程提案定位並略過過期批次 | ALMNC-16.1：沿用原收集來源的持久化 |
+| 2026-11-18 | `src/stores/collect.ts` | 提供已驗證提案批次入口並共用還原中的 Promise | ALMNC-16.1：排程員提案進既有來源 |
+| 2026-11-18 | `src/lib/collect/write.ts` | 接受排程員時段時交由原任務寫入流程驗證 | ALMNC-16.1：確認後才寫回今日日誌 |
+| 2026-11-18 | `src/lib/decide/actions.ts` | 今日日誌快照附帶工作區與檔案路徑 | ALMNC-16.1：限制時段提案的使用範圍 |
+| 2026-11-18 | `src/lib/decide/project.ts` | 從收集投影排程員時段，顯示時間區間及原任務差異 | ALMNC-16.1：沿用等你定 |
+| 2026-11-18 | `src/lib/decide/use-decisions.ts` | 將目前工作區交給等你定投影 | ALMNC-16.1：切換工作區時隔離排程提案 |
+| 2026-11-18 | `src/app/core/main/collect/collect-screen.tsx` | 收集操作介面篩除排程員批次 | ALMNC-16.1：排程員時段從等你定審核 |
+| 2026-11-18 | `src/app/core/main/decide/decide-parts.tsx` | 顯示時段或原任務已變更的提示 | ALMNC-16.1：核准時遇到衝突 |
+| 2026-11-18 | `messages/en.json` | 新增英文 `week` 字串 | ALMNC-16.1：週計畫 |
+| 2026-11-18 | `messages/zh.json` | 新增簡中 `week` 字串 | ALMNC-16.1：週計畫 |
+| 2026-11-18 | `messages/zh-TW.json` | 新增繁中 `week` 字串 | ALMNC-16.1：週計畫 |
+| 2026-11-18 | Fork：`src/lib/week/`、`src/lib/timeslots/`、`src/app/core/main/week/` | 週資料投影、空檔及提案驗證、排程服務、週計畫與測試 | ALMNC-16.1 |
 
 ## 刻意不改的東西
 

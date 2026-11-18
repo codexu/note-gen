@@ -7797,5 +7797,27 @@
       "failed": "失敗",
       "cancelled": "已取消"
     }
+  },
+  "week": {
+    "title": "週計畫",
+    "previous": "上一週",
+    "next": "下一週",
+    "current": "本週",
+    "gridLabel": "一週行事曆與任務",
+    "grantAccess": "允許讀取行事曆",
+    "access": {
+      "loading": "正在讀取行事曆…",
+      "notDetermined": "允許存取後即可顯示行事曆事件。",
+      "denied": "行事曆存取已關閉，可在系統設定中開啟。",
+      "restricted": "行事曆存取受限。",
+      "unavailable": "目前無法讀取行事曆。"
+    },
+    "calendar": "行事曆事件",
+    "completed": "已完成的任務",
+    "untitledEvent": "無標題事件",
+    "reviewProposal": "查看時段提案 {description}",
+    "slotUnavailable": "此時段已無法使用，或原任務已變更。",
+    "tasksUnavailable": "目前無法讀取任務索引。",
+    "loadingTasks": "正在讀取任務…"
   }
 }

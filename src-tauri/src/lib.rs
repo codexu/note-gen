@@ -137,6 +137,7 @@ pub fn run() {
     builder
         .invoke_handler(tauri::generate_handler![
             calendar::calendar_events,
+            calendar::calendar_week,
             calendar::calendar_request_access,
             system_permissions::get_system_media_permissions,
             #[cfg(target_os = "macos")]

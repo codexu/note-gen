@@ -1,3 +1,5 @@
+import type { SlotTarget } from '@/lib/timeslots/model'
+
 // Fork（almanac ALMNC-8）：收集頁的資料型別。全是純資料，不碰 I/O，方便單元測試。
 
 export type InputKind = 'text' | 'link' | 'image' | 'file'
@@ -27,6 +29,8 @@ export interface Proposal {
   time: string
   /** 不含 #。 */
   tags: string[]
+  /** Scheduler proposal for an existing task in the daily note. */
+  slot?: SlotTarget
 }
 
 export type SplitSource = 'ai' | 'rules'

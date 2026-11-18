@@ -7,6 +7,7 @@ import { useJobs } from '@/lib/jobs'
 import { useUiV3 } from '@/lib/fork-ui'
 import useCollectStore from '@/stores/collect'
 import useDecideStore from '@/stores/decide'
+import useSettingStore from '@/stores/setting'
 import { projectDecisions, type DecideItem } from './project'
 
 const NONE: DecideItem[] = []
@@ -18,5 +19,6 @@ export function useDecisions(): DecideItem[] {
   const tasks = useAgentTaskStore(state => state.tasks)
   const jobs = useJobs(state => state.jobs)
   const journal = useDecideStore(state => state.journal)
-  return useMemo(() => (isV3 ? projectDecisions({ items, tasks, journal, jobs }) : NONE), [isV3, items, tasks, journal, jobs])
+  const workspace = useSettingStore(state => state.workspacePath)
+  return useMemo(() => (isV3 ? projectDecisions({ items, tasks, journal, jobs, workspace }) : NONE), [isV3, items, tasks, journal, jobs, workspace])
 }

@@ -7,6 +7,7 @@ import { captureFileName, capturePath } from '@/lib/home/capture'
 import { QUICK_ADD_SECTION, undoWrites, type WriteRecord } from '@/lib/today/today-actions'
 import { insertLinesInSection } from '@/lib/today/today-model'
 import { proposalNoteContent, proposalTaskLine } from './builders'
+import { acceptSlot } from '@/lib/timeslots/apply'
 import type { Proposal } from './types'
 
 export interface AcceptResult {
@@ -18,6 +19,7 @@ export interface AcceptResult {
 
 export async function acceptProposal(proposal: Proposal, options: { noteFolder: string, now?: Date }): Promise<AcceptResult> {
   const now = options.now ?? new Date()
+  if (proposal.slot) return acceptSlot({ ...proposal, slot: proposal.slot }, now)
 
   if (proposal.kind === 'note') {
     const name = captureFileName(proposal.title, now)

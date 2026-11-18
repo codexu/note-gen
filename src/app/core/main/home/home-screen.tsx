@@ -8,11 +8,13 @@ import { Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cardsForSlot, isCardVisible, type HomeSlot } from '@/lib/home/cards'
 import useHomeStore from '@/stores/home'
+import { useUiV3 } from '@/lib/fork-ui'
 import { TodayProvider, useTodayTitle } from '../today/today-page'
 import { PageHeader, PageSurface } from '../page-ui'
 import { HOME_CARDS } from './home-cards'
 import { HomeEditSheet } from './home-edit-sheet'
 import { HandoffDialog, NeedsList } from './cards/needs-list'
+import { TodayV3Screen } from '../today-v3/today-v3-screen'
 
 function Slot({ slot, className }: { slot: HomeSlot; className?: string }) {
   const prefs = useHomeStore(state => state.prefs)
@@ -57,7 +59,10 @@ export function HomeScreen() {
   const hide = useHomeStore(state => state.hide)
   const setEditing = useHomeStore(state => state.setEditing)
   const prefs = useHomeStore(state => state.prefs)
+  const isV3 = useUiV3()
   if (!loaded || !visible) return null
+  // Fork（ALMNC-16.2）：新介面（v3）的首頁／今日入口顯示 v5「今天」主畫面；classic 維持原首頁
+  if (isV3) return <TodayV3Screen />
   const empty = HOME_CARDS.every(card => !isCardVisible(prefs, card))
 
   return (

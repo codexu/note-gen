@@ -7797,5 +7797,76 @@
       "failed": "失敗",
       "cancelled": "已取消"
     }
+  },
+  "todayV3": {
+    "title": "今天",
+    "dateLabel": "{month} 月 {day} 日 {weekday} · W{week}",
+    "weekday": {
+      "0": "星期日",
+      "1": "星期一",
+      "2": "星期二",
+      "3": "星期三",
+      "4": "星期四",
+      "5": "星期五",
+      "6": "星期六"
+    },
+    "summary": "今天 {events} 個行程、{tasks} 件待辦、{decisions} 件等你定。",
+    "timeline": {
+      "label": "時間",
+      "allDay": "全天",
+      "now": "現在",
+      "readOnly": "行事曆事件（唯讀）",
+      "task": "任務",
+      "anchor": "日誌時段",
+      "empty": "今天沒有排進時間軸的事。",
+      "noAccess": "行事曆還沒開放存取，行程不會出現在這裡。"
+    },
+    "journal": {
+      "label": "日誌",
+      "focus": "專注模式",
+      "focusOff": "結束專注",
+      "empty": "今天的日誌還沒有段落。",
+      "open": "開啟日誌"
+    },
+    "todo": {
+      "label": "今天要完成",
+      "empty": "今天沒有待完成的任務。",
+      "overdue": "逾期 {days} 天",
+      "check": "完成「{title}」",
+      "uncheck": "取消完成「{title}」"
+    },
+    "decide": {
+      "label": "等你定",
+      "empty": "都定完了。",
+      "all": "全部"
+    },
+    "captures": {
+      "label": "今天收進來",
+      "all": "全部",
+      "empty": "今天還沒收進東西。",
+      "reading": "正在辨識",
+      "kind": {
+        "text": "文字",
+        "link": "連結",
+        "image": "截圖",
+        "file": "檔案"
+      }
+    },
+    "composer": {
+      "modeLabel": "輸入模式",
+      "note": "記",
+      "ask": "問",
+      "notePlaceholder": "記一筆，或按 Tab 切到「問」",
+      "askPlaceholder": "問問題，例如「下午的空檔怎麼排」",
+      "submitNote": "收進來",
+      "submitAsk": "問",
+      "detect": {
+        "task": "任務",
+        "link": "連結",
+        "text": "筆記"
+      },
+      "captured": "收進來了，正在拆分成提案",
+      "noModel": "還沒設定模型，請先到設定選一個。"
+    }
   }
 }

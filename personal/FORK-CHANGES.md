@@ -179,6 +179,11 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `messages/zh-TW.json` | 新增 jobs 繁中字串 | ALMNC-13：開工卡 |
 | 2026-11-18 | `messages/zh.json` | 新增 jobs 簡中字串 | ALMNC-13：開工卡 |
 | 2026-11-18 | Fork：`src/lib/jobs/`、`src/app/core/main/jobs/` | 新增開工卡規劃、排程、持久化、結果卡和測試 | ALMNC-13：開工卡 |
+| 2026-11-18 | `src/app/core/main/home/home-screen.tsx` | v3 時首頁／今日入口改顯示 TodayV3Screen（早退一行），classic 不變 | ALMNC-16.2：v5 今天主畫面 |
+| 2026-11-18 | `messages/en.json` | 新增頂層 todayV3 英文字串 | ALMNC-16.2：v5 今天主畫面 |
+| 2026-11-18 | `messages/zh-TW.json` | 新增頂層 todayV3 繁中字串 | ALMNC-16.2：v5 今天主畫面 |
+| 2026-11-18 | `messages/zh.json` | 新增頂層 todayV3 簡中字串 | ALMNC-16.2：v5 今天主畫面 |
+| 2026-11-18 | Fork：`src/lib/today-v3/`、`src/app/core/main/today-v3/` | 新增 v5 今天主畫面的版面資料組裝（純函式＋測試）與三欄畫面、記／問輸入列 | ALMNC-16.2：v5 今天主畫面 |
 
 ## 刻意不改的東西
 

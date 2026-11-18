@@ -150,6 +150,13 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `src/app/layout.tsx`、`src/app/core/setting/general/interface-settings/index.tsx`、`messages/{zh-TW,zh,en}.json`、`src/components/ui/{kbd,command,button}.tsx`、`src/app/core/main/{left-sidebar,main-status-bar,sidebar-search}.tsx`；fork：`src/lib/fork-ui.ts`、`src/components/fork/ui-mode.tsx`、`fork-theme.css`、`fork-tokens.css` | almanac ALMNC-7 新介面開關：`<html data-ui="v3|classic">`（layout 加屬性、首屏腳本、`UiModeSync`），設定 > 介面加「新介面（V3）」開關，存 store.json 的 `almanacUiMode` 與 localStorage。v5 token 只在 `data-ui="v3"` 下生效，classic 還原 905d2c12 的 Obsidian baseline 色票與 Tailwind 原彩色；P0-c 的尺寸類別改成 `舊類別 v3:新類別`（Tailwind `v3:` variant） | V3 新頁面與 v5 外觀都藏在開關後，dev 隨時能切回舊介面（v2 計畫 §8） |
 | 2026-11-18 | `src/app/core/main/fork-services.tsx`、`src/app/core/main/fork-shell/use-focus-search-shortcut.ts`、`messages/{zh-TW,zh,en}.json`；fork 新增：`src/app/core/main/anywhere/`（`anywhere-service.tsx`、`command-palette.tsx`、`chat-panel.tsx`）、`src/lib/anywhere/`（`palette-search.ts`、`context.ts`、`store.ts` 與測試） | almanac ALMNC-9：新介面（v3）下 ⌘K 開命令面板（同時搜尋筆記、核心指令與外掛命令；焦點在筆記編輯器時不攔截，編輯器的 ⌘K 仍是插入連結），⌘⇧A 開隨處對話面板（顯示用 `ChatContent`，送出走既有的 `quick-prompt-send`，不再掛第二個 `ChatInput`）。`fork-services` 掛 `AnywhereService`；`use-focus-search-shortcut` 在 v3 時讓出 ⌘K，classic 維持「聚焦側欄搜尋」；messages 新增頂層 key `anywhere`。⌘⇧P 的外掛命令面板（`plugin-command-palette.tsx`）未動 | V3 能在任何頁面叫出對話，並把 ⌘K 合成一個命令面板（v2 計畫 §8、P4-B） |
 | 2026-11-18 | `src/app/core/main/left-sidebar.tsx`、`src/app/core/main/home/home-service.tsx`、`messages/{zh-TW,zh,en}.json`；fork：`src/app/core/main/collect/`、`src/lib/collect/`、`src/stores/collect.ts` | almanac ALMNC-8 收集頁：左側欄在新介面（`useUiV3()`）多一個 Collect 入口，home-service 掛 `CollectScreen`（同 Inbox 頁做法：全頁覆蓋層、左側欄開檔時收起、與首頁／Inbox／提示詞庫互斥）；訊息新增頂層 `collect` key。輸入拆成筆記／任務／時段提案（AI 拆、規則驗證，AI 不可用退回規則），收下後寫進收件資料夾的新筆記與今日日誌「捕捉軌」，不新增資料表 | V3 核心入口，藏在新介面開關後（classic 看不到） |
+| 2026-11-18 | `src/lib/agent/runtime.ts` | 在工具呼叫解析參數與預覽前執行選用的 `authorizeToolCall`，拒絕時回傳工具結果 | ALMNC-12：記錄未知及越權的工具呼叫 |
+| 2026-11-18 | `src/lib/agent/types.ts` | 增加選用的 `AgentRuntimeInput.authorizeToolCall` 型別 | ALMNC-12：背景代理人逐次查核工具權限 |
+| 2026-11-18 | `src/app/core/setting/general/page.tsx` | 掛載由 V3 開關控制的代理人設定區 | ALMNC-12：新增、編輯及停用代理人 |
+| 2026-11-18 | `messages/en.json` | 新增 `agents` 英文設定字串 | ALMNC-12：代理人設定 |
+| 2026-11-18 | `messages/zh.json` | 新增 `agents` 簡中設定字串 | ALMNC-12：代理人設定 |
+| 2026-11-18 | `messages/zh-TW.json` | 新增 `agents` 繁中設定字串 | ALMNC-12：代理人設定 |
+| 2026-11-18 | Fork：`src/db/agents.ts`、`src/lib/agents/`、`src/lib/agent-tasks/`、`src/app/core/setting/agents/` | 本機代理人設定與拒絕紀錄、依 ID 註冊 runner、擴充既有草稿審核、V3 設定編輯與遷移回退測試 | ALMNC-12；回退步驟見 `src/lib/agents/README.md` |
 
 ## 刻意不改的東西
 

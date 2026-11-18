@@ -273,6 +273,8 @@ export interface AgentRuntimeInput {
   useMemories?: boolean
   /** Fork（#30）：背景任務用來替換可用工具（唯讀＋草稿版檔案操作）。 */
   transformTools?: (tools: AgentTool[]) => AgentTool[]
+  /** Return a refusal before the runtime parses arguments, previews, or executes a tool call. */
+  authorizeToolCall?: (toolName: string, offered: boolean) => Promise<AgentToolResult | undefined>
   /** #57：「用這個提示詞開新對話」設定的系統提示詞，取代（不是附加於）全域的自訂系統提示詞設定。 */
   systemPromptOverride?: string
 }

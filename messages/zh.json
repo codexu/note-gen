@@ -1,4 +1,36 @@
 {
+  "agents": {
+    "title": "代理人",
+    "description": "设置每个代理人可用的工具。笔记提案会进入审核队列。",
+    "loading": "正在加载代理人…",
+    "empty": "还没有代理人。",
+    "add": "添加代理人",
+    "edit": "编辑",
+    "name": "名称",
+    "role": "角色",
+    "allowedTools": "允许使用的工具",
+    "enabled": "启用",
+    "disabled": "停用",
+    "save": "保存",
+    "saving": "保存中…",
+    "cancel": "取消",
+    "loadError": "无法加载代理人设置。",
+    "saveError": "无法保存代理人设置。",
+    "roles": {
+      "organizer": "整理员",
+      "scheduler": "排程员",
+      "researcher": "研究员",
+      "reviewer": "回顾员",
+      "custom": "自定义"
+    },
+    "tools": {
+      "note_list_files": "列出笔记",
+      "note_read_file": "读取笔记",
+      "calendar_read_day": "读取单日日历",
+      "note_create_file": "提案新增笔记",
+      "note_update_file": "提案修改笔记"
+    }
+  },
   "agentDiffNavigation": {
     "label": "Agent 改动导航",
     "previous": "上一处改动",

@@ -7,7 +7,8 @@ import { readNote } from '@/lib/daily/note-io'
 import { deleteAgentTask, listAgentTasks, saveAgentTask } from '@/db/agent-tasks'
 import { AgentTaskCenter, DEFAULT_CONCURRENCY, type TaskEvent } from './task-center'
 import { applyBulk, applyDraft, discardDraft, inspectDrafts, type DraftReviewView, type ReviewDeps } from './review'
-import type { AgentTask } from './types'
+import { isAgentRunnerKind, type AgentTask } from './types'
+import { createAgentRunner } from '@/lib/agents/runner'
 
 export const AGENT_TASK_CONCURRENCY_KEY = 'agentTaskConcurrency'
 
@@ -21,7 +22,12 @@ export function setAgentTaskNotifier(next: typeof notifier) {
 export const agentTaskCenter = new AgentTaskCenter({
   createRuntime: () => new AgentRuntime(),
   persist: saveAgentTask,
-  load: () => listAgentTasks(),
+  load: async () => {
+    const tasks = await listAgentTasks()
+    const kinds = new Set(tasks.map(task => task.kind).filter(isAgentRunnerKind))
+    for (const kind of kinds) agentTaskCenter.registerRunner(kind, createAgentRunner(kind))
+    return tasks
+  },
   remove: deleteAgentTask,
   concurrency: async () => {
     try {
@@ -103,17 +109,17 @@ export const useAgentTaskStore = create<AgentTaskUiState>(set => ({
   setReviewTask: id => set({ reviewTaskId: id }),
 }))
 
-let started = false
+let startup: Promise<void> | undefined
 
 /** 主視窗啟動時呼叫一次：載入任務、把中斷的標成「沒做完」，並讓 store 跟著更新。 */
-export async function startAgentTaskCenter() {
-  if (started) return
-  started = true
-  agentTaskCenter.subscribe(tasks => useAgentTaskStore.setState({ tasks }))
-  try {
-    await agentTaskCenter.init()
-  } catch (error) {
-    started = false
-    throw error
+export function startAgentTaskCenter(): Promise<void> {
+  if (!startup) {
+    const unsubscribe = agentTaskCenter.subscribe(tasks => useAgentTaskStore.setState({ tasks }))
+    startup = agentTaskCenter.init().catch(error => {
+      unsubscribe()
+      startup = undefined
+      throw error
+    })
   }
+  return startup
 }

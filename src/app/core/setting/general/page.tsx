@@ -6,6 +6,7 @@ import { Settings } from 'lucide-react'
 import { InterfaceSettings } from './interface-settings'
 import { AdvancedSettings } from './advanced-settings'
 import { SystemBehaviorSettings } from './system-behavior-settings'
+import { AgentSettings } from '../agents/agent-settings'
 
 export default function GeneralSettingsPage() {
   const t = useTranslations('settings.general')
@@ -19,6 +20,7 @@ export default function GeneralSettingsPage() {
     >
       <SystemBehaviorSettings />
       <InterfaceSettings />
+      <AgentSettings />
       <AdvancedSettings />
     </SettingType>
   )

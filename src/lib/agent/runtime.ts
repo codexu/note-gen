@@ -1766,6 +1766,14 @@ export class AgentRuntime {
           }
           await assertRunWorkspace()
           const toolName = toolUse.function.name
+          if (input.authorizeToolCall) {
+            const refusal = await input.authorizeToolCall(toolName, offeredToolNames.has(toolName))
+            if (refusal) {
+              appendToolResult(toolUse.id, toolName, {}, refusal)
+              continue
+            }
+            if (this.stopped) throw new Error('USER_STOPPED')
+          }
           const tool = toolMap.get(toolName)
           let args: Record<string, unknown>
           let displayTitle: string | undefined

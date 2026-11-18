@@ -1,4 +1,36 @@
 {
+  "agents": {
+    "title": "代理人",
+    "description": "設定每個代理人可用的工具。筆記提案會進入審核佇列。",
+    "loading": "正在載入代理人…",
+    "empty": "還沒有代理人。",
+    "add": "新增代理人",
+    "edit": "編輯",
+    "name": "名稱",
+    "role": "角色",
+    "allowedTools": "允許使用的工具",
+    "enabled": "啟用",
+    "disabled": "停用",
+    "save": "儲存",
+    "saving": "儲存中…",
+    "cancel": "取消",
+    "loadError": "無法載入代理人設定。",
+    "saveError": "無法儲存代理人設定。",
+    "roles": {
+      "organizer": "整理員",
+      "scheduler": "排程員",
+      "researcher": "研究員",
+      "reviewer": "回顧員",
+      "custom": "自訂"
+    },
+    "tools": {
+      "note_list_files": "列出筆記",
+      "note_read_file": "讀取筆記",
+      "calendar_read_day": "讀取單日行事曆",
+      "note_create_file": "提案新增筆記",
+      "note_update_file": "提案修改筆記"
+    }
+  },
   "screenshotPin": {
     "title": "貼圖",
     "drag": "拖曳貼圖",

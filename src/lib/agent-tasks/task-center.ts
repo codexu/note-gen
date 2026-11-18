@@ -12,7 +12,7 @@ import {
   statusAfterReview,
   statusAfterRun,
 } from './draft'
-import type { AgentTask, AgentTaskKind, DraftChange } from './types'
+import { isAgentRunnerKind, type AgentTask, type AgentTaskKind, type DraftChange } from './types'
 
 export interface RuntimeLike {
   run: (input: AgentRuntimeInput, callbacks?: AgentRuntimeCallbacks) => Promise<AgentRuntimeResult>
@@ -22,12 +22,13 @@ export interface RuntimeLike {
 export type TaskEvent = 'awaiting_review' | 'completed' | 'failed'
 
 /**
- * Fork（#35）：不走 AgentRuntime 的固定流程（例如產出知識報告）。照樣排隊、可取消、
- * 會通知、app 關掉後標成「沒做完」可以繼續；沒有草稿，直接完成。
+ * Fork（#35、ALMNC-12）：註冊的執行流程由任務中心排隊、取消及續跑。
+ * Runner 可提交草稿，工作結束後由任務中心送審。
  */
 export interface TaskRunnerContext {
   signal: AbortSignal
   setTokens: (tokens: number) => void
+  draftSink: DraftSink
 }
 
 export type TaskRunner = (task: AgentTask, context: TaskRunnerContext) => Promise<{ result: string }>
@@ -46,7 +47,9 @@ export interface TaskCenterDeps {
 export const DEFAULT_CONCURRENCY = 2
 
 /** 只能用固定流程執行的任務類型。 */
-const RUNNER_KINDS: Partial<Record<AgentTaskKind, true>> = { report: true }
+function needsRunner(kind: AgentTaskKind): boolean {
+  return kind === 'report' || isAgentRunnerKind(kind)
+}
 
 const BACKGROUND_SYSTEM_NOTE = [
   '你正在背景執行一個 Agent 任務，使用者不在對話視窗前，無法即時回答問題。',
@@ -186,7 +189,7 @@ export class AgentTaskCenter {
     this.pumping = (async () => {
       const limit = Math.max(1, await this.deps.concurrency())
       // 固定流程的任務要等它的執行器註冊好才開始（例如畫面還沒掛上）
-      const waiting = [...this.tasks.values()].filter(task => task.kind in RUNNER_KINDS && !this.runners.has(task.kind) && task.status === 'queued')
+      const waiting = [...this.tasks.values()].filter(task => needsRunner(task.kind) && !this.runners.has(task.kind) && task.status === 'queued')
       const candidates = [...this.tasks.values()].filter(task => !waiting.includes(task))
       for (const task of pickRunnable(candidates, limit)) {
         this.tasks.set(task.id, { ...task, status: 'running' })
@@ -213,6 +216,14 @@ export class AgentTaskCenter {
     try {
       result = (await runner(initial, {
         signal: controller.signal,
+        draftSink: {
+          drafts: () => this.tasks.get(id)?.drafts ?? initial.drafts,
+          add: async draft => {
+            controller.signal.throwIfAborted()
+            const current = this.tasks.get(id)
+            if (current) await this.save({ ...current, drafts: mergeDraft(current.drafts, draft), updatedAt: this.deps.now() })
+          },
+        },
         setTokens: tokens => {
           const current = this.tasks.get(id)
           if (current && current.tokens !== tokens) {
@@ -229,11 +240,16 @@ export class AgentTaskCenter {
     const current = this.tasks.get(id) ?? initial
     const now = this.deps.now()
     let next: AgentTask
-    if (this.cancelled.delete(id)) next = { ...current, status: 'cancelled', updatedAt: now, finishedAt: now }
+    const cancelled = this.cancelled.delete(id)
+    const runStatus = statusAfterRun(current.drafts)
+    if (runStatus === 'awaiting_review') next = { ...current, status: runStatus, result, error, updatedAt: now, finishedAt: now }
+    else if (cancelled) next = { ...current, status: 'cancelled', updatedAt: now, finishedAt: now }
     else if (error !== undefined) next = { ...current, status: 'failed', error, updatedAt: now }
-    else next = { ...current, status: 'completed', result, updatedAt: now, finishedAt: now }
+    else next = { ...current, status: runStatus, result, updatedAt: now, finishedAt: now }
     await this.save(next)
-    if (next.status === 'completed' || next.status === 'failed') this.deps.notify(next.status, next)
+    if (next.status === 'awaiting_review' || next.status === 'completed' || next.status === 'failed') {
+      this.deps.notify(next.status, next)
+    }
     void this.pump()
   }
 
@@ -242,6 +258,11 @@ export class AgentTaskCenter {
     if (!initial) return
     const runner = this.runners.get(initial.kind)
     if (runner) return this.runFixed(id, runner)
+    if (isAgentRunnerKind(initial.kind)) {
+      await this.save({ ...initial, status: 'queued', updatedAt: this.deps.now() })
+      void this.pump()
+      return
+    }
     let drafts = initial.drafts
     const sink: DraftSink = {
       drafts: () => drafts,

@@ -129,6 +129,15 @@ export class AgentTaskCenter {
     return task
   }
 
+  /** Persist deterministic drafts directly for review without launching a model. */
+  async submitDrafts(input: { kind: 'organize'; title: string; drafts: DraftChange[] }): Promise<void> {
+    if (!input.drafts.length) return
+    const now = this.deps.now()
+    await this.save({
+      ...input, id: createTaskId(), prompt: '', status: 'awaiting_review', tokens: 0, createdAt: now, updatedAt: now,
+    }, true)
+  }
+
   /** 取消：排隊中的直接取消；執行中的請 runtime 停下，已做的草稿留給你審。 */
   async cancel(id: string) {
     if (isJobTaskId(id)) return

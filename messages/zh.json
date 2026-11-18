@@ -8246,5 +8246,20 @@
     "slotUnavailable": "此时段已无法使用，或原任务已变更。",
     "tasksUnavailable": "目前无法读取任务索引。",
     "loadingTasks": "正在读取任务…"
+  },
+  "organize": {
+    "title": "自动整理",
+    "description": "闲置 60 分钟后，最多提出五项变更，在「等你定」逐项确认。",
+    "merge": "将 {detail} 合并到 {path}",
+    "tag": "为 {path} 补上标签 #{detail}",
+    "link": "从 {path} 链接到 {detail}",
+    "mergeEffect": "保留 {keeper}，移除 {removed}。可从整理记录还原原始笔记。",
+    "history": "整理记录",
+    "undo": "撤销",
+    "recover": "还原原始笔记",
+    "undone": "已撤销整理变更。",
+    "undoFailed": "无法还原原始笔记。请确认是否有后续编辑或同名文件。",
+    "conflict": "笔记已变更或无法访问。如有未完成的变更，可查看整理记录。",
+    "settingsError": "无法保存自动整理设置。"
   }
 }

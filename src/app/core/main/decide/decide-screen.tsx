@@ -15,6 +15,7 @@ import { useDecisions } from '@/lib/decide/use-decisions'
 import { cn } from '@/lib/utils'
 import useCollectStore from '@/stores/collect'
 import useDecideStore from '@/stores/decide'
+import { OrganizeHistory } from '../organize/organize-history'
 import { JobReviewPreview } from '../jobs/job-result'
 import { Count, EmptyState, PageHeader, PageSurface } from '../page-ui'
 import { DiffBlock, KIND_ICON, destinationText, useDecideActions } from './decide-parts'
@@ -26,6 +27,7 @@ function itemTitle(item: DecideItem) {
 function Detail({ item }: { item: DecideItem }) {
   const t = useTranslations('decide')
   const jobT = useTranslations('jobs')
+  const organizeT = useTranslations('organize')
   const { busy, accept, reject } = useDecideActions()
   const Icon = KIND_ICON[item.kind]
   const { diff } = item.preview
@@ -45,6 +47,7 @@ function Detail({ item }: { item: DecideItem }) {
       ) : (
         <p className="mt-3 text-[13.5px] leading-6 text-muted-foreground">{t('writesTo')}<span className="text-ink">{destinationText(t, item.preview)}</span></p>
       )}
+      {item.organizeMerge && <p className="mt-3 text-sm">{organizeT('mergeEffect', item.organizeMerge)}</p>}
       {diff && <DiffBlock diff={diff} className="mt-3" />}
       {item.duplicates.length > 0 && <p className="mt-3 text-xs text-faint">{t('merged', { count: item.duplicates.length })}</p>}
       <div className="mt-5 flex items-center gap-1.5">
@@ -69,6 +72,7 @@ function DecidePage() {
       <PageHeader title={t('title')} subtitle={t('subtitle')} onBack={hide}>
         <Count value={items.length} label={t('count', { count: items.length })} />
       </PageHeader>
+      <OrganizeHistory />
       {items.length === 0 ? (
         <div className="flex flex-1 items-center justify-center"><EmptyState icon={CheckCheck} text={t('empty')} /></div>
       ) : (

@@ -8,6 +8,7 @@ import { insertLinesInSection } from '@/lib/today/today-model'
 import { projectJobDecisions } from '@/lib/jobs/projection'
 import type { Job } from '@/lib/jobs/schedule'
 import { scheduleSlot, slotEndLabel } from '@/lib/timeslots/model'
+import { ORGANIZE_TOOL } from '@/lib/organize/drafts'
 import type { Proposal } from '@/lib/collect/types'
 
 export type DecideSource = 'collect' | 'draft' | 'job'
@@ -45,6 +46,7 @@ export interface DecideItem {
   preview: DecidePreview
   /** 被併進這一項的重複提案（同一件事只列一次；接受或拒絕這一項時一併處理）。 */
   duplicates: DecideRef[]
+  organizeMerge?: { removed: string; keeper: string }
   ref: DecideRef
 }
 
@@ -63,6 +65,8 @@ export interface CollectItemLike {
 }
 
 export interface DraftLike {
+  toolName?: string
+  args?: Record<string, unknown>
   id: string
   kind: 'create' | 'update' | 'delete' | 'move' | 'copy' | 'folder'
   path: string
@@ -197,12 +201,17 @@ function projectCollect(items: CollectItemLike[], journal: JournalSnapshot | nul
   return out
 }
 
-function projectDrafts(tasks: TaskLike[]): DecideItem[] {
+function projectDrafts(tasks: TaskLike[], workspace: string | undefined): DecideItem[] {
   const out: DecideItem[] = []
   for (const task of tasks) {
     if (task.status !== 'awaiting_review') continue
     for (const draft of task.drafts) {
       if (draft.state !== 'pending') continue
+      const organize = draft.toolName === ORGANIZE_TOOL
+      if (organize && draft.args?.workspace !== workspace) continue
+      const plan = organize ? draft.args?.plan as { kind?: string; detail?: string; path?: string } | undefined : undefined
+      const organizeMerge = plan?.kind === 'merge' && plan.detail && plan.path
+        ? { removed: plan.detail, keeper: plan.path } : undefined
       const diff = draft.kind === 'create' || draft.kind === 'update'
         ? previewDiff(draft.baseContent ?? '', draft.content ?? '')
         : null
@@ -217,6 +226,7 @@ function projectDrafts(tasks: TaskLike[]): DecideItem[] {
         at: task.updatedAt,
         preview: { type: 'file', path: draft.path, targetPath: draft.targetPath, diff },
         duplicates: [],
+        ...(organizeMerge ? { organizeMerge } : {}),
         ref: { source: 'draft', taskId: task.id, draftId: draft.id },
       })
     }
@@ -226,7 +236,7 @@ function projectDrafts(tasks: TaskLike[]): DecideItem[] {
 
 /** 等你定清單：兩個來源合併，等得最久的在最上面；同時間維持來源內的原順序。 */
 export function projectDecisions(input: ProjectInput): DecideItem[] {
-  const all = [...projectCollect(input.items, input.journal, input.workspace), ...projectDrafts(input.tasks), ...projectJobDecisions(input.jobs ?? [])]
+  const all = [...projectCollect(input.items, input.journal, input.workspace), ...projectDrafts(input.tasks, input.workspace), ...projectJobDecisions(input.jobs ?? [])]
   return all
     .map((item, index) => ({ item, index }))
     .sort((x, y) => x.item.at - y.item.at || x.index - y.index)

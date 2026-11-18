@@ -12,7 +12,7 @@ import { agentTaskCenter, useAgentTaskStore } from '@/lib/agent-tasks'
 export function BackgroundTaskControls({ text, onSent }: { text: string; onSent: () => void }) {
   const t = useTranslations('agentTasks')
   const openSheet = useAgentTaskStore(state => state.openSheet)
-  const waiting = useAgentTaskStore(state => state.tasks.filter(task => task.status === 'awaiting_review').length)
+  const waiting = useAgentTaskStore(state => state.tasks.filter(task => task.kind !== 'organize' && task.status === 'awaiting_review').length)
   const running = useAgentTaskStore(state => state.tasks.filter(task => task.status === 'running' || task.status === 'queued').length)
   const prompt = text.trim()
 

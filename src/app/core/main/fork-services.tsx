@@ -13,6 +13,7 @@ import { AgentTaskService } from './agent-tasks/agent-task-service'
 import { JobService } from './jobs/job-service'
 import { HomeService } from './home/home-service'
 import { ConversationSummaryDialog } from './conversation-summary/summary-dialog'
+import { OrganizeService } from './organize/organize-service'
 import { AnywhereService } from './anywhere/anywhere-service'
 
 /**
@@ -44,6 +45,7 @@ export function ForkServices() {
       <ReminderService />
       <LinkRewritePrompt />
       <AgentTaskService />
+      <OrganizeService />
       <JobService />
       <HomeService />
       <ConversationSummaryDialog />

@@ -196,7 +196,7 @@ export function AgentTasksSheet() {
   const t = useTranslations('agentTasks')
   const v3 = useUiV3()
   const { tasks: allTasks, sheetOpen, reviewTaskId, closeSheet, setReviewTask } = useAgentTaskStore()
-  const tasks = v3 ? allTasks : allTasks.filter(task => !isJobTaskId(task.id))
+  const tasks = allTasks.filter(task => task.kind !== 'organize' && (v3 || !isJobTaskId(task.id)))
   const reviewTask = reviewTaskId ? tasks.find(task => task.id === reviewTaskId) : undefined
 
   return (

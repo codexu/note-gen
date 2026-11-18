@@ -69,6 +69,7 @@ async function waitForDisk(draft: AgentTask['drafts'][number]) {
 
 export async function applyTaskDraft(taskId: string, draftId: string, confirmedConflict = false) {
   const task = agentTaskCenter.get(taskId)
+  if (task?.kind === 'organize') return
   const draft = task?.drafts.find(item => item.id === draftId)
   if (!task || !draft) return
   const next = await applyDraft(draft, reviewDeps, confirmedConflict, task.drafts)
@@ -78,6 +79,7 @@ export async function applyTaskDraft(taskId: string, draftId: string, confirmedC
 
 export async function applyTaskDraftsInBulk(taskId: string) {
   const task = agentTaskCenter.get(taskId)
+  if (task?.kind === 'organize') return
   if (!task) return
   const results = await applyBulk(await inspectTaskDrafts(task), reviewDeps)
   for (const draft of results) await waitForDisk(draft)

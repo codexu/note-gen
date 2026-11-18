@@ -56,6 +56,7 @@ export function useTaskNeeds(): NeedItem[] {
   const isV3 = useUiV3()
   const out: NeedItem[] = []
   for (const task of tasks) {
+    if (task.kind === 'organize') continue
     // 新介面：草稿已逐條列在「等你定」，整個任務的待審列不再重複
     if (task.status === 'awaiting_review') {
       if (isV3) continue
@@ -96,6 +97,7 @@ export function TasksSection() {
   const hide = useHomeStore(state => state.hide)
   // 進行中＋今天完成的；等你回應與沒做完的已經在「需要你處理」
   const shown = tasks
+    .filter(task => task.kind !== 'organize')
     .filter(task => task.status === 'running' || task.status === 'queued' || ((task.status === 'completed' || task.status === 'cancelled') && isToday(task.finishedAt)))
     .slice(0, 6)
   const recent = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5)

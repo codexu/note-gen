@@ -85,7 +85,7 @@ export async function listAgentTasks(limit = 100): Promise<AgentTask[]> {
      select id, kind, title, prompt, status, drafts, result, error, tokens,
             created_at as createdAt, updated_at as updatedAt, finished_at as finishedAt
      from agent_tasks
-     where id glob $1 or id in (select id from recent)
+     where id glob $1 or (kind = 'organize' and status = 'awaiting_review') or id in (select id from recent)
      order by created_at desc`,
     [`${JOB_TASK_PREFIX}*`, limit]
   )

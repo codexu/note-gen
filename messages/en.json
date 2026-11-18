@@ -8151,6 +8151,77 @@
       "cancelled": "Cancelled"
     }
   },
+  "todayV3": {
+    "title": "Today",
+    "dateLabel": "{month}/{day} {weekday} · W{week}",
+    "weekday": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    },
+    "summary": "Today: {events, plural, one {# event} other {# events}}, {tasks, plural, one {# task} other {# tasks}}, {decisions} waiting for you.",
+    "timeline": {
+      "label": "Time",
+      "allDay": "All day",
+      "now": "Now",
+      "readOnly": "Calendar event (read-only)",
+      "task": "Task",
+      "anchor": "Journal slot",
+      "empty": "Nothing scheduled on the timeline today.",
+      "noAccess": "Calendar access is off, so events will not show here."
+    },
+    "journal": {
+      "label": "Journal",
+      "focus": "Focus mode",
+      "focusOff": "Exit focus",
+      "empty": "Today's journal has no paragraphs yet.",
+      "open": "Open journal"
+    },
+    "todo": {
+      "label": "To finish today",
+      "empty": "No tasks to finish today.",
+      "overdue": "{days}d overdue",
+      "check": "Complete \"{title}\"",
+      "uncheck": "Reopen \"{title}\""
+    },
+    "decide": {
+      "label": "Waiting for you",
+      "empty": "All decided.",
+      "all": "All"
+    },
+    "captures": {
+      "label": "Collected today",
+      "all": "All",
+      "empty": "Nothing collected today.",
+      "reading": "Reading",
+      "kind": {
+        "text": "Text",
+        "link": "Link",
+        "image": "Screenshot",
+        "file": "File"
+      }
+    },
+    "composer": {
+      "modeLabel": "Input mode",
+      "note": "Note",
+      "ask": "Ask",
+      "notePlaceholder": "Jot something down, or press Tab to switch to Ask",
+      "askPlaceholder": "Ask a question, e.g. \"how should I use this afternoon?\"",
+      "submitNote": "Collect",
+      "submitAsk": "Ask",
+      "detect": {
+        "task": "Task",
+        "link": "Link",
+        "text": "Note"
+      },
+      "captured": "Collected. Splitting into proposals",
+      "noModel": "No model configured yet. Pick one in settings first."
+    }
+  },
   "week": {
     "title": "Week plan",
     "previous": "Previous week",

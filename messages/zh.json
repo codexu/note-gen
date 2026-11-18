@@ -8151,6 +8151,77 @@
       "cancelled": "已取消"
     }
   },
+  "todayV3": {
+    "title": "今天",
+    "dateLabel": "{month} 月 {day} 日 {weekday} · W{week}",
+    "weekday": {
+      "0": "星期日",
+      "1": "星期一",
+      "2": "星期二",
+      "3": "星期三",
+      "4": "星期四",
+      "5": "星期五",
+      "6": "星期六"
+    },
+    "summary": "今天 {events} 个行程、{tasks} 件待办、{decisions} 件等你定。",
+    "timeline": {
+      "label": "时间",
+      "allDay": "全天",
+      "now": "现在",
+      "readOnly": "日历事件（只读）",
+      "task": "任务",
+      "anchor": "日志时段",
+      "empty": "今天没有排进时间轴的事。",
+      "noAccess": "日历还没开放访问，行程不会出现在这里。"
+    },
+    "journal": {
+      "label": "日志",
+      "focus": "专注模式",
+      "focusOff": "结束专注",
+      "empty": "今天的日志还没有段落。",
+      "open": "打开日志"
+    },
+    "todo": {
+      "label": "今天要完成",
+      "empty": "今天没有待完成的任务。",
+      "overdue": "逾期 {days} 天",
+      "check": "完成“{title}”",
+      "uncheck": "取消完成“{title}”"
+    },
+    "decide": {
+      "label": "等你定",
+      "empty": "都定完了。",
+      "all": "全部"
+    },
+    "captures": {
+      "label": "今天收进来",
+      "all": "全部",
+      "empty": "今天还没收进东西。",
+      "reading": "正在识别",
+      "kind": {
+        "text": "文字",
+        "link": "链接",
+        "image": "截图",
+        "file": "文件"
+      }
+    },
+    "composer": {
+      "modeLabel": "输入模式",
+      "note": "记",
+      "ask": "问",
+      "notePlaceholder": "记一笔，或按 Tab 切到“问”",
+      "askPlaceholder": "问问题，例如“下午的空档怎么排”",
+      "submitNote": "收进来",
+      "submitAsk": "问",
+      "detect": {
+        "task": "任务",
+        "link": "链接",
+        "text": "笔记"
+      },
+      "captured": "收进来了，正在拆分成提案",
+      "noModel": "还没设置模型，请先到设置里选一个。"
+    }
+  },
   "week": {
     "title": "周计划",
     "previous": "上一周",

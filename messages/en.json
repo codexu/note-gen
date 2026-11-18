@@ -7900,6 +7900,64 @@
     "queued": "Queued",
     "writeHint": "New notes, tasks and slots are written only when you accept them; discarded proposals leave no file behind."
   },
+  "threads": {
+    "title": "Threads",
+    "subtitle": "Every conversation, grouped by project",
+    "listLabel": "Threads",
+    "search": "Search threads or projects",
+    "groupBy": "Group by",
+    "mode": {
+      "project": "By project",
+      "recent": "Recent"
+    },
+    "ungrouped": "Ungrouped",
+    "empty": "No conversations yet. Ask something in the side chat or Anywhere chat and it shows up here.",
+    "noMatch": "No matching threads",
+    "newThread": "New thread",
+    "untitled": "Untitled thread",
+    "pinned": "Pinned",
+    "messageCount": "{count, plural, one {# message} other {# messages}}",
+    "moveToProject": "Move to project",
+    "newProject": "New project…",
+    "removeFromProject": "Remove from project",
+    "newProjectHint": "A project is just a group name for threads. You can change it any time.",
+    "projectName": "Project name",
+    "cancel": "Cancel",
+    "create": "Create and move",
+    "moveFromAnywhere": "Move to Threads",
+    "time": {
+      "now": "just now",
+      "minutes": "{count}m ago",
+      "hours": "{count}h ago",
+      "days": "{count}d ago"
+    },
+    "cards": {
+      "proposal": "Proposal",
+      "accept": "Accept",
+      "reject": "Reject",
+      "alsoInInbox": "Also waiting in Inbox",
+      "proposalWait": "Waiting",
+      "proposalOk": "Accepted",
+      "proposalNo": "Rejected",
+      "kickoff": "Kickoff card",
+      "placeholder": "Sample",
+      "kickoffProposed": "Ready to start",
+      "kickoffRunning": "Running",
+      "kickoffDone": "Done",
+      "kickoffCancelled": "On hold",
+      "start": "Start",
+      "hold": "Not now",
+      "reopen": "Back to ready",
+      "maxParallel": "Up to 3 at a time",
+      "dependsOn": "after #{list}",
+      "needsLook": "needs your look",
+      "task": {
+        "wait": "Queued",
+        "run": "Running",
+        "done": "Done"
+      }
+    }
+  },
   "anywhere": {
     "palette": {
       "title": "Command palette",

@@ -23,3 +23,22 @@ export function hideWhen(condition: () => boolean, stores: OverlayStore[]): void
     if (store.getState().visible) store.getState().hide()
   }
 }
+
+/** ALMNC-22：關掉所有開著的全頁畫面，回到編輯器。回傳是否有關掉任何一頁。 */
+export function hideAllOverlays(stores: OverlayStore[]): boolean {
+  let hid = false
+  for (const store of stores) {
+    if (store.getState().visible) {
+      store.getState().hide()
+      hid = true
+    }
+  }
+  return hid
+}
+
+/** ALMNC-22：新介面的 ⌘⇧H——有全頁畫面就全部關掉回到編輯器，沒有就打開今天主畫面。 */
+export function toggleWorkspace(stores: OverlayStore[], showToday: () => void): 'workspace' | 'today' {
+  if (hideAllOverlays(stores)) return 'workspace'
+  showToday()
+  return 'today'
+}

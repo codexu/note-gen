@@ -240,6 +240,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-19 | `src/components/ui/dropdown-menu.tsx` | 減少動態效果時停用選單與子選單縮放動畫 | ALMNC-18：減少動態效果 |
 | 2026-11-19 | fork：`src/lib/organize/{detect,scan,history,review}.ts`、`organize-history.tsx`；`messages/*.json` | almanac ALMNC-17 複審修正：接了同步時不提合併；來源檔名在 vault 不唯一時不提合併（上游刪除工具以檔名清向量）；還原後重新索引；已還原與超過 30 天的已套用紀錄清除；無法原地還原時可另存「整理前」副本 | Sonnet 複審 M1–M3 |
 | 2026-11-19 | fork：`src/lib/daily/coordinated-write.ts`（新）、`src/lib/today/today-actions.ts`、`src/lib/collect/write.ts`、`src/lib/timeslots/apply.ts` | almanac ALMNC-21：今天頁動作、收集收下、時段提案收下與復原改走 `note-rewrite` 的編輯器協調；最新內容（含編輯器未存文字）與讀到的不同時把同一動作重新套上，套不上就失敗不覆蓋 | 原本直接 `writeNote`，日誌開著且有未存輸入時，之後的防抖存檔可能蓋掉剛寫入的內容 |
+| 2026-11-19 | `src/app/core/main/page-ui.tsx`、`prompt-library/prompt-library-screen.tsx`、`home/home-service.tsx`；fork：`src/lib/fork-overlays/exclusive.ts`、`src/app/fork-theme.css` | almanac ALMNC-22：新介面不顯示「回到工作區」；⌘⇧H 有全頁畫面時全部關掉、沒有時開今天主畫面；點檔案樹裡已開著的那篇也回到編輯器；開檔關閉清單補上等你定；檔案樹目前開著的那篇用 v5 選中底 | v5 原型沒有這顆按鈕，側欄 B 的檔案樹即入口 |
 
 ## 刻意不改的東西
 

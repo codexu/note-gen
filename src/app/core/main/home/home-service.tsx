@@ -9,8 +9,8 @@ import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
 import useThreadsStore from '@/stores/threads'
 import useDecideStore from '@/stores/decide'
-import { hideWhen, linkExclusiveOverlays } from '@/lib/fork-overlays/exclusive'
-import { useUiModeStore } from '@/lib/fork-ui'
+import { hideAllOverlays, hideWhen, linkExclusiveOverlays, toggleWorkspace } from '@/lib/fork-overlays/exclusive'
+import { isUiV3, useUiModeStore } from '@/lib/fork-ui'
 import { useWeekOverlay } from '@/lib/week/overlay'
 import { useKnowledgeOverlay } from '@/lib/sidebar-v3/knowledge'
 import { KnowledgeScreen } from '../sidebar-v3/knowledge-screen'
@@ -30,6 +30,9 @@ import { ReportDrawer } from './cards/report-drawer'
 /** 碰過左側欄後多久內的開檔算是從左側欄打開（搜尋、讀檔是非同步的）。 */
 const LEFT_SIDEBAR_OPEN_WINDOW_MS = 3000
 const TOUCH_EVENTS = ['pointerdown', 'mousedown', 'click', 'keydown'] as const
+
+/** 所有蓋在編輯器上的全頁畫面。 */
+const ALL_OVERLAYS = [useHomeStore, useInboxStore, usePromptLibraryStore, useCollectStore, useDecideStore, useThreadsStore, useWeekOverlay, useKnowledgeOverlay]
 
 export function HomeService() {
   const init = useHomeStore(state => state.init)
@@ -55,7 +58,9 @@ export function HomeService() {
       // 注音等輸入法下 key 可能不是 h，所以也看實體鍵位。
       if (event.code !== 'KeyH' && event.key.toLowerCase() !== 'h' && event.keyCode !== 72) return
       event.preventDefault()
-      useHomeStore.getState().toggle()
+      // Fork（ALMNC-22）：新介面沒有「回到工作區」按鈕，⌘⇧H 負責在全頁畫面與編輯器之間切換
+      if (isUiV3()) toggleWorkspace(ALL_OVERLAYS, () => useHomeStore.getState().show())
+      else useHomeStore.getState().toggle()
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
@@ -102,16 +107,18 @@ export function HomeService() {
     const unsubscribe = useArticleStore.subscribe((state, prev) => {
       if (state.activeFilePath === prev.activeFilePath && state.activeTabId === prev.activeTabId) return
       if (Date.now() - touchedAt > LEFT_SIDEBAR_OPEN_WINDOW_MS) return
-      if (useHomeStore.getState().visible) useHomeStore.getState().hide()
-      if (useInboxStore.getState().visible) useInboxStore.getState().hide()
-      if (usePromptLibraryStore.getState().visible) usePromptLibraryStore.getState().hide()
-      if (useCollectStore.getState().visible) useCollectStore.getState().hide()
-      if (useThreadsStore.getState().visible) useThreadsStore.getState().hide()
-      if (useWeekOverlay.getState().visible) useWeekOverlay.getState().hide()
-      if (useKnowledgeOverlay.getState().visible) useKnowledgeOverlay.getState().hide()
+      // ALMNC-22：原本漏了等你定，改用同一份清單
+      hideAllOverlays(ALL_OVERLAYS)
     })
+    // ALMNC-22：新介面點檔案樹裡「已經開著的那篇」也回到編輯器（開著的檔案沒變，上面的訂閱不會觸發）
+    function onActiveFileClick(event: MouseEvent) {
+      if (!isUiV3() || !(event.target instanceof Element)) return
+      if (event.target.closest('[data-left-sidebar] .file-manager-item.active')) hideAllOverlays(ALL_OVERLAYS)
+    }
+    document.addEventListener('click', onActiveFileClick, true)
     return () => {
       for (const type of TOUCH_EVENTS) document.removeEventListener(type, onTouch, true)
+      document.removeEventListener('click', onActiveFileClick, true)
       unsubscribe()
     }
   }, [])

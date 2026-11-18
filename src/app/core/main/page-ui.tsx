@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useUiV3 } from '@/lib/fork-ui'
 
 /** 卡片標題（首頁各卡片共用）。 */
 export const CARD_TITLE = 'text-[15px] font-semibold'
@@ -73,6 +74,8 @@ export function PageHeader({ title, subtitle, children, actions, onBack, backSho
   backShortcut?: string
 }) {
   const t = useTranslations('home')
+  // Fork（ALMNC-22）：新介面不放「回到工作區」，改用側欄檔案樹與 ⌘⇧H
+  const isV3 = useUiV3()
   return (
     <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-b px-5 py-2">
       <div className="min-w-0">
@@ -82,11 +85,13 @@ export function PageHeader({ title, subtitle, children, actions, onBack, backSho
       {children}
       <div className="ml-auto flex items-center gap-1">
         {actions}
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={onBack} title={t('backToWorkspace')}>
-          <PanelsTopLeft className="size-4" aria-hidden />
-          {t('backToWorkspace')}
-          {backShortcut && <kbd className="rounded border px-1 text-xs">{backShortcut}</kbd>}
-        </Button>
+        {!isV3 && (
+          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={onBack} title={t('backToWorkspace')}>
+            <PanelsTopLeft className="size-4" aria-hidden />
+            {t('backToWorkspace')}
+            {backShortcut && <kbd className="rounded border px-1 text-xs">{backShortcut}</kbd>}
+          </Button>
+        )}
       </div>
     </header>
   )

@@ -8322,7 +8322,8 @@
       },
       "captured": "收進來了，正在拆分成提案",
       "noModel": "還沒設定模型，請先到設定選一個。"
-    }
+    },
+    "titleDay": "{month} 月 {day} 日"
   },
   "week": {
     "title": "週計畫",

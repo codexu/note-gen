@@ -8257,7 +8257,8 @@
       },
       "captured": "Collected. Splitting into proposals",
       "noModel": "No model configured yet. Pick one in settings first."
-    }
+    },
+    "titleDay": "{month}/{day}"
   },
   "week": {
     "title": "Week plan",

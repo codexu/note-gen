@@ -8257,7 +8257,8 @@
       },
       "captured": "收进来了，正在拆分成提案",
       "noModel": "还没设置模型，请先到设置里选一个。"
-    }
+    },
+    "titleDay": "{month} 月 {day} 日"
   },
   "week": {
     "title": "周计划",

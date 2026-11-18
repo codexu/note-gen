@@ -182,7 +182,7 @@ export function TodayV3Screen() {
   return (
     <PageSurface label={t('title')} onDismiss={hide}>
       <PageHeader
-        title={t('title')}
+        title={viewingToday ? t('title') : t('titleDay', { month: layout.heading.month, day: layout.heading.day })}
         subtitle={<span className="font-mono text-xs">{!viewingToday && `${t('viewing')} · `}{t('dateLabel', { month: heading.month, day: heading.day, weekday: t(`weekday.${heading.weekday}`), week: heading.week })}</span>}
         onBack={hide}
         backShortcut="⌘⇧H"

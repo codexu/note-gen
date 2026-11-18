@@ -72,8 +72,10 @@ function ProposalBlock({ proposal, startHour, busy, onAccept, onReject }: {
   )
 }
 
-export function Timeline({ view, onOpenTask, noAccess, proposals = [], busyKey = null, onAccept, onReject }: {
+export function Timeline({ view, dayKey, onOpenTask, noAccess, proposals = [], busyKey = null, onAccept, onReject }: {
   view: TimelineView
+  /** 顯示哪一天（YYYY-MM-DD）；換日時捲動位置重設。 */
+  dayKey: string
   onOpenTask: (path: string) => void
   noAccess: boolean
   proposals?: TimelineProposal[]
@@ -86,15 +88,18 @@ export function Timeline({ view, onOpenTask, noAccess, proposals = [], busyKey =
   const height = (view.endHour - view.startHour) * HOUR_PX
   const nowRef = useRef<HTMLDivElement>(null)
 
-  // 進來時把現在線捲到可視範圍上段
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // 進來時、換日時：今天把現在線捲到可視範圍中段，別天捲回頂端
   useEffect(() => {
-    nowRef.current?.scrollIntoView({ block: 'center' })
-    // 只在第一次顯示時捲動
+    if (nowRef.current) nowRef.current.scrollIntoView({ block: 'center' })
+    else rootRef.current?.scrollIntoView({ block: 'start' })
+    // 只在第一次顯示與換日時捲動（現在線每分鐘移動不重捲）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [dayKey])
 
   return (
-    <div>
+    <div ref={rootRef}>
       <div className={LABEL}>{t('label')}</div>
       {view.allDay.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">

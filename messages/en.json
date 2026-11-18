@@ -8180,6 +8180,17 @@
       "6": "Sat"
     },
     "summary": "Today: {events, plural, one {# event} other {# events}}, {tasks, plural, one {# task} other {# tasks}}, {decisions} waiting for you.",
+    "summaryDay": "{month}/{day}: {events, plural, one {# event} other {# events}}, {tasks, plural, one {# task} other {# tasks}}; {decisions} waiting for you (all days).",
+    "viewing": "Viewing",
+    "strip": {
+      "label": "Date strip, {range}",
+      "previous": "Back one week",
+      "next": "Forward one week",
+      "dayLabel": "{month}/{day} {weekday}",
+      "today": "today",
+      "hasNote": "has a daily note",
+      "backToToday": "Back to today"
+    },
     "timeline": {
       "label": "Time",
       "allDay": "All day",
@@ -8198,14 +8209,19 @@
       "focus": "Focus mode",
       "focusOff": "Exit focus",
       "empty": "Today's journal has no paragraphs yet.",
-      "open": "Open journal"
+      "open": "Open journal",
+      "emptyDay": "This day's journal has no paragraphs yet.",
+      "missingDay": "No daily note for this day.",
+      "create": "Create daily note"
     },
     "todo": {
       "label": "To finish today",
       "empty": "No tasks to finish today.",
       "overdue": "{days}d overdue",
       "check": "Complete \"{title}\"",
-      "uncheck": "Reopen \"{title}\""
+      "uncheck": "Reopen \"{title}\"",
+      "labelDay": "Due {month}/{day}",
+      "emptyDay": "No tasks due this day."
     },
     "decide": {
       "label": "Waiting for you",
@@ -8230,6 +8246,8 @@
       "ask": "Ask",
       "notePlaceholder": "Jot something down, or press Tab to switch to Ask",
       "askPlaceholder": "Ask a question, e.g. \"how should I use this afternoon?\"",
+      "notePlaceholderToday": "Capture a note (goes to today, not {date})",
+      "toToday": "Goes to today",
       "submitNote": "Collect",
       "submitAsk": "Ask",
       "detect": {

@@ -28,7 +28,8 @@ export function detectNote(text: string, now: Date): 'task' | 'link' | 'text' | 
   return schedule && (schedule.due || schedule.time) ? 'task' : 'text'
 }
 
-export function TodayComposer() {
+/** viewingLabel：主畫面正在看別天時的日期（例如 11/20）；記一筆永遠記到今天，要在輸入列說清楚。 */
+export function TodayComposer({ viewingLabel = null }: { viewingLabel?: string | null }) {
   const t = useTranslations('todayV3.composer')
   const [mode, setMode] = useState<Mode>('note')
   const [value, setValue] = useState('')
@@ -81,8 +82,8 @@ export function TodayComposer() {
       </div>
       <input
         value={value}
-        aria-label={t(mode === 'note' ? 'notePlaceholder' : 'askPlaceholder')}
-        placeholder={t(mode === 'note' ? 'notePlaceholder' : 'askPlaceholder')}
+        aria-label={mode === 'note' && viewingLabel ? t('notePlaceholderToday', { date: viewingLabel }) : t(mode === 'note' ? 'notePlaceholder' : 'askPlaceholder')}
+        placeholder={mode === 'note' && viewingLabel ? t('notePlaceholderToday', { date: viewingLabel }) : t(mode === 'note' ? 'notePlaceholder' : 'askPlaceholder')}
         onChange={event => setValue(event.target.value)}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing) return
@@ -96,6 +97,7 @@ export function TodayComposer() {
         }}
         className="min-w-0 flex-1 rounded bg-transparent text-sm text-ink caret-brand outline-none placeholder:text-faint focus-visible:ring-1 focus-visible:ring-ring"
       />
+      {mode === 'note' && viewingLabel && <span className="shrink-0 rounded-md bg-hover px-[7px] py-px text-[11px] font-semibold text-ink" data-testid="today-v3-composer-today">{t('toToday')}</span>}
       <span className={cn('shrink-0 rounded-md bg-hover px-[7px] py-px text-[11px] font-semibold text-muted-ink transition-opacity duration-100', detected ? 'opacity-100' : 'opacity-0')} aria-hidden={!detected}>
         {detected ? t(`detect.${detected}`) : ''}
       </span>

@@ -8245,6 +8245,17 @@
       "6": "星期六"
     },
     "summary": "今天 {events} 個行程、{tasks} 件待辦、{decisions} 件等你定。",
+    "summaryDay": "{month} 月 {day} 日：{events} 個行程、{tasks} 件待辦；等你定 {decisions} 件（不分日期）。",
+    "viewing": "正在看",
+    "strip": {
+      "label": "日期列，{range}",
+      "previous": "往前一週",
+      "next": "往後一週",
+      "dayLabel": "{month} 月 {day} 日 {weekday}",
+      "today": "今天",
+      "hasNote": "有日記",
+      "backToToday": "回到今天"
+    },
     "timeline": {
       "label": "時間",
       "allDay": "全天",
@@ -8263,14 +8274,19 @@
       "focus": "專注模式",
       "focusOff": "結束專注",
       "empty": "今天的日誌還沒有段落。",
-      "open": "開啟日誌"
+      "open": "開啟日誌",
+      "emptyDay": "這天的日誌還沒有段落。",
+      "missingDay": "這天還沒有日記。",
+      "create": "建立日記"
     },
     "todo": {
       "label": "今天要完成",
       "empty": "今天沒有待完成的任務。",
       "overdue": "逾期 {days} 天",
       "check": "完成「{title}」",
-      "uncheck": "取消完成「{title}」"
+      "uncheck": "取消完成「{title}」",
+      "labelDay": "{month}/{day} 到期",
+      "emptyDay": "這天沒有到期的任務。"
     },
     "decide": {
       "label": "等你定",
@@ -8295,6 +8311,8 @@
       "ask": "問",
       "notePlaceholder": "記一筆，或按 Tab 切到「問」",
       "askPlaceholder": "問問題，例如「下午的空檔怎麼排」",
+      "notePlaceholderToday": "記一筆（會記到今天，不是 {date}）",
+      "toToday": "記到今天",
       "submitNote": "收進來",
       "submitAsk": "問",
       "detect": {

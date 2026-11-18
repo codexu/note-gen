@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === 'production';
 const internalHost = process.env.TAURI_DEV_HOST || 'localhost';
+// Fork（almanac P0.5）：別的 worktree 用 `PORT=3457 npx next dev` 開第二個 dev server 時，資源路徑跟著埠走。
+const devPort = process.env.PORT || '3456';
 
 const withNextIntl = createNextIntlPlugin();
 
@@ -12,7 +14,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  assetPrefix: isProd ? undefined : `http://${internalHost}:3456`,
+  assetPrefix: isProd ? undefined : `http://${internalHost}:${devPort}`,
   sassOptions: {
     silenceDeprecations: ['legacy-js-api'],
   },

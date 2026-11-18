@@ -146,6 +146,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `src/app/core/main/main-status-bar.tsx` | `<footer>` class：`bg-statusbar`、`border-line-soft`、`text-[10.5px]` | P0-c 狀態列 |
 | 2026-11-18 | `src/app/core/main/page.tsx` | `MIN_LEFT_SIDEBAR_WIDTH_PX` 260 → 240 | P0-c 左側欄寬 240px 規格 |
 | 2026-11-18 | `src/stores/article.ts` | `loadFileTree` 本體包 `try/catch`（刻意不縮排）：讀取失敗時最新一次請求結束 `fileTreeLoading`、設 `fileTreeInitialized` 避免無限重試，並跳「無法讀取工作區」提示；`src/app/core/main/fork-services.tsx`、`src/lib/vault-index/service.ts`（fork 自有）：索引等設定載入完才啟動，`startVaultIndex` 收 `AbortSignal`，寫入 store／快取前確認 store 仍屬於該工作區 | Issue #75：首次啟動檔案樹空白、短暫顯示別的工作區任務（ALMNC-1） |
+| 2026-11-18 | `pnpm-workspace.yaml`（新）、`src-tauri/tauri.dev.conf.json`（新）、`package.json`、`next.config.ts` | almanac P0.5：pnpm 10 起不讀 package.json 的 `pnpm` 欄位，overrides 搬到 `pnpm-workspace.yaml`（package.json 的欄位是上游的，保留；兩邊要一致），並用 `allowBuilds` 放行 @parcel/watcher、esbuild、sharp、unrs-resolver 的 build script；新增 `pnpm tauri:dev`，dev 版用 identifier `tw.scottchen.NoteGen.dev`、名稱 `NoteGen (Scott) Dev`，資料目錄與正式版分開；`assetPrefix` 改讀 `PORT`（預設 3456） | dev 與正式版共用 AppData 是 #75 的環境因素；全域 pnpm 12 下 `pnpm dev`／打包會失敗；第二個 worktree 開 dev server 不必改檔 |
 
 ## 刻意不改的東西
 
@@ -155,11 +156,13 @@ npx pnpm@9 install --frozen-lockfile
 
 ## 開發環境注意
 
-- **pnpm 用 9 版**（跟上游 CI 一致）：`npx pnpm@9 install --frozen-lockfile`。pnpm 10+ 會擋 build script，而且會忽略 `package.json` 的 `pnpm.overrides`（`@lezer/common`），改寫 lockfile。
-- 2026-10-25 同步時全域 pnpm 較新，`--frozen-lockfile` 因 `pnpm.overrides` 不符失敗；我改用非凍結安裝補套件，再把 `pnpm-lock.yaml` 還原成合併結果。**沒用 `pnpm@9` 重試**，下次同步請先照上面的 `npx pnpm@9 install --frozen-lockfile`。
+- **pnpm**（2026-11-18 起）：全域 pnpm 10+（本機 12.18）直接用，設定在 `pnpm-workspace.yaml`（overrides、allowBuilds）；`pnpm install --frozen-lockfile` 不會改 lockfile。上游 CI 用 pnpm 9，它讀 `package.json` 的 `pnpm.overrides`，所以兩處的 overrides 要保持一致。舊說明「pnpm 用 9 版」已不需要。
+- 同步上游後若 `pnpm install` 報 `ERR_PNPM_IGNORED_BUILDS`，表示上游新增了需要 build script 的套件：確認後用 `pnpm approve-builds <套件>` 加進 `allowBuilds`。
+- **dev 版**：`pnpm tauri:dev`（identifier `tw.scottchen.NoteGen.dev`，資料在 `~/Library/Application Support/tw.scottchen.NoteGen.dev`，與正式版分開）。直接 `pnpm tauri dev` 仍會用正式版資料，不要用。
+- 第二個 dev server：`PORT=3457 npx next dev`（不要加 `-p`，`assetPrefix` 讀 `PORT`）。worktree 的 `node_modules` 若是 symlink，Turbopack 會 panic，要拿掉 `--turbopack`。
 - 桌面版 build 需要 Rust（`rustup`）。
 - **Rust 用 stable，不用 repo 指定的 1.88.0**：macOS 27 的 dyld 拒絕載入 1.88.0 編出的 proc-macro（`sqlx-macros` 報 `mis-aligned LINKEDIT string pool`）。本機用 `rustup override set stable` 蓋過 `rust-toolchain.toml`，不改 repo 檔案。1.99.0 驗證可 build。
-- 本機 build：`npx pnpm@9 tauri build --bundles app` → `src-tauri/target/release/bundle/macos/NoteGen (Scott).app`。
+- 本機 build：`CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=none pnpm tauri build --bundles app` → `src-tauri/target/release/bundle/macos/NoteGen (Scott).app`。
 
 ## 測試步驟
 

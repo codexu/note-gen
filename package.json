@@ -13,6 +13,7 @@
     "lint": "next lint",
     "test": "vitest run",
     "tauri": "tauri",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "docs:build": "npm --prefix ./docs run build",
     "sync-version": "./scripts/sync-version.sh",
     "sync:self-hosted-schema": "pnpm dlx openapi-typescript@7.13.0 ${NOTEGEN_SERVER_OPENAPI_URL:-http://localhost:3000/openapi.json} -o src/lib/self-hosted-sync/generated/openapi.ts",

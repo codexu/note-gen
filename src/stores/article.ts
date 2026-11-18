@@ -58,6 +58,7 @@ import {
 } from '@/lib/editor-deactivation'
 import { writeSelfHostedWorkspaceText } from '@/lib/self-hosted-sync/files'
 import { isFileDeletionPending } from './file-deletion'
+import { toast } from '@/hooks/use-toast'
 import type { EditorWorkspaceLayout } from '@/app/core/main/editor/editor-group-layout'
 
 type SyncPushCompletedEvent = Events['sync-push-completed']
@@ -2416,6 +2417,10 @@ const useArticleStore = create<NoteState>((set, get) => ({
   
   loadFileTree: async (options) => {
     set({ fileTreeLoading: true })
+    // Fork (#75): readDir 失敗（例如沒有「文件」資料夾權限）時不能讓 fileTreeLoading 卡在 true，
+    // 否則 file-manager 不會重試、檔案樹一直空白。本體刻意不縮排，保持與上游的 diff 最小。
+    let requestGeneration: number | undefined
+    try {
     // 知识库状态不应阻塞文件树展示；初始化函数会合并并发请求。
     void get().initVectorIndexedFiles()
 
@@ -2431,6 +2436,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       workspaceKey,
       generation: ++fileTreeLoadGeneration,
     }
+    requestGeneration = requestContext.generation
     fileTreeWorkspaceKey = workspaceKey
 
     const cachedTree = workspaceChanged ? [] : get().fileTree
@@ -2614,6 +2620,18 @@ const useArticleStore = create<NoteState>((set, get) => ({
     // 异步加载远程同步文件（不阻塞界面）
     if (!options?.skipRemoteSync) {
       void get().loadRemoteSyncFiles(requestContext).catch(() => undefined)
+    }
+    } catch (error) {
+      console.error('[file-tree] load failed:', error)
+      // 只有最新一次請求能結束載入狀態；設 fileTreeInitialized 避免權限錯誤時無限重試，手動重新整理可再試。
+      if (requestGeneration === undefined || requestGeneration === fileTreeLoadGeneration) {
+        set({ fileTreeLoading: false, fileTreeInitialized: true })
+        toast({
+          title: '無法讀取工作區',
+          description: '請確認 NoteGen 有權限存取工作區資料夾（系統設定 > 隱私權與安全性 > 檔案與資料夾），再按檔案樹的重新整理。',
+          variant: 'destructive',
+        })
+      }
     }
   },
   

@@ -168,25 +168,37 @@ export interface VaultIndexHandle {
   rescan: () => Promise<void>
 }
 
+const NOOP_HANDLE: VaultIndexHandle = { stop: () => {}, rescan: async () => {} }
+
 /**
  * 啟動指定工作區的索引。workspacePath 為空字串時是預設工作區（AppData/article）。
  * 回傳的 stop() 會停止監看並寫出最後一次快取。
+ *
+ * Issue #75：啟動是非同步的，工作區可能在 resolve 前就換掉。傳入 signal 後，abort
+ * 會立即停止這次啟動；另外每次寫入 store 或快取前都確認 store 仍屬於這個工作區，
+ * 舊工作區的快取與掃描結果不會蓋掉新工作區。
  */
-export async function startVaultIndex(workspacePath: string): Promise<VaultIndexHandle> {
-  const store = useVaultIndexStore.getState()
+export async function startVaultIndex(workspacePath: string, signal?: AbortSignal): Promise<VaultIndexHandle> {
   const workspaceRoot = workspacePath || await join(await appDataDir(), 'article')
+  if (signal?.aborted) return NOOP_HANDLE
   const workspaceKey = workspaceRoot.replace(/\\/g, '/').replace(/\/+$/, '')
-  store.reset(workspaceKey)
+  useVaultIndexStore.getState().reset(workspaceKey)
 
   let stopped = false
   let cancelSave: (() => void) | null = null
   let scanning: Promise<void> | null = null
+  let unwatch: (() => void) | undefined
+
+  /** 這次啟動仍有效，且 store 沒被別的工作區接手 */
+  const owns = () => !stopped
+    && !signal?.aborted
+    && useVaultIndexStore.getState().workspace === workspaceKey
 
   const scheduleSave = () => {
     cancelSave?.()
     cancelSave = scheduleVaultIndexSave(() => {
       cancelSave = null
-      if (stopped) return
+      if (!owns()) return
       void saveCache(workspaceKey, useVaultIndexStore.getState().notes)
         .catch(error => console.warn('[vault-index] cache save failed:', error))
     }, CACHE_SAVE_DELAY_MS)
@@ -194,11 +206,13 @@ export async function startVaultIndex(workspacePath: string): Promise<VaultIndex
 
   const runScan = async (base: Map<string, IndexedNote>, fromCache: boolean) => {
     const started = performance.now()
+    if (!owns()) return
     useVaultIndexStore.getState().setStatus('scanning')
     const listed = await listVault()
+    if (!owns()) return
     const plan = planScan(base, listed)
     const { indexed, missing } = await indexPaths(plan.toIndex)
-    if (stopped) return
+    if (!owns()) return
 
     const next = new Map(base)
     for (const path of [...plan.toRemove, ...missing]) next.delete(path)
@@ -223,19 +237,21 @@ export async function startVaultIndex(workspacePath: string): Promise<VaultIndex
     if (indexed.length > 0 || plan.toRemove.length > 0 || missing.length > 0) scheduleSave()
   }
 
+  const reportScanError = (label: string) => (error: unknown) => {
+    console.error(`[vault-index] ${label}:`, error)
+    if (owns()) useVaultIndexStore.getState().setStatus('error', String(error))
+  }
+
   const rescan = async () => {
     if (scanning) return scanning
     scanning = runScan(useVaultIndexStore.getState().notes, false)
-      .catch(error => {
-        console.error('[vault-index] scan failed:', error)
-        useVaultIndexStore.getState().setStatus('error', String(error))
-      })
+      .catch(reportScanError('scan failed'))
       .finally(() => { scanning = null })
     return scanning
   }
 
   const handleEvent = async (event: WatchEvent) => {
-    if (stopped) return
+    if (!owns()) return
     if (event.paths.length === 0 || touchesFolder(event, workspaceKey)) {
       await rescan()
       return
@@ -246,7 +262,7 @@ export async function startVaultIndex(workspacePath: string): Promise<VaultIndex
     if (paths.length === 0) return
     const started = performance.now()
     const { indexed, missing } = await indexPaths(paths)
-    if (stopped) return
+    if (!owns()) return
     const state = useVaultIndexStore.getState()
     state.remove(missing)
     state.upsert(indexed)
@@ -254,37 +270,44 @@ export async function startVaultIndex(workspacePath: string): Promise<VaultIndex
     scheduleSave()
   }
 
+  const stop = () => {
+    if (stopped) return
+    // 停止前先確認 store 還屬於這個工作區，才寫出最後一次快取
+    const flush = cancelSave !== null && useVaultIndexStore.getState().workspace === workspaceKey
+    stopped = true
+    if (useVaultIndexStore.getState().rescan === rescan) useVaultIndexStore.getState().setRescan(null)
+    unwatch?.()
+    unwatch = undefined
+    if (cancelSave) {
+      cancelSave()
+      cancelSave = null
+    }
+    if (flush) void saveCache(workspaceKey, useVaultIndexStore.getState().notes).catch(() => undefined)
+  }
+  signal?.addEventListener('abort', stop, { once: true })
+
   const cached = await loadCache(workspaceKey)
+  if (!owns()) {
+    stop()
+    return NOOP_HANDLE
+  }
   if (cached.size > 0) {
     // 先讓快取可查詢，再在背景比對差異
     useVaultIndexStore.getState().replaceAll(cached)
   }
   scanning = runScan(cached, cached.size > 0)
-    .catch(error => {
-      console.error('[vault-index] initial scan failed:', error)
-      useVaultIndexStore.getState().setStatus('error', String(error))
-    })
+    .catch(reportScanError('initial scan failed'))
     .finally(() => { scanning = null })
 
-  let unwatch: (() => void) | undefined
   try {
-    unwatch = await watch(workspaceRoot, event => { void handleEvent(event) }, { recursive: true, delayMs: 300 })
+    const stopWatching = await watch(workspaceRoot, event => { void handleEvent(event) }, { recursive: true, delayMs: 300 })
+    if (stopped) stopWatching()
+    else unwatch = stopWatching
   } catch (error) {
     console.warn('[vault-index] file watcher unavailable; index updates only on rescan:', error)
   }
+  if (stopped) return NOOP_HANDLE
 
   useVaultIndexStore.getState().setRescan(rescan)
-  return {
-    rescan,
-    stop: () => {
-      stopped = true
-      if (useVaultIndexStore.getState().rescan === rescan) useVaultIndexStore.getState().setRescan(null)
-      unwatch?.()
-      if (cancelSave) {
-        cancelSave()
-        cancelSave = null
-        void saveCache(workspaceKey, useVaultIndexStore.getState().notes).catch(() => undefined)
-      }
-    },
-  }
+  return { rescan, stop }
 }

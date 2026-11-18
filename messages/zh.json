@@ -7814,5 +7814,90 @@
       "scopeTitle": "来源由文件夹管理",
       "scopeDescription": "在原始资料所在的文件夹详情中加入或移出 Wiki。此目录只保存整理结果，不会再次参与整理。"
     }
+  },
+  "collect": {
+    "title": "收集",
+    "subtitle": "一个框收所有东西，拆成提案，逐条收下",
+    "inputLabel": "收集内容",
+    "placeholder": "粘贴链接、一段文字，或拖入截图、文件。直接打一句待办也可以。",
+    "detect": {
+      "empty": "会自动识别类型",
+      "link": {
+        "name": "链接",
+        "hint": "→ 存成笔记"
+      },
+      "task": {
+        "name": "待办",
+        "hint": "→ 加到今日日志，有时间就排成时段"
+      },
+      "text": {
+        "name": "文字",
+        "hint": "→ 存成笔记，拆出行动"
+      }
+    },
+    "send": "收进来",
+    "pickFile": "图片或文件",
+    "try": "试试：",
+    "sample": {
+      "link": "贴链接",
+      "text": "一段文字",
+      "task": "明天三点交预算表",
+      "textValue": "定价我直觉觉得用量计费比较公平，但用户很难预估费用。\n- [ ] 找两家用量计费的例子\n待办：周五下午三点和 Kai 对一次定价",
+      "taskValue": "明天三点交预算表"
+    },
+    "filter": {
+      "label": "按状态筛选",
+      "all": "全部",
+      "pending": "待收下",
+      "done": "已处理"
+    },
+    "input": {
+      "text": "文字",
+      "link": "链接",
+      "image": "图片",
+      "file": "文件"
+    },
+    "kind": {
+      "note": "笔记",
+      "task": "任务",
+      "event": "时段"
+    },
+    "to": {
+      "inbox": "笔记 → 收件文件夹",
+      "today": "今日日志"
+    },
+    "reading": "识别中",
+    "source": {
+      "ai": "AI 拆分",
+      "rules": "规则拆分（AI 没有响应或尚未设置）"
+    },
+    "accept": "收下",
+    "edit": "修改",
+    "reject": "不要",
+    "editDone": "完成",
+    "acceptAll": "全部收下",
+    "fieldTitle": "标题",
+    "fieldDate": "日期",
+    "fieldTime": "时间",
+    "status": {
+      "ok": "已收下",
+      "no": "已丢掉"
+    },
+    "open": "打开",
+    "undo": "撤销",
+    "accepted": "已收下：{title}",
+    "acceptedMany": "已收下 {count} 条提案",
+    "undoFailed": "文件已被修改，无法撤销",
+    "failed": "操作失败，请重试",
+    "fileTooLarge": "{name} 超过 8 MB，没有收进来",
+    "remove": "移除这条收集",
+    "empty": "还没有收集。丢一段文字、链接或图片进来试试。",
+    "emptyFilter": "这个状态下没有收集。",
+    "records": "Inbox 的记录",
+    "recordsHint": "Inbox 里还没整理的记录，可以拆成提案。",
+    "recordsEmpty": "Inbox 没有未整理的记录",
+    "split": "拆分",
+    "queued": "已在收集",
+    "writeHint": "新笔记、任务和时段都要你收下才会写入；没有收下的提案不会留下任何文件。"
   }
 }

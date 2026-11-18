@@ -247,9 +247,12 @@ code, kbd, pre, samp {
   background: color-mix(in srgb, var(--ink) 14%, transparent);
 }
 
-:where(button, a, input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+/* 放進 base layer：Tailwind 的 outline-* 工具類（utilities layer）才能蓋過它 */
+@layer base {
+  :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -84,6 +84,10 @@ describe('fork-theme v5 tokens', () => {
     expect(tokensCss).not.toMatch(/--color-green-/)
   })
 
+  it('keeps the global focus ring overridable by Tailwind utilities', () => {
+    expect(css).toMatch(/@layer base \{\s*:where\(button, a, input, textarea, select, \[tabindex\]\):focus-visible/)
+  })
+
   it('respects prefers-reduced-motion', () => {
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
   })

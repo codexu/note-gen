@@ -12,6 +12,7 @@ import { LinkRewritePrompt } from './link-rewrite/link-rewrite-prompt'
 import { AgentTaskService } from './agent-tasks/agent-task-service'
 import { HomeService } from './home/home-service'
 import { ConversationSummaryDialog } from './conversation-summary/summary-dialog'
+import { AnywhereService } from './anywhere/anywhere-service'
 
 /**
  * F3: keep the vault index in sync with the active workspace.
@@ -44,6 +45,7 @@ export function ForkServices() {
       <AgentTaskService />
       <HomeService />
       <ConversationSummaryDialog />
+      <AnywhereService />
     </>
   )
 }

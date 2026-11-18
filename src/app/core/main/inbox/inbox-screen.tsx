@@ -31,6 +31,7 @@ import { MARK_TYPE_ICONS, getMarkTypeIconClasses } from '../mark/mark-type-meta'
 import { OrganizeNotes, type OpenOrganizeOptions } from '../mark/organize-notes'
 import { OrganizePromptDialog } from '../mark/organize-prompt-dialog'
 import { Count, EmptyState, PageHeader, PageSurface } from '../page-ui'
+import { CollectTabs } from '../sidebar-v3/section-tabs'
 
 /** 記錄有變動（新增、編輯、刪除）時重新載入 Inbox。 */
 function useInboxSync() {
@@ -242,6 +243,7 @@ export function InboxScreen() {
           </Button>
         )}
       >
+        <CollectTabs active="inbox" />
         {!trash && (
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <Switch checked={showProcessed} onCheckedChange={setShowProcessed} />

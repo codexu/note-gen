@@ -15,6 +15,7 @@ import { useWeekCalendar } from '@/lib/week/use-week-calendar'
 import useDailySettingsStore from '@/stores/daily-settings'
 import useDecideStore from '@/stores/decide'
 import useVaultIndexStore, { selectAllTasks } from '@/stores/vault-index'
+import { SidebarCalendar } from '../daily/sidebar-calendar'
 import { PageHeader, PageSurface } from '../page-ui'
 import { WeekGrid } from './week-grid'
 
@@ -72,8 +73,14 @@ function WeekPage() {
           {indexStatus !== 'ready' && <span>{t(indexStatus === 'error' ? 'tasksUnavailable' : 'loadingTasks')}</span>}
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label={t('gridLabel')}>
-        <WeekGrid days={days} today={today} openDecision={openDecision} />
+      <div className="flex min-h-0 flex-1">
+        {/* ALMNC-20：月曆從側欄搬到計畫頁。data-left-sidebar：點日期開日記時沿用「從側欄開檔就收起覆蓋層」的規則。 */}
+        <aside className="hidden w-[248px] shrink-0 overflow-y-auto border-r border-line-soft md:block" aria-label={t('calendarLabel')} data-left-sidebar>
+          <SidebarCalendar />
+        </aside>
+        <div className="min-h-0 min-w-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label={t('gridLabel')}>
+          <WeekGrid days={days} today={today} openDecision={openDecision} />
+        </div>
       </div>
     </PageSurface>
   )

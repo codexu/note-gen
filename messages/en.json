@@ -8245,6 +8245,40 @@
     "reviewProposal": "Review proposed time slot {description}",
     "slotUnavailable": "This slot is no longer available or the task has changed.",
     "tasksUnavailable": "The task index is unavailable.",
-    "loadingTasks": "Loading tasks…"
+    "loadingTasks": "Loading tasks…",
+    "calendarLabel": "Calendar"
+  },
+  "sidebarV3": {
+    "navLabel": "Main navigation",
+    "search": "Search or run a command",
+    "count": "{count} items",
+    "nav": {
+      "today": "Today",
+      "decide": "Decide",
+      "collect": "Collect",
+      "threads": "Threads",
+      "knowledge": "Knowledge",
+      "plan": "Plan"
+    },
+    "agents": {
+      "title": "Agents",
+      "running": "{count} running",
+      "add": "Add agent",
+      "addFirst": "Add your first agent"
+    },
+    "vault": "MyVault",
+    "rules": {
+      "label": "Rule",
+      "text": "Agents can only propose; every write goes through Decide."
+    },
+    "tabs": {
+      "collectGroup": "Collect pages",
+      "collect": "Collect",
+      "knowledgeGroup": "Knowledge pages"
+    },
+    "knowledge": {
+      "title": "Knowledge",
+      "subtitle": "Timeline, canvases and tags; the notes tree is in MyVault on the left"
+    }
   }
 }

@@ -144,6 +144,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `src/app/core/main/sidebar-search.tsx` | 搜尋框改假輸入框外觀（30px、`bg-bg`、`border-line-soft`、12.5px、placeholder `text-faint`），右側加 `ShortcutKbd ⌘K`（有輸入時隱藏）；掛 `useFocusSearchShortcut`（新檔 `fork-shell/use-focus-search-shortcut.ts`：⌘K 聚焦搜尋；焦點在編輯器／輸入框時不攔截，因為編輯器的 ⌘K 是插入連結） | P0-c 搜尋入口 |
 | 2026-11-18 | `src/app/core/main/main-status-bar.tsx` | `<footer>` class：`bg-statusbar`、`border-line-soft`、`text-[10.5px]` | P0-c 狀態列 |
 | 2026-11-18 | `src/app/core/main/page.tsx` | `MIN_LEFT_SIDEBAR_WIDTH_PX` 260 → 240 | P0-c 左側欄寬 240px 規格 |
+| 2026-11-18 | `src/stores/article.ts` | `loadFileTree` 本體包 `try/catch`（刻意不縮排）：讀取失敗時最新一次請求結束 `fileTreeLoading`、設 `fileTreeInitialized` 避免無限重試，並跳「無法讀取工作區」提示；`src/app/core/main/fork-services.tsx`、`src/lib/vault-index/service.ts`（fork 自有）：索引等設定載入完才啟動，`startVaultIndex` 收 `AbortSignal`，寫入 store／快取前確認 store 仍屬於該工作區 | Issue #75：首次啟動檔案樹空白、短暫顯示別的工作區任務（ALMNC-1） |
 
 ## 刻意不改的東西
 

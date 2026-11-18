@@ -108,9 +108,51 @@ export async function undoOrganizeChange(id: string): Promise<boolean> {
       if (!record || await currentWorkspaceIdentity() !== record.workspace) throw new OrganizeConflict()
       await prepareEditor(record.changes.map(change => change.path))
       await undoChanges(record, ioFor(record.workspace))
+      // PM review M1：合併刪掉的來源筆記還原後，把它重新排進向量索引（刪除時已被清掉）
+      for (const change of record.changes) {
+        if (change.after !== null) continue
+        void import('@/stores/vector')
+          .then(({ default: useVectorStore }) => useVectorStore.getState().processDocument(change.path, change.before))
+          .catch(error => console.debug('[organize] reindex after restore failed', error))
+      }
     })
     return true
   } catch {
     return false
   }
+}
+
+/** 整理前內容另存的檔名：`筆記 (整理前).md`，已存在就加序號。 */
+export function snapshotCopyPath(path: string, exists: (candidate: string) => boolean): string {
+  const dot = path.toLowerCase().endsWith('.md') ? path.length - 3 : path.length
+  const stem = path.slice(0, dot)
+  for (let n = 1; n < 100; n += 1) {
+    const candidate = `${stem} (整理前${n === 1 ? '' : ` ${n}`}).md`
+    if (!exists(candidate)) return candidate
+  }
+  throw new OrganizeConflict()
+}
+
+/**
+ * PM review M3：還原遇到後續編輯或同名重建時，不動現有檔案，改把整理前的內容另存成新檔，
+ * 讓使用者取回快照裡的文字。回傳另存的路徑。
+ */
+export async function saveOrganizeSnapshotCopies(id: string): Promise<string[]> {
+  return exclusive(async () => {
+    const record = await readOrganizeRecord(id)
+    if (!record || await currentWorkspaceIdentity() !== record.workspace) throw new OrganizeConflict()
+    const created: string[] = []
+    for (const change of record.changes) {
+      const taken = new Set<string>()
+      for (let n = 1; n < 100; n += 1) {
+        const candidate = snapshotCopyPath(change.path, path => taken.has(path))
+        taken.add(candidate)
+        if (await readOrganizeNote(candidate, record.workspace) !== null) continue
+        await replaceOrganizeNote(candidate, record.workspace, null, change.before)
+        created.push(candidate)
+        break
+      }
+    }
+    return created
+  })
 }

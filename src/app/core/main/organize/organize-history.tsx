@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { loadOrganizeHistory, useOrganizeHistory } from '@/lib/organize/history'
-import { undoOrganizeChange } from '@/lib/organize/review'
+import { saveOrganizeSnapshotCopies, undoOrganizeChange } from '@/lib/organize/review'
 import { currentWorkspaceIdentity } from '@/lib/organize/vault-io'
 import useSettingStore from '@/stores/setting'
 
@@ -33,7 +33,12 @@ export function OrganizeHistory() {
     setBusy(id)
     try {
       if (await undoOrganizeChange(id)) toast.success(t('undone'))
-      else toast.error(t('undoFailed'))
+      else toast.error(t('undoFailed'), {
+        // 筆記之後被改過或同名重建時無法原地還原：改把整理前的內容另存成新檔
+        action: { label: t('saveSnapshot'), onClick: () => void saveOrganizeSnapshotCopies(id)
+          .then(paths => toast.success(t('snapshotSaved', { count: paths.length })))
+          .catch(() => toast.error(t('snapshotFailed'))) },
+      })
     } finally { setBusy(null) }
   }
 

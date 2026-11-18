@@ -72,7 +72,10 @@ export async function scanOrganizeVault(
     const content = results[i]
     if (typeof content === 'string') contents.set(note.path, content)
   }
-  const plans = detectProposals({ notes: index.notes, contents, dailyFolder, dailyPattern, now, seen, blocked, limit })
+  // PM review M2：接了同步就只提標籤與關聯
+  const { isSyncConfigured } = await import('@/lib/sync/sync-manager')
+  const allowMerge = !(await isSyncConfigured().catch(() => true))
+  const plans = detectProposals({ notes: index.notes, contents, dailyFolder, dailyPattern, now, seen, blocked, limit, allowMerge })
   if (!plans.length || !current()) return
   await agentTaskCenter.submitDrafts({
     kind: ORGANIZE_KIND, title,

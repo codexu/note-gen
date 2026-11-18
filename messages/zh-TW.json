@@ -8375,6 +8375,9 @@
     "undone": "已復原整理變更。",
     "undoFailed": "無法還原原始筆記。請確認是否有後續編輯或同名檔案。",
     "conflict": "筆記已變更或無法存取。若有未完成的變更，可查看整理紀錄。",
-    "settingsError": "無法儲存自動整理設定。"
+    "settingsError": "無法儲存自動整理設定。",
+    "saveSnapshot": "另存整理前內容",
+    "snapshotSaved": "已另存 {count} 個檔案（檔名加上「整理前」）",
+    "snapshotFailed": "另存失敗"
   }
 }

@@ -111,3 +111,17 @@ describe('organize detection', () => {
     expect(detectProposals({ ...fixture([['a.md', BODY], ['b.md', BODY]]), notes })).toEqual([])
   })
 })
+
+describe('organize detection PM review fixes', () => {
+  it('does not propose merges when the workspace syncs (allowMerge false)', () => {
+    const data = fixture([['Music/Cello.md', BODY], ['Music/Copy.md', BODY]])
+    expect(detectProposals(data).some(p => p.kind === 'merge')).toBe(true)
+    expect(detectProposals({ ...data, allowMerge: false }).some(p => p.kind === 'merge')).toBe(false)
+  })
+
+  it('skips merging a source whose file name is shared by another note elsewhere (vector index is keyed by name)', () => {
+    const shared = fixture([['Music/Cello.md', BODY], ['Music/Copy.md', BODY], ['Archive/Copy.md', 'something else entirely, long enough to index']])
+    // 保守略過：不刪除檔名重複的來源（不改成反向保留）
+    expect(detectProposals(shared).some(p => p.kind === 'merge')).toBe(false)
+  })
+})

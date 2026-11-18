@@ -22,8 +22,25 @@ async function database() {
 
 export const useOrganizeHistory = create<{ rows: HistoryRow[]; workspace: string | null }>(() => ({ rows: [], workspace: null }))
 
+/** PM review M3：已還原的紀錄與超過保留期的已套用紀錄要清掉，快照不無限成長。prepared（未完成）永遠保留。 */
+export const ORGANIZE_HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+
+export function organizePruneSql(now: number): { sql: string, values: Array<string | number> } {
+  return {
+    sql: "delete from organize_undo where status = 'reverted' or (status = 'applied' and created_at < $1)",
+    values: [now - ORGANIZE_HISTORY_RETENTION_MS],
+  }
+}
+
+export async function pruneOrganizeHistory(now = Date.now()): Promise<void> {
+  const db = await database()
+  const { sql, values } = organizePruneSql(now)
+  await db.execute(sql, values)
+}
+
 export async function loadOrganizeHistory(workspace: string): Promise<void> {
   useOrganizeHistory.setState({ workspace, rows: [] })
+  await pruneOrganizeHistory().catch(error => console.debug('[organize] history prune failed', error))
   await refresh(workspace)
 }
 

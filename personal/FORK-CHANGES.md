@@ -238,6 +238,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-19 | `src/components/ui/command.tsx` | 將無障礙標題放入對話框，關閉後還原焦點，補搜尋輸入列焦點環 | ALMNC-18：命令面板鍵盤操作 |
 | 2026-11-19 | `src/components/ui/dialog.tsx` | 減少動態效果時停用對話框縮放動畫 | ALMNC-18：減少動態效果 |
 | 2026-11-19 | `src/components/ui/dropdown-menu.tsx` | 減少動態效果時停用選單與子選單縮放動畫 | ALMNC-18：減少動態效果 |
+| 2026-11-19 | fork：`src/lib/organize/{detect,scan,history,review}.ts`、`organize-history.tsx`；`messages/*.json` | almanac ALMNC-17 複審修正：接了同步時不提合併；來源檔名在 vault 不唯一時不提合併（上游刪除工具以檔名清向量）；還原後重新索引；已還原與超過 30 天的已套用紀錄清除；無法原地還原時可另存「整理前」副本 | Sonnet 複審 M1–M3 |
 
 ## 刻意不改的東西
 

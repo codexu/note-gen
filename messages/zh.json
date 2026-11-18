@@ -8310,6 +8310,9 @@
     "undone": "已撤销整理变更。",
     "undoFailed": "无法还原原始笔记。请确认是否有后续编辑或同名文件。",
     "conflict": "笔记已变更或无法访问。如有未完成的变更，可查看整理记录。",
-    "settingsError": "无法保存自动整理设置。"
+    "settingsError": "无法保存自动整理设置。",
+    "saveSnapshot": "另存整理前内容",
+    "snapshotSaved": "已另存 {count} 个文件（文件名加上“整理前”）",
+    "snapshotFailed": "另存失败"
   }
 }

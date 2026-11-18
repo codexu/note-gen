@@ -179,6 +179,8 @@ export function detectProposals(input: {
   seen?: Set<string>
   blocked?: Set<string>
   limit?: number
+  /** PM review M2：工作區接了同步時不提合併（本機刪除不會傳到遠端）。預設 true。 */
+  allowMerge?: boolean
 }): OrganizePlan[] {
   const { notes, contents, now, dailyFolder, dailyPattern } = input
   if (notes.size > VAULT_LIMIT) return []
@@ -186,6 +188,14 @@ export function detectProposals(input: {
   const lookup = buildLinkLookup(notes.keys())
   const referenced = referencedPaths(notes, lookup)
   const names = nameOwners(notes)
+  // PM review M1：上游刪除工具以檔名（不含資料夾）清向量索引，同檔名的其他筆記會一起被清；
+  // 來源檔名在 vault 裡不唯一時不提合併。
+  const basenameCount = new Map<string, number>()
+  for (const notePath of notes.keys()) {
+    const base = (notePath.split('/').pop() ?? notePath).toLowerCase()
+    basenameCount.set(base, (basenameCount.get(base) ?? 0) + 1)
+  }
+  const uniqueName = (notePath: string) => basenameCount.get((notePath.split('/').pop() ?? notePath).toLowerCase()) === 1
   const used = new Set(input.blocked)
   const candidates: Candidate[] = []
   for (const [path, content] of contents) {
@@ -213,6 +223,7 @@ export function detectProposals(input: {
     if (used.has(path)) continue
     for (const source of ordered.slice(i + 1)) {
       const other = source.note.path
+      if (input.allowMerge === false || !uniqueName(other)) continue
       if (used.has(other) || referenced(other) || path.toLowerCase() === other.toLowerCase()) continue
       const after = mergeContent(keeper, source)
       if (after === undefined) continue

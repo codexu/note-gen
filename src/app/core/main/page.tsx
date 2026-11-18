@@ -9,12 +9,13 @@ import { EditorLayout } from './editor/editor-layout'
 import { PluginRightSidebar } from '@/components/plugins/plugin-right-sidebar'
 import dynamic from 'next/dynamic'
 import { useSidebarStore } from "@/stores/sidebar"
-import { useEffect, useState, useRef, type CSSProperties } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { Layout, PanelImperativeHandle } from 'react-resizable-panels'
 import { restoreEditorWindows } from '@/lib/editor-windows'
 import { MainStatusBar } from './main-status-bar'
 import { ForkServices } from './fork-services'
+import { measurePageBox, pageBoxStyle, type PageBox } from './page-box'
 
 function getDefaultLayout(layoutKey: string) {
   const storageKey = `react-resizable-panels:main-layout:${layoutKey}`
@@ -95,14 +96,14 @@ function ResizableWrapper() {
     const group = container?.querySelector<HTMLElement>(':scope > [data-slot="resizable-panel-group"]')
     if (!container || !group) return
     const panels = [...group.querySelectorAll<HTMLElement>(':scope > [data-slot="resizable-panel"]')]
-    const measure = () => setPageBox(measurePageBox(container, group, panels))
+    const measure = () => setPageBox(measurePageBox(container, group, panels, isV3))
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(container)
     observer.observe(group)
     panels.forEach(panel => observer.observe(panel))
     return () => observer.disconnect()
-  }, [leftPanelWidth, leftSidebarVisible, centerPanelVisible, rightSidebarVisible, leftPanelCollapsed, rightPanelCollapsed])
+  }, [isV3, leftPanelWidth, leftSidebarVisible, centerPanelVisible, rightSidebarVisible, leftPanelCollapsed, rightPanelCollapsed])
 
   useEffect(() => {
     void restoreEditorWindows()
@@ -308,7 +309,7 @@ function ResizableWrapper() {
       <ResizablePanel
         key="right"
         id="right"
-        inert={workspaceCovered}
+        // Fork（almanac ALMNC-24）：v3 全頁畫面只蓋中間，右側欄照常可用
         panelRef={rightPanelRef}
         defaultSize={`${actualLayout[index++]}%`}
         minSize={`${minRightSidebarSize}%`}
@@ -341,43 +342,6 @@ function ResizableWrapper() {
       <ForkServices />
     </div>
   )
-}
-
-interface PageBox { top: number, right: number, bottom: number, left: number, radius: string }
-
-/** 首頁／Inbox 頁的外框：左緣接在左側欄之後，上下緣與圓角跟第一個看得到的工作區面板一樣。 */
-function measurePageBox(container: HTMLElement, group: HTMLElement, panels: HTMLElement[]): PageBox {
-  const box = container.getBoundingClientRect()
-  const groupBox = group.getBoundingClientRect()
-  const groupStyle = getComputedStyle(group)
-  const visible = (panel: HTMLElement) => panel.getBoundingClientRect().width > 1
-  const sidebar = panels.find(panel => panel.querySelector('[data-left-sidebar]'))
-  const work = panels.find(panel => panel !== sidebar && visible(panel))
-  const contentLeft = groupBox.left + parseFloat(groupStyle.paddingLeft)
-  const contentRight = groupBox.right - parseFloat(groupStyle.paddingRight)
-  const left = work
-    ? work.getBoundingClientRect().left
-    : sidebar && visible(sidebar) ? sidebar.getBoundingClientRect().right + 1 : contentLeft
-  const reference = (work ?? sidebar)?.getBoundingClientRect()
-  return {
-    left: Math.max(0, Math.round(left - box.left)),
-    right: Math.max(0, Math.round(box.right - contentRight)),
-    top: reference ? Math.max(0, Math.round(reference.top - box.top)) : 0,
-    bottom: reference ? Math.max(0, Math.round(box.bottom - reference.bottom)) : 28,
-    radius: work ? getComputedStyle(work).borderTopLeftRadius : '0px',
-  }
-}
-
-function pageBoxStyle(box: PageBox | null): CSSProperties {
-  // 還沒量到之前：貼齊容器、留出狀態列（h-7）
-  const value = box ?? { top: 0, right: 0, bottom: 28, left: 0, radius: '0px' }
-  return {
-    '--page-top': `${value.top}px`,
-    '--page-right': `${value.right}px`,
-    '--page-bottom': `${value.bottom}px`,
-    '--page-left': `${value.left}px`,
-    '--page-radius': value.radius,
-  } as CSSProperties
 }
 
 function Page() {

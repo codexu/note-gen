@@ -7949,6 +7949,7 @@
     "writeHint": "新笔记、任务和时段都要你收下才会写入；没有收下的提案不会留下任何文件。"
   },
   "threads": {
+    "chatMovedHint": "对话正在中间的对话页显示",
     "title": "对话",
     "subtitle": "所有对话串，按项目分组",
     "listLabel": "对话串",

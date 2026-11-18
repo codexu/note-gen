@@ -8014,6 +8014,7 @@
     "writeHint": "新筆記、任務和時段都要你收下才會寫入；沒有收下的提案不會留下任何檔案。"
   },
   "threads": {
+    "chatMovedHint": "對話正在中間的對話頁顯示",
     "title": "對話",
     "subtitle": "所有對話串，依專案分組",
     "listLabel": "對話串",

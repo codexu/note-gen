@@ -6,6 +6,7 @@
 // 所以輸入中的草稿、正在跑的 Agent 都不受影響）。對話頁關掉再搬回來。
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslations } from 'next-intl'
 import useThreadsStore from '@/stores/threads'
 
 export function ChatDock({ children }: { children: ReactNode }) {
@@ -25,5 +26,12 @@ export function ChatDock({ children }: { children: ReactNode }) {
     if (dock && target && dock.parentElement !== target) target.appendChild(dock)
   }, [dock, host])
 
-  return <div ref={home} className="h-full min-h-0">{dock ? createPortal(children, dock) : null}</div>
+  // Fork（almanac ALMNC-24）：v3 右側欄不再被蓋住，對話搬去對話頁時這裡留一行說明，不是一片空白
+  const t = useTranslations('threads')
+  return (
+    <div ref={home} className="h-full min-h-0">
+      {host && <p className="px-4 py-6 text-center text-xs text-muted-ink">{t('chatMovedHint')}</p>}
+      {dock ? createPortal(children, dock) : null}
+    </div>
+  )
 }

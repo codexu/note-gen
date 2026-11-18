@@ -7949,6 +7949,7 @@
     "writeHint": "New notes, tasks and slots are written only when you accept them; discarded proposals leave no file behind."
   },
   "threads": {
+    "chatMovedHint": "The chat is open in the Threads page",
     "title": "Threads",
     "subtitle": "Every conversation, grouped by project",
     "listLabel": "Threads",

@@ -125,4 +125,10 @@ export async function deleteAgentTask(id: string): Promise<void> {
   await initAgentTaskDb()
   const db = await getDb()
   await db.execute('delete from agent_tasks where id = $1', [id])
+  // Fork（almanac ALMNC-12）：刪任務時一併清掉代理人的拒絕紀錄；P5 表不存在（舊庫或已回退）時略過。
+  try {
+    await db.execute('delete from agent_tool_refusals where task_id = $1', [id])
+  } catch {
+    // agent_tool_refusals 只在 P5 之後存在
+  }
 }

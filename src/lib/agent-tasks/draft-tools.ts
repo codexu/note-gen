@@ -14,7 +14,7 @@ import type { DraftChange } from './types'
 
 export interface DraftSink {
   drafts: () => DraftChange[]
-  add: (draft: DraftChange) => void
+  add: (draft: DraftChange) => void | Promise<void>
 }
 
 function createDraftId() {
@@ -36,7 +36,7 @@ function wrapAsDraft(tool: AgentTool, sink: DraftSink, readFile: (path: string) 
         return { ok: false, message: `找不到 ${path}`, error: 'NOT_FOUND' }
       }
       const summary = summarizeDraft(kind, path, targetPath, content, onDisk)
-      sink.add({
+      await sink.add({
         id: createDraftId(),
         toolName: tool.name,
         args: input,

@@ -1,4 +1,36 @@
 {
+  "agents": {
+    "title": "Agents",
+    "description": "Choose which tools each agent can use. Note proposals go to the review queue.",
+    "loading": "Loading agents…",
+    "empty": "No agents yet.",
+    "add": "Add agent",
+    "edit": "Edit",
+    "name": "Name",
+    "role": "Role",
+    "allowedTools": "Allowed tools",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "loadError": "Could not load agent settings.",
+    "saveError": "Could not save agent settings.",
+    "roles": {
+      "organizer": "Organizer",
+      "scheduler": "Scheduler",
+      "researcher": "Researcher",
+      "reviewer": "Reviewer",
+      "custom": "Custom"
+    },
+    "tools": {
+      "note_list_files": "List notes",
+      "note_read_file": "Read a note",
+      "calendar_read_day": "Read calendar events for one day",
+      "note_create_file": "Propose a new note",
+      "note_update_file": "Propose changes to a note"
+    }
+  },
   "agentDiffNavigation": {
     "label": "Agent change navigation",
     "previous": "Previous change",

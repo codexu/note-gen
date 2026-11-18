@@ -1,85 +1,265 @@
-/* Fork：預設視覺（Obsidian baseline）。
-   深色色票來自 personal/notegen-obsidian-baseline.css 的第 0、11 節；淺色是對應的配色。
+/* Fork：almanac v5 視覺（單色＋唯一 accent）。
+   數值來源：almanac/2026-11-18_handoff_ornata-style-brief.md §3.1、redesign_v5.html。
    放在 globals.css 之後、不進 @layer，所以蓋過上游的預設值；
    設定裡的自訂主題（theme-utils.ts 寫在 :root／:root.dark）仍然排在最後、優先於這裡。
-   只放色票與字型細節，結構類的調整改在元件裡做。 */
+   Tailwind 類別對應在 fork-tokens.css（bg-bg、bg-panel、text-ink、text-faint、border-line、text-brand…）。
+
+   規則（P0-b／P0-c 照這裡做）：
+   - 元件裡禁止寫死色碼；彩色只有 --brand-accent（text-brand），只用在連結、已勾選任務、caret、引言色條。
+   - --primary 是「反白」（深底淺字），不是彩色；強調用途改用 text-brand。
+   - hover／選取用 ink 疊透明（--hover、--active，shadcn 的 accent／third）。
+   - 陰影只給浮層：--sh-dialog、--sh-menu、--sh-toast、--sh-float。 */
+
+/* 字型：Inter、Fira Code 只收拉丁字集；中文用同名 font-face 指到 PingFang TC，達成「中文先用繁體」。 */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-latin-ext-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Fira Code";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("/fonts/fira-code-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 100 449;
+  src: local("PingFang TC Regular"), local("PingFangTC-Regular"), local("Noto Sans TC"), local("Microsoft JhengHei");
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3200-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 450 549;
+  src: local("PingFang TC Medium"), local("PingFangTC-Medium"), local("Noto Sans TC"), local("Microsoft JhengHei");
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3200-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
+@font-face {
+  font-family: "Inter";
+  font-weight: 550 900;
+  src: local("PingFang TC Semibold"), local("PingFangTC-Semibold"), local("Noto Sans TC"), local("Microsoft JhengHei");
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3200-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
+@font-face {
+  font-family: "Fira Code";
+  font-weight: 100 449;
+  src: local("PingFang TC Regular"), local("PingFangTC-Regular"), local("Noto Sans TC"), local("Microsoft JhengHei");
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3200-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
+@font-face {
+  font-family: "Fira Code";
+  font-weight: 450 549;
+  src: local("PingFang TC Medium"), local("PingFangTC-Medium"), local("Noto Sans TC"), local("Microsoft JhengHei");
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3200-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
+@font-face {
+  font-family: "Fira Code";
+  font-weight: 550 900;
+  src: local("PingFang TC Semibold"), local("PingFangTC-Semibold"), local("Noto Sans TC"), local("Microsoft JhengHei");
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3200-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
+}
 
 :root {
-  --background: 0 0% 96.5%;            /* #f6f6f6 面板 */
-  --foreground: 0 0% 13.3%;            /* #222222 */
-  --card: 0 0% 100%;                   /* #ffffff 編輯區、卡片 */
-  --card-foreground: 0 0% 13.3%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 13.3%;
-  --primary: 31 92% 35%;               /* 深琥珀：白字 4.8:1、白底上當文字 4.8:1 */
-  --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 92.5%;
-  --secondary-foreground: 0 0% 13.3%;
-  --third: 0 0% 90%;                   /* 選中列 */
-  --third-foreground: 0 0% 10%;
-  --muted: 0 0% 94%;
-  --muted-foreground: 0 0% 40%;        /* #666：白底 5.7:1 */
-  --accent: 0 0% 92%;                  /* hover 底 */
-  --accent-foreground: 0 0% 10%;
-  --destructive: 3 65% 48%;
-  --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 89%;
-  --input: 0 0% 84%;
-  --ring: 31 92% 35%;
-  --radius: 0.5rem;
+  /* v5 原始 token（簡報 §3.1）。名稱和 shadcn 衝突的改名：muted → --muted-ink、accent → --brand-accent */
+  --bg: #fcfcfd;
+  --panel: #f9f9fa;
+  --sunken: #e9e9e6;
+  --statusbar: #f7f7f8;
+  --menu: #f7f7f8;
+  --ink: #191919;
+  --note-ink: #191919;
+  --muted-ink: #6e6e6a;
+  --faint: #a3a39e;          /* 分組標題、placeholder；不可當 focus 色 */
+  --line: #e3e3e0;
+  --line-soft: #ececea;
+  --hover: rgba(25, 25, 25, 0.05);
+  --active: rgba(25, 25, 25, 0.09);
+  --invert: #1c1c1c;
+  --invert-ink: #fbfbfa;
+  --danger: #b3261e;
+  --success-ink: #4d8660;
+  --brand-accent: #167a6e;   /* 唯一彩色，只給白名單：連結、已勾選任務、caret、引言色條 */
+  --brand-accent-ink: #ffffff;
+  --caret: var(--brand-accent);
+  --sh-dialog: 0 24px 64px -12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  --sh-menu: 0 10px 30px -6px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  --sh-toast: 0 8px 24px -8px rgba(0, 0, 0, 0.18);
+  --sh-float: 0 0 0 1px rgba(0, 0, 0, 0.045), 0 1px 2px -1px rgba(0, 0, 0, 0.05), 0 4px 12px -8px rgba(0, 0, 0, 0.12);
 
-  --sidebar-background: 0 0% 96.5%;
-  --sidebar-foreground: 0 0% 13.3%;
-  --sidebar-primary: 31 92% 35%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 0 0% 92%;
-  --sidebar-accent-foreground: 0 0% 10%;
-  --sidebar-border: 0 0% 89%;
-  --sidebar-ring: 31 92% 35%;
+  /* shadcn 語意 token（HSL 三元組，給上游元件與 theme-utils 用）對到 v5 */
+  --background: 240 9.1% 97.8%;  /* panel：側欄、tab 列等 chrome */
+  --foreground: 0 0% 9.8%;  /* ink */
+  --card: 240 20% 99%;  /* bg：主內容、編輯區 */
+  --card-foreground: 0 0% 9.8%;
+  --popover: 240 6.7% 97.1%;  /* menu：浮層共用 */
+  --popover-foreground: 0 0% 9.8%;
+  --primary: 0 0% 11%;  /* invert：主要按鈕、強選取，不是彩色 */
+  --primary-foreground: 60 11.1% 98.2%;
+  --secondary: 240 3.7% 94.7%;  /* ink 疊 bg 的實色版 hover */
+  --secondary-foreground: 0 0% 9.8%;
+  --third: 0 0% 9.8% / 0.09;  /* active：選中列 */
+  --third-foreground: 0 0% 9.8%;
+  --muted: 240 3.7% 94.7%;
+  --muted-foreground: 60 1.9% 42.4%;
+  --accent: 0 0% 9.8% / 0.05;  /* shadcn accent = hover 底，不是品牌色 */
+  --accent-foreground: 0 0% 9.8%;
+  --destructive: 3 71.3% 41%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 140 27% 41.4%;
+  --success-foreground: 0 0% 100%;
+  --warning: 60 1.9% 42.4%;  /* 單色原則：警告不另給彩色 */
+  --warning-foreground: 60 11.1% 98.2%;
+  --info: 60 1.9% 42.4%;
+  --info-foreground: 60 11.1% 98.2%;
+  --border: 60 5.1% 88.4%;
+  --input: 60 5.1% 88.4%;
+  --ring: 0 0% 9.8%;  /* focus 用 ink */
+  --radius: 0.375rem;  /* 6px 主力圓角 */
+
+  --sidebar-background: 240 9.1% 97.8%;
+  --sidebar-foreground: 0 0% 9.8%;
+  --sidebar-primary: 0 0% 11%;
+  --sidebar-primary-foreground: 60 11.1% 98.2%;
+  --sidebar-accent: 0 0% 9.8% / 0.05;
+  --sidebar-accent-foreground: 0 0% 9.8%;
+  --sidebar-border: 60 5% 92.2%;
+  --sidebar-ring: 0 0% 9.8%;
+
+  --scrollbar-thumb: rgba(25, 25, 25, 0.14);
+  --scrollbar-thumb-hover: rgba(25, 25, 25, 0.26);
+  --scrollbar-thumb-active: rgba(25, 25, 25, 0.36);
+
+  /* 字型 */
+  --font-ui-stack: "Inter", "PingFang TC", "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-code: "Fira Code", "PingFang TC", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* 動態（簡報 §3.5） */
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --motion-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-hover: 100ms;
+  --dur-tooltip: 120ms;
+  --dur-fade: 150ms;
+  --dur-exit: 120ms;
+
+  /* 形狀 */
+  --r-kbd: 4px;
+  --r: 6px;
+  --r-md: 8px;
 }
 
 .dark {
-  --background: 0 0% 12.5%;            /* #202020 面板 */
-  --foreground: 0 0% 85.5%;            /* #dadada */
-  --card: 0 0% 14.9%;                  /* #262626 */
-  --card-foreground: 0 0% 85.5%;
-  --popover: 0 0% 14.9%;
-  --popover-foreground: 0 0% 85.5%;
-  --primary: 43 96% 56%;               /* #fbbd23 琥珀 */
-  --primary-foreground: 0 0% 9.8%;     /* 琥珀上用深字 */
-  --secondary: 0 0% 20.4%;             /* #343434 */
-  --secondary-foreground: 0 0% 85.5%;
-  --third: 0 0% 16.9%;                 /* #2b2b2b 選中列 */
-  --third-foreground: 0 0% 90.2%;
-  --muted: 0 0% 14.9%;                 /* 與 --card 同色：卡片上的 hover 要用 accent */
-  --muted-foreground: 0 0% 60.4%;      /* #9a9a9a */
-  --accent: 0 0% 18.8%;                /* #303030 hover 底 */
-  --accent-foreground: 0 0% 90.2%;
-  --destructive: 3 72% 64%;            /* #e5665f */
-  --destructive-foreground: 0 0% 100%;
-  --border: 0 0% 18.4%;                /* #2f2f2f */
-  --input: 0 0% 22.7%;                 /* #3a3a3a */
-  --ring: 43 96% 56%;
-  --radius: 0.5rem;
+  /* v5 原始 token（簡報 §3.1）。名稱和 shadcn 衝突的改名：muted → --muted-ink、accent → --brand-accent */
+  --bg: #121417;
+  --panel: #17191d;
+  --sunken: #0d0f11;
+  --statusbar: #1a1c20;
+  --menu: #121417;
+  --ink: #ebebe8;
+  --note-ink: #cbd0d2;
+  --muted-ink: #8f8f8a;
+  --faint: #64645f;          /* 分組標題、placeholder；不可當 focus 色 */
+  --line: #292927;
+  --line-soft: #202020;
+  --hover: rgba(235, 235, 232, 0.06);
+  --active: rgba(235, 235, 232, 0.1);
+  --invert: #ebebe8;
+  --invert-ink: #131313;
+  --danger: #e5484d;
+  --success-ink: #72b588;
+  --brand-accent: #4cc3b0;   /* 唯一彩色，只給白名單：連結、已勾選任務、caret、引言色條 */
+  --brand-accent-ink: #131313;
+  --caret: var(--brand-accent);
+  --sh-dialog: 0 24px 64px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --sh-menu: 0 10px 30px -6px rgba(0, 0, 0, 0.4);
+  --sh-toast: 0 8px 24px -8px rgba(0, 0, 0, 0.5);
+  --sh-float: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 4px 12px -8px rgba(0, 0, 0, 0.5);
 
-  --sidebar-background: 0 0% 12.5%;
-  --sidebar-foreground: 0 0% 85.5%;
-  --sidebar-primary: 43 96% 56%;
-  --sidebar-primary-foreground: 0 0% 9.8%;
-  --sidebar-accent: 0 0% 18.8%;
-  --sidebar-accent-foreground: 0 0% 90.2%;
-  --sidebar-border: 0 0% 18.4%;
-  --sidebar-ring: 43 96% 56%;
+  /* shadcn 語意 token（HSL 三元組，給上游元件與 theme-utils 用）對到 v5 */
+  --background: 220 11.5% 10.2%;  /* panel：側欄、tab 列等 chrome */
+  --foreground: 60 7% 91.6%;  /* ink */
+  --card: 216 12.2% 8%;  /* bg：主內容、編輯區 */
+  --card-foreground: 60 7% 91.6%;
+  --popover: 216 12.2% 8%;  /* menu：浮層共用 */
+  --popover-foreground: 60 7% 91.6%;
+  --primary: 60 7% 91.6%;  /* invert：主要按鈕、強選取，不是彩色 */
+  --primary-foreground: 0 0% 7.5%;
+  --secondary: 216 7.5% 13.1%;  /* ink 疊 bg 的實色版 hover */
+  --secondary-foreground: 60 7% 91.6%;
+  --third: 60 7% 91.6% / 0.1;  /* active：選中列 */
+  --third-foreground: 60 7% 91.6%;
+  --muted: 216 7.5% 13.1%;
+  --muted-foreground: 60 2.2% 55.1%;
+  --accent: 60 7% 91.6% / 0.06;  /* shadcn accent = hover 底，不是品牌色 */
+  --accent-foreground: 60 7% 91.6%;
+  --destructive: 358 75.1% 59%;
+  --destructive-foreground: 0 0% 7.5%;
+  --success: 140 31.2% 57.8%;
+  --success-foreground: 0 0% 7.5%;
+  --warning: 60 2.2% 55.1%;  /* 單色原則：警告不另給彩色 */
+  --warning-foreground: 0 0% 7.5%;
+  --info: 60 2.2% 55.1%;
+  --info-foreground: 0 0% 7.5%;
+  --border: 60 2.5% 15.7%;
+  --input: 60 2.5% 15.7%;
+  --ring: 60 7% 91.6%;  /* focus 用 ink */
+  --radius: 0.375rem;  /* 6px 主力圓角 */
 
-  --scrollbar-thumb: hsl(0 0% 22.7%);
-  --scrollbar-thumb-hover: hsl(0 0% 29%);
+  --sidebar-background: 220 11.5% 10.2%;
+  --sidebar-foreground: 60 7% 91.6%;
+  --sidebar-primary: 60 7% 91.6%;
+  --sidebar-primary-foreground: 0 0% 7.5%;
+  --sidebar-accent: 60 7% 91.6% / 0.06;
+  --sidebar-accent-foreground: 60 7% 91.6%;
+  --sidebar-border: 0 0% 12.5%;
+  --sidebar-ring: 60 7% 91.6%;
+
+  --scrollbar-thumb: rgba(235, 235, 232, 0.14);
+  --scrollbar-thumb-hover: rgba(235, 235, 232, 0.26);
+  --scrollbar-thumb-active: rgba(235, 235, 232, 0.36);
 }
 
 body {
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.005em;
+  font-feature-settings: "cv11", "ss01";
+  caret-color: var(--caret);
 }
 
 code, kbd, pre, samp {
-  font-family: "SF Mono", Menlo, ui-monospace, Consolas, monospace;
+  font-family: var(--font-code);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+/* 放進 base layer：Tailwind 的 outline-* 工具類（utilities layer）才能蓋過它 */
+@layer base {
+  :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

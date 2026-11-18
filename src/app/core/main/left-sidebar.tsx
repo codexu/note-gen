@@ -5,7 +5,7 @@ import { isPluginDisplayVisible } from '@/lib/plugins/display-preferences'
 import { usePluginLocalization } from '@/lib/plugins/localization'
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { CalendarCheck, ChevronDown, ChevronRight, Download, Files, Hash, History, Inbox, LayoutDashboard, ListChecks, ListTree, Palette, ScrollText } from "lucide-react"
+import { CalendarCheck, ChevronDown, ChevronRight, Download, Files, Hash, History, Inbox, LayoutDashboard, ListChecks, ListTree, MessagesSquare, Palette, ScrollText } from "lucide-react"
 import { FileSidebar } from "./file"
 import { FileActions } from "./file/file-actions"
 import { useLocale, useTranslations } from "next-intl"
@@ -25,6 +25,7 @@ import useCollectStore from '@/stores/collect'
 import useDecideStore from '@/stores/decide'
 import { useDecisions } from '@/lib/decide/use-decisions'
 import useInboxStore from '@/stores/inbox'
+import useThreadsStore from '@/stores/threads'
 import usePromptLibraryStore from '@/stores/prompt-library'
 import { openDailyNoteFromSidebar, SidebarCalendar } from './daily/sidebar-calendar'
 import { SIDEBAR_ROW, SIDEBAR_ROW_ACTIVE, SIDEBAR_ROW_ACTIVE_SECONDARY } from './sidebar-row'
@@ -190,7 +191,9 @@ export function LeftSidebar() {
   const decideCount = useDecisions().length
   const collectVisible = useCollectStore(state => state.visible)
   const showCollect = useCollectStore(state => state.show)
-  const pageVisible = homeVisible || inboxVisible || promptLibraryVisible || (isV3 && (collectVisible || decideVisible))
+  const threadsVisible = useThreadsStore(state => state.visible)
+  const showThreads = useThreadsStore(state => state.show)
+  const pageVisible = homeVisible || inboxVisible || promptLibraryVisible || (isV3 && (collectVisible || decideVisible || threadsVisible))
   const pluginsInitialized = usePluginStore((state) => state.initialized)
   const displaySettings = usePluginStore(state => state.deviceSettings)
   const installed = usePluginStore((state) => state.installed)
@@ -243,6 +246,7 @@ export function LeftSidebar() {
           <LauncherButton icon={CalendarCheck} title="Today" onClick={() => openDailyNoteFromSidebar(new Date(), t('today.calendarNav.openFailed'))} />
           {isV3 && <LauncherButton icon={ListChecks} title="Decide" active={decideVisible} badge={decideCount} badgeLabel={t('decide.count', { count: decideCount })} onClick={showDecide} />}
           {isV3 && <LauncherButton icon={Download} title="Collect" active={collectVisible} onClick={showCollect} />}
+          {isV3 && <LauncherButton icon={MessagesSquare} title="Threads" active={threadsVisible} onClick={showThreads} />}
           <LauncherButton icon={Inbox} title="Inbox" active={inboxVisible} badge={inboxCount} badgeLabel={t('inbox.pending', { count: inboxCount })} onClick={() => showInbox()} />
           <LauncherButton icon={ScrollText} title="Prompts" active={promptLibraryVisible} onClick={() => showPromptLibrary()} />
           <div className="mx-2 my-1.5 border-t border-line-soft" role="separator" />

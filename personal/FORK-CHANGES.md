@@ -136,6 +136,14 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-10-26 | `src/lib/agent-tasks/task-center.ts` | 任務中心加「固定流程」執行器（`registerRunner`）：kind `report` 不走 AgentRuntime，照樣排隊、取消、通知、沒做完可繼續；執行器註冊前不開始 | #35 |
 | 2026-10-26 | `src/stores/vault-index.ts`、`home/cards/signals-card.tsx`、`stores/home.ts`、`needs-list.tsx`、`agent-tasks-sheet.tsx` | `selectLinklessPaths` 加 `ignoreSourceFolders`（報告引用不算連結）；每週複盤判斷排除 `報告/`（週報檔名含 W44）；`HandoffDraft.onStarted` 回報任務 id；任務抽屜寬度改用 `data-[side=right]:` 前綴才蓋得過 Sheet 預設的 `max-w-sm` | #35 |
 | 2026-11-18 | `src/app/globals.css` | 加一行 `@import "./fork-tokens.css"`（almanac P0-a）。`fork-tokens.css`（新）在 `@theme inline` 對應 v5 token（`bg-panel`、`text-ink`、`text-faint`、`border-line`、`text-brand`、`shadow-menu`…），並把 orange／amber／yellow／lime／teal／cyan／sky／blue／indigo／violet／purple／fuchsia／pink 色票改成暖灰（stone）；red／rose、green／emerald 不動。`fork-theme.css` 改成 v5 單色＋唯一 accent（`--brand-accent` 亮 #167a6e／暗 #4cc3b0），`--primary` 改反白；`public/fonts/` 收 Inter、Fira Code（OFL） | almanac V3 改版，簡報 §3；自訂 CSS（設定 > 自訂 CSS）會蓋過這些 token |
+| 2026-11-18 | `src/components/ui/kbd.tsx` | `Kbd` 改 v5 樣式：`bg-sunken`、高 18px、圓角 4px、10.5px、`font-mono`、svg 11px（almanac P0-c）。新增 `src/components/fork/shortcut-kbd.tsx`（`ShortcutKbd`：⌘⇧⌥⌃ 用 lucide icon、組合鍵一顆 pill） | P0-c 外框元件改版 |
+| 2026-11-18 | `src/components/ui/command.tsx` | `Command` 包 `CommandHighlightScope`；`CommandDialog` 寬 560、距頂 16vh、`bg-bg`／`border-line`／`shadow-dialog`；`CommandInput` 在 Dialog 內為 48px／14.5px／底線；`CommandList` 在 Dialog 內最高 320px；`CommandItem` 選中底改 `bg-active`，Dialog 內多渲染 `CommandItemHighlight`（framer-motion layoutId 滑動，spring 360/32/0.6，新檔 `src/components/fork/command-highlight.tsx`）。所有新樣式用 `in-data-[slot=dialog-content]:` 限定，彈出式選單（model-select 等）維持原外觀。輸入框加 `focus-visible:outline-none!`（蓋過 fork-theme.css 的全域 focus 外框） | P0-c ⌘ 命令面板 |
+| 2026-11-18 | `src/components/ui/button.tsx` | 按下效果 `translate-y-px` → `scale-[.96]`（`motion-reduce:active:scale-100`）；`transition-all` → 指定屬性＋`duration-100 ease-out` | P0-c 按鈕按下回饋 |
+| 2026-11-18 | `src/app/core/main/left-sidebar.tsx` | 外層加 `bg-panel`＋右邊 `border-line-soft`；`LauncherButton` 28px／13px／`py-1`、選中不再用 sidebar-primary 色、badge 改等寬 10.5px `text-faint`；分隔線與標題列邊線改 `line-soft` | P0-c 左側欄 |
+| 2026-11-18 | `src/app/core/main/sidebar-row.ts` | `SIDEBAR_ROW` 系列改 `bg-hover`／`bg-active`／`text-ink` token（原用 shadcn sidebar-accent）；同時影響 `daily/sidebar-calendar.tsx`、`timeline/timeline-sidebar.tsx` | P0-c 左側欄 |
+| 2026-11-18 | `src/app/core/main/sidebar-search.tsx` | 搜尋框改假輸入框外觀（30px、`bg-bg`、`border-line-soft`、12.5px、placeholder `text-faint`），右側加 `ShortcutKbd ⌘K`（有輸入時隱藏）；掛 `useFocusSearchShortcut`（新檔 `fork-shell/use-focus-search-shortcut.ts`：⌘K 聚焦搜尋；焦點在編輯器／輸入框時不攔截，因為編輯器的 ⌘K 是插入連結） | P0-c 搜尋入口 |
+| 2026-11-18 | `src/app/core/main/main-status-bar.tsx` | `<footer>` class：`bg-statusbar`、`border-line-soft`、`text-[10.5px]` | P0-c 狀態列 |
+| 2026-11-18 | `src/app/core/main/page.tsx` | `MIN_LEFT_SIDEBAR_WIDTH_PX` 260 → 240 | P0-c 左側欄寬 240px 規格 |
 
 ## 刻意不改的東西
 

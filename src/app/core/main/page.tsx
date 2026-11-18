@@ -68,7 +68,7 @@ function ResizableWrapper() {
   const centerPanelRef = useRef<PanelImperativeHandle>(null)
   const rightPanelRef = useRef<PanelImperativeHandle>(null)
   
-  const MIN_LEFT_SIDEBAR_WIDTH_PX = 260 // Fork：原本 320，左側欄太寬；再窄分頁列會被切掉
+  const MIN_LEFT_SIDEBAR_WIDTH_PX = 240 // Fork：原本 320；almanac v5 規格 240px
   const MIN_RIGHT_SIDEBAR_WIDTH_PX = 280
   const MIN_EDITOR_WIDTH_PX = 400
   const [minLeftSidebarSize, setMinLeftSidebarSize] = useState(24)

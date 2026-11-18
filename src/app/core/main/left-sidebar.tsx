@@ -91,14 +91,14 @@ function LauncherButton({ icon: Icon, title, active, secondary, badge, badgeLabe
       aria-current={active ? 'page' : undefined}
       aria-expanded={expanded}
       className={cn(
-        "flex h-7 w-full items-center gap-2 px-2 text-left text-sm text-muted-foreground",
+        "flex h-7 w-full items-center gap-2 px-2 py-1 text-left text-[13px] text-muted-foreground",
         SIDEBAR_ROW,
         active && (secondary ? SIDEBAR_ROW_ACTIVE_SECONDARY : SIDEBAR_ROW_ACTIVE),
       )}
     >
-      <Icon className={cn("size-4 shrink-0", active && !secondary && "text-sidebar-primary")} />
+      <Icon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{title}</span>
-      {badge ? <Count value={badge} label={badgeLabel} className={active && !secondary ? 'bg-sidebar' : 'bg-sidebar-accent'} /> : null}
+      {badge ? <Count value={badge} label={badgeLabel} className="min-w-0 bg-transparent px-0 font-mono text-[10.5px] font-normal text-faint" /> : null}
     </button>
   )
 }
@@ -221,7 +221,7 @@ export function LeftSidebar() {
   )
 
   return (
-    <div ref={containerRef} className="w-full h-full flex flex-col" data-left-sidebar>
+    <div ref={containerRef} className="flex h-full w-full flex-col border-r border-line-soft bg-panel" data-left-sidebar>
       <div
         ref={topRef}
         className="shrink-0 overflow-y-auto"
@@ -233,7 +233,7 @@ export function LeftSidebar() {
           <LauncherButton icon={CalendarCheck} title="Today" onClick={() => openDailyNoteFromSidebar(new Date(), t('today.calendarNav.openFailed'))} />
           <LauncherButton icon={Inbox} title="Inbox" active={inboxVisible} badge={inboxCount} badgeLabel={t('inbox.pending', { count: inboxCount })} onClick={() => showInbox()} />
           <LauncherButton icon={ScrollText} title="Prompts" active={promptLibraryVisible} onClick={() => showPromptLibrary()} />
-          <div className="mx-2 my-1.5 border-t border-sidebar-border" role="separator" />
+          <div className="mx-2 my-1.5 border-t border-line-soft" role="separator" />
           {builtInTabs.map(renderTab)}
           {visiblePluginTabs.map(renderTab)}
           {morePluginTabs.length > 0 && (
@@ -252,13 +252,13 @@ export function LeftSidebar() {
         aria-valuenow={split.height === null ? undefined : Math.round(split.height)}
         aria-valuemin={MIN_TOP_HEIGHT}
         title={t('leftSidebar.resizeHint')}
-        className="relative z-10 h-px shrink-0 cursor-row-resize bg-sidebar-border outline-none transition-colors duration-150 before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-[''] hover:bg-sidebar-primary/60 focus-visible:bg-sidebar-ring active:bg-sidebar-primary"
+        className="relative z-10 h-px shrink-0 cursor-row-resize bg-line-soft outline-none transition-colors duration-150 before:absolute before:inset-x-0 before:-top-1.5 before:-bottom-1.5 before:content-[''] hover:bg-line focus-visible:bg-line active:bg-muted-foreground"
         onPointerDown={split.onPointerDown}
         onKeyDown={split.onKeyDown}
         onDoubleClick={split.reset}
       />
       <Tabs value={leftSidebarTab} className="min-h-0 w-full flex-1 gap-0 overflow-hidden">
-        <div className="flex h-10 w-full shrink-0 items-center justify-between gap-2 border-b px-3">
+        <div className="flex h-10 w-full shrink-0 items-center justify-between gap-2 border-b border-line-soft px-3">
           <span className="min-w-0 truncate text-sm font-medium">{activeTab?.title ?? 'Notes'}</span>
           {activePluginTab ? (
             <div className="shrink-0">

@@ -118,7 +118,7 @@ function ColorInput({ label, value, defaultColor, onChange }: ColorInputProps) {
         type="color"
         value={hexValue}
         onChange={handleColorChange}
-        className="w-8 h-8 rounded cursor-pointer border-2 border-border hover:border-primary transition-colors shrink-0"
+        className="w-8 h-8 rounded cursor-pointer border-2 border-border hover:border-line transition-colors shrink-0"
         title="点击选择颜色"
       />
 

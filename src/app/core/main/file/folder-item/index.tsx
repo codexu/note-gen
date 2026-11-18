@@ -166,7 +166,7 @@ export function FolderItem({
   const isWikiFolder = isWikiFolderPath(path)
   const isAssetsFolder = isWritingAssetsFolder(path, assetsPath)
   const FolderIdentityIcon = isWikiFolder ? WikiFolderIcon : isAssetsFolder ? PackageOpen : Folder
-  const folderIdentityClassName = cn(iconSize, 'shrink-0', (isWikiFolder || isAssetsFolder) && 'text-primary')
+  const folderIdentityClassName = cn(iconSize, 'shrink-0', (isWikiFolder || isAssetsFolder) && 'text-ink')
   const pendingRenameTarget = Object.entries(pendingFileTreeRenames)
     .find(([source, target]) => source === path || target === path)?.[1]
   const renamePending = isRenaming || Boolean(pendingRenameTarget)
@@ -986,7 +986,7 @@ export function FolderItem({
                     className="relative flex min-w-0 flex-1 cursor-default select-none items-center gap-1 overflow-hidden"
                   >
                     {isWikiFolder || isAssetsFolder ? <FolderIdentityIcon className={folderIdentityClassName} /> : <PluginFileIcon path={path} kind="folder" className={`${iconSize} shrink-0`} fallback={isSkillsFolder(item.name) ? (
-                      <Sparkles className={`${iconSize} shrink-0 text-primary`} />
+                      <Sparkles className={`${iconSize} shrink-0 text-ink`} />
                     ) : collapsibleList.includes(path) ? (
                       <FolderOpen className={`${iconSize} shrink-0`} />
                     ) : (

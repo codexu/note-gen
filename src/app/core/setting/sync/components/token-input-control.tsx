@@ -69,7 +69,7 @@ export function TokenInputControl({
       <OpenBroswer
         url={docsUrl}
         title={t('settings.sync.tokenPermissionGuide')}
-        className="text-sm text-blue-500 hover:underline"
+        className="text-sm text-brand hover:underline"
       />
     </div>
   )

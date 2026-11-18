@@ -35,7 +35,7 @@ export function SkillsListView({ skills }: SkillsListViewProps) {
     <div className="flex-1 h-full flex flex-col items-center bg-background gap-6 p-8 overflow-y-auto">
       {/* Skills Icon and Name */}
       <div className="flex flex-col items-center gap-3 shrink-0">
-        <Sparkles className="w-20 h-20 text-primary" />
+        <Sparkles className="w-20 h-20 text-ink" />
         <h2 className="text-2xl font-semibold tracking-tight">{t('skills')} ({skills.length})</h2>
       </div>
 
@@ -50,11 +50,11 @@ export function SkillsListView({ skills }: SkillsListViewProps) {
                 {globalSkills.map((skill) => (
                   <div
                     key={skill.id}
-                    className="p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer"
+                    className="p-4 border rounded-lg hover:bg-hover transition-colors bg-hover cursor-pointer"
                     onClick={() => toggleExpanded(skill.id)}
                   >
                     <div className="flex items-start gap-4">
-                      <Sparkles className="size-5 text-primary mt-1" />
+                      <Sparkles className="size-5 text-ink mt-1" />
                       <div className="flex-1">
                         <h3 className="font-semibold mb-1">{skill.name}</h3>
                         <p className="text-sm text-muted-foreground cursor-pointer">
@@ -78,11 +78,11 @@ export function SkillsListView({ skills }: SkillsListViewProps) {
                 {projectSkills.map((skill) => (
                   <div
                     key={skill.id}
-                    className="p-4 border rounded-lg hover:bg-accent/5 transition-colors bg-purple-50/50 dark:bg-purple-950/20 cursor-pointer"
+                    className="p-4 border rounded-lg hover:bg-hover transition-colors bg-hover cursor-pointer"
                     onClick={() => toggleExpanded(skill.id)}
                   >
                     <div className="flex items-start gap-4">
-                      <Sparkles className="size-5 text-primary mt-1" />
+                      <Sparkles className="size-5 text-ink mt-1" />
                       <div className="flex-1">
                         <h3 className="font-semibold mb-1">{skill.name}</h3>
                         <p className="text-sm text-muted-foreground cursor-pointer">

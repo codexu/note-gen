@@ -36,8 +36,8 @@ export function MobileMeProfileCard({
       className={cn(
         "mobile-dock-surface rounded-[1.35rem] p-4 transition-colors",
         isGit && "border-emerald-200/70 dark:border-emerald-900/70",
-        isStorage && "border-sky-200/70 dark:border-sky-900/70",
-        isUnconfigured && "border-amber-200/70 dark:border-amber-900/70"
+        isStorage && "border-line",
+        isUnconfigured && "border-line"
       )}
     >
       <div className="flex items-start gap-3">
@@ -45,17 +45,17 @@ export function MobileMeProfileCard({
           className={cn(
             "size-14 border",
             isGit && "border-emerald-200/80 dark:border-emerald-800/80",
-            isStorage && "border-sky-200/80 dark:border-sky-800/80",
-            isUnconfigured && "border-amber-200/80 dark:border-amber-800/80"
+            isStorage && "border-line",
+            isUnconfigured && "border-line"
           )}
         >
           <AvatarImage src={avatarUrl} alt={name} />
           <AvatarFallback
             className={cn(
-              "text-primary",
+              "text-ink",
               isGit && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-200",
-              isStorage && "bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200",
-              isUnconfigured && "bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-200"
+              isStorage && "bg-sunken text-ink",
+              isUnconfigured && "bg-sunken text-ink"
             )}
           >
             {avatarUrl ? initials : leadingIcon}

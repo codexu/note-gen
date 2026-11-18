@@ -153,7 +153,7 @@ export function ActivityDayDetail({ day, compact = false, flat = false, labels }
                 </div>
                 <div className="relative flex justify-center">
                   <div className="absolute inset-y-0 w-px bg-border/70" />
-                  <div className="absolute top-2 size-2.5 rounded-full border border-background bg-primary shadow-sm" />
+                  <div className="absolute top-2 size-2.5 rounded-full border border-background bg-ink shadow-sm" />
                 </div>
                 <div className="space-y-2">
                   {group.entries.map((entry) => (

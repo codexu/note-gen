@@ -480,7 +480,7 @@ export function WikilinkEmbedView({ node }: ReactNodeViewProps) {
           📎 {name}
           <button
             type="button"
-            className="notegen-embed-open ml-2 text-primary underline underline-offset-2"
+            className="notegen-embed-open ml-2 text-brand underline underline-offset-2"
             onClick={event => {
               event.preventDefault()
               event.stopPropagation()

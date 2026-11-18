@@ -129,15 +129,15 @@ export function EntryListItem({
       className={cn(
         "relative rounded-md bg-background",
         isDragging ? "z-50 overflow-visible" : "overflow-hidden",
-        isDropTarget && "outline-2 outline-primary outline-offset-2"
+        isDropTarget && "outline-2 outline-ink outline-offset-2"
       )}
     >
       <div
         className={cn(
           "relative z-10 min-h-11 w-full rounded-md bg-background px-2 py-1.5 text-left transition-transform duration-200 ease-out hover:bg-accent active:bg-accent",
           isActive && "bg-accent text-accent-foreground",
-          isDropTarget && "bg-primary/5",
-          isDragging && "bg-background shadow-xl ring-1 ring-primary transition-none"
+          isDropTarget && "bg-hover",
+          isDragging && "bg-background shadow-xl ring-1 ring-ink transition-none"
         )}
         style={{ transform: itemTransform }}
         onTouchStart={handleTouchStart}

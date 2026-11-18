@@ -154,7 +154,7 @@ function ImageItem({ mark }: { mark: Mark }) {
     <div
       className={cn(
         "relative aspect-square cursor-pointer overflow-hidden rounded bg-zinc-900",
-        isSelected && "ring-2 ring-primary ring-offset-1 ring-offset-background"
+        isSelected && "ring-2 ring-ink ring-offset-1 ring-offset-background"
       )}
     >
       {isMultiSelectMode ? (
@@ -317,7 +317,7 @@ export function ImageGallery({ marks }: ImageGalleryProps) {
               />
             </div>
           ) : null}
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-hover text-ink">
             <span className="text-xs font-medium">
               图片组
             </span>

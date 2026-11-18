@@ -142,7 +142,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
         <p className="flex items-center">
           {t('record.queue.detected')}
           {isCountingDown && (
-            <span className="text-red-500 animate-pulse ml-2">{countdown}s</span>
+            <span className="text-ink animate-pulse ml-2">{countdown}s</span>
           )}
         </p>
         <LocalImage src={chat.image} alt="" width={0} height={0} className="max-h-96 max-w-96 w-auto mt-2 mb-3 border-8 rounded" />
@@ -169,7 +169,7 @@ export function ChatClipboard({chat}: { chat: Chat }) {
         <p className='flex items-center'>
           {t('record.queue.detected')}
           {isCountingDown && (
-            <span className="text-red-500 animate-pulse ml-2">{countdown}s</span>
+            <span className="text-ink animate-pulse ml-2">{countdown}s</span>
           )}
         </p>
         <p className='text-zinc-500'>{chat.content}</p>

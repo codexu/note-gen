@@ -42,13 +42,13 @@ export function SyncStatusBadge({ path, showLabel = false, className, badgeProps
       icon: CheckCircle2,
       label: '已同步',
       variant: 'secondary',
-      iconClassName: 'text-primary',
+      iconClassName: 'text-ink',
     },
     local_newer: {
       icon: ArrowUpCircle,
       label: '待推送',
       variant: 'outline',
-      iconClassName: 'text-primary',
+      iconClassName: 'text-ink',
     },
     remote_newer: {
       icon: ArrowDownCircle,
@@ -72,7 +72,7 @@ export function SyncStatusBadge({ path, showLabel = false, className, badgeProps
       icon: Loader2,
       label: '同步中',
       variant: 'secondary',
-      iconClassName: 'animate-spin text-primary',
+      iconClassName: 'animate-spin text-ink',
     },
     offline: {
       icon: CloudOff,
@@ -119,8 +119,8 @@ export function SyncStatusBadge({ path, showLabel = false, className, badgeProps
           {showLabel && <span className="text-xs font-medium">{config.label}</span>}
           {isPending && (
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75" />
-              <span className="relative inline-flex size-2 rounded-full bg-primary" />
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-ink opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-ink" />
             </span>
           )}
         </Badge>

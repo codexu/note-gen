@@ -21,12 +21,12 @@ import { openTasks } from './needs-list'
 import { EmptyState } from '../../page-ui'
 
 const STATUS_TONE: Record<AgentTaskStatus, string> = {
-  awaiting_review: 'text-primary',
-  queued: 'text-sky-700 dark:text-sky-400',
-  running: 'text-sky-700 dark:text-sky-400',
+  awaiting_review: 'text-ink',
+  queued: 'text-ink',
+  running: 'text-ink',
   interrupted: 'text-destructive',
   failed: 'text-destructive',
-  completed: 'text-emerald-700 dark:text-emerald-400',
+  completed: 'text-ink',
   cancelled: 'text-muted-foreground',
 }
 
@@ -139,7 +139,7 @@ export function TasksSection() {
                 </button>
                 {needsSummary(conversation, summarized)
                   ? <Button size="sm" variant="secondary" className="h-6 px-2 text-xs" onClick={() => openConversationSummary(conversation.id)}>{t('summarize')}</Button>
-                  : <span className="px-2 text-xs text-emerald-700 dark:text-emerald-400">{t('summarized')}</span>}
+                  : <span className="px-2 text-xs text-ink">{t('summarized')}</span>}
               </li>
             ))}
           </ul>

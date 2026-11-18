@@ -52,9 +52,9 @@ export default function ChatThinking({chat}: { chat: Chat }) {
         aria-expanded={isExpanded}
       >
         {isThinking ? (
-          <Loader2 className="size-4 animate-spin text-blue-500 flex-shrink-0" />
+          <Loader2 className="size-4 animate-spin text-ink flex-shrink-0" />
         ) : (
-          <Brain className="size-4 text-blue-500 flex-shrink-0" />
+          <Brain className="size-4 text-ink flex-shrink-0" />
         )}
         <span className="text-sm text-muted-foreground flex-1 truncate min-w-0">
           {isThinking ? t('ai.thinking') : title}

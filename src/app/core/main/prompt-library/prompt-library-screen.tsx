@@ -225,7 +225,7 @@ export function PromptLibraryScreen() {
                   onClick={() => setSelectedPath(path)}
                   className={cn(
                     'flex w-full flex-col gap-1 border-b px-3 py-2.5 text-left hover:bg-muted/60',
-                    selectedPath === path && 'bg-primary/10 hover:bg-primary/15',
+                    selectedPath === path && 'bg-active hover:bg-active',
                   )}
                 >
                   <span className="truncate text-sm font-medium">{promptTitle(note)}</span>

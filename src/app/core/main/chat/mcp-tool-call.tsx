@@ -19,7 +19,7 @@ export function McpToolCallCard({ toolCall }: McpToolCallCardProps) {
   const getStatusIcon = () => {
     switch (toolCall.status) {
       case 'calling':
-        return <Loader2 className="size-4 animate-spin text-yellow-500" />
+        return <Loader2 className="size-4 animate-spin text-ink" />
       case 'success':
         return <CheckCircle2 className="size-4 text-green-500" />
       case 'error':

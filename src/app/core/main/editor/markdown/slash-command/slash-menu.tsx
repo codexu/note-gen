@@ -340,7 +340,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
               }}
               className={cn(
                 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
-                isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+                isSelected ? 'bg-active text-ink font-medium' : 'text-foreground hover:bg-muted'
               )}
               onClick={() => selectVisibleItem(itemIdx)}
               onMouseDown={event => event.preventDefault()}
@@ -384,7 +384,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
                 ref={element => { groupRefs.current[groupIdx] = element }}
                 className={cn(
                   'flex h-8 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-sm transition-colors',
-                  isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+                  isSelected ? 'bg-active text-ink font-medium' : 'text-foreground hover:bg-muted'
                 )}
                 onClick={() => selectGroup(groupIdx)}
                 onMouseDown={event => event.preventDefault()}
@@ -423,7 +423,7 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
                 }}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
-                  isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+                  isSelected ? 'bg-active text-ink font-medium' : 'text-foreground hover:bg-muted'
                 )}
                 onClick={() => selectVisibleItem(itemIdx)}
                 onMouseDown={event => event.preventDefault()}

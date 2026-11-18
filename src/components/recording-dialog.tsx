@@ -133,13 +133,13 @@ export function RecordingDialog({ open, onOpenChange, onTranscriptionComplete }:
           <div className="flex items-center gap-3">
             {isRecording && !isPaused && (
               <>
-                <div className="size-3 rounded-full bg-red-500 animate-pulse" />
+                <div className="size-3 rounded-full bg-ink animate-pulse" />
                 <span className="text-sm text-muted-foreground">{t('recording')}</span>
               </>
             )}
             {isPaused && (
               <>
-                <div className="size-3 rounded-full bg-yellow-500" />
+                <div className="size-3 rounded-full bg-ink" />
                 <span className="text-sm text-muted-foreground">{t('paused')}</span>
               </>
             )}

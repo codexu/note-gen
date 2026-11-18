@@ -233,7 +233,7 @@ export function AppFootbar() {
         onClickCapture={handleDockClickCapture}
       >
         <InteractiveMenu
-          accentColor={isRecording ? 'rgb(239 68 68)' : undefined}
+          accentColor={isRecording ? 'var(--danger)' : undefined}
           activeIndex={activeIndex}
           aria-label={t('navigation.navigate')}
           className="w-full"

@@ -100,7 +100,7 @@ export function ConnectionStatus({
   if (state === SyncStateEnum.success) {
     return (
       <span className="flex items-center gap-2 text-sm">
-        <CheckCircle className="size-4 text-primary" />
+        <CheckCircle className="size-4 text-ink" />
         {mode === 'configuration' ? t('configured') : t('connected')}
       </span>
     )

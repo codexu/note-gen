@@ -48,8 +48,8 @@ export function CaptureBar() {
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-xl border bg-background px-3 py-2.5 focus-within:ring-1 focus-within:ring-primary/50">
-      <ChevronRight className="size-4 shrink-0 text-primary" aria-hidden />
+    <div className="flex items-center gap-2 rounded-xl border bg-background px-3 py-2.5 focus-within:ring-1 focus-within:ring-ink/50">
+      <ChevronRight className="size-4 shrink-0 text-ink" aria-hidden />
       <input
         value={text}
         // 用 readOnly 而不是 disabled：disabled 會讓輸入框失焦，存完無法接著打下一筆

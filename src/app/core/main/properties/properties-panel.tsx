@@ -34,7 +34,7 @@ function PropertyRow({ property, save, disabled }: { property: Property; save: (
   const values = chipValues(property.value)
   return <div className="mb-3 rounded-lg border p-2">
     <div className="mb-2 flex items-center gap-2">
-      <span title={property.type === 'unsupported' ? t('unsupported') : t(`types.${property.type}`)}><Icon className="size-4 text-primary" /></span>
+      <span title={property.type === 'unsupported' ? t('unsupported') : t(`types.${property.type}`)}><Icon className="size-4 text-ink" /></span>
       {renaming ? <Input autoFocus aria-label={t('rename')} value={name} disabled={disabled} onChange={event => setName(event.target.value)} onBlur={() => void rename()} onKeyDown={event => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') { setRenaming(false); setName(property.key) }
@@ -46,7 +46,7 @@ function PropertyRow({ property, save, disabled }: { property: Property; save: (
     {!property.editable ? <><pre className="whitespace-pre-wrap break-all text-xs">{property.raw}</pre><p className="mt-1 text-xs text-muted-foreground">{t('unsupported')}</p></>
       : property.type === 'checkbox' ? <Checkbox aria-label={property.key} disabled={disabled} checked={property.value === true} onCheckedChange={checked => void setValue(checked === true)} />
         : multiple ? <div className="flex flex-wrap gap-1">
-          {values.map((value, index) => <span key={`${index}:${value}`} className="inline-flex max-w-full items-center gap-1 rounded bg-primary/10 px-2 py-1 text-xs text-primary"><span className="break-all">{property.type === 'tags' ? '#' + value.replace(/^#/, '') : value}</span><button type="button" disabled={disabled} aria-label={`${t('remove')} ${value}`} onClick={() => void setValue(values.filter((_, i) => i !== index))}><X className="size-3" /></button></span>)}
+          {values.map((value, index) => <span key={`${index}:${value}`} className="inline-flex max-w-full items-center gap-1 rounded bg-hover px-2 py-1 text-xs text-ink font-medium"><span className="break-all">{property.type === 'tags' ? '#' + value.replace(/^#/, '') : value}</span><button type="button" disabled={disabled} aria-label={`${t('remove')} ${value}`} onClick={() => void setValue(values.filter((_, i) => i !== index))}><X className="size-3" /></button></span>)}
           <Input aria-label={property.key} disabled={disabled} placeholder={t('valuePlaceholder')} value={chip} onChange={event => setChip(event.target.value)} onKeyDown={event => {
             if (event.key !== 'Enter' || event.nativeEvent.isComposing || !chip.trim()) return
             event.preventDefault()

@@ -92,7 +92,7 @@ export function S3Sync() {
 
   const getStatusIcon = () => {
     if (isConnecting) {
-      return <Loader2 className="size-4 animate-spin text-blue-500" />;
+      return <Loader2 className="size-4 animate-spin text-ink" />;
     }
     if (s3Connected) {
       return <CheckCircle className="size-4 text-green-500" />;

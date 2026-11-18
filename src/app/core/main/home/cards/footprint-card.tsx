@@ -57,8 +57,8 @@ export function FootprintCard() {
           return (
             <div key={day.date} className="flex flex-1 flex-col items-center gap-1" title={t('day', { ...day })}>
               <div className="flex w-full flex-col-reverse overflow-hidden rounded-sm" style={{ height: `${Math.max(2, (sum / max) * 72)}px` }}>
-                <div className="bg-primary" style={{ flex: day.created }} />
-                <div className="bg-primary/50" style={{ flex: day.modified }} />
+                <div className="bg-ink" style={{ flex: day.created }} />
+                <div className="bg-ink/50" style={{ flex: day.modified }} />
                 <div className="bg-muted-foreground/40" style={{ flex: day.reread || (sum === 0 ? 1 : 0) }} />
               </div>
               <span className="text-xs text-muted-foreground">{new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(new Date(`${day.date}T00:00:00`))}</span>
@@ -67,8 +67,8 @@ export function FootprintCard() {
         })}
       </div>
       <div className="mt-2 flex gap-3 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-primary" />{t('created')}</span>
-        <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-primary/50" />{t('modified')}</span>
+        <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-ink" />{t('created')}</span>
+        <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-ink/50" />{t('modified')}</span>
         <span className="flex items-center gap-1"><span className="size-2 rounded-sm bg-muted-foreground/40" />{t('reread')}</span>
       </div>
     </section>

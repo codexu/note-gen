@@ -1057,7 +1057,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: (options?: OpenOrganizeO
                       className={cn(
                         "min-w-0 rounded-md border text-left",
                         isMobile ? "flex flex-col items-center gap-1.5 px-2 py-2" : "flex items-center gap-3 p-3",
-                        isActive && 'border-primary bg-background shadow-sm',
+                        isActive && 'border-line bg-background shadow-sm',
                         !isActive && isComplete && 'border-border bg-background/80',
                         !isActive && !isComplete && 'border-transparent',
                         item.disabled && 'opacity-50'
@@ -1068,8 +1068,8 @@ export const OrganizeNotes = forwardRef<{ openOrganize: (options?: OpenOrganizeO
                         className={cn(
                           "flex shrink-0 items-center justify-center rounded-full border font-semibold",
                           isMobile ? "size-7 text-xs" : "size-9 text-sm",
-                          isActive && 'border-primary bg-primary text-primary-foreground',
-                          !isActive && isComplete && 'border-primary bg-primary/10 text-primary',
+                          isActive && 'border-line bg-active text-ink',
+                          !isActive && isComplete && 'border-line bg-hover text-ink font-medium',
                           !isActive && !isComplete && 'bg-background text-muted-foreground'
                         )}
                       >

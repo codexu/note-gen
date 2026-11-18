@@ -34,8 +34,8 @@ const GROUP_OF: Record<AgentTaskStatus, Group> = {
 const GROUP_ORDER: Group[] = ['waiting', 'running', 'unfinished', 'done']
 
 const GROUP_TONE: Record<Group, string> = {
-  waiting: 'text-primary',
-  running: 'text-sky-500',
+  waiting: 'text-ink',
+  running: 'text-ink',
   unfinished: 'text-destructive',
   done: 'text-muted-foreground',
 }
@@ -87,7 +87,7 @@ function DraftRow({ view, taskId, onChanged }: { view: DraftReviewView; taskId: 
     }
   }
 
-  const kindTone = draft.kind === 'delete' ? 'bg-destructive/15 text-destructive' : draft.kind === 'create' || draft.kind === 'folder' ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-secondary'
+  const kindTone = draft.kind === 'delete' ? 'bg-destructive/15 text-destructive' : draft.kind === 'create' || draft.kind === 'folder' ? 'bg-hover text-ink' : 'bg-secondary'
   return (
     <div className="rounded-md border p-3">
       <div className="flex items-center gap-2">
@@ -97,7 +97,7 @@ function DraftRow({ view, taskId, onChanged }: { view: DraftReviewView; taskId: 
           <span className={`text-xs ${draft.state === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}>{t(`draftState.${draft.state}`)}</span>
         ) : (
           <>
-            {individual && <span className="text-xs text-primary">{t('individual')}</span>}
+            {individual && <span className="text-xs text-ink">{t('individual')}</span>}
             <Button size="sm" variant="secondary" disabled={busy} onClick={() => void run(() => applyTaskDraft(taskId, draft.id, conflict))}>
               <Check className="size-3.5" />{conflict ? t('actions.overwrite') : t('actions.accept')}
             </Button>
@@ -110,7 +110,7 @@ function DraftRow({ view, taskId, onChanged }: { view: DraftReviewView; taskId: 
       <div className="mt-1.5 break-all font-mono text-xs">{draft.targetPath ? `${draft.path} → ${draft.targetPath}` : draft.path}</div>
       {draft.state === 'failed' && draft.error && <div className="mt-1.5 text-xs text-destructive">{draft.error === 'CONFLICT' ? t('conflict') : draft.error}</div>}
       {conflict && draft.state === 'pending' && (
-        <div className="mt-2 flex items-center gap-1.5 rounded bg-primary/10 px-2 py-1 text-xs text-primary"><AlertTriangle className="size-3.5" />{t('conflict')}</div>
+        <div className="mt-2 flex items-center gap-1.5 rounded bg-hover px-2 py-1 text-xs text-ink font-medium"><AlertTriangle className="size-3.5" />{t('conflict')}</div>
       )}
       {(draft.content !== undefined || conflict) && (
         <button className="mt-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setShowDiff(value => !value)}>

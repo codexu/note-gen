@@ -167,27 +167,27 @@ function SortableTabWithMenu({
           {...listeners}
         >
           {tab.kind === 'blank' ? (
-            <FilePlus2 className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+            <FilePlus2 className={cn('size-4 shrink-0', isActive && 'text-ink')} />
           ) : tab.kind === 'browser' ? (
-            <Globe2 className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+            <Globe2 className={cn('size-4 shrink-0', isActive && 'text-ink')} />
           ) : pluginTab ? (
             <PluginIcon name={pluginIcon} className="size-4 shrink-0" />
           ) : isRecordTab ? (
             <span className={cn(getMarkTypeListBadgeClasses(tab.markType || 'text'), 'shrink-0 text-[10px]')}>{recordTypeLabel}</span>
           ) : isCanvasTab ? (
-            <Palette className={cn('size-4 shrink-0', isActive && 'text-primary')} />
+            <Palette className={cn('size-4 shrink-0', isActive && 'text-ink')} />
           ) : tab.isFolder ? (
             isWikiFolderPath(tab.path)
-              ? <WikiFolderIcon className="size-4 shrink-0 text-primary" />
+              ? <WikiFolderIcon className="size-4 shrink-0 text-ink" />
               : isWritingAssetsFolder(tab.path, assetsPath)
-                ? <PackageOpen className="size-4 shrink-0 text-primary" />
-                : <PluginFileIcon path={tab.path} kind="folder" fallback={<Folder className="size-4 shrink-0 text-amber-500" />} />
+                ? <PackageOpen className="size-4 shrink-0 text-ink" />
+                : <PluginFileIcon path={tab.path} kind="folder" fallback={<Folder className="size-4 shrink-0 text-ink" />} />
           ) : readOnly ? (
-            <FileLock className={cn('size-4 shrink-0', isActive && 'text-primary')} aria-label={tReading('readOnly')} />
+            <FileLock className={cn('size-4 shrink-0', isActive && 'text-ink')} aria-label={tReading('readOnly')} />
           ) : (
-            <PluginFileIcon path={tab.path} fallback={<FileText className={cn('size-4 shrink-0', isActive && 'text-primary')} />} />
+            <PluginFileIcon path={tab.path} fallback={<FileText className={cn('size-4 shrink-0', isActive && 'text-ink')} />} />
           )}
-          {tab.pinned && <Pin className="size-3.5 shrink-0 text-primary" />}
+          {tab.pinned && <Pin className="size-3.5 shrink-0 text-ink" />}
           <span className={cn('truncate', tab.preview && 'italic')}>{displayName}</span>
           <Button
             type="button"
@@ -204,7 +204,7 @@ function SortableTabWithMenu({
           >
             <X />
           </Button>
-          {isActive && <div className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />}
+          {isActive && <div className="absolute inset-x-0 bottom-0 h-0.5 bg-ink" />}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

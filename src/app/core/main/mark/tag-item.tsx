@@ -88,7 +88,7 @@ export function TagItem(
     <ContextMenu>
       <ContextMenuTrigger onClick={handleSelect}>
         <div className={`
-          ${tag.id === currentTagId ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}
+          ${tag.id === currentTagId ? 'bg-active text-ink' : 'hover:bg-accent'}
           flex justify-between items-center w-full cursor-pointer rounded px-2 py-1.5 text-${textSize} transition-colors
         `}>
           <div className="flex gap-2 items-center min-w-0 flex-1">
@@ -96,7 +96,7 @@ export function TagItem(
             <ItemContent value={tag.name} isEditing={isEditing} onChange={updateName} />
           </div>
           <span className={`text-${textSize} ml-2 flex-shrink-0 ${
-            tag.id === currentTagId ? 'text-primary-foreground/70' : 'text-muted-foreground'
+            tag.id === currentTagId ? 'text-ink/70' : 'text-muted-foreground'
           }`}>
             {tag.total && tag.total > 0 ? tag.total : ''}
           </span>

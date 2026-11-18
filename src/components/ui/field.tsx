@@ -104,7 +104,7 @@ const fieldLabelVariants = cva(
     variants: {
       tone: {
         default:
-          "has-data-checked:border-primary/30 has-data-checked:bg-primary/5 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10",
+          "has-data-checked:border-line has-data-checked:bg-active",
         warning:
           "border-warning/50 bg-warning/10 text-warning-foreground [&_[data-slot=field-description]]:text-warning-foreground/80 [&_[data-slot=checkbox]]:border-warning",
         success:
@@ -152,7 +152,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
       className={cn(
         "text-left text-sm leading-normal font-normal text-muted-foreground group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5",
         "last:mt-0 nth-last-2:-mt-1",
-        "[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
+        "[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-brand",
         className
       )}
       {...props}

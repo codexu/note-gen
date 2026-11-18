@@ -165,7 +165,7 @@ export function UnsupportedFile({ filePath }: UnsupportedFileProps) {
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-semibold truncate">{fileName}</h2>
             <p
-  className="text-sm text-muted-foreground truncate cursor-pointer hover:text-primary transition-colors"
+  className="text-sm text-muted-foreground truncate cursor-pointer hover:text-ink transition-colors"
   title={fullPath || filePath}
   onClick={async () => {
     await navigator.clipboard.writeText(fullPath || filePath)

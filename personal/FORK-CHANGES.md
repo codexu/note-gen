@@ -136,6 +136,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-10-26 | `src/lib/agent-tasks/task-center.ts` | 任務中心加「固定流程」執行器（`registerRunner`）：kind `report` 不走 AgentRuntime，照樣排隊、取消、通知、沒做完可繼續；執行器註冊前不開始 | #35 |
 | 2026-10-26 | `src/stores/vault-index.ts`、`home/cards/signals-card.tsx`、`stores/home.ts`、`needs-list.tsx`、`agent-tasks-sheet.tsx` | `selectLinklessPaths` 加 `ignoreSourceFolders`（報告引用不算連結）；每週複盤判斷排除 `報告/`（週報檔名含 W44）；`HandoffDraft.onStarted` 回報任務 id；任務抽屜寬度改用 `data-[side=right]:` 前綴才蓋得過 Sheet 預設的 `max-w-sm` | #35 |
 | 2026-11-18 | `src/app/globals.css` | 加一行 `@import "./fork-tokens.css"`（almanac P0-a）。`fork-tokens.css`（新）在 `@theme inline` 對應 v5 token（`bg-panel`、`text-ink`、`text-faint`、`border-line`、`text-brand`、`shadow-menu`…），並把 orange／amber／yellow／lime／teal／cyan／sky／blue／indigo／violet／purple／fuchsia／pink 色票改成暖灰（stone）；red／rose、green／emerald 不動。`fork-theme.css` 改成 v5 單色＋唯一 accent（`--brand-accent` 亮 #167a6e／暗 #4cc3b0），`--primary` 改反白；`public/fonts/` 收 Inter、Fira Code（OFL） | almanac V3 改版，簡報 §3；自訂 CSS（設定 > 自訂 CSS）會蓋過這些 token |
+| 2026-11-18 | `src/` 下 127 個檔（逐處見 `personal/2026-11-18_report_p0b-color-audit.md`） | almanac P0-b 色彩清查：把 primary 當強調色的地方改成中性 token（`bg-hover`、`bg-active`、`text-ink`、`bg-invert`），白名單（連結、已勾選任務）改 `text-brand`；非白名單具名彩色 class 改中性；資料類顏色（語法高亮、圖表、使用者自選色、canvas、記錄類型分類色）保留 | 單色＋唯一 accent；合併上游時這些檔的 className 衝突，以 token 版本為準 |
 
 ## 刻意不改的東西
 

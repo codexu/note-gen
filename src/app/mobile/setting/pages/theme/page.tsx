@@ -542,7 +542,7 @@ export default function ThemeSettingsPage() {
                 <button
                   key={preset.name}
                   onClick={() => applyPreset(preset)}
-                  className="flex flex-col gap-2 p-3 rounded-lg border-2 border-border hover:border-primary transition-all"
+                  className="flex flex-col gap-2 p-3 rounded-lg border-2 border-border hover:border-line transition-all"
                 >
                   <div className="flex h-2 rounded-full overflow-hidden">
                     <div className="flex-1" style={{ backgroundColor: preset.colors.background }} />

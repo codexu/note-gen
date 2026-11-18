@@ -65,7 +65,7 @@ export function TodoItemContent({ mark, interactive = true }: { mark: Mark, inte
   const getPriorityColor = (priority: Priority) => {
     const colors = {
       low: 'bg-green-500',
-      medium: 'bg-orange-500',
+      medium: 'bg-muted-foreground',
       high: 'bg-red-500'
     }
     return colors[priority]

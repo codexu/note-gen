@@ -437,9 +437,9 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
             className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40"
           >
             {isStreaming ? (
-              <Loader2 className="size-4 animate-spin text-blue-500" />
+              <Loader2 className="size-4 animate-spin text-ink" />
             ) : (
-              <Brain className="size-4 text-blue-500" />
+              <Brain className="size-4 text-ink" />
             )}
             <span className="flex-1 text-sm text-muted-foreground">
               {tCommon('ai.thinking')}
@@ -465,9 +465,9 @@ export function AISuggestionFloating({ editor, onPendingChange }: AISuggestionFl
       ) : null}
       <div className="flex items-center gap-2 px-3 py-2.5">
         {isStreaming ? (
-          <Loader2 className="size-4 animate-spin text-primary" />
+          <Loader2 className="size-4 animate-spin text-ink" />
         ) : (
-          <Sparkles className="size-4 text-primary" />
+          <Sparkles className="size-4 text-ink" />
         )}
         <span className="flex-1 text-sm font-medium">
           {isStreaming ? t('aiSuggestion.generating') : currentLabel}

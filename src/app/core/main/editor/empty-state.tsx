@@ -638,7 +638,7 @@ export function EmptyState({
               href="https://notegen.top/" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-primary hover:underline ml-1"
+              className="text-brand hover:underline ml-1"
             >
               https://notegen.top/
             </a>

@@ -284,7 +284,7 @@ export function FileFooter() {
               <Badge variant="secondary">{t('current')}</Badge>
             </div>
             <div className="flex items-start gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-background text-primary">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-background text-ink">
                 <FolderOpen className="size-5" />
               </div>
               <div className="flex min-w-0 flex-col gap-1">

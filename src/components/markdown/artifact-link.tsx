@@ -50,7 +50,7 @@ export function ArtifactLink({ index, href, children }: { index: number; href: s
     <span className="inline-flex max-w-full items-baseline gap-1 align-baseline">
       <a
         href={href}
-        className="min-w-0 text-primary underline underline-offset-4"
+        className="min-w-0 text-brand underline underline-offset-4"
         aria-label={t('open', { name })}
         aria-disabled={pending !== null || mobile}
         title={mobile ? t('desktopOnly') : artifact.partial ? t('partialHint') : t('open', { name })}

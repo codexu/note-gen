@@ -11,9 +11,9 @@ import { revealInFileTree } from '@/lib/daily/note-io'
 import { buildLocalGraph, layoutLocalGraph, graphFolder, type GraphNode } from '@/lib/vault-index/graph'
 
 export function graphNodeClass(node: GraphNode, centerPath: string): string {
-  if (node.distance === 0) return 'border-primary bg-primary text-primary-foreground'
+  if (node.distance === 0) return 'border-invert bg-invert text-invert-ink'
   if (node.path === null) return 'border-dashed border-muted-foreground/40 bg-background text-muted-foreground'
-  return node.folder === graphFolder(centerPath) ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-border bg-background text-foreground'
+  return node.folder === graphFolder(centerPath) ? 'border-line bg-hover text-ink' : 'border-border bg-background text-foreground'
 }
 export function graphTruncationKey(truncated: boolean): 'truncated' | null { return truncated ? 'truncated' : null }
 type NoteNode = Node<{ label: string; title: string; className: string }, 'note'>

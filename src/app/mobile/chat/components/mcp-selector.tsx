@@ -60,7 +60,7 @@ function McpListContent() {
                       <span>{toolCount} {t('tools')}</span>
                     </div>
                   ) : status === 'connecting' ? (
-                    <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                    <div className="flex items-center gap-1 text-ink">
                       <Plug className="size-3 animate-pulse" />
                       <span>{t('connecting')}</span>
                     </div>

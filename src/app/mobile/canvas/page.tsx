@@ -285,7 +285,7 @@ export function MobileCanvasPage({ preview = false }: MobileCanvasPageProps = {}
                     <MobileCanvasThumbnail project={project} />
                     <span className="block truncate px-2.5 py-2 text-xs font-medium">{project.title}</span>
                     {project.pinnedAt ? (
-                      <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-md bg-background/85 p-1 text-primary">
+                      <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-md bg-background/85 p-1 text-ink">
                         <Pin className="size-3" />
                       </span>
                     ) : null}

@@ -162,13 +162,13 @@ export function Clipboard() {
             </div>
           </div>
           <p className="absolute bottom-4 right-4 z-20 text-xs text-white">{fileSize}</p>
-          <div className="bg-primary opacity-70 w-full h-full absolute top-0 left-0 z-10"></div>
+          <div className="bg-invert opacity-70 w-full h-full absolute top-0 left-0 z-10"></div>
           <Image src={image} width={0} height={0} alt="clipboard image" className="w-full object-cover" />
         </div>
       )
     ) : (
       text && (
-        <div className="flex-col justify-center items-center p-4 bg-primary">
+        <div className="flex-col justify-center items-center p-4 bg-invert">
           <div className="flex gap-2 justify-between items-center mb-2">
             <p className="text-sm font-bold text-secondary">{t('record.mark.clipboard.detectedText')}</p>
             <div className="flex gap-2">

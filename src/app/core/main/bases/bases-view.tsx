@@ -49,12 +49,12 @@ function CellContent({ display, exprErrorLabel }: { display: CellDisplay, exprEr
     case 'text':
       return <span className="whitespace-pre-wrap break-words">{display.text}</span>
     case 'bool':
-      return display.value ? <span className="text-primary">✓</span> : null
+      return display.value ? <span className="text-brand">✓</span> : null
     case 'note':
       return (
         <button
           type="button"
-          className="text-left text-primary underline-offset-4 hover:underline"
+          className="text-left text-brand underline-offset-4 hover:underline"
           onClick={(event) => {
             stop(event)
             void openNoteFromBases(display.path).catch(error => console.error('[bases] open failed', error))
@@ -67,7 +67,7 @@ function CellContent({ display, exprErrorLabel }: { display: CellDisplay, exprEr
       return (
         <button
           type="button"
-          className="text-left text-primary underline-offset-4 hover:underline"
+          className="text-left text-brand underline-offset-4 hover:underline"
           title={display.raw}
           onClick={(event) => {
             stop(event)
@@ -111,7 +111,7 @@ function TableResult({ result, sort, onSort, compact }: ResultProps) {
               <TableHead key={column.key} className="whitespace-nowrap">
                 <button
                   type="button"
-                  className={cn('inline-flex items-center gap-1 hover:text-foreground', direction && 'text-primary')}
+                  className={cn('inline-flex items-center gap-1 hover:text-foreground', direction && 'text-ink')}
                   onClick={(event) => { stop(event); onSort(column.key) }}
                   title={column.key}
                 >

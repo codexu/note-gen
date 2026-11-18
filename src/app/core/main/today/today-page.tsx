@@ -114,12 +114,12 @@ export function TodayWeekNav() {
               onClick={() => navigate(() => openDailyNote(date))}
               className={cn(
                 'flex h-12 w-11 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg text-muted-foreground transition-colors hover:bg-accent',
-                day.isToday && 'bg-primary/10 ring-1 ring-primary/50 ring-inset',
+                day.isToday && 'bg-active ring-1 ring-ink/40 ring-inset',
               )}
             >
               <span className="text-xs">{label}</span>
               <span className="text-sm font-semibold tabular-nums text-foreground">{date.getDate()}</span>
-              <span className={cn('size-1.5 rounded-full', day.open > 0 ? 'bg-primary' : day.hasNote ? 'bg-muted-foreground/70' : 'bg-transparent')} />
+              <span className={cn('size-1.5 rounded-full', day.open > 0 ? 'bg-ink' : day.hasNote ? 'bg-muted-foreground/70' : 'bg-transparent')} />
             </button>
           )
         })}
@@ -186,7 +186,7 @@ export function TodayFocus() {
           <ul className="mt-1.5 grid gap-1">
             {mits.map(mit => (
               <li key={mit.lineNo} className="flex min-h-11 items-center gap-2.5 rounded-lg px-2">
-                <span className={cn('h-3.5 w-1 rounded-full', mit.priority >= 3 ? 'bg-primary' : 'bg-muted-foreground/60')} aria-hidden />
+                <span className={cn('h-3.5 w-1 rounded-full', mit.priority >= 3 ? 'bg-ink' : 'bg-muted-foreground/60')} aria-hidden />
                 <span className={cn('min-w-0 [overflow-wrap:anywhere]', mit.done && 'text-muted-foreground line-through')}>
                   {mit.text}
                   {mit.done && <span className="sr-only">{t('done')}</span>}
@@ -214,13 +214,13 @@ export function TodayTasks() {
       <QuickAdd now={now} busy={busy.has('quick-add')} onSubmit={addTask} />
 
       {carryable > 0 && (
-        <div className="mb-2 flex items-center gap-2.5 rounded-lg bg-primary/10 px-3 py-2.5">
-          <ArrowDownToLine className="size-4 text-primary" aria-hidden />
+        <div className="mb-2 flex items-center gap-2.5 rounded-lg bg-hover px-3 py-2.5">
+          <ArrowDownToLine className="size-4 text-ink" aria-hidden />
           <p className="text-sm">{t('carry.prompt', { count: carryable })}</p>
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto border-primary/50 text-primary"
+            className="ml-auto border-line text-ink"
             disabled={busy.has('carry')}
             onClick={carry}
           >
@@ -235,10 +235,10 @@ export function TodayTasks() {
 
       {groups.overdue.length > 0 && (
         <TaskGroup
-          heading={<><AlertTriangle className="size-3.5 text-primary" aria-hidden />{t('tasks.overdue', { count: groups.overdue.length })}</>}
+          heading={<><AlertTriangle className="size-3.5 text-destructive" aria-hidden />{t('tasks.overdue', { count: groups.overdue.length })}</>}
           tasks={groups.overdue}
           renderMeta={task => (
-            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
+            <span className="rounded-md bg-hover px-1.5 py-0.5 text-xs text-ink font-medium">
               {t('tasks.lateBy', { days: daysBetween(task.due, dateKey(now)) })}
             </span>
           )}
@@ -337,7 +337,7 @@ function TaskGroup({ heading, tasks, renderMeta, busy, onToggle, onOpen, onSched
             </div>
             <span className="flex items-center gap-1.5">
               {task.priority === 'high' && (
-                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary">
+                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-ink">
                   <ChevronUp className="size-3.5" aria-hidden />{t('priorityHigh')}
                 </span>
               )}
@@ -383,9 +383,9 @@ function AgendaPanel({ agenda, calendar, now, onDropTask }: {
   const nextIndex = visible.findIndex(item => item.state === 'upcoming')
   const markerAt = currentIndex >= 0 ? currentIndex + 1 : nextIndex >= 0 ? nextIndex : visible.length
   const nowMarker = (
-    <li key="now-line" className="grid grid-cols-[44px_16px_1fr] items-center gap-2 text-xs font-semibold text-primary" aria-hidden>
+    <li key="now-line" className="grid grid-cols-[44px_16px_1fr] items-center gap-2 text-xs font-semibold text-ink" aria-hidden>
       <span className="text-right tabular-nums">{hhmm(now.getTime())}</span>
-      <span className="col-span-2 h-px bg-primary/50" />
+      <span className="col-span-2 h-px bg-ink/50" />
     </li>
   )
   const rows: React.ReactNode[] = visible.map(item => <AgendaRow key={item.key} item={item} />)
@@ -452,7 +452,7 @@ function AgendaRow({ item }: { item: AgendaItem }) {
       <span
         className={cn(
           'relative z-10 mt-1.5 ml-0.5 size-[11px] rounded-full border-2',
-          item.state === 'now' ? 'border-primary bg-primary shadow-[0_0_0_4px] shadow-primary/15'
+          item.state === 'now' ? 'border-ink bg-ink shadow-[0_0_0_4px] shadow-ink/15'
             : item.state === 'past' ? 'border-muted-foreground/60 bg-muted-foreground/60'
               : 'border-muted-foreground/60 bg-background',
         )}
@@ -469,7 +469,7 @@ function AgendaRow({ item }: { item: AgendaItem }) {
         </div>
         {item.state === 'now' && (
           <div className="mt-1.5 h-1 overflow-hidden rounded bg-muted" role="progressbar" aria-label={item.title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(item.progress * 100)}>
-            <div className="h-full rounded bg-primary" style={{ width: `${Math.round(item.progress * 100)}%` }} />
+            <div className="h-full rounded bg-ink" style={{ width: `${Math.round(item.progress * 100)}%` }} />
           </div>
         )}
       </div>
@@ -487,7 +487,7 @@ function Tile({ icon, value, label, detail, warn, action }: {
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl bg-background px-4 py-3.5">
-      <span className={cn('grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground', warn && 'bg-primary/10 text-primary')}>{icon}</span>
+      <span className={cn('grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground', warn && 'bg-hover text-ink')}>{icon}</span>
       <div className="min-w-0">
         <div><b className="text-lg tabular-nums">{value}</b> <span className="text-sm">{label}</span></div>
         <p className="text-sm text-muted-foreground">{detail}</p>

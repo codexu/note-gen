@@ -233,7 +233,7 @@ export function FolderStatsView({ folderPath, folderFiles }: FolderStatsViewProp
   return <ScrollArea className="h-full min-h-0 w-full flex-1">
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-5 sm:p-8">
       <header className="flex items-start gap-4">
-        <div aria-hidden="true" className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground', isAssetsFolder && 'bg-primary/10 text-primary')}><FolderIdentityIcon className="size-6" /></div>
+        <div aria-hidden="true" className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl bg-muted text-muted-foreground', isAssetsFolder && 'bg-hover text-ink')}><FolderIdentityIcon className="size-6" /></div>
         <div className="flex min-w-0 flex-col gap-2">
           <h2 className="truncate text-xl font-semibold tracking-tight">{folderName}</h2>
           <p className="break-all text-xs text-muted-foreground">{path || '/'}</p>

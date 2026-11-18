@@ -37,7 +37,7 @@ const SUCCESS_VISIBLE_DURATION = 2_000
 function getToneClassName(tone: BannerTone) {
   switch (tone) {
     case 'success':
-      return 'border-primary/20 bg-primary/5 text-foreground'
+      return 'border-line bg-hover text-foreground'
     case 'warning':
       return 'border-border bg-muted/50 text-foreground'
     case 'danger':

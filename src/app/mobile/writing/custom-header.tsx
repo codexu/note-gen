@@ -1080,7 +1080,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
                   }}
                   className={cn(
                     "mb-3 flex min-h-12 w-full items-center gap-2 rounded-md border border-dashed bg-background px-3 py-3 text-left text-sm shadow-sm",
-                    dragTargetPath === parentPath(currentDir) && "border-primary bg-primary/5 text-primary"
+                    dragTargetPath === parentPath(currentDir) && "border-line bg-hover text-ink"
                   )}
                 >
                   {dragEntry ? (

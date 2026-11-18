@@ -323,7 +323,7 @@ export function SelfHostedSync({ active = true }: { active?: boolean }) {
             <OpenBroswer
               url={deploymentGuideUrl}
               title={t('deploymentGuide')}
-              className="text-primary underline underline-offset-4"
+              className="text-brand underline underline-offset-4"
             />
           </CardDescription>
         </CardHeader>

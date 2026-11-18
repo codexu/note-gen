@@ -26,7 +26,7 @@ export function MarkLoading({mark}: {mark: MarkQueue}){
   return (
     <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
       <div className="flex items-center gap-2">
-        <LoaderCircle className="size-4 animate-spin text-primary" />
+        <LoaderCircle className="size-4 animate-spin text-ink" />
         <span className="rounded-full bg-background px-2 py-0.5 font-medium text-foreground">
           {typeT(mark.type)}
         </span>

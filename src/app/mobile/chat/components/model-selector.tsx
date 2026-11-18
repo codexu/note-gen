@@ -57,7 +57,7 @@ function ModelListContent({
                   className={cn(
                     "flex items-center justify-center w-5 h-5 rounded border transition-colors shrink-0",
                     isSelected
-                      ? "bg-primary border-primary text-primary-foreground"
+                      ? "bg-active border-line text-ink"
                       : "border-muted-foreground/30"
                   )}
                 >

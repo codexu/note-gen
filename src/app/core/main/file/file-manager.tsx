@@ -1187,7 +1187,7 @@ export function FileManager({
       </div>
       {selectionBox && (
         <div
-          className="pointer-events-none absolute rounded-sm border border-primary/70 bg-primary/10"
+          className="pointer-events-none absolute rounded-sm border border-ink/40 bg-hover"
           style={{
             left: selectionBox.left,
             top: selectionBox.top,

@@ -90,7 +90,7 @@ function TagTree({
               aria-expanded={isExpanded}
               aria-label={node.name}
               onClick={() => onToggle(node.fullPath)}
-              className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ink"
             >
               <ChevronRight className={cn('size-3.5 transition-transform duration-150', isExpanded && 'rotate-90')} />
             </button>
@@ -101,12 +101,12 @@ function TagTree({
             type="button"
             onClick={() => onSelect(node.fullPath)}
             className={cn(
-              'flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded px-1 py-1 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary',
-              isSelected && 'bg-primary/10 text-primary',
+              'flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded px-1 py-1 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-ink',
+              isSelected && 'bg-active text-ink font-medium',
             )}
           >
             <span className="truncate [overflow-wrap:anywhere]">{node.name}</span>
-            <span className="ml-auto shrink-0 text-primary">{node.count}</span>
+            <span className="ml-auto shrink-0 text-ink font-medium">{node.count}</span>
           </button>
         </div>
         {isExpanded && (
@@ -171,7 +171,7 @@ export default function NoteTagsSidebar() {
                 size="xs"
                 variant="ghost"
                 aria-pressed={sortBy === 'name'}
-                className={cn(sortBy === 'name' && 'bg-primary/10 text-primary hover:bg-primary/10')}
+                className={cn(sortBy === 'name' && 'bg-active text-ink font-medium hover:bg-active')}
                 onClick={() => setSortBy('name')}
               >
                 {t('sortByName')}
@@ -181,7 +181,7 @@ export default function NoteTagsSidebar() {
                 size="xs"
                 variant="ghost"
                 aria-pressed={sortBy === 'count'}
-                className={cn(sortBy === 'count' && 'bg-primary/10 text-primary hover:bg-primary/10')}
+                className={cn(sortBy === 'count' && 'bg-active text-ink font-medium hover:bg-active')}
                 onClick={() => setSortBy('count')}
               >
                 {t('sortByCount')}
@@ -203,7 +203,7 @@ export default function NoteTagsSidebar() {
             {selectedLabel && (
               <section aria-label={selectedLabel} className="mt-4 border-t pt-3">
                 <h2 className="mb-3 font-semibold">
-                  {selectedLabel} <span className="text-primary">{t('notes', { count: notePaths.length })}</span>
+                  {selectedLabel} <span className="text-ink font-medium">{t('notes', { count: notePaths.length })}</span>
                 </h2>
                 <ul className="grid gap-1">
                   {notePaths.map(path => {
@@ -213,7 +213,7 @@ export default function NoteTagsSidebar() {
                         <button
                           type="button"
                           onClick={() => void openNote(path)}
-                          className="w-full cursor-pointer rounded p-2 text-left [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
+                          className="w-full cursor-pointer rounded p-2 text-left [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-ink"
                         >
                           <span className="font-medium">{noteKeyOf(path)}</span>
                           {folder && <span className="mt-0.5 block text-xs text-muted-foreground">{folder}</span>}

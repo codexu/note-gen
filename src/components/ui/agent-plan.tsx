@@ -686,15 +686,15 @@ export function AgentPlan({
   const getStatusIcon = (status: DisplayStep["status"]) => {
     switch (status) {
       case "completed":
-        return <CheckCircle2 className="size-4.5 text-primary" />;
+        return <CheckCircle2 className="size-4.5 text-ink" />;
       case "in-progress":
-        return <CircleDotDashed className="size-4.5 text-primary" />;
+        return <CircleDotDashed className="size-4.5 text-ink" />;
       case "need-help":
         return <CircleAlert className="size-4.5 text-muted-foreground" />;
       case "failed":
         return <CircleX className="size-4.5 text-destructive" />;
       case "pending":
-        return <Spinner className="size-4.5 text-primary" />;
+        return <Spinner className="size-4.5 text-ink" />;
       default:
         return <Circle className="h-4.5 w-4.5 text-muted-foreground" />;
     }
@@ -829,7 +829,7 @@ export function AgentPlan({
                 {step.confirmation && (
                   <div className="flex items-center gap-2 py-1.5 px-3 border-t">
                     {step.confirmation.status === "confirmed" ? (
-                      <CheckCircle className="size-4 shrink-0 text-primary" />
+                      <CheckCircle className="size-4 shrink-0 text-ink" />
                     ) : (
                       <XCircle className="size-4 shrink-0 text-destructive" />
                     )}
@@ -955,7 +955,7 @@ export function AgentPlan({
           {/* 旋转的 loading 图标 */}
           <div className="relative">
             <div className="absolute inset-0 rounded-full border-2 border-border/30" />
-            <Spinner className="size-8 text-primary" />
+            <Spinner className="size-8 text-ink" />
           </div>
 
           {/* 状态文字 */}
@@ -970,9 +970,9 @@ export function AgentPlan({
 
           {/* 脉冲动画点 */}
           <div className="flex items-center gap-1.5">
-            <div className="size-2 animate-pulse rounded-full bg-primary/60 [animation-delay:0ms]" />
-            <div className="size-2 animate-pulse rounded-full bg-primary/60 [animation-delay:150ms]" />
-            <div className="size-2 animate-pulse rounded-full bg-primary/60 [animation-delay:300ms]" />
+            <div className="size-2 animate-pulse rounded-full bg-ink/60 [animation-delay:0ms]" />
+            <div className="size-2 animate-pulse rounded-full bg-ink/60 [animation-delay:150ms]" />
+            <div className="size-2 animate-pulse rounded-full bg-ink/60 [animation-delay:300ms]" />
           </div>
         </div>
       </div>

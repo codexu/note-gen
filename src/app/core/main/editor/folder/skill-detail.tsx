@@ -16,7 +16,7 @@ export function SkillDetailView({ skillContent }: SkillDetailViewProps) {
     <div className="flex-1 h-full flex flex-col items-center justify-center bg-background gap-6 p-8 overflow-y-auto">
       {/* Skill Icon and Name */}
       <div className="flex flex-col items-center gap-3">
-        <Sparkles className="w-20 h-20 text-primary" />
+        <Sparkles className="w-20 h-20 text-ink" />
         <h2 className="text-2xl font-semibold tracking-tight">{metadata.name}</h2>
         <p className="text-sm text-muted-foreground max-w-md text-center">
           {metadata.description}

@@ -146,7 +146,7 @@ export function PromptVersionBanner({ filePath, content }: PromptVersionBannerPr
 
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-amber-200/60 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+      <div className="flex items-center gap-2 border-b border-line bg-hover px-3 py-1.5 text-xs text-ink">
         <span>{t('banner')}</span>
         <span aria-hidden>·</span>
         <button

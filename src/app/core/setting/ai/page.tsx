@@ -522,7 +522,7 @@ export default function AiPage({ mobile = false }: { mobile?: boolean }) {
                         : getProviderTemplateMatch(provider, providerTemplates)
                       return (
                         <Item
-                          className="group/provider flex-nowrap text-left data-[state=on]:border-primary data-[state=on]:bg-primary/5"
+                          className="group/provider flex-nowrap text-left data-[state=on]:border-line data-[state=on]:bg-active"
                           data-state={selected ? 'on' : 'off'}
                           key={provider.key}
                           asChild

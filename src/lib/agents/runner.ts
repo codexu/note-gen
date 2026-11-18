@@ -47,6 +47,13 @@ const calendarTool: AgentTool = {
   },
 }
 
+/** Vault-relative path without traversal, absolute roots or Windows separators. */
+export function isSafeVaultPath(value: string): boolean {
+  const path = value.trim()
+  if (path.includes('\\') || path.startsWith('/') || /^[a-zA-Z]:/.test(path) || path.startsWith('~')) return false
+  return !path.split('/').some(segment => segment === '..')
+}
+
 function buildAgentTools(tools: AgentTool[], allowedTools: AgentToolName[], sink: DraftSink) {
   const eligible = [...tools, calendarTool].filter(tool =>
     isAgentToolName(tool.name) && allowedTools.includes(tool.name) &&
@@ -60,6 +67,10 @@ function buildAgentTools(tools: AgentTool[], allowedTools: AgentToolName[], sink
         const path = tool.name === 'note_create_file' ? input.fileName : input.filePath
         if (typeof path !== 'string' || !/\.md$/i.test(path.trim())) {
           return { ok: false, error: 'MARKDOWN_REQUIRED', message: 'Drafts require a Markdown note (.md).' }
+        }
+        const parts = [path, tool.name === 'note_create_file' ? input.folderPath : undefined]
+        if (parts.some(part => typeof part === 'string' && !isSafeVaultPath(part))) {
+          return { ok: false, error: 'PATH_NOT_ALLOWED', message: 'Draft paths must stay inside the vault (no "..", absolute paths or backslashes).' }
         }
         return tool.execute(input, context)
       },
@@ -95,9 +106,15 @@ export function createAgentRunner(kind: AgentRunnerKind): TaskRunner {
         selectedSkills: [],
         permissionMode: 'auto-edit',
         transformTools: tools => buildAgentTools(tools, agent.allowedTools, draftSink),
-        authorizeToolCall: async (toolName, offered) => authorizeAgentTool(
-          toolName, offered, await getAgentSettings(agentId), { agentId, taskId: task.id }, recordAgentToolRefusal,
-        ),
+        authorizeToolCall: async (toolName, offered) => {
+          const current = await getAgentSettings(agentId)
+          const refusal = await authorizeAgentTool(
+            toolName, offered, current, { agentId, taskId: task.id }, recordAgentToolRefusal,
+          )
+          // Disabled mid-run: stop instead of letting the model keep calling (and spending tokens on) refused tools.
+          if (refusal && !current?.enabled) runtime.stop()
+          return refusal
+        },
       }, {
         // Only the draft wrappers may pass this callback. The vault write happens during review.
         requestConfirmation: async toolName => PROPOSAL_TOOLS.has(toolName) ? 'approved' : 'denied',

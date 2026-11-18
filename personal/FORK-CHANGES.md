@@ -157,6 +157,7 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-18 | `messages/zh.json` | 新增 `agents` 簡中設定字串 | ALMNC-12：代理人設定 |
 | 2026-11-18 | `messages/zh-TW.json` | 新增 `agents` 繁中設定字串 | ALMNC-12：代理人設定 |
 | 2026-11-18 | Fork：`src/db/agents.ts`、`src/lib/agents/`、`src/lib/agent-tasks/`、`src/app/core/setting/agents/` | 本機代理人設定與拒絕紀錄、依 ID 註冊 runner、擴充既有草稿審核、V3 設定編輯與遷移回退測試 | ALMNC-12；回退步驟見 `src/lib/agents/README.md` |
+| 2026-11-18 | `src/db/agent-tasks.ts` | almanac ALMNC-12 複審修正：`deleteAgentTask` 一併刪除 `agent_tool_refusals` 的對應紀錄（表不存在時略過） | 刪任務後拒絕紀錄成為孤兒資料 |
 
 ## 刻意不改的東西
 

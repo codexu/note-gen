@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import { afterAll, describe, expect, it, vi } from 'vitest'
-import { AGENT_SCHEMA, AGENT_SCHEMA_ROLLBACK } from './schema'
+import { AGENT_SCHEMA, AGENT_SCHEMA_ROLLBACK, rollbackAgentSchema, type RollbackDb } from './schema'
 import { createAgentSettings, getAgentSettings, listAgentSettings, listAgentToolRefusals, recordAgentToolRefusal, updateAgentSettings } from '@/db/agents'
 import { initAgentTaskDb, listAgentTasks, saveAgentTask } from '@/db/agent-tasks'
 
@@ -73,5 +73,47 @@ describe('P5 SQLite schema and settings', () => {
     sqlite.exec(AGENT_SCHEMA.join(';\n'))
     expect(await listAgentSettings()).toEqual([])
     expect(await listAgentToolRefusals('p5')).toEqual([])
+  })
+
+  describe('rollbackAgentSchema (review findings 1, 2)', () => {
+    const tasks = () => sqlite.prepare('select id, kind from agent_tasks order by id').all({}) as Array<{ id: string, kind: string }>
+    const rollbackDb = (failOn?: string): RollbackDb => ({
+      select: async <T,>(sql: string) => sqlite.prepare(sql).all({}) as T,
+      execute: async (sql: string) => {
+        if (failOn && sql.includes(failOn)) throw new Error('simulated failure')
+        sqlite.exec(sql)
+      },
+    })
+    const seed = async (status: string) => {
+      sqlite.exec(AGENT_SCHEMA.join(';\n'))
+      await initAgentTaskDb()
+      sqlite.exec('delete from agent_tasks')
+      const base = { title: 't', prompt: 'p', drafts: [], tokens: 0, createdAt: 1, updatedAt: 1 } as const
+      await saveAgentTask({ ...base, id: 'a', kind: 'agent:x', status } as never)
+      await saveAgentTask({ ...base, id: 'b', kind: 'AGENT:legacy', status: 'completed' } as never)
+      await saveAgentTask({ ...base, id: 'c', kind: 'report', status: 'completed' } as never)
+    }
+
+    it('refuses while agent drafts await review, unless told to discard them', async () => {
+      await seed('awaiting_review')
+      await expect(rollbackAgentSchema(rollbackDb())).rejects.toThrow('AGENT_ROLLBACK_PENDING_REVIEW')
+      expect(tasks().map(t => t.id)).toEqual(['a', 'b', 'c'])
+      await rollbackAgentSchema(rollbackDb(), { discardPendingReview: true })
+      expect(tasks().map(t => t.id)).toEqual(['b', 'c'])
+    })
+
+    it('only removes lowercase agent: kinds (LIKE would also match AGENT:legacy)', async () => {
+      await seed('completed')
+      await rollbackAgentSchema(rollbackDb())
+      expect(tasks()).toEqual([{ id: 'b', kind: 'AGENT:legacy' }, { id: 'c', kind: 'report' }])
+    })
+
+    it('rolls back everything when a statement fails midway', async () => {
+      await seed('completed')
+      await expect(rollbackAgentSchema(rollbackDb('drop table if exists agent_settings'))).rejects.toThrow('simulated failure')
+      expect(tasks().map(t => t.id)).toEqual(['a', 'b', 'c'])
+      expect(sqlite.prepare("select name from sqlite_master where name in ('agent_settings', 'agent_tool_refusals') order by name").all({}))
+        .toEqual([{ name: 'agent_settings' }, { name: 'agent_tool_refusals' }])
+    })
   })
 })

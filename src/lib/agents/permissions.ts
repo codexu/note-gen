@@ -22,6 +22,11 @@ export async function authorizeAgentTool(
   else if (!offered) reason = 'unavailable'
   else return
 
-  await record({ ...context, toolName: toolName.slice(0, 128), reason, createdAt: Date.now() })
+  try {
+    await record({ ...context, toolName: toolName.slice(0, 128), reason, createdAt: Date.now() })
+  } catch (error) {
+    // Fail closed with a recognisable error: a refusal that cannot be audited stops the run.
+    throw new Error(`AGENT_AUDIT_FAILED: ${error instanceof Error ? error.message : String(error)}`)
+  }
   return { ok: false, error: 'AGENT_TOOL_REFUSED', message: `Tool call refused: ${reason}.` }
 }

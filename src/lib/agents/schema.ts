@@ -21,8 +21,38 @@ export const AGENT_SCHEMA = [
 ]
 
 // Run offline after a backup, immediately before downgrading to a build without P5.
+// substr() instead of LIKE: LIKE is case-insensitive in SQLite and would also match e.g. 'AGENT:legacy'.
 export const AGENT_SCHEMA_ROLLBACK = [
-  "delete from agent_tasks where kind like 'agent:%'",
+  "delete from agent_tasks where substr(kind, 1, 6) = 'agent:'",
   'drop table if exists agent_tool_refusals',
   'drop table if exists agent_settings',
 ]
+
+export const AGENT_PENDING_REVIEW_SQL =
+  "select count(*) as count from agent_tasks where substr(kind, 1, 6) = 'agent:' and status = 'awaiting_review'"
+
+export interface RollbackDb {
+  select: <T>(sql: string) => Promise<T>
+  execute: (sql: string) => Promise<unknown>
+}
+
+/**
+ * Removes P5 data in one transaction (review finding: the rollback used to exist only as SQL in the README).
+ * Refuses while agent drafts still wait for review, unless `discardPendingReview` is set, because deleting
+ * them is irreversible. Back up note.db before calling this.
+ */
+export async function rollbackAgentSchema(db: RollbackDb, options: { discardPendingReview?: boolean } = {}): Promise<void> {
+  const rows = await db.select<Array<{ count: number }>>(AGENT_PENDING_REVIEW_SQL)
+  const pending = Number(rows[0]?.count ?? 0)
+  if (pending > 0 && !options.discardPendingReview) {
+    throw new Error(`AGENT_ROLLBACK_PENDING_REVIEW: ${pending} agent draft task(s) still await review`)
+  }
+  await db.execute('begin')
+  try {
+    for (const statement of AGENT_SCHEMA_ROLLBACK) await db.execute(statement)
+    await db.execute('commit')
+  } catch (error) {
+    await db.execute('rollback')
+    throw error
+  }
+}

@@ -1,7 +1,9 @@
 // Fork（almanac ALMNC-8）：收集頁的狀態。做法同 Inbox、提示詞庫頁：同一時間只開一個全頁覆蓋層。
-// 收集項目與提案只放記憶體（還沒收下的提案關掉頁面就會消失）；收下的東西寫進筆記檔與今日日誌，不另開資料表。
+// 收集項目與提案保存在 store.json 的 collectItems（ALMNC-10：還沒收下的提案關頁、重開後還在，「等你定」才讀得到）；
+// 收下的東西寫進筆記檔與今日日誌，不另開資料表。
 import { create } from 'zustand'
 import { askCollectModel } from '@/lib/collect/ai'
+import { loadItems, mergeItems, saveItems } from '@/lib/collect/persist'
 import { splitInput } from '@/lib/collect/split'
 import { acceptProposal, undoAccepted, type AcceptResult } from '@/lib/collect/write'
 import type { CollectInput, Proposal, SplitSource } from '@/lib/collect/types'
@@ -33,6 +35,8 @@ export interface CaptureItem {
 interface CollectState {
   visible: boolean
   items: CaptureItem[]
+  /** 從 store.json 讀回保存的項目（只做一次；讀回前不寫檔，免得把還沒讀到的內容蓋掉）。 */
+  hydrate: () => Promise<void>
   show: () => void
   hide: () => void
   submit: (input: CollectInput, options?: { recordId?: number }) => Promise<void>
@@ -44,6 +48,9 @@ interface CollectState {
 }
 
 let itemCounter = 0
+let hydrating = false
+let persistReady = false
+let persistTimer: ReturnType<typeof setTimeout> | undefined
 
 function patchProposal(items: CaptureItem[], itemId: string, proposalId: string, patch: Partial<CaptureProposal>): CaptureItem[] {
   return items.map(item => item.id !== itemId ? item : {
@@ -62,6 +69,20 @@ const useCollectStore = create<CollectState>((set, get) => ({
     set({ visible: true })
   },
   hide: () => set({ visible: false }),
+
+  hydrate: async () => {
+    if (hydrating) return
+    hydrating = true
+    try {
+      const restored = await loadItems(Date.now())
+      set(state => ({ items: mergeItems(state.items, restored as CaptureItem[]) }))
+      persistReady = true
+    } catch (error) {
+      // 沒有 Tauri（瀏覽器預覽）或讀檔失敗：本次只放記憶體，也不寫檔
+      hydrating = false
+      console.debug('[collect] restore skipped:', error)
+    }
+  },
 
   submit: async (input, options) => {
     itemCounter += 1
@@ -104,6 +125,15 @@ const useCollectStore = create<CollectState>((set, get) => ({
 
   remove: itemId => set(state => ({ items: state.items.filter(item => item.id !== itemId) })),
 }))
+
+// 項目有變動就存檔（延遲 300 ms 合併連續變動）。
+useCollectStore.subscribe((state, previous) => {
+  if (!persistReady || state.items === previous.items) return
+  clearTimeout(persistTimer)
+  persistTimer = setTimeout(() => {
+    saveItems(useCollectStore.getState().items).catch(error => console.error('[collect] save failed:', error))
+  }, 300)
+})
 
 // 其他全頁覆蓋層打開時收起收集頁；切回舊介面時也收起。
 useHomeStore.subscribe((state, previous) => {

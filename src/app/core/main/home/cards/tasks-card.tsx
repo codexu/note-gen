@@ -13,6 +13,7 @@ import type { Conversation } from '@/db/conversations'
 import useVaultIndexStore from '@/stores/vault-index'
 import type { AgentTaskStatus } from '@/lib/agent-tasks/types'
 import { cn } from '@/lib/utils'
+import { useUiV3 } from '@/lib/fork-ui'
 import useChatStore from '@/stores/chat'
 import useHomeStore from '@/stores/home'
 import { useSidebarStore } from '@/stores/sidebar'
@@ -52,9 +53,12 @@ export function useTaskNeeds(): NeedItem[] {
   const tasks = useAgentTaskStore(state => state.tasks)
   const conversations = useChatStore(state => state.conversations)
   const summarized = useSummarized()
+  const isV3 = useUiV3()
   const out: NeedItem[] = []
   for (const task of tasks) {
+    // 新介面：草稿已逐條列在「等你定」，整個任務的待審列不再重複
     if (task.status === 'awaiting_review') {
+      if (isV3) continue
       const pending = task.drafts.filter(draft => draft.state === 'pending').length
       out.push({ key: `task:${task.id}`, label: t('review'), tone: 'primary', text: task.title, meta: t('drafts', { count: pending }), action: t('reviewAction'), onAction: () => openTasks(task.id) })
     } else if (task.status === 'interrupted' || task.status === 'failed') {

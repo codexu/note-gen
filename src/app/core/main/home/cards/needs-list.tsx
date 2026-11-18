@@ -9,6 +9,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/hooks/use-toast'
 import { agentTaskCenter, useAgentTaskStore } from '@/lib/agent-tasks'
 import { isCardVisible } from '@/lib/home/cards'
+import { useUiV3 } from '@/lib/fork-ui'
+import { useDecisions } from '@/lib/decide/use-decisions'
+import { DecideNeeds } from '../../decide/decide-needs'
 import { cn } from '@/lib/utils'
 import useHomeStore from '@/stores/home'
 import type { HomeCardDef, NeedItem } from '../home-cards'
@@ -51,8 +54,11 @@ export function NeedsList({ cards }: { cards: HomeCardDef[] }) {
   const onCount = useCallback((key: string, count: number) => {
     setCounts(current => (current[key] === count ? current : { ...current, [key]: count }))
   }, [])
-  const total = sources.reduce((sum, card) => sum + (counts[card.key] ?? 0), 0)
-  if (!sources.length) return null
+  // Fork（ALMNC-10）：新介面多一塊「等你定」，列在最上面；舊介面維持原樣
+  const isV3 = useUiV3()
+  const decideCount = useDecisions().length
+  const total = sources.reduce((sum, card) => sum + (counts[card.key] ?? 0), 0) + decideCount
+  if (!sources.length && !isV3) return null
 
   return (
     <section aria-labelledby="home-needs" className={cn(CARD, total === 0 && 'hidden')}>
@@ -61,6 +67,7 @@ export function NeedsList({ cards }: { cards: HomeCardDef[] }) {
         <Count value={total} />
       </header>
       <ul className="divide-y">
+        {isV3 && <DecideNeeds />}
         {sources.map(card => <NeedsFrom key={card.key} card={card} onCount={onCount} />)}
       </ul>
     </section>

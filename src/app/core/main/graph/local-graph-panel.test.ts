@@ -17,9 +17,9 @@ describe('關聯圖顯示規則', () => {
       expect(locale.localGraph.truncated).toContain('{count}')
     }
   })
-  it('中心為強調色實心，同資料夾為淡色外框', () => {
-    expect(graphNodeClass({ ...node, distance: 0 }, node.path)).toBe('border-primary bg-primary text-primary-foreground')
-    expect(graphNodeClass(node, 'folder/center.md')).toContain('border-primary/40')
+  it('中心為反白實心，同資料夾為淡色底', () => {
+    expect(graphNodeClass({ ...node, distance: 0 }, node.path)).toBe('border-invert bg-invert text-invert-ink')
+    expect(graphNodeClass(node, 'folder/center.md')).toContain('bg-hover')
     expect(graphNodeClass(node, 'other/center.md')).toBe('border-border bg-background text-foreground')
   })
   it('未建立節點顯示淡色虛線', () => {

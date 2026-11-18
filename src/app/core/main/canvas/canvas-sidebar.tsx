@@ -93,11 +93,11 @@ function CanvasSyncIndicator({
 
   const indicatorClassName = cn(
     'flex size-6 items-center justify-center rounded-md border shadow-sm backdrop-blur',
-    status === 'uploading' && 'border-primary/40 bg-primary/10 text-primary',
+    status === 'uploading' && 'border-line bg-hover text-ink',
     status === 'synced' && 'border-border bg-background/90 text-muted-foreground',
     status === 'failed' && 'border-destructive/60 bg-destructive/15 text-destructive',
-    status === 'pending' && 'border-amber-500/60 bg-amber-500/15 text-amber-600 dark:text-amber-400',
-    onClick && 'cursor-pointer hover:bg-amber-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50',
+    status === 'pending' && 'border-line bg-hover text-ink',
+    onClick && 'cursor-pointer hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink/50',
     className
   )
   const icon = (<>
@@ -547,7 +547,7 @@ export function CanvasSidebar() {
           <div className={cn(
             'relative overflow-hidden rounded-lg border bg-card transition-[border-color,box-shadow] hover:border-foreground/20 hover:shadow-sm',
             viewMode === 'list' && 'flex items-center gap-2 p-1',
-            !trashMode && activeCanvasId === project.id && 'border-primary ring-1 ring-primary/30',
+            !trashMode && activeCanvasId === project.id && 'border-line ring-1 ring-ink/30',
             trashMode && 'opacity-75 hover:opacity-100'
           )}
             draggable={!trashMode && editingId !== project.id}
@@ -558,7 +558,7 @@ export function CanvasSidebar() {
                 'absolute z-30 flex flex-col items-center justify-center gap-1 bg-background/80 px-2 py-1 text-center text-xs font-medium leading-tight backdrop-blur-sm',
                 viewMode === 'grid' ? 'inset-x-0 top-0 aspect-[4/3]' : 'inset-0'
               )}>
-                <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
+                <Loader2 className="size-4 shrink-0 animate-spin text-ink" />
                 <span className="w-full whitespace-normal break-words text-center">
                   {processingCanvas.action === 'delete'
                     ? t('manager.sync.deleting')
@@ -603,7 +603,7 @@ export function CanvasSidebar() {
               </button>
             )}
             {!trashMode && project.pinnedAt && (
-              <span className="pointer-events-none absolute left-1 top-1 rounded-md bg-background/85 p-1 text-primary shadow-sm">
+              <span className="pointer-events-none absolute left-1 top-1 rounded-md bg-background/85 p-1 text-ink shadow-sm">
                 <Pin className="size-3" />
               </span>
             )}

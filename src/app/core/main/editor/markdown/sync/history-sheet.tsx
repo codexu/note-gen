@@ -322,7 +322,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
             })()}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+            className="text-xs text-muted-foreground hover:text-ink inline-flex items-center gap-1"
             title="在仓库中打开"
           >
             <ExternalLink size={10} />
@@ -351,7 +351,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
                     href={commit.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-mono text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+                    className="text-xs font-mono text-muted-foreground hover:text-ink inline-flex items-center gap-1"
                   >
                     {commit.sha}
                     <ExternalLink size={10} />
@@ -371,7 +371,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
                     onClick={() => restoreVersion(commit.fullSha || commit.sha)}
                     disabled={restoringSha === commit.sha}
                     className={cn(
-                      'text-xs text-blue-500 hover:text-blue-600 inline-flex items-center gap-1',
+                      'text-xs text-brand hover:underline inline-flex items-center gap-1',
                       restoringSha === commit.sha && 'opacity-50'
                     )}
                     title="恢复此版本"

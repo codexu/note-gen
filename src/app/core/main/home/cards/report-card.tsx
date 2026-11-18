@@ -50,8 +50,8 @@ export function useLatestReport(): { path: string; report: ReportData } | null {
 export const LEVEL_STYLE: Record<MasteryLevel, string> = {
   contact: 'bg-muted text-muted-foreground',
   organized: 'bg-secondary text-secondary-foreground',
-  internalized: 'bg-primary/15 text-primary',
-  integrated: 'bg-primary text-primary-foreground',
+  internalized: 'bg-hover text-ink font-medium',
+  integrated: 'bg-active text-ink font-medium',
 }
 
 export function LevelBadge({ level, prev }: { level: MasteryLevel; prev?: MasteryLevel | null }) {

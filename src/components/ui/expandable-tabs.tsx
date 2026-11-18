@@ -52,7 +52,7 @@ const transition = { delay: 0.1, type: "spring" as const, bounce: 0, duration: 0
 export function ExpandableTabs({
   tabs,
   className,
-  activeColor = "text-primary",
+  activeColor = "text-ink",
   onChange,
   selected: controlledSelected,
 }: ExpandableTabsProps) {

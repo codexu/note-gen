@@ -563,7 +563,7 @@ export function WorkspaceRepoMapping({
     <Card>
       <CardHeader className="border-b pb-4">
         <CardTitle className="flex items-center gap-2">
-          <GitBranch className="size-4 text-primary" aria-hidden="true" />
+          <GitBranch className="size-4 text-ink" aria-hidden="true" />
           {t('settings.sync.workspaceRepoMapping')}
         </CardTitle>
         <CardDescription className="leading-relaxed">
@@ -652,7 +652,7 @@ export function WorkspaceRepoMapping({
                     className={cn(
                       'overflow-hidden rounded-xl border bg-card',
                       isCurrentWorkspace
-                        ? 'border-primary/35 bg-gradient-to-br from-primary/5 to-card shadow-sm'
+                        ? 'border-line bg-gradient-to-br from-hover to-card shadow-sm'
                         : 'border-border'
                     )}
                   >
@@ -679,7 +679,7 @@ export function WorkspaceRepoMapping({
                               <span className={cn(
                                 'flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors group-hover/workspace:bg-muted',
                                 isCurrentWorkspace
-                                  ? 'border-primary/15 bg-primary/10 text-primary'
+                                  ? 'border-line bg-hover text-ink'
                                   : 'border-border bg-muted/50 text-muted-foreground'
                               )}>
                                 {isCurrentWorkspace ? (
@@ -689,7 +689,7 @@ export function WorkspaceRepoMapping({
                                 )}
                               </span>
                               <span className="flex min-w-0 flex-1 flex-col gap-1.5 pt-0.5">
-                                <span className="block truncate font-medium leading-snug group-hover/workspace:text-primary">
+                                <span className="block truncate font-medium leading-snug group-hover/workspace:text-ink">
                                   {workspaceName}
                                 </span>
                                 <span className="block truncate font-mono text-xs leading-relaxed text-muted-foreground">
@@ -707,7 +707,7 @@ export function WorkspaceRepoMapping({
                         <span className={cn(
                           'flex size-7 items-center justify-center rounded-full border bg-background',
                           hasBinding
-                            ? 'border-primary/20 text-primary'
+                            ? 'border-line text-ink'
                             : 'border-dashed border-warning/50 text-warning-foreground'
                         )}>
                           <ArrowDown className="size-3.5 md:hidden" />

@@ -92,7 +92,7 @@ export function FileToolbar() {
     <div className="flex items-center h-12 border-b px-2">
       {/* 向量数据库 */}
       <TooltipButton
-        icon={isProcessing ? <LoaderCircle className="animate-spin size-4" /> : <BookA className="text-primary" />}
+        icon={isProcessing ? <LoaderCircle className="animate-spin size-4" /> : <BookA className="text-ink" />}
         tooltipText={isProcessing ? t('processingVectors') : t('calculateVectors')}
         onClick={processAllDocuments}
         disabled={isProcessing}

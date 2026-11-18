@@ -74,7 +74,7 @@ function eventIcon(event: AgentTraceEvent) {
   }
 
   if (event.status === "running") {
-    return <Loader2 className="animate-spin text-primary" />
+    return <Loader2 className="animate-spin text-ink" />
   }
 
   if (event.type === "tool_call" || event.type === "tool_result") {
@@ -94,7 +94,7 @@ function eventIcon(event: AgentTraceEvent) {
     return <CheckCircle2 />
   }
 
-  return <Sparkles className="text-primary" />
+  return <Sparkles className="text-ink" />
 }
 
 function shouldShowEventMessage(event: AgentTraceEvent) {
@@ -286,7 +286,7 @@ function traceDetailClassName(event: AgentTraceEvent) {
 
 function statusIcon(status: AgentRunStatus, isRunning: boolean) {
   if (isRunning) {
-    return <Loader2 className="animate-spin text-primary" />
+    return <Loader2 className="animate-spin text-ink" />
   }
 
   if (status === "failed") {

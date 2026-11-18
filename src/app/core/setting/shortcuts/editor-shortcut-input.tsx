@@ -135,7 +135,7 @@ export function EditorShortcutInput({ id }: EditorShortcutInputProps) {
           onKeyDown={handleKeyDown}
           className={cn(
             'flex min-h-9 min-w-40 cursor-pointer items-center rounded-md border px-2 py-1 outline-none',
-            isRecording ? 'border-primary' : 'border-transparent',
+            isRecording ? 'border-ink' : 'border-transparent',
             rejected && 'border-destructive',
           )}
         >

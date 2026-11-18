@@ -85,7 +85,7 @@ export default function SMMSImageHosting() {
       return <LoaderCircle className="size-4 animate-spin text-muted-foreground" />;
     }
     if (smmsState === SyncStateEnum.success) {
-      return <CheckCircle className="size-4 text-primary" />;
+      return <CheckCircle className="size-4 text-ink" />;
     }
     return <XCircle className="size-4 text-muted-foreground" />;
   };

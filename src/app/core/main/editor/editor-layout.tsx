@@ -206,8 +206,8 @@ function EditorDropZone({ groupId, direction, className, visible }: DropZoneProp
     <div
       ref={setNodeRef}
       className={cn(
-        'pointer-events-none absolute bg-primary/10 transition-colors',
-        isOver && 'bg-primary/25 ring-2 ring-inset ring-primary/60',
+        'pointer-events-none absolute bg-hover transition-colors',
+        isOver && 'bg-active ring-2 ring-inset ring-ink/60',
         className,
       )}
     />

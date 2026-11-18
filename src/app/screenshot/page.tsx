@@ -574,10 +574,10 @@ export default function ScreenshotPage() {
         }}>
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 size-full" aria-hidden="true" />
 
-        {selection && <div className="pointer-events-none absolute border border-primary" style={{ left: selection.x, top: selection.y, width: selection.width, height: selection.height }}>
+        {selection && <div className="pointer-events-none absolute border border-ink" style={{ left: selection.x, top: selection.y, width: selection.width, height: selection.height }}>
           {!dragging && !busy && HANDLES.map(item => (
             <div key={item.handle} data-selection-handle={item.handle} aria-hidden="true"
-              className="pointer-events-auto absolute size-3 -translate-x-1/2 -translate-y-1/2 border border-primary bg-background"
+              className="pointer-events-auto absolute size-3 -translate-x-1/2 -translate-y-1/2 border border-ink bg-background"
               style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%`, cursor: item.cursor }} />
           ))}
           {pixels && <Badge variant="secondary" className="absolute left-0" style={{ top: selection.y >= 28 ? -27 : 4 }}>{t('pixelSize', pixels)}</Badge>}

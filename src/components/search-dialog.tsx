@@ -115,7 +115,7 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
       
       // 添加高亮的匹配文本
       parts.push(
-        <mark key={index} className="rounded bg-primary/15 px-0.5 text-foreground">
+        <mark key={index} className="rounded bg-hover px-0.5 text-foreground">
           {text.substring(index, index + lowerQuery.length)}
         </mark>
       )
@@ -158,9 +158,9 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
 
   function getResultTone(item: EnhancedSearchResult) {
     return item.searchType === 'record'
-      ? 'border border-primary/20 bg-primary/10 text-primary'
+      ? 'border border-line bg-hover text-ink font-medium'
       : item.searchType === 'canvas'
-        ? 'border border-primary/20 bg-primary/10 text-primary'
+        ? 'border border-line bg-hover text-ink font-medium'
         : 'border border-border bg-muted text-muted-foreground'
   }
 

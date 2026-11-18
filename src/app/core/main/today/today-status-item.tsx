@@ -47,7 +47,7 @@ export function TodayStatusItem() {
       title={t('status.open')}
     >
       {count > 0 && status === 'ready'
-        ? <AlertTriangle className="size-3 text-primary" aria-hidden />
+        ? <AlertTriangle className="size-3 text-ink" aria-hidden />
         : <CalendarCheck className="size-3" aria-hidden />}
       <span className="tabular-nums">{label}</span>
     </button>

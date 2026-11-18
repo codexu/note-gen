@@ -64,7 +64,7 @@ function ReportView() {
               <button
                 key={item.quote}
                 type="button"
-                className="mt-1 block w-full border-l-2 border-primary/50 pl-2 text-left text-xs italic text-muted-foreground hover:text-foreground"
+                className="mt-1 block w-full border-l-2 border-line pl-2 text-left text-xs italic text-muted-foreground hover:text-foreground"
                 onClick={() => openNote(item.path)}
               >
                 「{item.quote}」— [[{linkName(item.path)}]]
@@ -103,7 +103,7 @@ function ReportView() {
                 </>
               )}
               {item.status === 'handed' && <span className="text-xs text-muted-foreground">{t('handed')}</span>}
-              {item.status === 'done' && <Check className="size-4 text-primary" aria-label={t('done')} />}
+              {item.status === 'done' && <Check className="size-4 text-ink" aria-label={t('done')} />}
             </div>
           )
         })}

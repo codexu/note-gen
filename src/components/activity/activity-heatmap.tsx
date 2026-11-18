@@ -70,8 +70,8 @@ export function ActivityHeatmap({
                           : 'h-4 w-4 rounded-[4px] border border-black/5 transition-colors',
                       LEVEL_CLASSES[level],
                       isSelected && (compact
-                        ? 'ring-2 ring-primary ring-offset-1 ring-offset-background'
-                        : 'ring-2 ring-primary ring-offset-2 ring-offset-background')
+                        ? 'ring-2 ring-ink ring-offset-1 ring-offset-background'
+                        : 'ring-2 ring-ink ring-offset-2 ring-offset-background')
                     )}
                     aria-label={tooltipText}
                   />

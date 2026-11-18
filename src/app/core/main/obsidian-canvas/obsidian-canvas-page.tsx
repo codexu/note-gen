@@ -33,7 +33,7 @@ function CanvasCard({ data, selected }: NodeProps<CanvasFlowNode>) {
     await revealInFileTree(n.file)
     await useArticleStore.getState().setActiveFilePath(n.file)
   }
-  return <div className={'h-full w-full rounded-md border-2 p-3 text-sm ' + (n.type === 'group' ? 'bg-primary/10' : 'bg-background')} style={{ borderColor: canvasColor(n.color) }} onDoubleClick={() => {
+  return <div className={'h-full w-full rounded-md border-2 p-3 text-sm ' + (n.type === 'group' ? 'bg-hover' : 'bg-background')} style={{ borderColor: canvasColor(n.color) }} onDoubleClick={() => {
     if (n.type === 'text') setEditing(true)
     if (n.type === 'file') void openFile().catch(console.error)
   }}>
@@ -43,8 +43,8 @@ function CanvasCard({ data, selected }: NodeProps<CanvasFlowNode>) {
       const link = (e.target as HTMLElement).closest('a')
       if (link) { e.preventDefault(); const href = link.getAttribute('href'); if (href && /^https?:|^mailto:/i.test(href)) void openUrl(href).catch(console.error) }
     }} dangerouslySetInnerHTML={{ __html: markdown.render(n.text ?? '') }} />)}
-    {n.type === 'file' && <div className="nowheel h-full overflow-auto"><div className="text-primary">{noteKeyOf(n.file ?? '')}</div><p className="whitespace-pre-wrap break-words text-muted-foreground">{preview}</p></div>}
-    {n.type === 'link' && <button className="nodrag text-primary break-all underline" onClick={() => { if (n.url) void openUrl(n.url).catch(console.error) }}>{n.url}</button>}
+    {n.type === 'file' && <div className="nowheel h-full overflow-auto"><div className="text-ink">{noteKeyOf(n.file ?? '')}</div><p className="whitespace-pre-wrap break-words text-muted-foreground">{preview}</p></div>}
+    {n.type === 'link' && <button className="nodrag text-brand break-all underline" onClick={() => { if (n.url) void openUrl(n.url).catch(console.error) }}>{n.url}</button>}
     {n.type === 'group' && <span className="text-muted-foreground">{n.label || t('untitledGroup')}</span>}
   </div>
 }

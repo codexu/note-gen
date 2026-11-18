@@ -729,7 +729,7 @@ export function ControlScan() {
                 </div>
               ) : captureError ? (
                 <div className="flex max-w-md flex-col items-center gap-3 text-center text-white/80">
-                  <AlertCircle className="h-8 w-8 text-amber-300" />
+                  <AlertCircle className="h-8 w-8 text-ink" />
                   <p className="text-sm font-medium text-white">{t('record.capture.screenshotCaptureFailed')}</p>
                   <p className="text-xs leading-relaxed text-white/65">
                     {captureError === SCREEN_CAPTURE_PERMISSION_REQUIRED
@@ -760,7 +760,7 @@ export function ControlScan() {
                 </>
               ) : (
                 <div className="flex max-w-md flex-col items-center gap-3 text-center text-white/80">
-                  <AlertCircle className="h-8 w-8 text-amber-300" />
+                  <AlertCircle className="h-8 w-8 text-ink" />
                   <p className="text-sm font-medium text-white">{t('record.capture.screenshotEmpty')}</p>
                   <p className="text-xs leading-relaxed text-white/65">{t('record.capture.screenshotPermissionHint')}</p>
                   <Button

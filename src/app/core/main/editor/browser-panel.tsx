@@ -623,7 +623,7 @@ export function BrowserPanel({ tabId, url, visible }: { tabId: string; url?: str
           </InputGroup>
         </form>
         <BrowserToolbarButton tooltip={isBookmarked ? t('browserRemoveBookmark') : t('browserAddBookmark')} variant="ghost" size="icon-sm" aria-pressed={isBookmarked} disabled={!url || homeVisible || !libraryLoaded} onClick={changeBookmark}>
-          <Star data-icon="inline-start" className={cn(isBookmarked && 'fill-current text-primary')} />
+          <Star data-icon="inline-start" className={cn(isBookmarked && 'fill-current text-ink')} />
         </BrowserToolbarButton>
         <ControlLink pageUrl={!homeVisible ? url : undefined} browserTabId={tabId} browserToolbar />
         <BrowserToolbarButton tooltip={t('browserOpenExternal')} variant="ghost" size="icon-sm" disabled={!url || homeVisible} onClick={() => { if (url) void openUrl(url) }}><ExternalLink data-icon="inline-start" /></BrowserToolbarButton>

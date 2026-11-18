@@ -90,7 +90,7 @@ export function MarkFilterPopover() {
                   className={cn(
                     "h-8 rounded-full border px-3 text-xs font-medium shadow-none",
                     recordFilters.timePreset === preset
-                      ? "border-primary/30 bg-primary/8 text-foreground hover:bg-primary/10"
+                      ? "border-line bg-hover text-foreground hover:bg-active"
                       : "border-border/70 bg-muted/35 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                   )}
                 >

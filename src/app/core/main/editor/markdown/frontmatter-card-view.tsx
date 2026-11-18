@@ -52,7 +52,7 @@ function WikilinkText({ value }: { value: string }) {
   return (
     <button
       type="button"
-      className="cursor-pointer text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+      className="cursor-pointer text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand"
       onClick={() => void openWikilink(link).catch(error => console.error('[frontmatter] open failed', error))}
     >
       {label}
@@ -130,7 +130,7 @@ function EditRow({ property, apply, notePath }: { property: Property; apply: App
     control = (
       <div className="flex flex-wrap items-center gap-1">
         {values.map((value, index) => (
-          <span key={`${index}:${value}`} className="inline-flex max-w-full items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs text-primary">
+          <span key={`${index}:${value}`} className="inline-flex max-w-full items-center gap-1 rounded bg-hover px-2 py-0.5 text-xs text-ink font-medium">
             <span className="break-all">{property.type === 'tags' ? `#${value.replace(/^#/, '')}` : value}</span>
             <button type="button" aria-label={`${t('remove')} ${value}`} onClick={() => set(values.filter((_, i) => i !== index))}><X className="size-3" /></button>
           </span>
@@ -177,9 +177,9 @@ function EditRow({ property, apply, notePath }: { property: Property; apply: App
   }
 
   return (
-    <div className="group grid grid-cols-[7.5rem_1fr_1.5rem] items-start gap-2 px-2.5 py-1 hover:bg-primary/5">
+    <div className="group grid grid-cols-[7.5rem_1fr_1.5rem] items-start gap-2 px-2.5 py-1 hover:bg-hover">
       <div className="flex items-center gap-1.5 pt-1 text-muted-foreground [overflow-wrap:anywhere]">
-        <Icon className="size-3.5 shrink-0 text-primary" />
+        <Icon className="size-3.5 shrink-0 text-ink" />
         <span title={property.type === 'unsupported' ? t('unsupported') : t(`types.${property.type}`)}>{property.key}</span>
       </div>
       <div className="min-w-0">{control}</div>
@@ -203,7 +203,7 @@ function AddRow({ properties, types, apply }: { properties: Property[]; types: R
     () => (open ? rankPropertyKeys(notes.values(), key).filter(item => !properties.some(property => property.key === item)) : []),
     [open, notes, key, properties],
   )
-  if (!open) return <div className="border-t px-2.5 py-1.5"><button type="button" className="text-sm text-primary" onClick={() => setOpen(true)}>＋ {t('add')}</button></div>
+  if (!open) return <div className="border-t px-2.5 py-1.5"><button type="button" className="text-sm text-ink" onClick={() => setOpen(true)}>＋ {t('add')}</button></div>
   const submit = () => {
     const name = key.trim()
     if (!name) return
@@ -310,7 +310,7 @@ export function FrontmatterCardView({ node, updateAttributes, deleteNode, editor
         <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2 pl-8 text-xs text-muted-foreground">
           {parsed.error ? <span className="text-destructive">{t('invalidYaml')}</span> : <>
             {title ? <b className="font-semibold text-foreground">{String(title.value)}</b> : null}
-            {tags ? chipValues(tags.value).map((item, index) => <span key={`${index}:${item}`} className="rounded bg-primary/10 px-1.5 text-primary">#{item.replace(/^#/, '')}</span>) : null}
+            {tags ? chipValues(tags.value).map((item, index) => <span key={`${index}:${item}`} className="rounded bg-hover px-1.5 text-ink font-medium">#{item.replace(/^#/, '')}</span>) : null}
             <span>· {t('collapsedHint')}</span>
           </>}
         </div>

@@ -22,7 +22,7 @@ function HighlightedContext({ link }: { link: IndexedLink }) {
   const markdownStart = link.context.indexOf(`[${link.alias}](`)
   const start = occurrence?.column ?? (link.kind === 'markdown' && markdownStart >= 0 ? markdownStart + 1 : link.context.indexOf(text))
   if (start < 0 || !text) return <>{link.context}</>
-  return <>{link.context.slice(0, start)}<mark className="rounded bg-primary/10 text-primary">{text}</mark>{link.context.slice(start + text.length)}</>
+  return <>{link.context.slice(0, start)}<mark className="rounded bg-brand/10 text-brand">{text}</mark>{link.context.slice(start + text.length)}</>
 }
 
 function folderOf(path: string): string {
@@ -92,12 +92,12 @@ function UnlinkedMentions({ path }: { path: string }) {
   }
 
   const total = current?.groups.reduce((sum, group) => sum + group.mentions.length, 0) ?? 0
-  const linkButton = 'shrink-0 cursor-pointer rounded px-2 py-1 text-xs text-primary hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary'
+  const linkButton = 'shrink-0 cursor-pointer rounded px-2 py-1 text-xs text-brand hover:bg-hover focus-visible:ring-2 focus-visible:ring-ink'
 
   return (
     <details className="mt-4 border-t pt-3" onToggle={event => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer font-semibold">
-        {t('unlinked')} {current && <span className="text-primary">{total}</span>}
+        {t('unlinked')} {current && <span className="text-ink font-medium">{total}</span>}
       </summary>
       {open && (
         <div className="mt-2">
@@ -120,9 +120,9 @@ function UnlinkedMentions({ path }: { path: string }) {
                 <ul className="grid gap-1">
                   {group.mentions.map(mention => (
                     <li key={`${mention.line}:${mention.column}`} className="flex items-start gap-1">
-                      <button type="button" onClick={() => void openNote(group.sourcePath)} className="min-w-0 flex-1 cursor-pointer rounded p-2 text-left [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary">
+                      <button type="button" onClick={() => void openNote(group.sourcePath)} className="min-w-0 flex-1 cursor-pointer rounded p-2 text-left [overflow-wrap:anywhere] hover:bg-hover focus-visible:ring-2 focus-visible:ring-ink">
                         {mention.context.slice(0, mention.contextOffset)}
-                        <mark className="rounded bg-primary/10 text-primary">{mention.context.slice(mention.contextOffset, mention.contextOffset + mention.length)}</mark>
+                        <mark className="rounded bg-brand/10 text-brand">{mention.context.slice(mention.contextOffset, mention.contextOffset + mention.length)}</mark>
                         {mention.context.slice(mention.contextOffset + mention.length)}
                       </button>
                       <button type="button" onClick={() => void link(group.sourcePath, [mention])} className={`mt-1 ${linkButton}`}>{t('linkOne')}</button>
@@ -157,7 +157,7 @@ export default function BacklinksPanel() {
         : status !== 'ready' ? <p role="status" className="py-4 text-muted-foreground">{t('indexing')}</p>
           : <>
             <section aria-label={t('linked')}>
-              <h2 className="mb-3 font-semibold">{t('linked')} <span className="text-primary">{backlinks.length}</span></h2>
+              <h2 className="mb-3 font-semibold">{t('linked')} <span className="text-ink font-medium">{backlinks.length}</span></h2>
               {backlinks.length === 0 && <p className="py-4 text-muted-foreground">{t('empty')}</p>}
               {[...groups].map(([sourcePath, links]) => {
                 const folder = folderOf(sourcePath)
@@ -168,7 +168,7 @@ export default function BacklinksPanel() {
                     <ul className="grid gap-1">
                       {links.map((link, index) => (
                         <li key={`${link.line}:${index}`}>
-                          <button type="button" onClick={() => void openNote(sourcePath)} className="w-full cursor-pointer rounded p-2 text-left [overflow-wrap:anywhere] hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary">
+                          <button type="button" onClick={() => void openNote(sourcePath)} className="w-full cursor-pointer rounded p-2 text-left [overflow-wrap:anywhere] hover:bg-hover focus-visible:ring-2 focus-visible:ring-ink">
                             <HighlightedContext link={link} />
                           </button>
                         </li>
@@ -179,7 +179,7 @@ export default function BacklinksPanel() {
               })}
             </section>
             <details open className="mt-4 border-t pt-3">
-              <summary className="cursor-pointer font-semibold">{t('outgoing')} <span className="text-primary">{outgoing.length}</span></summary>
+              <summary className="cursor-pointer font-semibold">{t('outgoing')} <span className="text-ink font-medium">{outgoing.length}</span></summary>
               <ul className="mt-2 grid gap-1">
                 {outgoing.map((link, index) => (
                   <li key={`${link.line}:${index}`} className="rounded px-2 py-1 [overflow-wrap:anywhere]">

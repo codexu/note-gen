@@ -192,7 +192,7 @@ export function AgentContextTray({
                       {detail && (
                         <button
                           type="button"
-                          className="shrink-0 text-primary hover:underline"
+                          className="shrink-0 text-brand hover:underline"
                           onClick={() => void openRagSource(detail)}
                         >
                           {openSourceLabel(detail.sourceType)}
@@ -201,7 +201,7 @@ export function AgentContextTray({
                     </Marker>
                     {detail?.evidenceKind === 'wiki' ? <div className="flex flex-wrap items-center gap-2 pl-6">
                       <Badge variant="secondary">{wiki('evidence')}</Badge>
-                      {detail.wikiPageId ? <button type="button" className="text-primary hover:underline" onClick={() => void openWikiPage(detail.wikiPageId)}>{wiki('viewPage')}</button> : null}
+                      {detail.wikiPageId ? <button type="button" className="text-brand hover:underline" onClick={() => void openWikiPage(detail.wikiPageId)}>{wiki('viewPage')}</button> : null}
                     </div> : null}
                     {detail && (
                       <div className="truncate pl-6 text-[11px] text-muted-foreground">

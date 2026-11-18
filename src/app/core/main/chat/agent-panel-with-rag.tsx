@@ -276,7 +276,7 @@ export function AgentPanelWithRag({
                   aria-expanded={isRagExpanded}
                 >
                   <div className="shrink-0">
-                    <Database className="size-4.5 text-blue-500" />
+                    <Database className="size-4.5 text-muted-foreground" />
                   </div>
                   <div className="flex min-w-0 grow items-center justify-between">
                     <span className="text-sm">
@@ -318,7 +318,7 @@ export function AgentPanelWithRag({
                         <span
                           className={`truncate text-sm ${
                             hasDetail
-                              ? "text-foreground group-hover:text-primary transition-colors"
+                              ? "text-foreground group-hover:text-ink transition-colors"
                               : "text-muted-foreground"
                           }`}
                         >
@@ -336,7 +336,7 @@ export function AgentPanelWithRag({
 
                     {detail?.evidenceKind === 'wiki' ? <div className="flex flex-wrap items-center gap-2 pl-10">
                       <Badge variant="secondary">{t('wiki.evidence')}</Badge>
-                      {detail.wikiPageId ? <button type="button" className="text-xs text-primary hover:underline" onClick={() => void openWikiPage(detail.wikiPageId)}>{t('wiki.viewPage')}</button> : null}
+                      {detail.wikiPageId ? <button type="button" className="text-xs text-brand hover:underline" onClick={() => void openWikiPage(detail.wikiPageId)}>{t('wiki.viewPage')}</button> : null}
                     </div> : null}
 
                     {/* 展开的详情内容 */}
@@ -345,13 +345,13 @@ export function AgentPanelWithRag({
                         <div className="text-muted-foreground border-foreground/20 border-l border-dashed pl-3 text-xs">
                           <div className="flex items-center justify-between gap-2 py-1">
                             <div className="flex items-center gap-2">
-                              <Database className="size-3.5 text-blue-500 shrink-0" />
+                              <Database className="size-3.5 text-ink shrink-0" />
                               <span className="font-medium text-xs">{t('record.chat.input.agent.observation')}</span>
                             </div>
                             {detail && (
                               <button
                                 onClick={(e) => void handleOpenSource(e, detail)}
-                                className="shrink-0 flex items-center gap-1 text-xs text-primary hover:underline"
+                                className="shrink-0 flex items-center gap-1 text-xs text-brand hover:underline"
                                 title={openSourceLabel(detail.sourceType)}
                               >
                                 <ExternalLink className="size-3" />

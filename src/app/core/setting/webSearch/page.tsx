@@ -160,7 +160,7 @@ function SortableProviderField({
       return <LoaderCircle className="animate-spin" />
     }
     if (checkState === 'ok') {
-      return <CheckCircle2 className="text-primary" />
+      return <CheckCircle2 className="text-ink" />
     }
     if (checkState === 'error') {
       return <CircleX className="text-destructive" />
@@ -428,7 +428,7 @@ export default function WebSearchSettingPage({ mobile = false }: { mobile?: bool
           <div className="rounded-xl border border-dashed bg-muted/20 p-4 sm:p-5">
             <div className="flex min-w-0 items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-3">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-hover text-ink">
                   <Sparkles className="size-4" />
                 </div>
                 <div className="min-w-0 flex-1">

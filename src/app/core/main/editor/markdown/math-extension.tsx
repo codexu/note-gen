@@ -130,7 +130,7 @@ function InlineMathView({ node, updateAttributes }: ReactNodeViewProps) {
           onChange={(e) => setLatex(e.target.value)}
           onBlur={handleUpdate}
           onKeyDown={handleKeyDown}
-          className="inline-math-input px-2 py-1 border rounded bg-background text-foreground min-w-25 focus:outline-none focus:ring-2 focus:ring-primary"
+          className="inline-math-input px-2 py-1 border rounded bg-background text-foreground min-w-25 focus:outline-none focus:ring-2 focus:ring-ink"
           autoFocus
         />
         {error && <span className="ml-2 text-xs text-destructive">{error}</span>}

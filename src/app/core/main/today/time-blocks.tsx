@@ -148,11 +148,11 @@ export function TimeBlocks({ agenda, now, onDropTask }: {
               onDragEnd={() => { grabOffsetRef.current = 0; setGhost(null) }}
               className={cn(
                 'absolute overflow-hidden rounded-md border-l-2 px-2 py-0.5 text-xs leading-tight',
-                item.kind === 'task' && 'cursor-grab border-primary bg-primary/10 active:cursor-grabbing',
+                item.kind === 'task' && 'cursor-grab border-line bg-hover active:cursor-grabbing',
                 item.kind === 'calendar' && 'border-muted-foreground/60 bg-muted',
                 item.kind === 'anchor' && 'border border-dashed border-muted-foreground/40 bg-background',
                 item.state === 'past' && 'opacity-60',
-                item.state === 'now' && 'ring-1 ring-primary/60',
+                item.state === 'now' && 'ring-1 ring-ink/60',
               )}
               style={{
                 top: top(startMin) + 1,
@@ -172,14 +172,14 @@ export function TimeBlocks({ agenda, now, onDropTask }: {
         })}
 
         {nowMin >= startHour * 60 && nowMin <= endHour * 60 && (
-          <div className="pointer-events-none absolute inset-x-0 z-10 h-px bg-primary" style={{ top: top(nowMin) }} aria-hidden>
-            <span className="absolute -top-1 -left-1 size-2 rounded-full bg-primary" />
+          <div className="pointer-events-none absolute inset-x-0 z-10 h-px bg-ink" style={{ top: top(nowMin) }} aria-hidden>
+            <span className="absolute -top-1 -left-1 size-2 rounded-full bg-ink" />
           </div>
         )}
 
         {ghost && (
-          <div className="pointer-events-none absolute inset-x-0 z-20 border-t-2 border-dashed border-primary" style={{ top: top(Number(ghost.slice(0, 2)) * 60 + Number(ghost.slice(3))) }} aria-hidden>
-            <span className="absolute -top-3 right-0 rounded bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">{ghost}</span>
+          <div className="pointer-events-none absolute inset-x-0 z-20 border-t-2 border-dashed border-ink" style={{ top: top(Number(ghost.slice(0, 2)) * 60 + Number(ghost.slice(3))) }} aria-hidden>
+            <span className="absolute -top-3 right-0 rounded bg-invert px-1.5 text-xs font-semibold text-invert-ink tabular-nums">{ghost}</span>
           </div>
         )}
       </div>

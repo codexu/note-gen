@@ -71,7 +71,7 @@ export function QuickAdd({ now, busy, onSubmit }: {
 
 function Chip({ icon, accent, children }: { icon?: React.ReactNode, accent?: boolean, children: React.ReactNode }) {
   return (
-    <span className={cn('inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 tabular-nums [overflow-wrap:anywhere]', accent && 'bg-primary/10 text-primary')}>
+    <span className={cn('inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 tabular-nums [overflow-wrap:anywhere]', accent && 'bg-hover text-ink font-medium')}>
       {icon}{children}
     </span>
   )

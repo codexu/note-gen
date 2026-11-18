@@ -8026,7 +8026,7 @@ export function TipTapEditor({
       {selfHostedCollaborators.length > 0 ? (
         <div className="absolute right-3 top-3 z-40 flex items-center gap-1 rounded-full border bg-background/90 px-2 py-1 shadow-sm backdrop-blur">
           {selfHostedCollaborators.slice(0, 3).map(collaborator => (
-            <span key={collaborator.deviceId} className="grid size-6 place-items-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground" title={collaborator.label}>
+            <span key={collaborator.deviceId} className="grid size-6 place-items-center rounded-full bg-invert text-[10px] font-medium text-invert-ink" title={collaborator.label}>
               {collaborator.label.slice(0, 1).toUpperCase()}
             </span>
           ))}
@@ -8083,11 +8083,11 @@ export function TipTapEditor({
         >
         {(isCanvasDragOver || isCanvasDropPending) && (
           <div className={cn(
-            'pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-primary/60 bg-primary/5 transition-colors duration-150',
+            'pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-ink/60 bg-hover transition-colors duration-150',
             isCanvasDropPending && 'border-transparent bg-transparent'
           )}>
             <div className="flex items-center gap-2 rounded-md border bg-background/95 px-3 py-2 text-sm text-foreground shadow-md backdrop-blur">
-              {isCanvasDropPending && <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" />}
+              {isCanvasDropPending && <Loader2 className="size-4 animate-spin text-ink" aria-hidden="true" />}
               <span>{t(isCanvasDropPending ? 'canvasDrop.generating' : 'canvasDrop.hint')}</span>
             </div>
           </div>

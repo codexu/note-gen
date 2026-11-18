@@ -93,7 +93,7 @@ export default function PicgoImageHosting() {
       return <LoaderCircle className="size-4 animate-spin text-muted-foreground" />;
     }
     if (picgoState === SyncStateEnum.success) {
-      return <CheckCircle className="size-4 text-primary" />;
+      return <CheckCircle className="size-4 text-ink" />;
     }
     return <XCircle className="size-4 text-muted-foreground" />;
   };

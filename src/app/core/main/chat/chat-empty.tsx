@@ -119,7 +119,7 @@ export default function ChatEmpty() {
         {/* Header */}
         <div className="text-center space-y-3">
           <div className="flex items-center justify-center gap-2">
-            <MessageCircle className="w-5 h-5 text-primary" />
+            <MessageCircle className="w-5 h-5 text-ink" />
             <h2 className="text-xl font-semibold tracking-tight">
               {t('title')}
             </h2>
@@ -137,12 +137,12 @@ export default function ChatEmpty() {
               type="button"
               key={prompt.id}
               onClick={() => handleQuickPrompt(prompt.text)}
-              className="group flex h-11 w-full cursor-pointer items-center rounded-lg border bg-primary-foreground px-4 text-left transition-colors hover:border-primary/50"
+              className="group flex h-11 w-full cursor-pointer items-center rounded-lg border bg-background px-4 text-left transition-colors hover:border-line"
             >
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <span className="text-muted-foreground">{prompt.icon}</span>
-                  <span className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                  <span className="text-sm font-medium truncate group-hover:text-ink transition-colors">
                     {prompt.text}
                   </span>
                 </div>
@@ -167,7 +167,7 @@ export default function ChatEmpty() {
                   onClick={() => void handleSwitchConversation(conv.id)}
                 >
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-xs font-medium truncate group-hover:text-primary transition-colors pr-14">
+                    <span className="text-xs font-medium truncate group-hover:text-ink transition-colors pr-14">
                       {conv.title}
                     </span>
                   </div>

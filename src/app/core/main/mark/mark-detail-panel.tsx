@@ -981,7 +981,7 @@ function MarkDetailBody({ mark, isActive }: { mark: Mark; isActive: boolean }) {
             href={mark.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block max-w-full break-all text-primary underline-offset-4 hover:underline"
+            className="block max-w-full break-all text-brand underline-offset-4 hover:underline"
           >
             {mark.url}
           </a>
@@ -993,7 +993,7 @@ function MarkDetailBody({ mark, isActive }: { mark: Mark; isActive: boolean }) {
             href={mark.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block max-w-full break-all text-primary underline-offset-4 hover:underline"
+            className="block max-w-full break-all text-brand underline-offset-4 hover:underline"
           >
             {mark.url}
           </a>

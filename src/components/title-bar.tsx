@@ -249,7 +249,7 @@ export function TitleBar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className={`h-8 w-8 relative ${settingsOpen ? 'bg-primary/50 hover:bg-primary/60' : ''}`}
+                className={`h-8 w-8 relative ${settingsOpen ? 'bg-active hover:bg-active' : ''}`}
                 onClick={() => settingsOpen ? closeSettings() : openSettings()}
               >
                 {settingsOpen ? (

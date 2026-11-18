@@ -22,7 +22,7 @@ export function KnowledgeSettingCard({
   return <Card role="region" aria-labelledby={titleId} className="gap-0 py-0">
     <CardHeader className="mobile-setting-inline-card-header flex flex-row items-start justify-between gap-4 p-5 sm:p-6">
       <div className="flex min-w-0 items-start gap-3">
-        <div aria-hidden="true" className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground', enabled && 'bg-primary/10 text-primary')}>
+        <div aria-hidden="true" className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground', enabled && 'bg-hover text-ink')}>
           <Icon className="size-5" />
         </div>
         <div className="flex min-w-0 flex-col gap-2">

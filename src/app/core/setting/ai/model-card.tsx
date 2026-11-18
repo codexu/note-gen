@@ -231,7 +231,7 @@ export default function ModelCard({
   const renderCheckIcon = () => {
     switch (checkState) {
       case 'ok':
-        return <CircleCheck data-icon="inline-start" className="text-primary" />
+        return <CircleCheck data-icon="inline-start" className="text-ink" />
       case 'error':
         return <CircleX data-icon="inline-start" className="text-destructive" />
       case 'checking':

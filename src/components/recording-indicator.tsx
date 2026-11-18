@@ -41,8 +41,8 @@ export function RecordingIndicator() {
       >
         <div className="flex size-8 items-center justify-center rounded-lg">
           <div className="relative">
-            <Mic className="size-4 text-red-500" />
-            <div className="absolute -top-1 -right-1 size-2 rounded-full bg-red-500 animate-pulse" />
+            <Mic className="size-4 text-ink" />
+            <div className="absolute -top-1 -right-1 size-2 rounded-full bg-ink animate-pulse" />
           </div>
         </div>
       </SidebarMenuButton>

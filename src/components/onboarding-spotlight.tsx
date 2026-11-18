@@ -76,7 +76,7 @@ export function OnboardingSpotlight({
   return (
     <div className="fixed inset-0 z-[10010]" onClick={onDismiss}>
       <div
-        className="pointer-events-none absolute rounded-2xl border-2 border-primary transition-all duration-200"
+        className="pointer-events-none absolute rounded-2xl border-2 border-ink transition-all duration-200"
         style={{
           top: holeTop,
           left: holeLeft,

@@ -411,7 +411,7 @@ export default function SyncPage() {
                     asChild
                     size="sm"
                     variant={isSelectedPlatform ? 'outline' : 'default'}
-                    className="data-[state=on]:border-primary data-[state=on]:bg-primary/5"
+                    className="data-[state=on]:border-line data-[state=on]:bg-active"
                   >
                     <button
                       type="button"

@@ -31,7 +31,7 @@ export function ChatImages({ images, analyses = [], onRetry }: ChatImagesProps) 
             <div key={analysis?.imageId || imageUrl} className="flex flex-col items-start gap-1">
               <button
                 type="button"
-                className="relative cursor-pointer overflow-hidden rounded-lg border transition-colors hover:border-primary"
+                className="relative cursor-pointer overflow-hidden rounded-lg border transition-colors hover:border-line"
                 style={{ width: '120px', height: '120px' }}
                 onClick={() => setSelectedImage(imageUrl)}
               >

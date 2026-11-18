@@ -50,7 +50,7 @@ export function WikiFolderView({ folderPath }: { folderPath: string }) {
   return <ScrollArea className="h-full min-h-0 w-full flex-1">
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-5 sm:p-8">
       <header className="flex items-start gap-4">
-        <div aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"><WikiFolderIcon className="size-7" /></div>
+        <div aria-hidden="true" className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-hover text-ink"><WikiFolderIcon className="size-7" /></div>
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold tracking-tight">{t('title')}</h2><Badge variant="secondary">{t('outputLabel')}</Badge></div>
           <p className="break-all text-xs text-muted-foreground">{folderPath.replaceAll('\\', '/').replace(/\/$/, '')}/</p>

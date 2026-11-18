@@ -1565,8 +1565,8 @@ ${previewLines.join('\n')}
             : "gap-1 rounded-xl bg-background p-1 transition-colors",
           isImageDragOver && (
             isMobile
-              ? "border-primary/50 bg-[hsl(var(--component-active-bg))]"
-              : "border-primary bg-primary/5"
+              ? "border-line bg-[hsl(var(--component-active-bg))]"
+              : "border-line bg-hover"
           )
         )}
         onDragEnter={handleImageDragEnter}
@@ -1594,7 +1594,7 @@ ${previewLines.join('\n')}
                 isMobile ? "mobile-dock-surface rounded-2xl" : "rounded-md bg-background shadow-sm"
               )}
             >
-              <ImageIcon className="size-4 text-primary" />
+              <ImageIcon className="size-4 text-ink" />
               <span>{t('record.chat.input.imageAttachment.dropHint')}</span>
             </div>
           </div>

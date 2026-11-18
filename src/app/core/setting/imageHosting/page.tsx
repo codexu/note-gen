@@ -264,7 +264,7 @@ export default function ImageHostingPage({ mobile = false }: { mobile?: boolean 
                   asChild
                   size="sm"
                   variant={section === 'local' ? 'outline' : 'default'}
-                  className="data-[state=on]:border-primary data-[state=on]:bg-primary/5"
+                  className="data-[state=on]:border-line data-[state=on]:bg-active"
                 >
                   <button
                     type="button"
@@ -298,7 +298,7 @@ export default function ImageHostingPage({ mobile = false }: { mobile?: boolean 
                       asChild
                       size="sm"
                       variant={isSelected ? 'outline' : 'default'}
-                      className="data-[state=on]:border-primary data-[state=on]:bg-primary/5"
+                      className="data-[state=on]:border-line data-[state=on]:bg-active"
                     >
                       <button
                         type="button"

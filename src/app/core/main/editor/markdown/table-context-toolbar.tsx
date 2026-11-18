@@ -57,7 +57,7 @@ function TableToolbarButton({
           onMouseDown={event => { if (event.button === 0) event.preventDefault() }}
           onClick={onClick}
         >
-          <span className={active ? 'text-primary' : undefined}>{children}</span>
+          <span className={active ? 'text-ink' : undefined}>{children}</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={6}>{label}</TooltipContent>

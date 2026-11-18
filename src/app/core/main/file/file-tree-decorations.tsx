@@ -70,7 +70,7 @@ export function FileTreeDecorations({
             title=""
             className={cn(
               'inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              wikiWorking && !failed && 'text-primary',
+              wikiWorking && !failed && 'text-ink',
               failed && 'text-destructive',
             )}
           >

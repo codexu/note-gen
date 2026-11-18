@@ -43,8 +43,8 @@ const ConnectionHandles = memo(function ConnectionHandles() {
 
 function previewClassName(state?: CanvasNodeData['previewState']) {
   return cn(
-    state === 'add' && 'border-primary bg-primary/5 ring-2 ring-primary/40',
-    state === 'update' && 'border-primary ring-2 ring-primary/30',
+    state === 'add' && 'border-line bg-hover ring-2 ring-ink/40',
+    state === 'update' && 'border-line ring-2 ring-ink/30',
     state === 'delete' && 'border-destructive bg-destructive/5 opacity-60 ring-2 ring-destructive/40'
   )
 }

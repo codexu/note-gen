@@ -237,7 +237,7 @@ export function ServerConfigDialog({
     <Card className="p-4 border-dashed">
       <div className="space-y-1">
         <div className="flex items-center gap-2">
-          <AlertTriangle className="size-4 text-amber-500" />
+          <AlertTriangle className="size-4 text-ink" />
           <p className="font-medium">{t('mobileHttpOnlyTitle')}</p>
         </div>
         <p className="text-sm text-muted-foreground">{t('mobileHttpOnlyDesc')}</p>

@@ -60,7 +60,7 @@ export function LinkRewritePrompt() {
     <AlertDialog open={request !== null} onOpenChange={open => { if (!open && !busy) finish() }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogMedia><Link2 className="text-primary" /></AlertDialogMedia>
+          <AlertDialogMedia><Link2 className="text-ink" /></AlertDialogMedia>
           <AlertDialogTitle>{t('title')}</AlertDialogTitle>
           <AlertDialogDescription>
             {t('description', { files, links })}
@@ -69,11 +69,11 @@ export function LinkRewritePrompt() {
           </AlertDialogDescription>
         </AlertDialogHeader>
         {plan && plan.files.length > 0 && (
-          <ul className="max-h-40 overflow-y-auto rounded-md bg-primary/10 px-3 py-2 text-xs [overflow-wrap:anywhere]">
+          <ul className="max-h-40 overflow-y-auto rounded-md bg-hover px-3 py-2 text-xs [overflow-wrap:anywhere]">
             {plan.files.map(file => (
               <li key={file.path} className="flex justify-between gap-3 py-0.5">
                 <span>{file.path}</span>
-                <span className="shrink-0 text-primary">{file.count}</span>
+                <span className="shrink-0 text-ink font-medium">{file.count}</span>
               </li>
             ))}
           </ul>

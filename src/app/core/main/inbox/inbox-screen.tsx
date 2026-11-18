@@ -92,9 +92,9 @@ function RecordRow({ record, selected, focused, processed, locale, onToggle, onF
   const { title, preview } = getMarkListItemContent(record)
   const text = title || preview || record.url
   return (
-    <div className={cn('group relative flex items-center gap-2 border-b px-3 text-sm', ROW, selected && 'bg-accent/40', focused && 'bg-primary/10 hover:bg-primary/15')}>
+    <div className={cn('group relative flex items-center gap-2 border-b px-3 text-sm', ROW, selected && 'bg-accent/40', focused && 'bg-hover hover:bg-active')}>
       {/* 目前展開的那筆：左側色條，不只靠底色 */}
-      {focused && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary" aria-hidden />}
+      {focused && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-ink" aria-hidden />}
       <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={text} />
       <button type="button" onClick={onFocus} aria-current={focused ? 'true' : undefined} className={cn('flex min-w-0 flex-1 items-center gap-2 py-2 text-left', ROW_BUTTON)}>
         <Icon className={cn('size-4 shrink-0', getMarkTypeIconClasses(record.type), processed && 'opacity-60')} aria-hidden />

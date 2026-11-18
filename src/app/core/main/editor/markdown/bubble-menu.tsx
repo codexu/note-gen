@@ -803,7 +803,7 @@ export function BubbleMenu({
         <div className="relative">
           <ToolbarButton
             active={showAISubmenu}
-            className="text-primary"
+            className="text-ink"
             onClick={() => setShowAISubmenu(!showAISubmenu)}
             title={t('bubbleMenu.ai')}
           >

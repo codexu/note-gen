@@ -98,7 +98,7 @@ export function ResponseSourceLink({ sourceKey, href, children }: { sourceKey: s
   const busy = useRef(false)
   const available = !context.isPreview && Boolean(context.workspaceFingerprint)
     && context.sources.some(source => source.sourceKey === sourceKey)
-  return <a href={href} className="text-primary underline underline-offset-4" aria-disabled={!available} onClick={event => {
+  return <a href={href} className="text-brand underline underline-offset-4" aria-disabled={!available} onClick={event => {
     event.preventDefault()
     event.stopPropagation()
     if (!available || busy.current) return

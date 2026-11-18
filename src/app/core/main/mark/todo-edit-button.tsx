@@ -58,7 +58,7 @@ export function TodoEditTrigger({ mark, className, children }: TodoEditTriggerPr
         type="button"
         aria-pressed={activeMarkId === mark.id}
         onClick={handleOpen}
-        className={cn("min-w-0 text-left transition-colors hover:underline", activeMarkId === mark.id && "text-primary", className)}
+        className={cn("min-w-0 text-left transition-colors hover:underline", activeMarkId === mark.id && "text-ink", className)}
       >
         {children}
       </button>

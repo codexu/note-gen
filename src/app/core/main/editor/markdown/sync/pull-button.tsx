@@ -328,7 +328,7 @@ export function PullButton(props: PullButtonProps) {
           /* 有更新可以拉取 */
           <button
             onClick={handlePull}
-            className="p-0.5 rounded transition-colors hover:bg-amber-500/10 text-amber-500 flex items-center gap-1"
+            className="p-0.5 rounded transition-colors hover:bg-hover text-ink flex items-center gap-1"
             title="拉取更新"
           >
             <ArrowDownCircle size={14} />

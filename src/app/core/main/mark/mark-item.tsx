@@ -148,7 +148,7 @@ const MarkDetailTrigger = React.memo(({
       <div
         className={cn(
           "group relative w-full min-w-0 max-w-full overflow-hidden text-left",
-          activeMarkId === mark.id && "text-primary"
+          activeMarkId === mark.id && "text-ink"
         )}
       >
         <span
@@ -196,7 +196,7 @@ const MarkDetailTrigger = React.memo(({
       className={cn(
         'h-auto justify-start p-0 font-normal',
         triggerClassName,
-        activeMarkId === mark.id && "text-primary"
+        activeMarkId === mark.id && "text-ink"
       )}
     >
       <span
@@ -286,7 +286,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
       ? 'bg-destructive'
       : itemContent.todo.priority === 'low'
         ? 'bg-muted-foreground'
-        : 'bg-primary'
+        : 'bg-ink'
     : ''
 
   const handleCheckboxChange = useCallback(() => {
@@ -573,19 +573,19 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
               href={mark.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block max-w-full truncate text-xs text-primary hover:underline"
+              className="block max-w-full truncate text-xs text-brand hover:underline"
             >
               {mark.url}
             </a>
           ) : (
-            <span className="block max-w-full truncate text-xs text-primary">
+            <span className="block max-w-full truncate text-xs text-brand">
               {mark.url}
             </span>
           ) : null}
           {!isImageCard && mark.type === 'todo' && itemContent.todo ? (
             <div className="flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden text-xs text-muted-foreground">
               <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                {itemContent.todo.completed ? <CheckSquare className="size-3.5 text-primary" /> : <Square className="size-3.5 text-muted-foreground" />}
+                {itemContent.todo.completed ? <CheckSquare className="size-3.5 text-brand" /> : <Square className="size-3.5 text-muted-foreground" />}
                 <span className="min-w-0 truncate">{itemContent.todo.completed ? todoT('completed') : todoT('uncompleted')}</span>
               </div>
             </div>
@@ -645,12 +645,12 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
                 href={mark.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`block max-w-full truncate text-${recordTextSize} text-primary hover:underline`}
+                className={`block max-w-full truncate text-${recordTextSize} text-brand hover:underline`}
               >
                 {mark.url}
               </a>
             ) : (
-              <span className={`block max-w-full truncate text-${recordTextSize} text-primary`}>
+              <span className={`block max-w-full truncate text-${recordTextSize} text-brand`}>
                 {mark.url}
               </span>
             )}
@@ -1005,15 +1005,15 @@ export const MarkItem = React.memo(({
             : 'w-full min-w-0 max-w-full overflow-hidden border-b border-l-2 border-b-border/60 border-l-transparent bg-background last:border-b-0',
         highlightedMarkId === mark.id && (
           variant === 'list'
-            ? 'record-search-highlight bg-primary/8 dark:bg-primary/15'
-            : 'record-search-highlight bg-primary/8 dark:bg-primary/15'
+            ? 'record-search-highlight bg-hover dark:bg-hover'
+            : 'record-search-highlight bg-hover dark:bg-hover'
         ),
         activeMarkId === mark.id && (
           variant === 'list'
-            ? 'border-l-2 border-l-primary bg-accent/45'
+            ? 'border-l-2 border-l-ink bg-active'
             : grouped
-              ? 'bg-accent/50 ring-1 ring-primary/40'
-              : 'bg-accent'
+              ? 'bg-active ring-1 ring-ink/40'
+              : 'bg-active'
         ),
         interactive ? (
           variant === 'list'

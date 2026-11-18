@@ -58,7 +58,7 @@ export function useDailyDayModifiers() {
     },
     modifiersClassNames: {
       hasNote: `relative ${DOT} after:bg-muted-foreground/70`,
-      openTasks: `relative ${DOT} after:bg-primary`,
+      openTasks: `relative ${DOT} after:bg-ink`,
     },
   }), [withNote, withOpenTasks])
 }
@@ -106,7 +106,7 @@ export function DailyCalendarPopover({ selected, children, align = 'end' }: {
         />
         <div className="flex items-center gap-3 border-t px-3 py-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-muted-foreground/70" />{t('legendNote')}</span>
-          <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-primary" />{t('legendTasks')}</span>
+          <span className="flex items-center gap-1"><span className="size-1.5 rounded-full bg-ink" />{t('legendTasks')}</span>
           <Button
             variant="ghost"
             size="sm"

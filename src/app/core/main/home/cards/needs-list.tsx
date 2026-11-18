@@ -15,7 +15,7 @@ import type { HomeCardDef, NeedItem } from '../home-cards'
 import { CARD, CARD_TITLE, Count } from '../../page-ui'
 
 const TONE: Record<NeedItem['tone'], string> = {
-  primary: 'text-primary',
+  primary: 'text-ink',
   destructive: 'text-destructive',
   muted: 'text-muted-foreground',
 }

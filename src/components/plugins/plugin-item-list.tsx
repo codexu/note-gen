@@ -28,7 +28,7 @@ function HighlightedDescription({ text, highlight }: { text: string; highlight?:
   let cursor = 0
   for (const match of text.matchAll(expression)) {
     if (match.index > cursor) parts.push(text.slice(cursor, match.index))
-    parts.push(<mark key={match.index} className="rounded-sm bg-primary/15 px-0.5 font-medium text-foreground">{match[0]}</mark>)
+    parts.push(<mark key={match.index} className="rounded-sm bg-hover px-0.5 font-medium text-foreground">{match[0]}</mark>)
     cursor = match.index + match[0].length
   }
   if (cursor < text.length) parts.push(text.slice(cursor))

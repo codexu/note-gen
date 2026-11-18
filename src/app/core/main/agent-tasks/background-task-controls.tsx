@@ -42,7 +42,7 @@ export function BackgroundTaskControls({ text, onSent }: { text: string; onSent:
           <Button variant="ghost" size="icon" className="relative size-8" onClick={() => openSheet()} aria-label={t('open')}>
             <ListTodo className="size-4" />
             {(waiting > 0 || running > 0) && (
-              <span className={`absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[10px] leading-4 ${waiting > 0 ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
+              <span className={`absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-[10px] leading-4 ${waiting > 0 ? 'bg-invert text-invert-ink' : 'bg-secondary text-secondary-foreground'}`}>
                 {waiting > 0 ? waiting : running}
               </span>
             )}

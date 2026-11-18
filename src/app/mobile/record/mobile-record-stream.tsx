@@ -601,7 +601,7 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
               <Button variant="ghost" size="icon" className="relative" title={t('record.mark.toolbar.filter.title')} onClick={() => setTypeFilterOpen(true)}>
                 <Filter />
                 {isFilterActive ? (
-                  <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-primary ring-2 ring-background" />
+                  <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-ink ring-2 ring-background" />
                 ) : null}
               </Button>
               <Button variant="ghost" size="icon" onClick={() => setMultiMode(true)} title={t('record.mark.toolbar.multiSelect')}>
@@ -696,7 +696,7 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
                       <div
                         className={cn(
                           "rounded-xl border bg-background px-3 py-3",
-                          highlightedMarkId === mark.id && "border-primary/30 shadow-sm"
+                          highlightedMarkId === mark.id && "border-line shadow-sm"
                         )}
                       >
                         <div className="flex items-start gap-2">

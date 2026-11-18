@@ -378,7 +378,7 @@ export function WikilinkSuggest({ editor, activeFilePath }: WikilinkSuggestProps
                     </span>
                   ) : null}
                   {suggestion.matchedAlias ? (
-                    <Badge variant="secondary" title={suggestion.matchedAlias} className="bg-primary/10 font-normal text-primary">
+                    <Badge variant="secondary" title={suggestion.matchedAlias} className="bg-hover font-normal text-ink">
                       {t('alias')}
                     </Badge>
                   ) : null}
@@ -401,7 +401,7 @@ export function WikilinkSuggest({ editor, activeFilePath }: WikilinkSuggestProps
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
                   <span aria-hidden className={cn('shrink-0', HEADING_INDENT[suggestion.level - 1])} />
-                  <Heading className="text-primary" />
+                  <Heading className="text-ink" />
                   <span className="min-w-0 flex-1 truncate">{suggestion.text}</span>
                 </CommandItem>
               ))}
@@ -423,8 +423,8 @@ export function WikilinkSuggest({ editor, activeFilePath }: WikilinkSuggestProps
                   onSelect={() => selectEntry(entries[index])}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
-                  <Hash className="text-primary" />
-                  <span className="shrink-0 rounded bg-primary/10 px-1 font-mono text-primary">^{suggestion.id}</span>
+                  <Hash className="text-ink" />
+                  <span className="shrink-0 rounded bg-hover px-1 font-mono text-ink">^{suggestion.id}</span>
                   <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{suggestion.context}</span>
                 </CommandItem>
               ))}

@@ -114,14 +114,14 @@ export function SidebarCalendar() {
                   'relative flex h-10 flex-col items-center justify-center text-xs leading-none',
                   SIDEBAR_ROW,
                   // 今天除了顏色再加一圈框，不只靠顏色辨認
-                  key === todayKey && 'font-semibold text-primary ring-1 ring-primary/40 ring-inset',
-                  key === activeKey && 'bg-primary text-primary-foreground ring-0 hover:bg-primary/90 hover:text-primary-foreground',
+                  key === todayKey && 'font-semibold text-ink ring-1 ring-ink/40 ring-inset',
+                  key === activeKey && 'bg-active text-ink ring-0 hover:bg-active hover:text-ink',
                 )}
               >
                 <span className="text-[10px] opacity-60">{weekdayFormat.format(day)}</span>
                 <span className="mt-0.5 mb-1.5 tabular-nums">{day.getDate()}</span>
                 {(withOpenTasks.has(key) || withNote.has(key)) && (
-                  <span className={cn('absolute bottom-0.5 size-1 rounded-full', withOpenTasks.has(key) ? 'bg-primary' : 'bg-muted-foreground/70', key === activeKey && 'bg-primary-foreground')} />
+                  <span className={cn('absolute bottom-0.5 size-1 rounded-full', withOpenTasks.has(key) ? 'bg-ink' : 'bg-muted-foreground/70', key === activeKey && 'bg-invert-ink')} />
                 )}
               </button>
             )

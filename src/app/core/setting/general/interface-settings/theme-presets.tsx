@@ -371,8 +371,8 @@ export function ThemePresets({ onApplyPreset, onResetDefault, t }: ThemePresetsP
           }}
           className={`group relative flex flex-col items-center gap-3 p-4 rounded-lg border-2 transition-all cursor-pointer ${
             preset.isReset
-              ? 'border-dashed border-muted-foreground/50 hover:border-primary'
-              : 'border-border hover:border-primary'
+              ? 'border-dashed border-muted-foreground/50 hover:border-line'
+              : 'border-border hover:border-line'
           }`}
         >
           {/* 恢复默认图标 - 只对第一个显示 */}

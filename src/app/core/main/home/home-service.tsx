@@ -7,9 +7,15 @@ import useCollectStore from '@/stores/collect'
 import useHomeStore from '@/stores/home'
 import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
+import useThreadsStore from '@/stores/threads'
+import useDecideStore from '@/stores/decide'
+import { hideWhen, linkExclusiveOverlays } from '@/lib/fork-overlays/exclusive'
+import { useUiModeStore } from '@/lib/fork-ui'
 import { CollectScreen } from '../collect/collect-screen'
+import { DecideScreen } from '../decide/decide-screen'
 import { InboxScreen } from '../inbox/inbox-screen'
 import { PromptLibraryScreen } from '../prompt-library/prompt-library-screen'
+import { ThreadsScreen } from '../threads/threads-screen'
 import { HOME_CARDS } from './home-cards'
 import { HomeScreen } from './home-screen'
 import { ActivityTracker } from './cards/footprint-card'
@@ -26,6 +32,17 @@ export function HomeService() {
   useEffect(() => {
     void init(HOME_CARDS)
   }, [init])
+
+  // Fork（almanac 段1）：全頁覆蓋層一次只開一個；切回 classic 時關掉 V3 專屬頁。
+  useEffect(() => {
+    const v3Only = [useCollectStore, useDecideStore, useThreadsStore]
+    const unlink = linkExclusiveOverlays([useHomeStore, useInboxStore, usePromptLibraryStore, ...v3Only])
+    const unsubscribeMode = useUiModeStore.subscribe(state => hideWhen(() => state.mode !== 'v3', v3Only))
+    return () => {
+      unlink()
+      unsubscribeMode()
+    }
+  }, [])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -80,6 +97,7 @@ export function HomeService() {
       if (useInboxStore.getState().visible) useInboxStore.getState().hide()
       if (usePromptLibraryStore.getState().visible) usePromptLibraryStore.getState().hide()
       if (useCollectStore.getState().visible) useCollectStore.getState().hide()
+      if (useThreadsStore.getState().visible) useThreadsStore.getState().hide()
     })
     return () => {
       for (const type of TOUCH_EVENTS) document.removeEventListener(type, onTouch, true)
@@ -96,6 +114,8 @@ export function HomeService() {
       <InboxScreen />
       <PromptLibraryScreen />
       <CollectScreen />
+      <DecideScreen />
+      <ThreadsScreen />
     </>
   )
 }

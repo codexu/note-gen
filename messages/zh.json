@@ -7932,6 +7932,64 @@
     "queued": "已在收集",
     "writeHint": "新笔记、任务和时段都要你收下才会写入；没有收下的提案不会留下任何文件。"
   },
+  "threads": {
+    "title": "对话",
+    "subtitle": "所有对话串，按项目分组",
+    "listLabel": "对话串",
+    "search": "搜索对话或项目",
+    "groupBy": "分组方式",
+    "mode": {
+      "project": "按项目",
+      "recent": "最近"
+    },
+    "ungrouped": "未分组",
+    "empty": "还没有对话。在右侧或随处对话问一题，就会出现在这里。",
+    "noMatch": "找不到符合的对话",
+    "newThread": "新对话",
+    "untitled": "未命名对话",
+    "pinned": "已置顶",
+    "messageCount": "{count} 条消息",
+    "moveToProject": "移到项目",
+    "newProject": "新项目…",
+    "removeFromProject": "移出项目",
+    "newProjectHint": "项目只是对话的分组名称，之后可以随时修改。",
+    "projectName": "项目名称",
+    "cancel": "取消",
+    "create": "创建并移入",
+    "moveFromAnywhere": "移到对话页",
+    "time": {
+      "now": "刚刚",
+      "minutes": "{count} 分钟前",
+      "hours": "{count} 小时前",
+      "days": "{count} 天前"
+    },
+    "cards": {
+      "proposal": "提案",
+      "accept": "收下",
+      "reject": "不要",
+      "alsoInInbox": "也在等你定",
+      "proposalWait": "等你定",
+      "proposalOk": "已收下",
+      "proposalNo": "已退回",
+      "kickoff": "开工卡",
+      "placeholder": "示范",
+      "kickoffProposed": "待开工",
+      "kickoffRunning": "进行中",
+      "kickoffDone": "已完成",
+      "kickoffCancelled": "先不开",
+      "start": "开工",
+      "hold": "先不开",
+      "reopen": "改回待开工",
+      "maxParallel": "最多同时 3 件",
+      "dependsOn": "等第 {list} 件",
+      "needsLook": "要你看一下",
+      "task": {
+        "wait": "排队",
+        "run": "进行中",
+        "done": "完成"
+      }
+    }
+  },
   "anywhere": {
     "palette": {
       "title": "命令面板",
@@ -7995,5 +8053,50 @@
       "send": "发送",
       "hint": "Enter 发送，Shift+Enter 换行"
     }
+  },
+  "decide": {
+    "title": "等你定",
+    "subtitle": "需要你拍板的事都在这里，逐条收下或不要",
+    "count": "{count} 件等你定",
+    "needsLabel": "等你定",
+    "listLabel": "等你定的项目",
+    "empty": "都处理完了。",
+    "proposalTag": "提案",
+    "kind": {
+      "note": "笔记",
+      "task": "任务",
+      "event": "时段",
+      "create": "新增文件",
+      "update": "修改文件",
+      "delete": "删除",
+      "move": "移动",
+      "copy": "复制",
+      "folder": "新增文件夹"
+    },
+    "source": {
+      "collect": "收集",
+      "draft": "Agent 草稿"
+    },
+    "from": "来自 {origin}",
+    "writesTo": "收下后写入：",
+    "dest": {
+      "note": "收件文件夹的新笔记",
+      "journal": "今日日志的“{section}”",
+      "journalNew": "今日日志的“{section}”（今天的日志还没建立，收下时按模板建立）"
+    },
+    "diff": {
+      "hidden": "还有 {count} 行没列出"
+    },
+    "merged": "另有 {count} 个来源提了同一件事，收下或不要时一并处理。",
+    "accept": "收下",
+    "reject": "不要",
+    "accepted": "已收下“{title}”",
+    "rejected": "已退回“{title}”",
+    "undo": "撤销",
+    "undoFailed": "无法撤销，文件已被改过",
+    "failed": "处理失败，请重试",
+    "conflict": "文件在草稿生成后被改过，请到任务中心逐条确认",
+    "openReview": "到任务中心",
+    "viewAll": "等你定共 {count} 件，全部查看"
   }
 }

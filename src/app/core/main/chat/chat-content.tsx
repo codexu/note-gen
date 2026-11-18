@@ -49,6 +49,7 @@ import { PluginChatMessageActions } from '@/components/plugins/plugin-embedded-v
 import { getAgentArtifactPaths } from '@/lib/agent/artifacts'
 import { ChatUiMessages } from '@/components/chat-ui/chat-ui-messages'
 import { ChatResponse } from '@/components/chat-ui/chat-response'
+import { ThreadMessageCards } from '../threads/thread-cards'
 
 interface DisplayedConversationCompaction {
   revision: number
@@ -643,6 +644,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
               artifacts={artifacts}
             />
             {!chat.agentHistory && !isLiveAgentVisible && <ChatUiMessages chat={chat} />}
+            <ThreadMessageCards chatId={chat.id} />
             {!isGeneratingMessage && (
               <MessageControl chat={chat}>
                 <MarkText chat={chat} />

@@ -10,6 +10,7 @@ import BacklinksPanel from '@/app/core/main/backlinks/backlinks-panel'
 import { MessageSquare, Link2, SlidersHorizontal, Waypoints } from 'lucide-react'
 import { PluginIcon } from './plugin-icon'
 import Chat from '@/app/core/main/chat'
+import { ChatDock } from '@/app/core/main/threads/chat-dock'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PluginViewSurface } from '@/components/plugins/plugin-view-surface'
 import { usePluginUiStore } from '@/lib/plugins/ui-registry'
@@ -56,7 +57,7 @@ export function PluginRightSidebar() {
           ))}
         </TabsList>
       </div>
-      <TabsContent forceMount value="@chat" className="min-h-0 overflow-hidden data-[state=inactive]:hidden"><Chat /></TabsContent>
+      <TabsContent forceMount value="@chat" className="min-h-0 overflow-hidden data-[state=inactive]:hidden"><ChatDock><Chat /></ChatDock></TabsContent>
       <TabsContent forceMount value="@backlinks" className="min-h-0 overflow-hidden data-[state=inactive]:hidden"><BacklinksPanel /></TabsContent>
       <TabsContent forceMount value="@properties" className="min-h-0 overflow-hidden data-[state=inactive]:hidden"><PropertiesPanel /></TabsContent>
       <TabsContent forceMount value="@graph" className="min-h-0 overflow-hidden data-[state=inactive]:hidden"><LocalGraphPanel /></TabsContent>

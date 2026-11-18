@@ -9,6 +9,7 @@ import { listAgentSettings } from '@/db/agents'
 import { useAgentTaskStore } from '@/lib/agent-tasks'
 import { useAnywhereStore } from '@/lib/anywhere/store'
 import { useDecisions } from '@/lib/decide/use-decisions'
+import { usePageVisibility } from '@/lib/fork-overlays/use-page-visibility'
 import { useInboxPendingCount } from '@/lib/inbox/use-inbox-pending'
 import { useKnowledgeOverlay } from '@/lib/sidebar-v3/knowledge'
 import { useSidebarCollapse, type SidebarSection } from '@/lib/sidebar-v3/collapse'
@@ -20,8 +21,6 @@ import useArticleStore from '@/stores/article'
 import useCollectStore from '@/stores/collect'
 import useDecideStore from '@/stores/decide'
 import useHomeStore from '@/stores/home'
-import useInboxStore from '@/stores/inbox'
-import usePromptLibraryStore from '@/stores/prompt-library'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import useSettingStore from '@/stores/setting'
 import useThreadsStore from '@/stores/threads'
@@ -49,18 +48,6 @@ const OPEN: Record<NavKey, () => void> = {
 
 const ROW = 'flex h-7 w-full items-center gap-2 px-2 text-left text-[13px] text-muted-ink'
 const LABEL = 'flex h-6 w-full items-center gap-1.5 px-2 text-[11px] font-semibold tracking-[0.08em] text-faint'
-
-function useNavVisibility() {
-  const home = useHomeStore(state => state.visible)
-  const decide = useDecideStore(state => state.visible)
-  const collect = useCollectStore(state => state.visible)
-  const inbox = useInboxStore(state => state.visible)
-  const threads = useThreadsStore(state => state.visible)
-  const week = useWeekOverlay(state => state.visible)
-  const knowledge = useKnowledgeOverlay(state => state.visible)
-  const promptLibrary = usePromptLibraryStore(state => state.visible)
-  return { home, decide, collect, inbox, threads, week, knowledge, promptLibrary }
-}
 
 function useAgentRows(): AgentRow[] {
   const [agents, setAgents] = useState<AgentSettings[]>([])
@@ -181,7 +168,7 @@ export function SidebarV3() {
   const load = useSidebarCollapse(state => state.load)
   const decideCount = useDecisions().length
   const collectPending = useInboxPendingCount()
-  const visibility = useNavVisibility()
+  const visibility = usePageVisibility()
   const nav = buildNav({ decideCount, collectPending, visibility })
 
   useEffect(() => { void load() }, [load])

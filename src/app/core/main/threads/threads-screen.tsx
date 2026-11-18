@@ -51,7 +51,7 @@ function ThreadRow({ thread, project, projects, current, now, onOpen, onMove }: 
         type="button"
         onClick={onOpen}
         aria-current={current ? 'true' : undefined}
-        className="grid min-w-0 flex-1 grid-cols-[1fr_auto] gap-x-2 rounded-md px-2.5 py-2 text-left"
+        className="grid min-w-0 flex-1 grid-cols-[1fr_auto] gap-x-2 rounded-md px-2.5 py-2 text-left outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-ink">
           {thread.isPinned && <Pin aria-label={t('pinned')} className="size-3 shrink-0 text-muted-ink" />}
@@ -150,9 +150,9 @@ function ThreadList() {
                   type="button"
                   onClick={() => toggle(key)}
                   aria-expanded={!closed}
-                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs font-medium text-muted-ink hover:bg-hover"
+                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs font-medium text-muted-ink outline-none hover:bg-hover focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
                 >
-                  <ChevronDown aria-hidden className={cn('size-3 transition-transform', closed && '-rotate-90')} />
+                  <ChevronDown aria-hidden className={cn('size-3 motion-safe:transition-transform', closed && '-rotate-90')} />
                   {key ? <Hash aria-hidden className="size-3" /> : null}
                   <span className="min-w-0 flex-1 truncate">{key || t('ungrouped')}</span>
                   <Count value={group.threads.length} />
@@ -250,7 +250,7 @@ export function ThreadsScreen() {
 
   const modes: ThreadGroupMode[] = ['project', 'recent']
   return (
-    <PageSurface label={t('title')}>
+    <PageSurface label={t('title')} onDismiss={hide}>
       <PageHeader
         title={t('title')}
         subtitle={t('subtitle')}

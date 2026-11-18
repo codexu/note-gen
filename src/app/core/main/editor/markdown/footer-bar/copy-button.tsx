@@ -4,6 +4,7 @@ import { Editor } from '@tiptap/react'
 import { Copy, FileCode, FileJson, FileText } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { toast } from '@/hooks/use-toast'
+import { useTranslations } from 'next-intl'
 import { markdownToPlainText } from '@/lib/markdown-to-plain-text'
 import { parseMarkdownToJson, renderMarkdownToHtml } from '../markdown-export'
 import {
@@ -22,6 +23,7 @@ interface CopyButtonProps {
 type CopyFormat = 'markdown' | 'html' | 'json' | 'text'
 
 export function CopyButton({ editor, markdown, getMarkdown }: CopyButtonProps) {
+  const t = useTranslations('editor.statusBar.documentActions')
   const [isOpen, setIsOpen] = useState(false)
   const [copying, setCopying] = useState<CopyFormat | null>(null)
 
@@ -36,20 +38,20 @@ export function CopyButton({ editor, markdown, getMarkdown }: CopyButtonProps) {
         : getContent
       await navigator.clipboard.writeText(content)
       toast({
-        title: '复制成功',
-        description: `已复制为 ${format.toUpperCase()} 格式`
+        title: t('copied'),
+        description: t('copiedAs', { format: format.toUpperCase() })
       })
     } catch {
       toast({
-        title: '复制失败',
-        description: '无法复制到剪贴板',
+        title: t('copyFailed'),
+        description: t('clipboardUnavailable'),
         variant: 'destructive'
       })
     } finally {
       setCopying(null)
       setIsOpen(false)
     }
-  }, [])
+  }, [t])
 
   const getCurrentMarkdown = useCallback(
     () => getMarkdown?.() ?? markdown ?? editor.getMarkdown(),
@@ -93,11 +95,12 @@ export function CopyButton({ editor, markdown, getMarkdown }: CopyButtonProps) {
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
-          title="复制"
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-0"
+          type="button"
+          title={t('copy')}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
           <Copy className="size-3" />
-          <span>复制</span>
+          <span>{t('copy')}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -119,7 +122,7 @@ export function CopyButton({ editor, markdown, getMarkdown }: CopyButtonProps) {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleCopyText} disabled={copying !== null}>
           <FileText size={12} />
-          <span>纯文本</span>
+          <span>{t('plainText')}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

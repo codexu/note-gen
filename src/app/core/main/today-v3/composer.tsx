@@ -1,6 +1,6 @@
 'use client'
 
-// Fork（almanac ALMNC-16.2）：v5 底部「記／問」輸入列。Tab 切換模式。
+// Fork（almanac ALMNC-16.2）：v5 底部「記／問」輸入列。Tab 從記切到問，下一次 Tab 繼續前進。
 //   記 → 走收集拆分（stores/collect → lib/collect/split），提案出現在右欄「等你定」，收進來的東西出現在「今天收進來」
 //   問 → 走隨處對話（打開 AnywhereChatPanel，送出沿用 'quick-prompt-send'，由右側欄的 ChatInput 帶上下文送出）
 import { useState } from 'react'
@@ -86,21 +86,21 @@ export function TodayComposer() {
         onChange={event => setValue(event.target.value)}
         onKeyDown={event => {
           if (event.nativeEvent.isComposing) return
-          if (event.key === 'Tab' && !event.shiftKey) {
+          if (event.key === 'Tab' && mode === 'note' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
             event.preventDefault()
-            setMode(current => (current === 'note' ? 'ask' : 'note'))
+            setMode('ask')
           } else if (event.key === 'Enter') {
             event.preventDefault()
             submit()
           }
         }}
-        className="min-w-0 flex-1 bg-transparent text-sm text-ink caret-brand outline-none placeholder:text-faint"
+        className="min-w-0 flex-1 rounded bg-transparent text-sm text-ink caret-brand outline-none placeholder:text-faint focus-visible:ring-1 focus-visible:ring-ring"
       />
       <span className={cn('shrink-0 rounded-md bg-hover px-[7px] py-px text-[11px] font-semibold text-muted-ink transition-opacity duration-100', detected ? 'opacity-100' : 'opacity-0')} aria-hidden={!detected}>
         {detected ? t(`detect.${detected}`) : ''}
       </span>
-      <kbd className="inline-flex shrink-0 rounded-[4px] bg-sunken px-[5px] font-mono text-[10.5px] leading-[18px] text-muted-ink">Tab</kbd>
-      <Button size="sm" onClick={submit} aria-disabled={!value.trim()}>{t(mode === 'note' ? 'submitNote' : 'submitAsk')}</Button>
+      {mode === 'note' && <kbd className="inline-flex shrink-0 rounded-[4px] bg-sunken px-[5px] font-mono text-[10.5px] leading-[18px] text-muted-ink">Tab</kbd>}
+      <Button type="button" size="sm" onClick={submit} aria-disabled={!value.trim()}>{t(mode === 'note' ? 'submitNote' : 'submitAsk')}</Button>
     </div>
   )
 }

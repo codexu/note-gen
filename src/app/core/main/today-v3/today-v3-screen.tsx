@@ -139,7 +139,7 @@ function CaptureRail({ layout }: { layout: TodayV3Layout }) {
         <div key={item.key} className="flex items-baseline gap-2.5 py-1.5">
           <span className={cn(LABEL, 'w-10 shrink-0')}>{t(`kind.${item.kind}`)}</span>
           {item.loading
-            ? <span className="flex flex-1 flex-col gap-2" role="status" aria-label={t('reading')}><i className="block h-2 animate-pulse rounded bg-sunken" /><i className="block h-2 w-3/5 animate-pulse rounded bg-sunken" /></span>
+            ? <span className="flex flex-1 flex-col gap-2" role="status" aria-label={t('reading')}><i className="block h-2 motion-safe:animate-pulse rounded bg-sunken" /><i className="block h-2 w-3/5 motion-safe:animate-pulse rounded bg-sunken" /></span>
             : <span className="min-w-0 flex-1 truncate text-[13px] leading-5" title={item.title}>{item.title}</span>}
         </div>
       ))}
@@ -165,7 +165,7 @@ export function TodayV3Screen() {
   const openTask = (path: string) => { hide(); openNote(path) }
 
   return (
-    <PageSurface label={t('title')}>
+    <PageSurface label={t('title')} onDismiss={hide}>
       <PageHeader
         title={t('title')}
         subtitle={<span className="font-mono text-xs">{t('dateLabel', { month: heading.month, day: heading.day, weekday: t(`weekday.${heading.weekday}`), week: heading.week })}</span>}

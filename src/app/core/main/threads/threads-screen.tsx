@@ -20,6 +20,7 @@ import useHomeStore from '@/stores/home'
 import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
 import useThreadsStore from '@/stores/threads'
+import { CreateJobButton } from '../jobs/create-job'
 import { Count, EmptyState, PageHeader, PageSurface } from '../page-ui'
 
 function relativeTime(ms: number, now: number, t: (key: string, values?: Record<string, number>) => string): string {
@@ -255,9 +256,12 @@ export function ThreadsScreen() {
         subtitle={t('subtitle')}
         onBack={hide}
         actions={(
-          <Button variant="outline" size="sm" className="gap-2" disabled={chatCount === 0} onClick={() => void startNewConversation()}>
-            <MessageSquarePlus aria-hidden className="size-4" />{t('newThread')}
-          </Button>
+          <>
+            <CreateJobButton />
+            <Button variant="outline" size="sm" className="gap-2" disabled={chatCount === 0} onClick={() => void startNewConversation()}>
+              <MessageSquarePlus aria-hidden className="size-4" />{t('newThread')}
+            </Button>
+          </>
         )}
       />
       <div className="flex min-h-0 flex-1">

@@ -1,5 +1,6 @@
 // Fork（#30）：Agent 任務表。模式比照 memory_jobs；草稿以 JSON 存在同一列。
 import { getDb } from './index'
+import { JOB_TASK_PREFIX } from '@/lib/jobs/task-id'
 import type { AgentTask, AgentTaskKind, AgentTaskStatus, DraftChange } from '@/lib/agent-tasks/types'
 
 interface AgentTaskRow {
@@ -78,12 +79,15 @@ export async function listAgentTasks(limit = 100): Promise<AgentTask[]> {
   await initAgentTaskDb()
   const db = await getDb()
   const rows = await db.select<AgentTaskRow[]>(
-    `select id, kind, title, prompt, status, drafts, result, error, tokens,
+    `with recent as (
+       select id from agent_tasks where id not glob $1 order by created_at desc limit $2
+     )
+     select id, kind, title, prompt, status, drafts, result, error, tokens,
             created_at as createdAt, updated_at as updatedAt, finished_at as finishedAt
      from agent_tasks
-     order by created_at desc
-     limit $1`,
-    [limit]
+     where id glob $1 or id in (select id from recent)
+     order by created_at desc`,
+    [`${JOB_TASK_PREFIX}*`, limit]
   )
   return rows.map(fromRow)
 }

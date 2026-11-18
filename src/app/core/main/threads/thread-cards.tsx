@@ -49,7 +49,6 @@ function KickoffCard({ view, onAction }: { view: KickoffCardView, onAction: (act
       <div className="flex items-center gap-2">
         <ListTodo aria-hidden className="size-3.5 shrink-0 text-muted-ink" />
         <span className="text-xs text-muted-ink">{t('kickoff')}</span>
-        {view.placeholder && <span className="rounded-sm bg-hover px-1.5 py-0.5 text-[11px] text-muted-ink">{t('placeholder')}</span>}
         <span className="ml-auto text-xs text-muted-ink">{t(view.stateKey)} · {view.done}/{view.total}</span>
       </div>
       <p className="mt-1 font-medium text-ink">{view.title}</p>
@@ -112,6 +111,7 @@ export function ThreadMessageCards({ chatId }: { chatId: number }) {
       {cards.map((card: ThreadCard) => {
         const view = resolveThreadCard(card)
         const onAction = (action: CardAction) => void act(chatId, card.id, action)
+        if (view.type === 'kickoff-result' && view.placeholder) return null
         return view.type === 'proposal'
           ? <ProposalCard key={card.id} view={view} onAction={onAction} />
           : <KickoffCard key={card.id} view={view} onAction={onAction} />

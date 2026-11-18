@@ -1,6 +1,7 @@
 // Fork（#30）：Agent 任務中心。重用 AgentRuntime，每個任務各自一份狀態與草稿；
 // 不經過 chat-send.tsx／useChatStore（docs/adr/0001）。
 import type OpenAI from 'openai'
+import { isJobTaskId } from '@/lib/jobs/task-id'
 import type { AgentRuntimeCallbacks, AgentRuntimeInput, AgentRuntimeResult, AgentTool } from '@/lib/agent/types'
 import { buildBackgroundTools, type DraftSink } from './draft-tools'
 import {
@@ -110,10 +111,10 @@ export class AgentTaskCenter {
     this.emit()
   }
 
-  async enqueue(input: { prompt: string; kind?: AgentTaskKind; title?: string }): Promise<AgentTask> {
+  async enqueue(input: { prompt: string; kind?: AgentTaskKind; title?: string; id?: string }): Promise<AgentTask> {
     const now = this.deps.now()
     const task: AgentTask = {
-      id: createTaskId(),
+      id: input.id ?? createTaskId(),
       kind: input.kind ?? 'chat',
       title: input.title?.trim() || titleFromPrompt(input.prompt),
       prompt: input.prompt,
@@ -123,13 +124,14 @@ export class AgentTaskCenter {
       createdAt: now,
       updatedAt: now,
     }
-    await this.save(task)
+    await this.save(task, isJobTaskId(task.id))
     void this.pump()
     return task
   }
 
   /** 取消：排隊中的直接取消；執行中的請 runtime 停下，已做的草稿留給你審。 */
   async cancel(id: string) {
+    if (isJobTaskId(id)) return
     const task = this.tasks.get(id)
     if (!task) return
     if (task.status === 'queued') {
@@ -145,6 +147,7 @@ export class AgentTaskCenter {
 
   /** 「繼續」：沒做完或失敗的任務帶著既有草稿重新排隊。 */
   async resume(id: string) {
+    if (isJobTaskId(id)) return
     const task = this.tasks.get(id)
     if (!task || (task.status !== 'interrupted' && task.status !== 'failed')) return
     await this.save({ ...task, status: 'queued', error: undefined, updatedAt: this.deps.now() })
@@ -152,6 +155,7 @@ export class AgentTaskCenter {
   }
 
   async remove(id: string) {
+    if (isJobTaskId(id)) return
     const task = this.tasks.get(id)
     if (!task || task.status === 'running') return
     this.tasks.delete(id)
@@ -168,10 +172,11 @@ export class AgentTaskCenter {
     await this.save({ ...next, status, finishedAt: status === 'completed' ? this.deps.now() : task.finishedAt })
   }
 
-  private async save(task: AgentTask) {
+  private async save(task: AgentTask, persistBeforePublish = false) {
+    if (persistBeforePublish) await this.deps.persist(task)
     this.tasks.set(task.id, task)
     this.emit()
-    await this.deps.persist(task)
+    if (!persistBeforePublish) await this.deps.persist(task)
   }
 
   private emit() {
@@ -193,7 +198,8 @@ export class AgentTaskCenter {
       const candidates = [...this.tasks.values()].filter(task => !waiting.includes(task))
       for (const task of pickRunnable(candidates, limit)) {
         this.tasks.set(task.id, { ...task, status: 'running' })
-        void this.run(task.id)
+        if (isJobTaskId(task.id)) void this.runJobAttempt(task.id)
+        else void this.run(task.id)
       }
     })().finally(() => {
       this.pumping = null
@@ -203,6 +209,23 @@ export class AgentTaskCenter {
       }
     })
     return this.pumping
+  }
+
+  private async runJobAttempt(id: string) {
+    try {
+      await this.run(id)
+    } catch (error) {
+      // A storage error must release the reservation without unlocking dependent steps.
+      this.aborts.delete(id)
+      const task = this.tasks.get(id)
+      if (!task) return
+      const status = statusAfterRun(task.drafts) === 'awaiting_review' ? 'awaiting_review' : 'failed'
+      const detail = error instanceof Error ? error.message : String(error)
+      const failed = { ...task, status, error: detail, updatedAt: this.deps.now() } as const
+      await this.save(failed).catch(caught => console.error('[jobs] could not save failed attempt:', caught))
+      this.deps.notify(status, failed)
+      void this.pump()
+    }
   }
 
   private async runFixed(id: string, runner: TaskRunner) {
@@ -246,7 +269,8 @@ export class AgentTaskCenter {
     else if (cancelled) next = { ...current, status: 'cancelled', updatedAt: now, finishedAt: now }
     else if (error !== undefined) next = { ...current, status: 'failed', error, updatedAt: now }
     else next = { ...current, status: runStatus, result, updatedAt: now, finishedAt: now }
-    await this.save(next)
+    // P6 can dispatch dependents immediately after observing a successful run.
+    await this.save(next, isJobTaskId(id))
     if (next.status === 'awaiting_review' || next.status === 'completed' || next.status === 'failed') {
       this.deps.notify(next.status, next)
     }

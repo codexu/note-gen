@@ -15,6 +15,7 @@ import { useDecisions } from '@/lib/decide/use-decisions'
 import { cn } from '@/lib/utils'
 import useCollectStore from '@/stores/collect'
 import useDecideStore from '@/stores/decide'
+import { JobReviewPreview } from '../jobs/job-result'
 import { Count, EmptyState, PageHeader, PageSurface } from '../page-ui'
 import { DiffBlock, KIND_ICON, destinationText, useDecideActions } from './decide-parts'
 
@@ -24,21 +25,26 @@ function itemTitle(item: DecideItem) {
 
 function Detail({ item }: { item: DecideItem }) {
   const t = useTranslations('decide')
+  const jobT = useTranslations('jobs')
   const { busy, accept, reject } = useDecideActions()
   const Icon = KIND_ICON[item.kind]
   const { diff } = item.preview
   return (
     <article className="max-w-[640px]" data-testid="decide-detail">
       <div className="flex items-center gap-2 font-mono text-[10.5px] text-faint">
-        <span className="flex items-center gap-1.5"><Icon className="size-3" aria-hidden />{t(`kind.${item.kind}`)}</span>
+        <span className="flex items-center gap-1.5"><Icon className="size-3" aria-hidden />{item.kind === 'job' ? jobT('result') : t(`kind.${item.kind}`)}</span>
         <span className="rounded border border-dashed border-faint px-1.5 py-px">{t('proposalTag')}</span>
-        <span>{t(`source.${item.source}`)}</span>
+        <span>{item.source === 'job' ? jobT('card') : t(`source.${item.source}`)}</span>
       </div>
       <h2 className="mt-2 text-xl leading-7 font-semibold tracking-[-0.01em] break-words">{itemTitle(item)}</h2>
       <p className="mt-1 text-[13.5px] leading-6 text-muted-foreground">
         {[item.when, t('from', { origin: item.origin })].filter(Boolean).join(' · ')}
       </p>
-      <p className="mt-3 text-[13.5px] leading-6 text-muted-foreground">{t('writesTo')}<span className="text-ink">{destinationText(t, item.preview)}</span></p>
+      {item.preview.type === 'job' ? (
+        <div className="mt-3"><JobReviewPreview criterion={item.preview.criterion} result={item.preview.result} /></div>
+      ) : (
+        <p className="mt-3 text-[13.5px] leading-6 text-muted-foreground">{t('writesTo')}<span className="text-ink">{destinationText(t, item.preview)}</span></p>
+      )}
       {diff && <DiffBlock diff={diff} className="mt-3" />}
       {item.duplicates.length > 0 && <p className="mt-3 text-xs text-faint">{t('merged', { count: item.duplicates.length })}</p>}
       <div className="mt-5 flex items-center gap-1.5">
@@ -51,6 +57,7 @@ function Detail({ item }: { item: DecideItem }) {
 
 function DecidePage() {
   const t = useTranslations('decide')
+  const jobT = useTranslations('jobs')
   const hide = useDecideStore(state => state.hide)
   const selected = useDecideStore(state => state.selected)
   const select = useDecideStore(state => state.select)
@@ -82,7 +89,7 @@ function DecidePage() {
                     <Icon className="mt-1 size-3.5 shrink-0 text-faint" aria-hidden />
                     <span className="min-w-0 flex-1">
                       <span className={cn('block truncate text-[13.5px] leading-5', active && 'font-semibold')}>{itemTitle(item)}</span>
-                      <span className="block truncate text-xs leading-5 text-faint">{[t(`kind.${item.kind}`), item.when, t('from', { origin: item.origin })].filter(Boolean).join(' · ')}</span>
+                      <span className="block truncate text-xs leading-5 text-faint">{[item.kind === 'job' ? jobT('result') : t(`kind.${item.kind}`), item.when, t('from', { origin: item.origin })].filter(Boolean).join(' · ')}</span>
                     </span>
                   </button>
                 </li>

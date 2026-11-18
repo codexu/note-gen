@@ -1,6 +1,7 @@
 // Fork（almanac ALMNC-8）：收下提案＝寫進既有位置，不新增資料表。
 // 筆記 → 收件資料夾的新檔；任務、時段 → 今日日誌的「捕捉軌」區塊（時段是帶 ⏰ 的任務行，今日頁的時間軸讀得到）。
 import { noteExists, readNote, revealInFileTree, writeNote } from '@/lib/daily/note-io'
+import { commitNoteWrites } from '@/lib/daily/coordinated-write'
 import { toDateKey } from '@/lib/daily/format'
 import { ensureDailyNote } from '@/lib/daily/open-daily-note'
 import { captureFileName, capturePath } from '@/lib/home/capture'
@@ -38,9 +39,11 @@ export async function acceptProposal(proposal: Proposal, options: { noteFolder: 
 
   const { path } = await ensureDailyNote(now)
   const before = await readNote(path) ?? ''
-  const after = insertLinesInSection(before, [proposalTaskLine(proposal, toDateKey(now))], QUICK_ADD_SECTION)
-  await writeNote(path, after)
-  return { path, record: { writes: [{ path, before, after }] } }
+  // Fork（ALMNC-21）：經編輯器協調寫入，日誌開著且有未存文字時把同一行插到最新內容
+  const line = proposalTaskLine(proposal, toDateKey(now))
+  const insert = (content: string) => insertLinesInSection(content, [line], QUICK_ADD_SECTION)
+  const writes = await commitNoteWrites([{ path, before, after: insert(before), rebase: insert }])
+  return { path, record: { writes } }
 }
 
 /** 復原任務、時段（檔案被別處改過就不動，回傳 false）。 */

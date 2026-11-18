@@ -221,6 +221,23 @@ npx pnpm@9 install --frozen-lockfile
 | 2026-11-19 | `src/app/core/main/agent-tasks/background-task-controls.tsx` | 背景任務角標排除等你定的整理草稿 | ALMNC-17：自動整理 |
 | 2026-11-19 | `src/app/core/main/home/cards/tasks-card.tsx` | 首頁任務卡沿用等你定入口處理整理草稿 | ALMNC-17：自動整理 |
 | 2026-11-19 | Fork：`src/lib/organize/`、`src/app/core/main/organize/` | 閒置掃描、規則、草稿、復原、設定和測試 | ALMNC-17：自動整理 |
+| 2026-11-19 | `src/app/core/main/left-sidebar.tsx` | v3 時早退回 `<SidebarV3 />`（import＋一行），classic 路徑不變 | ALMNC-20：v5 側欄方案 B |
+| 2026-11-19 | `src/app/core/main/page.tsx` | v3 時左欄固定 240px（defaultSize／minSize／maxSize 用 px）；classic 維持百分比 | ALMNC-20：側欄固定 240px |
+| 2026-11-19 | `src/app/core/main/home/home-service.tsx` | 知識頁覆蓋層加入互斥、開檔收起，並掛上 `<KnowledgeScreen />`（知識頁含大綱與外掛左側欄視圖分頁） | ALMNC-20：知識導覽項 |
+| 2026-11-19 | `src/app/core/main/collect/collect-screen.tsx` | 頁首加「收集｜Inbox」分頁（v3 才顯示） | ALMNC-20：Inbox 收進收集 |
+| 2026-11-19 | `src/app/core/main/inbox/inbox-screen.tsx` | 頁首加「收集｜Inbox」分頁（v3 才顯示） | ALMNC-20：Inbox 收進收集 |
+| 2026-11-19 | `src/app/core/main/prompt-library/prompt-library-screen.tsx` | 頁首加知識分頁（v3 才顯示） | ALMNC-20：提示詞庫收進知識 |
+| 2026-11-19 | `src/app/core/main/week/week-screen.tsx` | 計畫頁左側加月曆欄（重用 SidebarCalendar） | ALMNC-20：月曆移到計畫頁 |
+| 2026-11-19 | `messages/en.json`、`messages/zh.json`、`messages/zh-TW.json` | 新增頂層 `sidebarV3`、`week.calendarLabel` | ALMNC-20：側欄字串 |
+| 2026-11-19 | Fork：`src/lib/sidebar-v3/`、`src/app/core/main/sidebar-v3/` | 導覽資料組裝與測試、收合狀態（store.json）、知識頁覆蓋層、側欄與分頁元件 | ALMNC-20 |
+| 2026-11-19 | `messages/en.json`、`messages/zh.json`、`messages/zh-TW.json` | 按簡中鍵序補齊 350 個既有繁中缺鍵，三語新增編輯器狀態列字串 | ALMNC-18：繁中完整性與狀態列在地化 |
+| 2026-11-19 | `src/app/core/main/editor/markdown/footer-bar/copy-button.tsx` | 複製按鈕、純文字選項與結果訊息接上語系，補焦點環 | ALMNC-18：狀態列繁中與鍵盤操作 |
+| 2026-11-19 | `src/app/core/main/editor/markdown/footer-bar/export-button.tsx` | 匯出按鈕與結果訊息接上語系，補焦點環 | ALMNC-18：狀態列繁中與鍵盤操作 |
+| 2026-11-19 | `src/app/core/main/page.tsx` | V3 頁面遮住工作區時，讓背景中欄和右欄暫停接收焦點 | ALMNC-18：Tab 跳過被遮住的控制項 |
+| 2026-11-19 | `src/components/ui/button.tsx` | V3 按下縮放只在允許動態效果時生效 | ALMNC-18：減少動態效果 |
+| 2026-11-19 | `src/components/ui/command.tsx` | 將無障礙標題放入對話框，關閉後還原焦點，補搜尋輸入列焦點環 | ALMNC-18：命令面板鍵盤操作 |
+| 2026-11-19 | `src/components/ui/dialog.tsx` | 減少動態效果時停用對話框縮放動畫 | ALMNC-18：減少動態效果 |
+| 2026-11-19 | `src/components/ui/dropdown-menu.tsx` | 減少動態效果時停用選單與子選單縮放動畫 | ALMNC-18：減少動態效果 |
 
 ## 刻意不改的東西
 

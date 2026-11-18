@@ -32,7 +32,7 @@ function Entry({ entry, startHour, onOpenTask }: { entry: TimelineEntry, startHo
   const className = cn(
     'absolute overflow-hidden rounded-md px-2 py-[5px] text-left text-xs leading-4 transition-colors duration-100',
     calendar ? 'bg-sunken' : 'border border-line bg-hover hover:bg-active',
-    clickable && 'cursor-pointer',
+    clickable && 'cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring',
   )
   const body = (
     <>
@@ -65,8 +65,8 @@ function ProposalBlock({ proposal, startHour, busy, onAccept, onReject }: {
       <span className="text-[10.5px] text-faint">{t('proposal')}</span>
       <span className="font-medium text-ink">{proposal.title} <span className="font-mono text-[10.5px] text-muted-ink">{proposal.time}–{proposal.end}</span></span>
       <span className="mt-auto flex gap-3 pt-1">
-        <button type="button" disabled={busy} onClick={onAccept} className="cursor-pointer font-medium text-ink hover:underline disabled:opacity-50">{t('accept')}</button>
-        <button type="button" disabled={busy} onClick={onReject} className="cursor-pointer text-muted-ink hover:text-ink disabled:opacity-50">{t('reject')}</button>
+        <button type="button" disabled={busy} onClick={onAccept} className="cursor-pointer rounded-sm font-medium text-ink outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50">{t('accept')}</button>
+        <button type="button" disabled={busy} onClick={onReject} className="cursor-pointer rounded-sm text-muted-ink outline-none hover:text-ink focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50">{t('reject')}</button>
       </span>
     </div>
   )

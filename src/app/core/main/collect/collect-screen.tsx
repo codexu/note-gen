@@ -20,6 +20,7 @@ import useCollectStore, { type CaptureItem, type CaptureProposal } from '@/store
 import useInboxStore, { selectUnprocessedRecords } from '@/stores/inbox'
 import { getMarkListItemContent } from '../mark/mark-list-item-content'
 import { Count, EmptyState, PageHeader, PageSurface } from '../page-ui'
+import { CollectTabs } from '../sidebar-v3/section-tabs'
 
 const KIND_ICON: Record<ProposalKind, typeof FileText> = { note: FileText, task: ListTodo, event: CalendarClock }
 const INPUT_ICON = { text: Type, link: Link2, image: ImagePlus, file: Paperclip } as const
@@ -130,13 +131,13 @@ function ProposalCard({ item, proposal }: { item: CaptureItem, proposal: Capture
           value={proposal.title}
           onChange={event => edit(item.id, proposal.id, { title: event.target.value })}
           aria-label={t('fieldTitle')}
-          className="h-7 w-full rounded border border-line bg-bg px-1.5 text-[13px] outline-none focus-visible:border-faint"
+          className="h-7 w-full rounded border border-line bg-bg px-1.5 text-[13px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
         />
         {proposal.kind !== 'note' && (
           <div className="flex flex-col gap-1">
-            <input type="date" value={proposal.due} onChange={event => edit(item.id, proposal.id, { due: event.target.value })} aria-label={t('fieldDate')} className="h-7 w-full rounded border border-line bg-bg px-1 text-xs outline-none focus-visible:border-faint" />
+            <input type="date" value={proposal.due} onChange={event => edit(item.id, proposal.id, { due: event.target.value })} aria-label={t('fieldDate')} className="h-7 w-full rounded border border-line bg-bg px-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring" />
             {proposal.kind === 'event' && (
-              <input type="time" value={proposal.time} onChange={event => edit(item.id, proposal.id, { time: event.target.value })} aria-label={t('fieldTime')} className="h-7 w-full rounded border border-line bg-bg px-1 text-xs outline-none focus-visible:border-faint" />
+              <input type="time" value={proposal.time} onChange={event => edit(item.id, proposal.id, { time: event.target.value })} aria-label={t('fieldTime')} className="h-7 w-full rounded border border-line bg-bg px-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring" />
             )}
           </div>
         )}
@@ -200,7 +201,7 @@ function Entry({ item }: { item: CaptureItem }) {
 
         {item.state === 'reading' ? (
           <p className="mt-2.5 flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="inline-block size-2.5 animate-spin rounded-full border-[1.5px] border-faint border-r-transparent" aria-hidden />{t('reading')}
+            <span className="inline-block size-2.5 motion-safe:animate-spin rounded-full border-[1.5px] border-faint border-r-transparent" aria-hidden />{t('reading')}
           </p>
         ) : (
           <>
@@ -310,8 +311,10 @@ export function CollectScreen() {
   ]
 
   return (
-    <PageSurface label="Collect">
-      <PageHeader title={t('title')} subtitle={t('subtitle')} onBack={hide} />
+    <PageSurface label={t('title')} onDismiss={hide}>
+      <PageHeader title={t('title')} subtitle={t('subtitle')} onBack={hide}>
+        <CollectTabs active="collect" />
+      </PageHeader>
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_300px] lg:overflow-hidden">
         <div className="min-w-0 px-6 py-5 lg:overflow-y-auto">
           <div className="mx-auto max-w-[760px]">
@@ -335,7 +338,7 @@ export function CollectScreen() {
                 placeholder={t('placeholder')}
                 aria-label={t('inputLabel')}
                 rows={3}
-                className="block min-h-[76px] w-full resize-none border-0 bg-transparent px-4 pt-3.5 pb-1.5 text-base leading-[26px] outline-none placeholder:text-faint"
+                className="block min-h-[76px] w-full resize-none border-0 bg-transparent px-4 pt-3.5 pb-1.5 text-base leading-[26px] outline-none placeholder:text-faint focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
               />
               <div className={cn('mx-3 mb-3 flex min-h-9 items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px]', detected ? 'bg-hover' : 'border border-dashed border-line text-faint')} aria-live="polite">
                 {detected ? (

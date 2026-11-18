@@ -37,6 +37,7 @@ import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import { useEditorOutlineStore } from '@/stores/editor-outline'
 import { Outline } from './editor/markdown/outline'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { SidebarV3 } from './sidebar-v3/sidebar-v3'
 
 // Fork（#45）：功能入口的標籤六種語言都用英文。記錄不再放在下半部，改由 Inbox 頁（#46）處理。
 const SIDEBAR_TABS = [
@@ -234,6 +235,9 @@ export function LeftSidebar() {
   const renderTab = (tab: LauncherTab) => (
     <LauncherButton key={tab.id} icon={tab.icon} title={tab.title} active={tab.id === leftSidebarTab} secondary={pageVisible} onClick={() => void setLeftSidebarTab(tab.id)} />
   )
+
+  // Fork（almanac ALMNC-20）：v3 換成 v5 側欄（方案 B）；classic 完全不變。
+  if (isV3) return <SidebarV3 />
 
   return (
     <div ref={containerRef} className="flex h-full w-full flex-col border-r border-line-soft bg-panel" data-left-sidebar>

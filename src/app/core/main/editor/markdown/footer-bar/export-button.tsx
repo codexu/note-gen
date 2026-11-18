@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import useArticleStore from '@/stores/article'
 import { toast } from '@/hooks/use-toast'
+import { useTranslations } from 'next-intl'
 import {
   exportMarkdownSource,
   getMarkdownExportBaseName,
@@ -24,15 +25,16 @@ interface ExportButtonProps {
 }
 
 export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProps) {
+  const t = useTranslations('editor.statusBar.documentActions')
   const [isOpen, setIsOpen] = useState(false)
   const [exporting, setExporting] = useState<MarkdownExportFormat | null>(null)
 
   const showPdfExportStart = useCallback(() => {
     toast({
-      title: '正在准备 PDF',
-      description: '请在系统打印窗口中选择“另存为 PDF”。',
+      title: t('preparingPdf'),
+      description: t('saveAsPdf'),
     })
-  }, [])
+  }, [t])
 
   const runExport = useCallback(async (format: MarkdownExportFormat) => {
     try {
@@ -51,12 +53,12 @@ export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProp
       )
 
       if (exported) {
-        toast({ title: format === 'pdf' ? '已打开 PDF 打印窗口' : '导出成功' })
+        toast({ title: t(format === 'pdf' ? 'printDialogOpened' : 'exported') })
       }
     } catch (error) {
       console.error(`${format} export failed:`, error)
       toast({
-        title: '导出失败',
+        title: t('exportFailed'),
         description: error instanceof Error ? error.message : String(error),
         variant: 'destructive',
       })
@@ -64,7 +66,7 @@ export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProp
       setExporting(null)
       setIsOpen(false)
     }
-  }, [editor, getMarkdown, markdown, showPdfExportStart])
+  }, [editor, getMarkdown, markdown, showPdfExportStart, t])
 
   const handleExport = useCallback((format: MarkdownExportFormat) => {
     void runExport(format)
@@ -75,12 +77,12 @@ export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProp
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          title="导出"
-          className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-0"
+          title={t('export')}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           disabled={exporting !== null}
         >
           <Download className="size-3" />
-          <span>导出</span>
+          <span>{t('export')}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

@@ -1,6 +1,9 @@
 'use client'
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
+import { useUiV3 } from "@/lib/fork-ui"
+import { usePageVisibility } from "@/lib/fork-overlays/use-page-visibility"
+import useHomeStore from "@/stores/home"
 import { LeftSidebar } from "./left-sidebar"
 import { EditorLayout } from './editor/editor-layout'
 import { PluginRightSidebar } from '@/components/plugins/plugin-right-sidebar'
@@ -68,6 +71,11 @@ function ResizableWrapper() {
   const centerPanelRef = useRef<PanelImperativeHandle>(null)
   const rightPanelRef = useRef<PanelImperativeHandle>(null)
   
+  const isV3 = useUiV3() // Fork（almanac ALMNC-20）：v3 左欄固定 240px
+  const pages = usePageVisibility()
+  const homeLoaded = useHomeStore(state => state.loaded)
+  const workspaceCovered = isV3 && ((pages.home && homeLoaded) || pages.decide || pages.collect
+    || pages.threads || pages.week || pages.knowledge)
   const MIN_LEFT_SIDEBAR_WIDTH_PX = 240 // Fork：原本 320；almanac v5 規格 240px
   const MIN_RIGHT_SIDEBAR_WIDTH_PX = 280
   const MIN_EDITOR_WIDTH_PX = 400
@@ -227,13 +235,15 @@ function ResizableWrapper() {
     let index = 0
 
     // 左侧面板
+    const leftLayoutSize = actualLayout[index++]
     panels.push(
       <ResizablePanel
         key="left"
         id="left"
         panelRef={leftPanelRef}
-        defaultSize={`${actualLayout[index++]}%`}
-        minSize={`${minLeftSidebarSize}%`}
+        defaultSize={isV3 ? `${MIN_LEFT_SIDEBAR_WIDTH_PX}px` : `${leftLayoutSize}%`}
+        minSize={isV3 ? `${MIN_LEFT_SIDEBAR_WIDTH_PX}px` : `${minLeftSidebarSize}%`}
+        maxSize={isV3 ? `${MIN_LEFT_SIDEBAR_WIDTH_PX}px` : undefined}
         collapsible={true}
         collapsedSize="0%"
         onResize={(size) => {
@@ -265,6 +275,7 @@ function ResizableWrapper() {
       <ResizablePanel
         key="center"
         id="center"
+        inert={workspaceCovered}
         panelRef={centerPanelRef}
         defaultSize={`${actualLayout[index++]}%`}
         minSize={`${minEditorSize}%`}
@@ -297,6 +308,7 @@ function ResizableWrapper() {
       <ResizablePanel
         key="right"
         id="right"
+        inert={workspaceCovered}
         panelRef={rightPanelRef}
         defaultSize={`${actualLayout[index++]}%`}
         minSize={`${minRightSidebarSize}%`}

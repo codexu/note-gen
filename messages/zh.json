@@ -6659,6 +6659,22 @@
     "description": "点击选择记录工具，快速创建记录"
   },
   "editor": {
+    "statusBar": {
+      "documentActions": {
+        "copy": "复制",
+        "copied": "复制成功",
+        "copiedAs": "已复制为 {format} 格式",
+        "copyFailed": "复制失败",
+        "clipboardUnavailable": "无法复制到剪贴板",
+        "plainText": "纯文本",
+        "export": "导出",
+        "exported": "导出成功",
+        "exportFailed": "导出失败",
+        "preparingPdf": "正在准备 PDF",
+        "saveAsPdf": "请在系统打印窗口中选择“另存为 PDF”。",
+        "printDialogOpened": "已打开 PDF 打印窗口"
+      }
+    },
     "headingFolding": {
       "expand": "展开此标题内容",
       "collapse": "折叠此标题内容"
@@ -8245,7 +8261,41 @@
     "reviewProposal": "查看时段提案 {description}",
     "slotUnavailable": "此时段已无法使用，或原任务已变更。",
     "tasksUnavailable": "目前无法读取任务索引。",
-    "loadingTasks": "正在读取任务…"
+    "loadingTasks": "正在读取任务…",
+    "calendarLabel": "月历"
+  },
+  "sidebarV3": {
+    "navLabel": "主导航",
+    "search": "搜索或下指令",
+    "count": "{count} 件",
+    "nav": {
+      "today": "今天",
+      "decide": "等你定",
+      "collect": "收集",
+      "threads": "对话",
+      "knowledge": "知识",
+      "plan": "计划"
+    },
+    "agents": {
+      "title": "代理人",
+      "running": "{count} 执行中",
+      "add": "新增代理人",
+      "addFirst": "新增第一位代理人"
+    },
+    "vault": "MyVault",
+    "rules": {
+      "label": "规则",
+      "text": "代理人只能提案；写入一律经过等你定。"
+    },
+    "tabs": {
+      "collectGroup": "收集页面",
+      "collect": "收集",
+      "knowledgeGroup": "知识页面"
+    },
+    "knowledge": {
+      "title": "知识",
+      "subtitle": "时间线、画布与标签；笔记文件树在左侧 MyVault"
+    }
   },
   "organize": {
     "title": "自动整理",

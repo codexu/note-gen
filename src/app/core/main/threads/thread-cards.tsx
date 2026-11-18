@@ -68,7 +68,7 @@ function KickoffCard({ view, onAction }: { view: KickoffCardView, onAction: (act
             {task.owner && <span className="shrink-0 text-xs text-muted-ink">{task.owner}</span>}
             {view.showTaskStatus && (
               <span className="flex shrink-0 items-center gap-1 text-xs text-muted-ink">
-                {task.status === 'run' ? <LoaderCircle aria-hidden className="size-3 animate-spin" /> : task.status === 'done' ? <Check aria-hidden className="size-3" /> : null}
+                {task.status === 'run' ? <LoaderCircle aria-hidden className="size-3 motion-safe:animate-spin" /> : task.status === 'done' ? <Check aria-hidden className="size-3" /> : null}
                 {t(`task.${task.status}`)}
               </span>
             )}

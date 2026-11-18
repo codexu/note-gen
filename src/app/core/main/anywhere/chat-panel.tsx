@@ -40,8 +40,16 @@ function PanelBody() {
       : t('contextNone')
 
   useEffect(() => {
+    const opener = document.activeElement
+    const panel = textareaRef.current?.closest('[data-slot="anywhere-chat"]')
     const frame = requestAnimationFrame(() => textareaRef.current?.focus())
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frame)
+      const active = document.activeElement
+      if (opener instanceof HTMLElement && opener.isConnected && (active === document.body || panel?.contains(active))) {
+        opener.focus({ preventScroll: true })
+      }
+    }
   }, [])
 
   const canSend = draft.trim().length > 0 && !loading && hasModel
@@ -63,12 +71,17 @@ function PanelBody() {
       aria-label={t('title')}
       data-slot="anywhere-chat"
       initial={reduce ? false : { opacity: 0, scale: 0.96, y: 6 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
+      animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
       exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 6 }}
       transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
       style={{ transformOrigin: 'bottom right' }}
       onKeyDown={event => {
-        if (event.key === 'Escape') { event.stopPropagation(); close() }
+        if (event.key === 'Escape' && !event.defaultPrevented && !event.nativeEvent.isComposing
+          && event.target instanceof Node && event.currentTarget.contains(event.target)) {
+          event.preventDefault()
+          event.stopPropagation()
+          close()
+        }
       }}
       className="fixed right-4 bottom-10 z-40 flex h-[min(520px,calc(100vh-128px))] w-[400px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-md border border-line bg-menu text-ink shadow-dialog"
     >
@@ -96,7 +109,7 @@ function PanelBody() {
                 send()
               }
             }}
-            className="max-h-32 min-h-8 flex-1 resize-none border-0 bg-transparent p-1 text-[13px] shadow-none placeholder:text-faint focus-visible:ring-0"
+            className="max-h-32 min-h-8 flex-1 resize-none border-0 bg-transparent p-1 text-[13px] shadow-none placeholder:text-faint focus-visible:ring-1 focus-visible:ring-ring"
           />
           <Button size="icon-sm" aria-label={t('send')} disabled={!canSend} onClick={send}><ArrowUp aria-hidden /></Button>
         </div>

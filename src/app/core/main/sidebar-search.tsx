@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { ShortcutKbd } from '@/components/fork/shortcut-kbd'
+import { useUiV3 } from '@/lib/fork-ui'
 import { useFocusSearchShortcut } from './fork-shell/use-focus-search-shortcut'
 import { useToast } from '@/hooks/use-toast'
 import type { Mark } from '@/db/marks'
@@ -225,6 +226,7 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
   const { toast } = useToast()
   const inputRef = useRef<HTMLInputElement>(null)
   useFocusSearchShortcut(inputRef)
+  const isUiV3 = useUiV3()
   const semanticRequestRef = useRef(0)
   const fileLoadGenerationRef = useRef(0)
   const loadedWorkspaceRef = useRef<string | null>(null)
@@ -611,8 +613,8 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 px-2 py-2">
-        <InputGroup focusRing="subtle" className="h-[30px] rounded-md border-line-soft bg-bg shadow-none hover:border-line dark:bg-bg">
-          <InputGroupAddon className="text-faint">
+        <InputGroup focusRing="subtle" className="h-8 bg-background shadow-none v3:h-[30px] v3:rounded-md v3:border-line-soft v3:bg-bg v3:hover:border-line v3:dark:bg-bg">
+          <InputGroupAddon className="text-muted-foreground v3:text-faint">
             {fileLoading || relatedLoading ? <Spinner /> : <Search />}
           </InputGroupAddon>
           <InputGroupInput
@@ -627,9 +629,9 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
             }}
             placeholder={t('search.placeholder')}
             aria-label={t('search.placeholder')}
-            className="text-[12.5px] placeholder:text-faint focus-visible:outline-none"
+            className="text-xs v3:text-[12.5px] v3:placeholder:text-faint focus-visible:outline-none"
           />
-          {!query ? (
+          {!query && isUiV3 ? (
             <InputGroupAddon align="inline-end">
               <ShortcutKbd shortcut="⌘K" />
             </InputGroupAddon>

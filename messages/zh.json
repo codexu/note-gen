@@ -596,6 +596,10 @@
         "themePackage": {
           "title": "主题包",
           "default": "内置配色"
+        },
+        "uiMode": {
+          "title": "新界面（V3）",
+          "desc": "开启时使用 almanac V3 的单色外观与新页面；关闭则回到原本的外观，新页面隐藏。"
         }
       },
       "tools": {

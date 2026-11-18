@@ -6,9 +6,13 @@ import { describe, expect, it } from 'vitest'
 const css = readFileSync(path.resolve(__dirname, 'fork-theme.css'), 'utf8')
 const tokensCss = readFileSync(path.resolve(__dirname, 'fork-tokens.css'), 'utf8')
 
+// ALMNC-7：v5 數值放在新介面開關的區塊內
+const V3_SELECTOR = { ':root': ':root:where([data-ui="v3"])', '.dark': '.dark:where([data-ui="v3"])' } as const
+
 function block(selector: ':root' | '.dark'): string {
-  const start = css.search(new RegExp(`^${selector.replace('.', '\\.')} \\{`, 'm'))
-  expect(start).toBeGreaterThanOrEqual(0)
+  const head = `${V3_SELECTOR[selector]} {`
+  const start = css.indexOf(`\n${head}`) + 1
+  expect(start).toBeGreaterThan(0)
   return css.slice(start, css.indexOf('\n}', start))
 }
 
@@ -79,13 +83,23 @@ describe('fork-theme v5 tokens', () => {
     for (const name of ['bg', 'panel', 'ink', 'faint', 'line', 'brand']) {
       expect(tokensCss).toMatch(new RegExp(`--color-${name}:`))
     }
-    expect(tokensCss).toMatch(/--color-blue-500: oklch\(55\.3% 0\.013 58\.071\)/)
+    expect(tokensCss).toMatch(/--color-blue-500: var\(--hue-blue-500\)/)
+    const v3Hues = tokensCss.slice(tokensCss.indexOf(':root:where([data-ui="v3"])'))
+    expect(v3Hues).toMatch(/--hue-blue-500: oklch\(55\.3% 0\.013 58\.071\)/)
     expect(tokensCss).not.toMatch(/--color-red-/)
     expect(tokensCss).not.toMatch(/--color-green-/)
   })
 
   it('keeps the global focus ring overridable by Tailwind utilities', () => {
-    expect(css).toMatch(/@layer base \{\s*:where\(button, a, input, textarea, select, \[tabindex\]\):focus-visible/)
+    expect(css).toMatch(/@layer base \{\s*:where\(\[data-ui="v3"\]\) :where\(button, a, input, textarea, select, \[tabindex\]\):focus-visible/)
+  })
+
+  it('keeps the classic palette when the new interface is off', () => {
+    const classicRoot = css.slice(css.indexOf('\n:root {') + 1, css.indexOf('\n}', css.indexOf('\n:root {')))
+    expect(classicRoot).toMatch(/--primary: 31 92% 35%/)
+    const classicHues = tokensCss.slice(tokensCss.indexOf('\n:root {'), tokensCss.indexOf(':root:where([data-ui="v3"])'))
+    expect(classicHues).toMatch(/--hue-blue-500: oklch\(62\.3% 0\.214 259\.815\)/)
+    expect(tokensCss).toMatch(/@custom-variant v3 /)
   })
 
   it('respects prefers-reduced-motion', () => {

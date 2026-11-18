@@ -91,7 +91,7 @@ function LauncherButton({ icon: Icon, title, active, secondary, badge, badgeLabe
       aria-current={active ? 'page' : undefined}
       aria-expanded={expanded}
       className={cn(
-        "flex h-7 w-full items-center gap-2 px-2 py-1 text-left text-[13px] text-muted-foreground",
+        "flex h-7 w-full items-center gap-2 px-2 text-left text-sm text-muted-foreground v3:py-1 v3:text-[13px]",
         SIDEBAR_ROW,
         active && (secondary ? SIDEBAR_ROW_ACTIVE_SECONDARY : SIDEBAR_ROW_ACTIVE),
       )}

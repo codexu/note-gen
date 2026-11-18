@@ -1,4 +1,6 @@
-/* Fork：almanac v5 視覺（單色＋唯一 accent）。
+/* Fork：almanac v5 視覺（單色＋唯一 accent），由新介面開關控制（ALMNC-7）。
+   <html data-ui="v3"> 時套 v5；data-ui="classic" 時還原 P0 前的 Obsidian baseline 色票。
+   v5 區塊用 :root:where([data-ui="v3"])，特異度和 :root 相同，設定裡的自訂主題仍能蓋過。
    數值來源：almanac/2026-11-18_handoff_ornata-style-brief.md §3.1、redesign_v5.html。
    放在 globals.css 之後、不進 @layer，所以蓋過上游的預設值；
    設定裡的自訂主題（theme-utils.ts 寫在 :root／:root.dark）仍然排在最後、優先於這裡。
@@ -72,7 +74,112 @@
   unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31A0-31BF, U+3200-9FFF, U+F900-FAFF, U+FE30-FE4F, U+FF00-FFEF, U+20000-2FA1F;
 }
 
+
+/* classic：P0 前的 fork 預設（Obsidian baseline），數值取自 905d2c12 的 fork-theme.css */
 :root {
+  --background: 0 0% 96.5%;            /* #f6f6f6 面板 */
+  --foreground: 0 0% 13.3%;            /* #222222 */
+  --card: 0 0% 100%;                   /* #ffffff 編輯區、卡片 */
+  --card-foreground: 0 0% 13.3%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 13.3%;
+  --primary: 31 92% 35%;               /* 深琥珀：白字 4.8:1、白底上當文字 4.8:1 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 92.5%;
+  --secondary-foreground: 0 0% 13.3%;
+  --third: 0 0% 90%;                   /* 選中列 */
+  --third-foreground: 0 0% 10%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 40%;        /* #666：白底 5.7:1 */
+  --accent: 0 0% 92%;                  /* hover 底 */
+  --accent-foreground: 0 0% 10%;
+  --destructive: 3 65% 48%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 89%;
+  --input: 0 0% 84%;
+  --ring: 31 92% 35%;
+  --radius: 0.5rem;
+
+  --sidebar-background: 0 0% 96.5%;
+  --sidebar-foreground: 0 0% 13.3%;
+  --sidebar-primary: 31 92% 35%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 92%;
+  --sidebar-accent-foreground: 0 0% 10%;
+  --sidebar-border: 0 0% 89%;
+  --sidebar-ring: 31 92% 35%;
+}
+
+.dark {
+  --background: 0 0% 12.5%;            /* #202020 面板 */
+  --foreground: 0 0% 85.5%;            /* #dadada */
+  --card: 0 0% 14.9%;                  /* #262626 */
+  --card-foreground: 0 0% 85.5%;
+  --popover: 0 0% 14.9%;
+  --popover-foreground: 0 0% 85.5%;
+  --primary: 43 96% 56%;               /* #fbbd23 琥珀 */
+  --primary-foreground: 0 0% 9.8%;     /* 琥珀上用深字 */
+  --secondary: 0 0% 20.4%;             /* #343434 */
+  --secondary-foreground: 0 0% 85.5%;
+  --third: 0 0% 16.9%;                 /* #2b2b2b 選中列 */
+  --third-foreground: 0 0% 90.2%;
+  --muted: 0 0% 14.9%;                 /* 與 --card 同色：卡片上的 hover 要用 accent */
+  --muted-foreground: 0 0% 60.4%;      /* #9a9a9a */
+  --accent: 0 0% 18.8%;                /* #303030 hover 底 */
+  --accent-foreground: 0 0% 90.2%;
+  --destructive: 3 72% 64%;            /* #e5665f */
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 18.4%;                /* #2f2f2f */
+  --input: 0 0% 22.7%;                 /* #3a3a3a */
+  --ring: 43 96% 56%;
+  --radius: 0.5rem;
+
+  --sidebar-background: 0 0% 12.5%;
+  --sidebar-foreground: 0 0% 85.5%;
+  --sidebar-primary: 43 96% 56%;
+  --sidebar-primary-foreground: 0 0% 9.8%;
+  --sidebar-accent: 0 0% 18.8%;
+  --sidebar-accent-foreground: 0 0% 90.2%;
+  --sidebar-border: 0 0% 18.4%;
+  --sidebar-ring: 43 96% 56%;
+
+  --scrollbar-thumb: hsl(0 0% 22.7%);
+  --scrollbar-thumb-hover: hsl(0 0% 29%);
+}
+
+/* classic 下 v5 的語意名稱對到舊色票，讓已改用 bg-panel、text-ink 等類別的元件仍有合理顏色 */
+:root {
+  --bg: hsl(var(--card));
+  --panel: hsl(var(--background));
+  --sunken: hsl(var(--muted));
+  --statusbar: hsl(var(--background));
+  --menu: hsl(var(--popover));
+  --ink: hsl(var(--foreground));
+  --note-ink: hsl(var(--foreground));
+  --muted-ink: hsl(var(--muted-foreground));
+  --faint: hsl(var(--muted-foreground) / 0.75);
+  --line: hsl(var(--border));
+  --line-soft: hsl(var(--border));
+  --hover: hsl(var(--accent));
+  --active: hsl(var(--third));
+  --invert: hsl(var(--primary));
+  --invert-ink: hsl(var(--primary-foreground));
+  --danger: hsl(var(--destructive));
+  --success-ink: hsl(142 71% 45%);
+  --brand-accent: hsl(var(--primary));
+  --brand-accent-ink: hsl(var(--primary-foreground));
+  --caret: auto;
+  --sh-dialog: 0 16px 48px -12px rgba(0, 0, 0, 0.3);
+  --sh-menu: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --sh-toast: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --sh-float: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --font-code: "SF Mono", Menlo, ui-monospace, Consolas, monospace;
+  --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+:root:where([data-ui="v3"]) {
   /* v5 原始 token（簡報 §3.1）。名稱和 shadcn 衝突的改名：muted → --muted-ink、accent → --brand-accent */
   --bg: #fcfcfd;
   --panel: #f9f9fa;
@@ -161,7 +268,7 @@
   --r-md: 8px;
 }
 
-.dark {
+.dark:where([data-ui="v3"]) {
   /* v5 原始 token（簡報 §3.1）。名稱和 shadcn 衝突的改名：muted → --muted-ink、accent → --brand-accent */
   --bg: #121417;
   --panel: #17191d;
@@ -235,6 +342,9 @@
 body {
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.005em;
+}
+
+:where([data-ui="v3"]) body {
   font-feature-settings: "cv11", "ss01";
   caret-color: var(--caret);
 }
@@ -243,13 +353,13 @@ code, kbd, pre, samp {
   font-family: var(--font-code);
 }
 
-::selection {
+:where([data-ui="v3"]) ::selection {
   background: color-mix(in srgb, var(--ink) 14%, transparent);
 }
 
 /* 放進 base layer：Tailwind 的 outline-* 工具類（utilities layer）才能蓋過它 */
 @layer base {
-  :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  :where([data-ui="v3"]) :where(button, a, input, textarea, select, [tabindex]):focus-visible {
     outline: 2px solid var(--ink);
     outline-offset: 2px;
   }

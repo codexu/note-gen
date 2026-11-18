@@ -27,7 +27,7 @@ function Command({
       <CommandPrimitive
         data-slot="command"
         className={cn(
-          "flex size-full flex-col overflow-hidden rounded-xl! bg-popover p-1 text-popover-foreground in-data-[slot=dialog-content]:rounded-md! in-data-[slot=dialog-content]:bg-bg in-data-[slot=dialog-content]:p-0",
+          "flex size-full flex-col overflow-hidden rounded-xl! bg-popover p-1 text-popover-foreground v3:in-data-[slot=dialog-content]:rounded-md! v3:in-data-[slot=dialog-content]:bg-bg v3:in-data-[slot=dialog-content]:p-0",
           className
         )}
         {...props}
@@ -57,7 +57,7 @@ function CommandDialog({
       </DialogHeader>
       <DialogContent
         className={cn(
-          "top-[16vh] translate-y-0 gap-0 overflow-hidden rounded-md! border border-line bg-bg p-0 shadow-dialog ring-0 sm:w-[560px] sm:min-w-0 sm:max-w-[min(560px,calc(100vw-32px))]",
+          "translate-y-0 overflow-hidden p-0 top-1/3 rounded-xl! v3:top-[16vh] v3:gap-0 v3:rounded-md! v3:border v3:border-line v3:bg-bg v3:shadow-dialog v3:ring-0 v3:sm:w-[560px] v3:sm:min-w-0 v3:sm:max-w-[min(560px,calc(100vw-32px))]",
           className
         )}
         showCloseButton={showCloseButton}
@@ -73,18 +73,18 @@ function CommandInput({
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
-    <div data-slot="command-input-wrapper" className="p-1 pb-0 in-data-[slot=dialog-content]:border-b in-data-[slot=dialog-content]:border-line-soft in-data-[slot=dialog-content]:p-0">
-      <InputGroup className="h-8! rounded-lg! border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2! in-data-[slot=dialog-content]:h-12! in-data-[slot=dialog-content]:rounded-none! in-data-[slot=dialog-content]:border-0 in-data-[slot=dialog-content]:bg-transparent! in-data-[slot=dialog-content]:*:data-[slot=input-group-addon]:pl-4!">
+    <div data-slot="command-input-wrapper" className="p-1 pb-0 v3:in-data-[slot=dialog-content]:border-b v3:in-data-[slot=dialog-content]:border-line-soft v3:in-data-[slot=dialog-content]:p-0">
+      <InputGroup className="h-8! rounded-lg! border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2! v3:in-data-[slot=dialog-content]:h-12! v3:in-data-[slot=dialog-content]:rounded-none! v3:in-data-[slot=dialog-content]:border-0 v3:in-data-[slot=dialog-content]:bg-transparent! v3:in-data-[slot=dialog-content]:*:data-[slot=input-group-addon]:pl-4!">
         <CommandPrimitive.Input
           data-slot="command-input"
           className={cn(
-            "min-w-0 flex-1 border-0 bg-transparent text-sm outline-none ring-0 placeholder:text-faint focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 in-data-[slot=dialog-content]:text-[14.5px]",
+            "text-sm disabled:cursor-not-allowed disabled:opacity-50 w-full outline-hidden v3:min-w-0 v3:flex-1 v3:border-0 v3:bg-transparent v3:outline-none v3:ring-0 v3:placeholder:text-faint v3:focus-visible:outline-none v3:focus-visible:ring-0 v3:in-data-[slot=dialog-content]:text-[14.5px]",
             className
           )}
           {...props}
         />
         <InputGroupAddon>
-          <SearchIcon className="size-4 shrink-0 opacity-50 in-data-[slot=dialog-content]:text-faint in-data-[slot=dialog-content]:opacity-100" />
+          <SearchIcon className="size-4 shrink-0 opacity-50 v3:in-data-[slot=dialog-content]:text-faint v3:in-data-[slot=dialog-content]:opacity-100" />
         </InputGroupAddon>
       </InputGroup>
     </div>
@@ -118,7 +118,7 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "max-h-72 min-h-0 scroll-py-1 in-data-[slot=dialog-content]:max-h-80 in-data-[slot=dialog-content]:p-1 overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
+        "max-h-72 min-h-0 scroll-py-1 overflow-x-hidden overflow-y-auto overscroll-contain outline-none v3:in-data-[slot=dialog-content]:max-h-80 v3:in-data-[slot=dialog-content]:p-1",
         className
       )}
       onWheel={handleWheel}
@@ -148,7 +148,7 @@ function CommandGroup({
     <CommandPrimitive.Group
       data-slot="command-group"
       className={cn(
-        "overflow-hidden p-1 text-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-muted-foreground in-data-[slot=dialog-content]:**:[[cmdk-group-heading]]:text-faint",
+        "overflow-hidden p-1 text-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-muted-foreground v3:in-data-[slot=dialog-content]:**:[[cmdk-group-heading]]:text-faint",
         className
       )}
       {...props}
@@ -178,7 +178,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group/command-item relative z-0 flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none in-data-[slot=dialog-content]:h-8 in-data-[slot=dialog-content]:rounded-md! in-data-[slot=dialog-content]:px-2.5 in-data-[slot=dialog-content]:py-0 in-data-[slot=dialog-content]:text-[13px] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-selected:bg-active data-selected:text-ink in-data-[slot=dialog-content]:data-selected:bg-transparent [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-foreground",
+        "group/command-item relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-selected:*:[svg]:text-foreground in-data-[slot=dialog-content]:rounded-lg! data-selected:bg-muted data-selected:text-foreground v3:z-0 v3:in-data-[slot=dialog-content]:h-8 v3:in-data-[slot=dialog-content]:rounded-md! v3:in-data-[slot=dialog-content]:px-2.5 v3:in-data-[slot=dialog-content]:py-0 v3:in-data-[slot=dialog-content]:text-[13px] v3:data-selected:bg-active v3:data-selected:text-ink v3:in-data-[slot=dialog-content]:data-selected:bg-transparent",
         className
       )}
       {...props}

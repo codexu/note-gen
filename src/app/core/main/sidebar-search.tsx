@@ -627,7 +627,7 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
             }}
             placeholder={t('search.placeholder')}
             aria-label={t('search.placeholder')}
-            className="text-[12.5px] placeholder:text-faint focus-visible:outline-none!"
+            className="text-[12.5px] placeholder:text-faint focus-visible:outline-none"
           />
           {!query ? (
             <InputGroupAddon align="inline-end">

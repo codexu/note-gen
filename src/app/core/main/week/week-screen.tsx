@@ -53,7 +53,7 @@ function WeekPage() {
   const date = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' })
   const range = date.formatRange(start, localDay(start, 6))
   return (
-    <PageSurface label={t('title')} className="bg-bg text-ink">
+    <PageSurface label={t('title')} onDismiss={hide} className="bg-bg text-ink">
       <PageHeader title={t('title')} onBack={hide}>
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="icon" disabled={calendar.requesting} aria-label={t('previous')} onClick={() => setStart(day => localDay(day, -7))}>

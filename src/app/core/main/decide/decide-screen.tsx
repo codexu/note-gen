@@ -65,7 +65,7 @@ function DecidePage() {
   const current = useMemo(() => items.find(item => item.key === selected) ?? items[0] ?? null, [items, selected])
 
   return (
-    <PageSurface label="Decide">
+    <PageSurface label={t('title')} onDismiss={hide}>
       <PageHeader title={t('title')} subtitle={t('subtitle')} onBack={hide}>
         <Count value={items.length} label={t('count', { count: items.length })} />
       </PageHeader>

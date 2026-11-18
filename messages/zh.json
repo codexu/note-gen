@@ -6659,6 +6659,22 @@
     "description": "点击选择记录工具，快速创建记录"
   },
   "editor": {
+    "statusBar": {
+      "documentActions": {
+        "copy": "复制",
+        "copied": "复制成功",
+        "copiedAs": "已复制为 {format} 格式",
+        "copyFailed": "复制失败",
+        "clipboardUnavailable": "无法复制到剪贴板",
+        "plainText": "纯文本",
+        "export": "导出",
+        "exported": "导出成功",
+        "exportFailed": "导出失败",
+        "preparingPdf": "正在准备 PDF",
+        "saveAsPdf": "请在系统打印窗口中选择“另存为 PDF”。",
+        "printDialogOpened": "已打开 PDF 打印窗口"
+      }
+    },
     "headingFolding": {
       "expand": "展开此标题内容",
       "collapse": "折叠此标题内容"

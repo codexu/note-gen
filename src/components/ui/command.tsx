@@ -49,19 +49,29 @@ function CommandDialog({
   className?: string
   showCloseButton?: boolean
 }) {
+  const opener = React.useRef<HTMLElement | null>(null)
+
   return (
     <Dialog {...props}>
-      <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-      </DialogHeader>
       <DialogContent
         className={cn(
           "translate-y-0 overflow-hidden p-0 top-1/3 rounded-xl! v3:top-[16vh] v3:gap-0 v3:rounded-md! v3:border v3:border-line v3:bg-bg v3:shadow-dialog v3:ring-0 v3:sm:w-[560px] v3:sm:min-w-0 v3:sm:max-w-[min(560px,calc(100vw-32px))]",
           className
         )}
         showCloseButton={showCloseButton}
+        onOpenAutoFocus={() => {
+          opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        }}
+        onCloseAutoFocus={event => {
+          event.preventDefault()
+          // A command may already have moved focus to another surface.
+          if (document.activeElement === document.body) opener.current?.focus({ preventScroll: true })
+        }}
       >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
         {children}
       </DialogContent>
     </Dialog>
@@ -73,7 +83,7 @@ function CommandInput({
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
-    <div data-slot="command-input-wrapper" className="p-1 pb-0 v3:in-data-[slot=dialog-content]:border-b v3:in-data-[slot=dialog-content]:border-line-soft v3:in-data-[slot=dialog-content]:p-0">
+    <div data-slot="command-input-wrapper" className="p-1 pb-0 v3:in-data-[slot=dialog-content]:border-b v3:in-data-[slot=dialog-content]:border-line-soft v3:in-data-[slot=dialog-content]:p-0 v3:in-data-[slot=dialog-content]:focus-within:ring-1 v3:in-data-[slot=dialog-content]:focus-within:ring-inset v3:in-data-[slot=dialog-content]:focus-within:ring-ring">
       <InputGroup className="h-8! rounded-lg! border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2! v3:in-data-[slot=dialog-content]:h-12! v3:in-data-[slot=dialog-content]:rounded-none! v3:in-data-[slot=dialog-content]:border-0 v3:in-data-[slot=dialog-content]:bg-transparent! v3:in-data-[slot=dialog-content]:*:data-[slot=input-group-addon]:pl-4!">
         <CommandPrimitive.Input
           data-slot="command-input"

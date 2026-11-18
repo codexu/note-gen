@@ -137,7 +137,7 @@ export function AnywhereCommandPalette() {
   return (
     <CommandDialog open={open} onOpenChange={setOpen} title={t('palette.title')} description={t('palette.description')}>
       <Command shouldFilter={false} loop>
-        <CommandInput value={query} onValueChange={setQuery} placeholder={t('palette.placeholder')} />
+        <CommandInput aria-label={t('palette.placeholder')} value={query} onValueChange={setQuery} placeholder={t('palette.placeholder')} />
         <CommandList>
           {sections.length === 0 ? <CommandEmpty>{t('palette.empty')}</CommandEmpty> : null}
           {sections.map(section => (

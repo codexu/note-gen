@@ -6659,6 +6659,22 @@
     "description": "Click to select a recording tool and quickly create records"
   },
   "editor": {
+    "statusBar": {
+      "documentActions": {
+        "copy": "Copy",
+        "copied": "Copied",
+        "copiedAs": "Copied as {format}",
+        "copyFailed": "Copy failed",
+        "clipboardUnavailable": "Could not copy to the clipboard",
+        "plainText": "Plain text",
+        "export": "Export",
+        "exported": "Exported",
+        "exportFailed": "Export failed",
+        "preparingPdf": "Preparing PDF",
+        "saveAsPdf": "Choose “Save as PDF” in the system print dialog.",
+        "printDialogOpened": "Opened the PDF print dialog"
+      }
+    },
     "headingFolding": {
       "expand": "Expand section",
       "collapse": "Collapse section"

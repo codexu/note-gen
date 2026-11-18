@@ -39,7 +39,7 @@ function KnowledgePage() {
   const hide = useKnowledgeOverlay(state => state.hide)
   const isPlugin = tabs.find(item => item.id === tab)?.kind === 'plugin'
   return (
-    <PageSurface label={t('knowledge.title')} className="bg-bg text-ink">
+    <PageSurface label={t('knowledge.title')} onDismiss={hide} className="bg-bg text-ink">
       <PageHeader
         title={t('knowledge.title')}
         subtitle={t('knowledge.subtitle')}

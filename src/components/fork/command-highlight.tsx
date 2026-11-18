@@ -37,17 +37,21 @@ export function CommandItemHighlight() {
     return () => observer.disconnect()
   }, [])
 
+  const showHighlight = isUiV3 && scope && inDialog && selected
+  const highlightClass = 'absolute inset-0 -z-10 rounded-md bg-active'
+
   return (
     <>
       <span ref={marker} hidden />
-      {isUiV3 && scope && inDialog && selected ? (
+      {showHighlight && reduce && <span aria-hidden className={highlightClass} />}
+      {showHighlight && !reduce && (
         <motion.span
           layoutId="command-highlight"
           aria-hidden
-          className="absolute inset-0 -z-10 rounded-md bg-active"
-          transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 360, damping: 32, mass: 0.6 }}
+          className={highlightClass}
+          transition={{ type: 'spring', stiffness: 360, damping: 32, mass: 0.6 }}
         />
-      ) : null}
+      )}
     </>
   )
 }

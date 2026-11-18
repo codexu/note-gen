@@ -3,7 +3,7 @@
 // Fork（UI 一致性）：首頁、Inbox 頁等「蓋在工作區上」的頁面共用的外框、頁首、計數與空狀態。
 // 頁面外框的位置與圓角由 page.tsx 量左側欄面板與工作區面板後寫進 --page-*，
 // 所以不論面板是平貼（預設）還是卡片（自訂 CSS），頁面都跟工作區對齊。
-import type { ComponentType, ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ComponentType, type ReactNode } from 'react'
 import { PanelsTopLeft } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
@@ -16,11 +16,42 @@ export const CARD_TITLE = 'text-[15px] font-semibold'
 /** 首頁各卡片的外框。 */
 export const CARD = 'rounded-xl bg-background p-4'
 
-export function PageSurface({ label, children, className }: { label: string, children: ReactNode, className?: string }) {
+export function PageSurface({ label, children, className, onDismiss }: {
+  label: string
+  children: ReactNode
+  className?: string
+  onDismiss?: () => void
+}) {
+  const surface = useRef<HTMLDivElement>(null)
+  const focusOnOpen = Boolean(onDismiss)
+
+  useLayoutEffect(() => {
+    const node = surface.current
+    const opener = document.activeElement
+    if (!focusOnOpen || !node) return
+    if (!node.contains(opener)) node.focus({ preventScroll: true })
+    return () => {
+      const active = document.activeElement
+      if (opener instanceof HTMLElement && opener.isConnected && (active === document.body || node.contains(active))) {
+        opener.focus({ preventScroll: true })
+      }
+    }
+  }, [focusOnOpen])
+
   return (
     <div
+      ref={surface}
       role="region"
       aria-label={label}
+      tabIndex={onDismiss ? -1 : undefined}
+      onKeyDown={onDismiss && (event => {
+        // A Radix dialog/menu can portal out of this DOM subtree.
+        if (event.key !== 'Escape' || event.defaultPrevented || event.nativeEvent.isComposing
+          || !(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return
+        event.preventDefault()
+        event.stopPropagation()
+        onDismiss()
+      })}
       className={cn(
         'absolute top-(--page-top) right-(--page-right) bottom-(--page-bottom) left-(--page-left) z-30 flex flex-col overflow-hidden rounded-(--page-radius) bg-card',
         className,

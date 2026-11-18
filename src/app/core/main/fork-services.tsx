@@ -3,8 +3,8 @@
 // Fork: background services for the main window, mounted once from page.tsx
 // so upstream files only carry a single mount point.
 import { useEffect } from 'react'
-import useSettingStore from '@/stores/setting'
-import { startVaultIndex, type VaultIndexHandle } from '@/lib/vault-index/service'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
+import { startVaultIndex } from '@/lib/vault-index/service'
 import { DailyNoteAutoOpen } from './daily-note-auto-open'
 import { DailyNavShortcuts } from './daily/daily-nav-shortcuts'
 import { ReminderService } from './daily/reminder-service'
@@ -13,24 +13,22 @@ import { AgentTaskService } from './agent-tasks/agent-task-service'
 import { HomeService } from './home/home-service'
 import { ConversationSummaryDialog } from './conversation-summary/summary-dialog'
 
-/** F3: keep the vault index in sync with the active workspace. */
+/**
+ * F3: keep the vault index in sync with the active workspace.
+ * Issue #75: wait for settings hydration, otherwise the default workspacePath ('')
+ * starts an index of AppData/article that races the real workspace.
+ */
 function VaultIndexService() {
   const workspacePath = useSettingStore(state => state.workspacePath)
+  const settingsReady = useSettingsHydrationStore(state => state.status !== 'loading')
 
   useEffect(() => {
-    let handle: VaultIndexHandle | null = null
-    let disposed = false
-    void startVaultIndex(workspacePath)
-      .then(started => {
-        if (disposed) started.stop()
-        else handle = started
-      })
+    if (!settingsReady) return
+    const controller = new AbortController()
+    void startVaultIndex(workspacePath, controller.signal)
       .catch(error => console.error('[vault-index] failed to start:', error))
-    return () => {
-      disposed = true
-      handle?.stop()
-    }
-  }, [workspacePath])
+    return () => controller.abort()
+  }, [settingsReady, workspacePath])
 
   return null
 }

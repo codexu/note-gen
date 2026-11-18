@@ -8,6 +8,7 @@ import useHomeStore from '@/stores/home'
 import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
 import { CollectScreen } from '../collect/collect-screen'
+import { DecideScreen } from '../decide/decide-screen'
 import { InboxScreen } from '../inbox/inbox-screen'
 import { PromptLibraryScreen } from '../prompt-library/prompt-library-screen'
 import { HOME_CARDS } from './home-cards'
@@ -96,6 +97,7 @@ export function HomeService() {
       <InboxScreen />
       <PromptLibraryScreen />
       <CollectScreen />
+      <DecideScreen />
     </>
   )
 }

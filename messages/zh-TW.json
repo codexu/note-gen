@@ -7610,5 +7610,50 @@
       "send": "送出",
       "hint": "Enter 送出，Shift+Enter 換行"
     }
+  },
+  "decide": {
+    "title": "等你定",
+    "subtitle": "需要你拍板的事都在這裡，逐條收下或不要",
+    "count": "{count} 件等你定",
+    "needsLabel": "等你定",
+    "listLabel": "等你定的項目",
+    "empty": "都處理完了。",
+    "proposalTag": "提案",
+    "kind": {
+      "note": "筆記",
+      "task": "任務",
+      "event": "時段",
+      "create": "新增檔案",
+      "update": "修改檔案",
+      "delete": "刪除",
+      "move": "搬移",
+      "copy": "複製",
+      "folder": "新增資料夾"
+    },
+    "source": {
+      "collect": "收集",
+      "draft": "Agent 草稿"
+    },
+    "from": "來自 {origin}",
+    "writesTo": "收下後寫入：",
+    "dest": {
+      "note": "收件資料夾的新筆記",
+      "journal": "今日日誌的「{section}」",
+      "journalNew": "今日日誌的「{section}」（今天的日誌還沒建立，收下時依模板建立）"
+    },
+    "diff": {
+      "hidden": "還有 {count} 行沒列出"
+    },
+    "merged": "另有 {count} 個來源提了同一件事，收下或不要時一併處理。",
+    "accept": "收下",
+    "reject": "不要",
+    "accepted": "已收下「{title}」",
+    "rejected": "已退回「{title}」",
+    "undo": "復原",
+    "undoFailed": "無法復原，檔案已被改過",
+    "failed": "處理失敗，請再試一次",
+    "conflict": "檔案在草稿產生後被改過，請到任務中心逐條確認",
+    "openReview": "到任務中心",
+    "viewAll": "等你定共 {count} 件，全部查看"
   }
 }

@@ -9,7 +9,9 @@ import { toggleTaskInContent } from '@/lib/daily/tasks'
 import { stamp, type StampKind } from '@/lib/daily/daily-note'
 import { dailyNotePath } from '@/lib/daily/format'
 import { ensureDailyNote } from '@/lib/daily/open-daily-note'
-import { readNote, writeNote } from '@/lib/daily/note-io'
+import { readNote } from '@/lib/daily/note-io'
+import { commitNoteWrites, NoteWriteConflict, revertNoteWrites } from '@/lib/daily/coordinated-write'
+import { NoteRewriteConflictError } from '@/lib/note-rewrite'
 import type { TaskRef } from '@/lib/vault-index/index-core'
 import useDailySettingsStore from '@/stores/daily-settings'
 import { carryTasks, dateKey, insertLinesInSection, openTaskLines } from './today-model'
@@ -32,9 +34,29 @@ export class StaleTaskError extends Error {
   }
 }
 
-async function applyWrites<T extends WriteRecord>(record: T): Promise<T> {
-  for (const write of record.writes) await writeNote(write.path, write.after)
-  return record
+type Rebase = ((latest: string) => string | null) | undefined
+
+/**
+ * Fork（almanac ALMNC-21）：寫入經編輯器協調（note-rewrite）。最新內容與讀到的不同時，用 rebase
+ * 把同一動作套到最新內容；套不上或編輯器正忙就丟 StaleTaskError，不覆蓋任何內容。
+ */
+async function applyWrites<T extends WriteRecord>(record: T, rebases: Rebase[] = []): Promise<T> {
+  try {
+    const writes = await commitNoteWrites(record.writes.map((write, i) => ({ ...write, rebase: rebases[i] })))
+    return { ...record, writes }
+  } catch (error) {
+    if (error instanceof NoteWriteConflict || error instanceof NoteRewriteConflictError) throw new StaleTaskError(error.path)
+    throw error
+  }
+}
+
+/** 在最新內容上找回同一行任務；行號不變且原文相同才算。 */
+function rebaseOnTask(task: TaskRef, edit: (content: string, lines: string[]) => string | null): (latest: string) => string | null {
+  return latest => {
+    const lines = latest.split('\n')
+    if (lines[task.line]?.replace(/\r$/, '') !== task.raw) return null
+    return edit(latest, lines)
+  }
 }
 
 /** 讀出任務所在的檔案，確認那一行還是索引裡看到的樣子。 */
@@ -49,31 +71,38 @@ async function readTaskSource(task: TaskRef): Promise<{ before: string, lines: s
 /** 勾選或取消勾選。未完成且帶 🔁 的任務完成時，下一行會產生下一次。 */
 export async function setTaskChecked(task: TaskRef, checked: boolean, now: Date = new Date()): Promise<WriteRecord> {
   const { before } = await readTaskSource(task)
-  const after = checked && !task.done
-    ? completeTaskInContent(before, task.line, now)
+  const edit = (content: string) => checked && !task.done
+    ? completeTaskInContent(content, task.line, now)
     : checked === task.done
-      ? before
-      : toggleTaskInContent(before, task.line, { today: now })
+      ? content
+      : toggleTaskInContent(content, task.line, { today: now })
+  const after = edit(before)
   if (after === null) throw new StaleTaskError(task.path)
   if (after === before) return { writes: [] }
-  const record: WriteRecord = { writes: [{ path: task.path, before, after }] }
+  const record = await applyWrites({ writes: [{ path: task.path, before, after }] } as WriteRecord, [rebaseOnTask(task, content => edit(content))])
   if (checked && !task.done && task.recurrence) {
-    const nextLine = after.split('\n')[task.line + 1] ?? ''
+    const written = record.writes[0]?.after ?? after
+    const nextLine = written.split('\n')[task.line + 1] ?? ''
     record.nextDue = nextLine.match(DUE_IN_LINE_RE)?.[1] ?? ''
   }
-  return applyWrites(record)
+  return record
 }
 
 /** D8：把任務排到今天的某個時間，到期日一併改成今天；time 為空字串時只取消時間。 */
 export async function scheduleTask(task: TaskRef, time: string, now: Date = new Date()): Promise<WriteRecord> {
-  const { before, lines } = await readTaskSource(task)
+  const { before } = await readTaskSource(task)
   // 取消時間時不動到期日；排上時間代表排在今天
-  const updated = setTaskSchedule(lines[task.line], { due: time ? dateKey(now) : task.due || dateKey(now), time })
-  if (updated === null) throw new StaleTaskError(task.path)
-  lines[task.line] = updated
-  const after = lines.join('\n')
+  const edit = (_content: string, lines: string[]) => {
+    const updated = setTaskSchedule(lines[task.line], { due: time ? dateKey(now) : task.due || dateKey(now), time })
+    if (updated === null) return null
+    const next = [...lines]
+    next[task.line] = updated
+    return next.join('\n')
+  }
+  const after = edit(before, before.split('\n'))
+  if (after === null) throw new StaleTaskError(task.path)
   if (after === before) return { writes: [] }
-  return applyWrites({ writes: [{ path: task.path, before, after }] })
+  return applyWrites({ writes: [{ path: task.path, before, after }] }, [rebaseOnTask(task, edit)])
 }
 
 /** D4：把一行自然語言轉成 Obsidian Tasks 任務，寫進今日筆記的捕捉區塊。 */
@@ -82,17 +111,14 @@ export async function quickAddTask(input: string, now: Date = new Date()): Promi
   if (!task.title) return { writes: [], task }
   const { path } = await ensureDailyNote(now)
   const before = await readNote(path) ?? ''
-  const after = insertLinesInSection(before, [task.line], QUICK_ADD_SECTION)
-  return applyWrites({ writes: [{ path, before, after }], task })
+  const insert = (content: string) => insertLinesInSection(content, [task.line], QUICK_ADD_SECTION)
+  return applyWrites({ writes: [{ path, before, after: insert(before) }], task }, [insert])
 }
 
 /** 復原：只有在檔案仍是我們寫入的內容時才還原，避免蓋掉之後的編輯。 */
 export async function undoWrites(record: WriteRecord): Promise<boolean> {
-  for (const write of record.writes) {
-    if (await readNote(write.path) !== write.after) return false
-  }
-  for (const write of [...record.writes].reverse()) await writeNote(write.path, write.before)
-  return true
+  // Fork（ALMNC-21）：經編輯器協調；檔案（或編輯器裡的內容）已不是我們寫入的就不還原
+  return revertNoteWrites(record.writes)
 }
 
 /** 早晨啟動／整日復盤：在今日筆記寫入 `morning:: done`／`reviewed:: done`。 */
@@ -101,7 +127,10 @@ export async function stampToday(kind: StampKind, now: Date = new Date()): Promi
   const before = await readNote(path) ?? ''
   const result = stamp(before, kind)
   if (!result.changed) return { writes: [] }
-  return applyWrites({ writes: [{ path, before, after: result.content }] })
+  return applyWrites({ writes: [{ path, before, after: result.content }] }, [latest => {
+    const again = stamp(latest, kind)
+    return again.changed ? again.content : latest
+  }])
 }
 
 function yesterdayOf(now: Date): Date {

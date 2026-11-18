@@ -3,7 +3,8 @@ import type { AcceptResult } from '@/lib/collect/write'
 import type { Proposal } from '@/lib/collect/types'
 import { dailyNotePath, toDateKey } from '@/lib/daily/format'
 import { isUiV3 } from '@/lib/fork-ui'
-import { readNote, writeNote } from '@/lib/daily/note-io'
+import { readNote } from '@/lib/daily/note-io'
+import { commitNoteWrites } from '@/lib/daily/coordinated-write'
 import useDailySettingsStore from '@/stores/daily-settings'
 import useSettingStore from '@/stores/setting'
 import { scheduleSlot, slotContext, validateSlots, type SlotTarget } from './model'
@@ -43,6 +44,15 @@ async function writeSlot(proposal: Proposal & { slot: SlotTarget }, now: Date): 
 
   const after = scheduleSlot(before, task, due, time)
   if (after === null) throw new SlotUnavailable()
-  await writeNote(path, after)
-  return { path, record: { writes: [{ path, before, after }] } }
+  // Fork（ALMNC-21）：經編輯器協調寫入；最新內容裡同一行仍在才排上，否則視為時段不可用
+  try {
+    const writes = await commitNoteWrites([{ path, before, after, rebase: latest => {
+      const line = latest.split('\n')[task.line]?.replace(/\r$/, '')
+      return line === task.raw ? scheduleSlot(latest, task, due, time) : null
+    } }])
+    return { path, record: { writes } }
+  } catch (error) {
+    if (error instanceof SlotUnavailable) throw error
+    throw new SlotUnavailable()
+  }
 }

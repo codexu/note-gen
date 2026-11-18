@@ -137,20 +137,30 @@ function assignLanes(entries: Array<Omit<TimelineEntry, 'lane' | 'lanes'>>): Tim
   return out
 }
 
+/** 兩個時間是不是同一個本地日曆日。 */
+export function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+
 export function buildTimeline(input: {
   now: Date
+  /** 時間軸顯示哪一天；省略為 now 那天。現在線只在 day 是今天時畫。 */
+  day?: Date
   dailyNote: DailyNote | null
   tasks: readonly TaskRef[]
   events: readonly CalendarEvent[]
 }): TimelineView {
   const { now } = input
+  const day = input.day ?? now
+  const viewingToday = isSameDay(day, now)
   const lo = TIMELINE_START_HOUR * 60
   const hi = TIMELINE_END_HOUR * 60
-  const agenda = buildAgenda(input)
+  // 別天：以那天為基準組行程（任務的 due、日誌時段都對那天）；狀態（過去／進行中）只對今天有意義
+  const agenda = buildAgenda({ ...input, now: viewingToday ? now : day })
   const placed: Array<Omit<TimelineEntry, 'lane' | 'lanes'>> = []
   for (const item of agenda) {
-    const start = minuteOfDay(item.start, now)
-    const end = minuteOfDay(item.end, now)
+    const start = minuteOfDay(item.start, day)
+    const end = minuteOfDay(item.end, day)
     if (end <= lo || start >= hi) continue
     placed.push({
       key: item.key,
@@ -170,7 +180,7 @@ export function buildTimeline(input: {
     endHour: TIMELINE_END_HOUR,
     entries: assignLanes(placed),
     allDay: input.events.filter(event => event.allDay).map(event => event.title),
-    nowMin: current >= lo && current <= Math.min(hi, MINUTES_PER_DAY) ? current : null,
+    nowMin: viewingToday && current >= lo && current <= Math.min(hi, MINUTES_PER_DAY) ? current : null,
     nowTime: clock(now.getTime()),
   }
 }
@@ -204,13 +214,33 @@ function todoItem(task: TaskRef, today: string): TodoItem {
   return { key: `${task.path}:${task.line}`, title: task.title, done: task.done, due, hot: overdue, task }
 }
 
-/** 逾期與今天到期、未完成的任務在前，今天完成的接在後。 */
-export function buildTodo(tasks: readonly TaskRef[], now: Date): TodoView {
+/** 逾期與今天到期、未完成的任務在前，今天完成的接在後。day 是別天時：只列那天到期的任務（未完成在前、已完成在後）。 */
+export function buildTodo(tasks: readonly TaskRef[], now: Date, day: Date = now): TodoView {
+  if (!isSameDay(day, now)) return buildDayTodo(tasks, day)
   const today = dateKey(now)
   const groups = groupTasks(tasks, now)
   const open = [...groups.overdue, ...(groups.upcoming[0]?.tasks ?? [])]
   const items = [...open.map(task => todoItem(task, today)), ...groups.doneToday.map(task => todoItem(task, today))]
   return { items, doneCount: groups.doneToday.length, total: items.length, openCount: open.length }
+}
+
+function byTimeThenTitle(a: TaskRef, b: TaskRef): number {
+  if (a.time !== b.time) return !a.time ? 1 : !b.time ? -1 : a.time < b.time ? -1 : 1
+  return a.title.localeCompare(b.title)
+}
+
+/** 別天的待辦：那天到期（📅）的任務，不算逾期；有時間的排前面。 */
+function buildDayTodo(tasks: readonly TaskRef[], day: Date): TodoView {
+  const key = dateKey(day)
+  const mine = tasks.filter(task => task.due === key)
+  const open = mine.filter(task => !task.done).sort(byTimeThenTitle)
+  const done = mine.filter(task => task.done).sort(byTimeThenTitle)
+  return {
+    items: [...open, ...done].map(task => todoItem(task, key)),
+    doneCount: done.length,
+    total: mine.length,
+    openCount: open.length,
+  }
 }
 
 // ---------- 右欄 ----------
@@ -302,7 +332,10 @@ export interface TodayV3Layout {
 }
 
 export interface TodayV3Input {
+  /** 現在時間（現在線、右欄「今天收進來」以它為準）。 */
   now: Date
+  /** 主畫面顯示哪一天；省略為今天。日誌、行事曆事件、任務都對這一天。 */
+  day?: Date
   /** 今日日誌全文；沒有檔案為 null。 */
   journalContent: string | null
   dailyNote: DailyNote | null
@@ -314,12 +347,13 @@ export interface TodayV3Input {
 
 export function buildTodayLayout(input: TodayV3Input): TodayV3Layout {
   const { now } = input
-  const todo = buildTodo(input.tasks, now)
+  const day = input.day ?? now
+  const todo = buildTodo(input.tasks, now, day)
   const decide = buildDecideRail(input.decisions)
   return {
-    heading: dateHeading(now),
+    heading: dateHeading(day),
     summary: { events: input.events.length, openTasks: todo.openCount, decisions: decide.count },
-    timeline: buildTimeline({ now, dailyNote: input.dailyNote, tasks: input.tasks, events: input.events }),
+    timeline: buildTimeline({ now, day, dailyNote: input.dailyNote, tasks: input.tasks, events: input.events }),
     journal: buildJournalView(input.journalContent, input.dailyNote),
     todo,
     decide,

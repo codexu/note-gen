@@ -12,6 +12,8 @@ interface JobCenterDeps {
   isEnabled: () => boolean
   id: () => string
   now: () => number
+  /** Drop pending drafts of a step's previous task once the step is retried, rejected or cancelled. */
+  discardDrafts?: (taskId: string) => Promise<unknown>
 }
 
 function stepPrompt(job: Job, step: JobStep) {
@@ -79,7 +81,15 @@ export class JobCenter {
   act(jobId: string, stepId: string, action: StepAction): Promise<void> {
     return this.run(async () => {
       this.requireEnabled()
+      const before = this.jobs?.find(job => job.id === jobId)
       await this.update(jobId, job => actOnStep(job, stepId, action))
+      const after = this.jobs?.find(job => job.id === jobId)
+      // PM review fix: a retried, rejected or cancelled step must not leave its old drafts in the decide queue.
+      for (const old of before?.steps ?? []) {
+        const now = after?.steps.find(step => step.id === old.id)
+        const abandoned = now && now !== old && (now.status === 'waiting' || now.status === 'rejected' || now.status === 'cancelled')
+        if (old.taskId && abandoned) await this.deps.discardDrafts?.(old.taskId).catch(() => undefined)
+      }
       await this.tick()
     })
   }

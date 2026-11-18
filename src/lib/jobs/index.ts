@@ -1,6 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { create } from 'zustand'
-import { agentTaskCenter, startAgentTaskCenter } from '@/lib/agent-tasks'
+import { agentTaskCenter, discardTaskDrafts, startAgentTaskCenter } from '@/lib/agent-tasks'
 import { enqueueAgentTask } from '@/lib/agents'
 import { isUiV3, useUiModeStore } from '@/lib/fork-ui'
 import { JobCenter } from './job-center'
@@ -22,6 +22,7 @@ export const jobCenter = new JobCenter({
     await store.save()
   },
   dispatch: enqueueAgentTask,
+  discardDrafts: taskId => discardTaskDrafts(taskId),
   task: id => agentTaskCenter.get(id),
   publish: jobs => useJobs.setState({ jobs }),
   isEnabled: isUiV3,

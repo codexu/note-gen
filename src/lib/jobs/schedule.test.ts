@@ -67,3 +67,34 @@ describe('job scheduling', () => {
     expect(() => job([plan('a'), plan('a')])).toThrow('JOB_INVALID_DEPENDENCIES')
   })
 })
+
+describe('job scheduling review fixes (PM)', () => {
+  it('never unblocks dependents with a rejected result, and resets dependents that already used it', () => {
+    let card = start(job([plan('a'), plan('b', ['a']), plan('c', ['b'])]))
+    card = reconcileJob(reserveStep(card, 'a', 't-a'), () => ({ status: 'completed', result: 'A1', updatedAt: 2 }), 2)
+    expect(ready(card)).toEqual([['job', 'b']])
+    card = reconcileJob(reserveStep(card, 'b', 't-b'), id => id === 't-b'
+      ? { status: 'completed', result: 'B1', updatedAt: 3 } : { status: 'completed', result: 'A1', updatedAt: 2 }, 3)
+    const byId = (j: typeof card) => Object.fromEntries(j.steps.map(s => [s.id, s.status]))
+    expect(byId(card)).toMatchObject({ a: 'review', b: 'review', c: 'waiting' })
+
+    const rejected = actOnStep(card, 'a', 'reject')
+    expect(byId(rejected)).toMatchObject({ a: 'rejected', b: 'waiting', c: 'waiting' })
+    expect(rejected.steps.find(s => s.id === 'b')).toMatchObject({ taskId: undefined, result: undefined })
+    expect(ready(rejected)).toEqual([])
+
+    const retried = actOnStep(rejected, 'a', 'retry')
+    expect(byId(retried)).toMatchObject({ a: 'waiting' })
+    expect(ready(retried)).toEqual([['job', 'a']])
+  })
+
+  it('keeps accepted dependents when an upstream step is rejected later, and allows cancelling a rejected step', () => {
+    let card = start(job([plan('a'), plan('b', ['a'])]))
+    card = reconcileJob(reserveStep(card, 'a', 't-a'), () => ({ status: 'completed', result: 'A', updatedAt: 2 }), 2)
+    card = reconcileJob(reserveStep(card, 'b', 't-b'), () => ({ status: 'completed', result: 'B', updatedAt: 3 }), 3)
+    card = actOnStep(card, 'b', 'accept')
+    const rejected = actOnStep(card, 'a', 'reject')
+    expect(rejected.steps.map(s => s.status)).toContain('accepted')
+    expect(actOnStep(rejected, 'a', 'cancel').steps.find(s => s.id === 'a')?.status).toBe('cancelled')
+  })
+})

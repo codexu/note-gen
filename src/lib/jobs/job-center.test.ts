@@ -60,3 +60,39 @@ describe('job center integration', () => {
     expect(saved[0].steps[0].status).toBe('accepted')
   })
 })
+
+describe('job center draft cleanup (PM review fix)', () => {
+  it('discards drafts of the old tasks when a step is rejected (and its dependents reset) or retried', async () => {
+    const step = (id: string, status: Job['steps'][number]['status'], taskId?: string, dependsOn: string[] = []) => ({
+      id, title: id, prompt: id, criterion: id, agentId: 'research', dependsOn, status, taskId, result: taskId ? `${id} result` : undefined,
+    }) as Job['steps'][number]
+    let saved: Job[] = [{
+      id: 'j', threadKey: 'thread', createdAt: 1, title: 'card', started: true,
+      steps: [step('a', 'review', 't-a'), step('b', 'review', 't-b', ['a']), step('c', 'failed', 't-c')],
+    }]
+    const tasks = new Map<string, AgentTask>([
+      ['t-a', { id: 't-a', kind: 'agent:research', status: 'completed', drafts: [], tokens: 0, createdAt: 1, updatedAt: 1, title: 'a', prompt: 'a' } as AgentTask],
+      ['t-b', { id: 't-b', kind: 'agent:research', status: 'completed', drafts: [], tokens: 0, createdAt: 1, updatedAt: 1, title: 'b', prompt: 'b' } as AgentTask],
+      ['t-c', { id: 't-c', kind: 'agent:research', status: 'failed', error: 'x', drafts: [], tokens: 0, createdAt: 1, updatedAt: 1, title: 'c', prompt: 'c' } as AgentTask],
+    ])
+    const discarded: string[] = []
+    let serial = 0
+    const center = new JobCenter({
+      load: async () => saved,
+      save: async jobs => { saved = jobs },
+      dispatch: async () => {},
+      task: id => tasks.get(id),
+      publish: () => {},
+      isEnabled: () => true,
+      id: () => String(++serial),
+      now: () => 10,
+      discardDrafts: async taskId => { discarded.push(taskId) },
+    })
+    await center.refresh()
+    await center.act('j', 'a', 'reject')
+    expect(discarded.sort()).toEqual(['t-a', 't-b'])
+    await center.act('j', 'c', 'retry')
+    expect(discarded).toContain('t-c')
+    expect(saved[0].steps.find(s => s.id === 'b')).toMatchObject({ status: 'waiting', taskId: undefined })
+  })
+})

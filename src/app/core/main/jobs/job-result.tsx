@@ -8,7 +8,7 @@ import { useAgentTaskStore } from '@/lib/agent-tasks'
 import { useUiV3 } from '@/lib/fork-ui'
 import { jobCenter, useJobs } from '@/lib/jobs'
 import { jobsForThread } from '@/lib/jobs/projection'
-import { hasJobResult, JOB_CONCURRENCY, type Job, type StepAction } from '@/lib/jobs/schedule'
+import { JOB_CONCURRENCY, satisfiesDependency, type Job, type StepAction } from '@/lib/jobs/schedule'
 import { threadKey } from '@/lib/threads/projects'
 import useChatStore from '@/stores/chat'
 
@@ -41,7 +41,7 @@ function JobResultCard({ job }: { job: Job }) {
   }
 
   const reviewed = job.steps.filter(step => step.status === 'accepted').length
-  const produced = new Set(job.steps.filter(hasJobResult).map(step => step.id))
+  const produced = new Set(job.steps.filter(satisfiesDependency).map(step => step.id))
 
   return (
     <article data-slot="thread-card" data-card="kickoff-result" className="rounded-md border border-line bg-bg p-3 text-sm">

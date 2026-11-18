@@ -83,10 +83,31 @@ export function hasJobResult(step: JobStep) {
   return step.status === 'review' || step.status === 'accepted' || step.status === 'rejected'
 }
 
+/**
+ * A prerequisite unblocks its dependents once it produced a result the user has not rejected:
+ * downstream steps may start while upstream waits in review (keeps multi-step cards moving),
+ * but a rejected result never reaches downstream prompts (PM review fix).
+ */
+export function satisfiesDependency(step: JobStep) {
+  return step.status === 'review' || step.status === 'accepted'
+}
+
+/** Steps that (transitively) depend on `stepId`. */
+export function dependentsOf(job: Job, stepId: string): Set<string> {
+  const found = new Set<string>()
+  for (let size = -1; size !== found.size;) {
+    size = found.size
+    for (const entry of job.steps) {
+      if (!found.has(entry.id) && entry.dependsOn.some(id => id === stepId || found.has(id))) found.add(entry.id)
+    }
+  }
+  return found
+}
+
 export function pickReadySteps(jobs: Job[]): Array<{ jobId: string; stepId: string }> {
   const reserved = jobs.reduce((sum, job) => sum + job.steps.filter(step => step.status === 'dispatched').length, 0)
   const candidates = jobs.filter(job => job.started).flatMap(job => {
-    const satisfied = new Set(job.steps.filter(hasJobResult).map(step => step.id))
+    const satisfied = new Set(job.steps.filter(satisfiesDependency).map(step => step.id))
     return job.steps
       .filter(step => step.status === 'waiting' && step.dependsOn.every(id => satisfied.has(id)))
       .map(step => ({ jobId: job.id, stepId: step.id }))
@@ -127,15 +148,28 @@ export function reconcileJob(job: Job, lookup: (id: string) => TaskSnapshot | un
 export function actOnStep(job: Job, stepId: string, action: StepAction): Job {
   const step = job.steps.find(entry => entry.id === stepId)
   if (!step) return job
-  if (step.status === 'review' && (action === 'accept' || action === 'reject')) {
-    return updateStep(job, stepId, entry => ({ ...entry, status: action === 'accept' ? 'accepted' : 'rejected' }))
+  if (step.status === 'review' && action === 'accept') {
+    return updateStep(job, stepId, entry => ({ ...entry, status: 'accepted' }))
   }
-  if (step.status === 'failed' && action === 'retry') {
+  if (step.status === 'review' && action === 'reject') {
+    // Dependents that already used the rejected result and are not accepted yet go back to waiting;
+    // they rerun once this step is retried and produces a new result.
+    const reset = dependentsOf(job, stepId)
+    return {
+      ...job,
+      steps: job.steps.map(entry => {
+        if (entry.id === stepId) return { ...entry, status: 'rejected' }
+        if (!reset.has(entry.id) || entry.status === 'accepted' || entry.status === 'cancelled' || entry.status === 'waiting') return entry
+        return { ...entry, status: 'waiting', taskId: undefined, error: undefined, result: undefined, finishedAt: undefined }
+      }),
+    }
+  }
+  if ((step.status === 'failed' || step.status === 'rejected') && action === 'retry') {
     return updateStep(job, stepId, entry => ({
       ...entry, status: 'waiting', taskId: undefined, error: undefined, result: undefined, finishedAt: undefined,
     }))
   }
-  if (job.started && (step.status === 'failed' || step.status === 'waiting') && action === 'cancel') {
+  if (job.started && (step.status === 'failed' || step.status === 'waiting' || step.status === 'rejected') && action === 'cancel') {
     // Descendants cannot run once any prerequisite is cancelled. Independent work continues.
     const cancelled = new Set([stepId])
     for (let size = 0; size !== cancelled.size;) {

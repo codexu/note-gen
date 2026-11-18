@@ -16,6 +16,7 @@ import { buildAgentRows, buildNav, runningAgentCount, type AgentRow, type NavKey
 import type { AgentSettings } from '@/lib/agents/settings'
 import { useWeekOverlay } from '@/lib/week/overlay'
 import { cn } from '@/lib/utils'
+import useArticleStore from '@/stores/article'
 import useCollectStore from '@/stores/collect'
 import useDecideStore from '@/stores/decide'
 import useHomeStore from '@/stores/home'
@@ -68,12 +69,16 @@ function useAgentRows(): AgentRow[] {
   // 設定裡新增或改名代理人後（設定視窗關閉）重讀一次；瀏覽器預覽沒有資料庫時維持空清單。
   useEffect(() => {
     if (settingsOpen) return
+    // 開發預覽用（不進 production）：瀏覽器沒有 Tauri 資料庫，截圖時從頁面塞 window.__almanacAgentsDemo = AgentSettings[]
     let active = true
     listAgentSettings().then(rows => { if (active) setAgents(rows) }).catch(() => undefined)
     return () => { active = false }
   }, [settingsOpen])
 
-  return useMemo(() => buildAgentRows(agents, tasks), [agents, tasks])
+  // 開發預覽用（不進 production）：瀏覽器沒有 Tauri 資料庫，截圖時從頁面塞 window.__almanacAgentsDemo = AgentSettings[]
+  const demo = process.env.NODE_ENV !== 'production'
+    ? (window as unknown as { __almanacAgentsDemo?: AgentSettings[] }).__almanacAgentsDemo : undefined
+  return useMemo(() => buildAgentRows(demo ?? agents, tasks), [demo, agents, tasks])
 }
 
 function openAgentSettings() {
@@ -90,7 +95,7 @@ function SectionHeader({ section, collapsed, title, aside, actions }: {
 }) {
   const toggle = useSidebarCollapse(state => state.toggle)
   return (
-    <div className="group/section flex items-center">
+    <div className="group/section relative flex items-center">
       <button
         type="button"
         aria-expanded={!collapsed}
@@ -102,7 +107,7 @@ function SectionHeader({ section, collapsed, title, aside, actions }: {
         {aside}
       </button>
       {actions && (
-        <div className="shrink-0 pr-1 opacity-0 transition-opacity duration-100 group-hover/section:opacity-100 focus-within:opacity-100">
+        <div className="absolute inset-y-0 right-1 flex items-center bg-panel pl-1 opacity-0 transition-opacity duration-100 group-hover/section:opacity-100 focus-within:opacity-100">
           {actions}
         </div>
       )}
@@ -138,7 +143,7 @@ function AgentSection() {
               <button type="button" onClick={openAgentSettings} className={cn(ROW, SIDEBAR_ROW, 'group/row')}>
                 <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full bg-faint', row.running && 'bg-ink')} />
                 <span className={cn('min-w-0 truncate', !row.enabled && 'opacity-60')}>{row.name}</span>
-                <span className="ml-auto shrink-0 text-[11px] text-faint group-hover/row:hidden">{row.running ? t('agents.live') : tRoles(row.role)}</span>
+                <span className="ml-auto shrink-0 text-[11px] text-faint group-hover/row:hidden">{tRoles(row.role)}</span>
                 <MoreHorizontal className="ml-auto hidden size-3.5 shrink-0 text-faint group-hover/row:inline-flex" aria-hidden />
               </button>
             </li>
@@ -179,6 +184,10 @@ export function SidebarV3() {
   const nav = buildNav({ decideCount, collectPending, visibility })
 
   useEffect(() => { void load() }, [load])
+  // 開發預覽用（不進 production）：截圖時從頁面塞示範檔案樹，window.__almanacSidebar.article.setState({ fileTree })
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') (window as unknown as Record<string, unknown>).__almanacSidebar = { article: useArticleStore }
+  }, [])
 
   return (
     <div className="flex h-full w-full flex-col gap-3 border-r border-line-soft bg-panel px-2 py-3" data-left-sidebar data-sidebar-v3>

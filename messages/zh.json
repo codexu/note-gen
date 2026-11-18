@@ -8263,7 +8263,6 @@
     "agents": {
       "title": "代理人",
       "running": "{count} 执行中",
-      "live": "执行中",
       "add": "新增代理人",
       "addFirst": "新增第一位代理人"
     },

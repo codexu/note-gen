@@ -8263,7 +8263,6 @@
     "agents": {
       "title": "Agents",
       "running": "{count} running",
-      "live": "Running",
       "add": "Add agent",
       "addFirst": "Add your first agent"
     },

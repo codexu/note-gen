@@ -7,9 +7,11 @@ import useCollectStore from '@/stores/collect'
 import useHomeStore from '@/stores/home'
 import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
+import useThreadsStore from '@/stores/threads'
 import { CollectScreen } from '../collect/collect-screen'
 import { InboxScreen } from '../inbox/inbox-screen'
 import { PromptLibraryScreen } from '../prompt-library/prompt-library-screen'
+import { ThreadsScreen } from '../threads/threads-screen'
 import { HOME_CARDS } from './home-cards'
 import { HomeScreen } from './home-screen'
 import { ActivityTracker } from './cards/footprint-card'
@@ -80,6 +82,7 @@ export function HomeService() {
       if (useInboxStore.getState().visible) useInboxStore.getState().hide()
       if (usePromptLibraryStore.getState().visible) usePromptLibraryStore.getState().hide()
       if (useCollectStore.getState().visible) useCollectStore.getState().hide()
+      if (useThreadsStore.getState().visible) useThreadsStore.getState().hide()
     })
     return () => {
       for (const type of TOUCH_EVENTS) document.removeEventListener(type, onTouch, true)
@@ -96,6 +99,7 @@ export function HomeService() {
       <InboxScreen />
       <PromptLibraryScreen />
       <CollectScreen />
+      <ThreadsScreen />
     </>
   )
 }

@@ -7547,6 +7547,64 @@
     "queued": "已在收集",
     "writeHint": "新筆記、任務和時段都要你收下才會寫入；沒有收下的提案不會留下任何檔案。"
   },
+  "threads": {
+    "title": "對話",
+    "subtitle": "所有對話串，依專案分組",
+    "listLabel": "對話串",
+    "search": "搜尋對話或專案",
+    "groupBy": "分組方式",
+    "mode": {
+      "project": "依專案",
+      "recent": "最近"
+    },
+    "ungrouped": "未分組",
+    "empty": "還沒有對話。在右側或隨處對話問一題，就會出現在這裡。",
+    "noMatch": "找不到符合的對話",
+    "newThread": "新對話",
+    "untitled": "未命名對話",
+    "pinned": "已置頂",
+    "messageCount": "{count} 則訊息",
+    "moveToProject": "移到專案",
+    "newProject": "新專案…",
+    "removeFromProject": "移出專案",
+    "newProjectHint": "專案只是對話的分組名稱，之後可以隨時改。",
+    "projectName": "專案名稱",
+    "cancel": "取消",
+    "create": "建立並移入",
+    "moveFromAnywhere": "移到對話頁",
+    "time": {
+      "now": "剛剛",
+      "minutes": "{count} 分鐘前",
+      "hours": "{count} 小時前",
+      "days": "{count} 天前"
+    },
+    "cards": {
+      "proposal": "提案",
+      "accept": "收下",
+      "reject": "不要",
+      "alsoInInbox": "也在等你定",
+      "proposalWait": "等你定",
+      "proposalOk": "已收下",
+      "proposalNo": "已退回",
+      "kickoff": "開工卡",
+      "placeholder": "示範",
+      "kickoffProposed": "待開工",
+      "kickoffRunning": "進行中",
+      "kickoffDone": "已完成",
+      "kickoffCancelled": "先不開",
+      "start": "開工",
+      "hold": "先不開",
+      "reopen": "改回待開工",
+      "maxParallel": "最多同時 3 件",
+      "dependsOn": "等第 {list} 件",
+      "needsLook": "要你看一下",
+      "task": {
+        "wait": "排隊",
+        "run": "進行中",
+        "done": "完成"
+      }
+    }
+  },
   "anywhere": {
     "palette": {
       "title": "命令面板",

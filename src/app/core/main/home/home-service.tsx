@@ -3,9 +3,11 @@
 // Fork（#31）：載入首頁設定、註冊 ⌘⇧H、從左側欄開檔時收起首頁，並掛上首頁、Inbox 頁（#46）與提示詞庫頁（#53）。由 fork-services.tsx 掛一次。
 import { useEffect } from 'react'
 import useArticleStore from '@/stores/article'
+import useCollectStore from '@/stores/collect'
 import useHomeStore from '@/stores/home'
 import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
+import { CollectScreen } from '../collect/collect-screen'
 import { InboxScreen } from '../inbox/inbox-screen'
 import { PromptLibraryScreen } from '../prompt-library/prompt-library-screen'
 import { HOME_CARDS } from './home-cards'
@@ -52,10 +54,14 @@ export function HomeService() {
     const unsubscribePromptLibrary = usePromptLibraryStore.subscribe((state, prev) => {
       if (state.visible && !prev.visible) blurEditor()
     })
+    const unsubscribeCollect = useCollectStore.subscribe((state, prev) => {
+      if (state.visible && !prev.visible) blurEditor()
+    })
     return () => {
       unsubscribeHome()
       unsubscribeInbox()
       unsubscribePromptLibrary()
+      unsubscribeCollect()
     }
   }, [])
 
@@ -73,6 +79,7 @@ export function HomeService() {
       if (useHomeStore.getState().visible) useHomeStore.getState().hide()
       if (useInboxStore.getState().visible) useInboxStore.getState().hide()
       if (usePromptLibraryStore.getState().visible) usePromptLibraryStore.getState().hide()
+      if (useCollectStore.getState().visible) useCollectStore.getState().hide()
     })
     return () => {
       for (const type of TOUCH_EVENTS) document.removeEventListener(type, onTouch, true)
@@ -88,6 +95,7 @@ export function HomeService() {
       <HomeScreen />
       <InboxScreen />
       <PromptLibraryScreen />
+      <CollectScreen />
     </>
   )
 }

@@ -5,7 +5,7 @@ import { isPluginDisplayVisible } from '@/lib/plugins/display-preferences'
 import { usePluginLocalization } from '@/lib/plugins/localization'
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { CalendarCheck, ChevronDown, ChevronRight, Files, Hash, History, Inbox, LayoutDashboard, ListTree, Palette, ScrollText } from "lucide-react"
+import { CalendarCheck, ChevronDown, ChevronRight, Download, Files, Hash, History, Inbox, LayoutDashboard, ListTree, Palette, ScrollText } from "lucide-react"
 import { FileSidebar } from "./file"
 import { FileActions } from "./file/file-actions"
 import { useLocale, useTranslations } from "next-intl"
@@ -21,11 +21,13 @@ import { isPluginEnabledInWorkspace } from '@/lib/plugins/internal-types'
 import { usePluginStore } from '@/stores/plugins'
 import { resolvePluginViewTitle } from '@/app/core/setting/plugins/plugin-display'
 import useHomeStore from '@/stores/home'
+import useCollectStore from '@/stores/collect'
 import useInboxStore from '@/stores/inbox'
 import usePromptLibraryStore from '@/stores/prompt-library'
 import { openDailyNoteFromSidebar, SidebarCalendar } from './daily/sidebar-calendar'
 import { SIDEBAR_ROW, SIDEBAR_ROW_ACTIVE, SIDEBAR_ROW_ACTIVE_SECONDARY } from './sidebar-row'
 import { Count } from './page-ui'
+import { useUiV3 } from '@/lib/fork-ui'
 import { useInboxPendingCount } from '@/lib/inbox/use-inbox-pending'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import { useEditorOutlineStore } from '@/stores/editor-outline'
@@ -180,7 +182,10 @@ export function LeftSidebar() {
   const inboxCount = useInboxPendingCount()
   const promptLibraryVisible = usePromptLibraryStore(state => state.visible)
   const showPromptLibrary = usePromptLibraryStore(state => state.show)
-  const pageVisible = homeVisible || inboxVisible || promptLibraryVisible
+  const isV3 = useUiV3()
+  const collectVisible = useCollectStore(state => state.visible)
+  const showCollect = useCollectStore(state => state.show)
+  const pageVisible = homeVisible || inboxVisible || promptLibraryVisible || (isV3 && collectVisible)
   const pluginsInitialized = usePluginStore((state) => state.initialized)
   const displaySettings = usePluginStore(state => state.deviceSettings)
   const installed = usePluginStore((state) => state.installed)
@@ -231,6 +236,7 @@ export function LeftSidebar() {
         <nav className="flex flex-col gap-px px-2 pt-1 pb-2" aria-label="Launcher">
           <LauncherButton icon={LayoutDashboard} title="Overview" active={homeVisible} onClick={showHome} />
           <LauncherButton icon={CalendarCheck} title="Today" onClick={() => openDailyNoteFromSidebar(new Date(), t('today.calendarNav.openFailed'))} />
+          {isV3 && <LauncherButton icon={Download} title="Collect" active={collectVisible} onClick={showCollect} />}
           <LauncherButton icon={Inbox} title="Inbox" active={inboxVisible} badge={inboxCount} badgeLabel={t('inbox.pending', { count: inboxCount })} onClick={() => showInbox()} />
           <LauncherButton icon={ScrollText} title="Prompts" active={promptLibraryVisible} onClick={() => showPromptLibrary()} />
           <div className="mx-2 my-1.5 border-t border-line-soft" role="separator" />

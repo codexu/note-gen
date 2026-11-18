@@ -4,7 +4,7 @@
 //   左  06–24 時間軸    中  日誌＋今天要完成    右  等你定＋今天收進來
 // 底部「記／問」輸入列。掛在首頁覆蓋層（home store）上：v3 時 HomeScreen 顯示這個畫面，classic 時維持原首頁。
 // 資料組裝在 lib/today-v3/layout.ts（純函式）；寫回（勾選任務）沿用今日頁的 use-today-actions。
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,11 @@ import { useTodayActions } from '../today/use-today-actions'
 import { TodayComposer } from './composer'
 import { LABEL, RAIL_HEAD } from './styles'
 import { Timeline } from './timeline'
+import { usePendingSlots } from '@/lib/timeslots/use-pending-slots'
+import { useDecisions } from '@/lib/decide/use-decisions'
+import { useDecideActions } from '../decide/decide-parts'
+import { buildProposalBlocks } from '@/lib/today-v3/layout'
+import { toDateKey } from '@/lib/daily/format'
 import { useTodayV3Data } from './use-today-v3-data'
 
 function Journal({ layout, now, onOpen }: { layout: TodayV3Layout, now: string, onOpen: () => void }) {
@@ -148,6 +153,12 @@ export function TodayV3Screen() {
   const { now, tasks, todayPath, layout, calendarAccess } = useTodayV3Data()
   const { busy, toggleTask, openNote } = useTodayActions({ now, tasks })
   const { heading, summary } = layout
+  // ALMNC-16：排程員的時段提案畫在時間軸上，收下／不要與等你定共用同一份狀態
+  const pendingSlots = usePendingSlots(toDateKey(now))
+  const proposals = useMemo(() => buildProposalBlocks(pendingSlots), [pendingSlots])
+  const decisions = useDecisions()
+  const decide = useDecideActions()
+  const decisionByKey = (key: string) => decisions.find(item => item.key === key)
   const clock = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
   const openJournal = () => { hide(); openNote(todayPath) }
@@ -168,7 +179,15 @@ export function TodayV3Screen() {
       <div className="@container min-h-0 flex-1">
       <div className="grid h-full grid-cols-[280px_minmax(0,1fr)_300px] @max-[1000px]:grid-cols-[240px_minmax(0,1fr)]">
         <div className="min-w-0 overflow-y-auto px-6 pt-5 pb-24" data-testid="today-v3-left">
-          <Timeline view={layout.timeline} onOpenTask={openTask} noAccess={calendarAccess === 'denied' || calendarAccess === 'restricted'} />
+          <Timeline
+            view={layout.timeline}
+            onOpenTask={openTask}
+            noAccess={calendarAccess === 'denied' || calendarAccess === 'restricted'}
+            proposals={proposals}
+            busyKey={decide.busy}
+            onAccept={key => { const item = decisionByKey(key); if (item) void decide.accept(item) }}
+            onReject={key => { const item = decisionByKey(key); if (item) void decide.reject(item) }}
+          />
         </div>
         <div className="min-w-0 overflow-y-auto border-l border-line-soft px-10 pt-8 pb-28" data-testid="today-v3-center">
           <Journal layout={layout} now={clock} onOpen={openJournal} />

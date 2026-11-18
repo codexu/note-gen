@@ -7,6 +7,7 @@ import { proposalNoteContent, proposalTaskLine } from '@/lib/collect/builders'
 import { insertLinesInSection } from '@/lib/today/today-model'
 import { projectJobDecisions } from '@/lib/jobs/projection'
 import type { Job } from '@/lib/jobs/schedule'
+import { scheduleSlot, slotEndLabel } from '@/lib/timeslots/model'
 import type { Proposal } from '@/lib/collect/types'
 
 export type DecideSource = 'collect' | 'draft' | 'job'
@@ -88,6 +89,8 @@ export interface JournalSnapshot {
   fileMissing: boolean
   /** YYYY-MM-DD，任務沒有日期時預設今天。 */
   today: string
+  path?: string
+  workspace?: string
 }
 
 export interface ProjectInput {
@@ -95,6 +98,7 @@ export interface ProjectInput {
   tasks: TaskLike[]
   journal: JournalSnapshot | null
   jobs?: Job[]
+  workspace?: string
 }
 
 export const PREVIEW_MAX_LINES = 8
@@ -130,6 +134,7 @@ export function journalInsertPreview(snapshot: JournalSnapshot, proposal: Propos
 
 /** 同一件事的比對鍵：種類、標題、日期、時間（標題不分大小寫與前後空白）。 */
 export function sameThingKey(proposal: Proposal): string {
+  if (proposal.slot) return JSON.stringify(['scheduler', proposal.slot.path, proposal.slot.line, proposal.due, proposal.time])
   return [proposal.kind, proposal.title.trim().replace(/\s+/g, ' ').toLowerCase(), proposal.due, proposal.time].join('|')
 }
 
@@ -140,25 +145,32 @@ function itemOrigin(item: CollectItemLike): string {
 
 function whenOf(proposal: Proposal): string {
   const m = proposal.due.match(/^\d{4}-(\d{2})-(\d{2})$/)
-  return [m ? `${Number(m[1])}/${Number(m[2])}` : proposal.due, proposal.time].filter(Boolean).join(' ')
+  const time = proposal.slot ? `${proposal.time}–${slotEndLabel(proposal.time)}` : proposal.time
+  return [m ? `${Number(m[1])}/${Number(m[2])}` : proposal.due, time].filter(Boolean).join(' ')
 }
 
-function projectCollect(items: CollectItemLike[], journal: JournalSnapshot | null): DecideItem[] {
+function projectCollect(items: CollectItemLike[], journal: JournalSnapshot | null, workspace?: string): DecideItem[] {
   const out: DecideItem[] = []
   const seen = new Map<string, DecideItem>()
   for (const item of items) {
     if (item.state !== 'ready') continue
     for (const proposal of item.proposals) {
       if (proposal.status !== 'wait') continue
+      const slot = proposal.slot
+      if (slot && (!journal || proposal.due !== journal.today || slot.path !== journal.path
+        || slot.workspace !== journal.workspace || slot.workspace !== workspace)) continue
       const ref: DecideRef = { source: 'collect', itemId: item.id, proposalId: proposal.id }
       // 去重一：同一件事已經在今日日誌裡（例如其他管道寫過了），不再問第二次。
-      if (journal && proposal.kind !== 'note' && journal.before.split(/\r?\n/).includes(proposalTaskLine(proposal, journal.today))) continue
+      if (!slot && journal && proposal.kind !== 'note' && journal.before.split(/\r?\n/).includes(proposalTaskLine(proposal, journal.today))) continue
       // 去重二：兩個來源各提了同一件事，只列一次。
       const same = seen.get(sameThingKey(proposal))
       if (same) { same.duplicates.push(ref); continue }
 
       let preview: DecidePreview
-      if (proposal.kind === 'note') {
+      if (slot && journal) {
+        const after = scheduleSlot(journal.before, slot, proposal.due, proposal.time)
+        preview = { type: 'file', path: slot.path, diff: after === null ? null : previewDiff(journal.before, after) }
+      } else if (proposal.kind === 'note') {
         preview = { type: 'newNote', diff: previewDiff('', proposalNoteContent(proposal)) }
       } else if (journal) {
         preview = { type: 'journal', section: journal.section, fileMissing: journal.fileMissing, diff: journalInsertPreview(journal, proposal).diff }
@@ -214,7 +226,7 @@ function projectDrafts(tasks: TaskLike[]): DecideItem[] {
 
 /** 等你定清單：兩個來源合併，等得最久的在最上面；同時間維持來源內的原順序。 */
 export function projectDecisions(input: ProjectInput): DecideItem[] {
-  const all = [...projectCollect(input.items, input.journal), ...projectDrafts(input.tasks), ...projectJobDecisions(input.jobs ?? [])]
+  const all = [...projectCollect(input.items, input.journal, input.workspace), ...projectDrafts(input.tasks), ...projectJobDecisions(input.jobs ?? [])]
   return all
     .map((item, index) => ({ item, index }))
     .sort((x, y) => x.item.at - y.item.at || x.index - y.index)

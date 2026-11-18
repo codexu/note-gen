@@ -5,7 +5,7 @@ import { isPluginDisplayVisible } from '@/lib/plugins/display-preferences'
 import { usePluginLocalization } from '@/lib/plugins/localization'
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { CalendarCheck, ChevronDown, ChevronRight, Download, Files, Hash, History, Inbox, LayoutDashboard, ListChecks, ListTree, MessagesSquare, Palette, ScrollText } from "lucide-react"
+import { CalendarCheck, CalendarDays, ChevronDown, ChevronRight, Download, Files, Hash, History, Inbox, LayoutDashboard, ListChecks, ListTree, MessagesSquare, Palette, ScrollText } from "lucide-react"
 import { FileSidebar } from "./file"
 import { FileActions } from "./file/file-actions"
 import { useLocale, useTranslations } from "next-intl"
@@ -31,6 +31,7 @@ import { openDailyNoteFromSidebar, SidebarCalendar } from './daily/sidebar-calen
 import { SIDEBAR_ROW, SIDEBAR_ROW_ACTIVE, SIDEBAR_ROW_ACTIVE_SECONDARY } from './sidebar-row'
 import { Count } from './page-ui'
 import { useUiV3 } from '@/lib/fork-ui'
+import { useWeekOverlay } from '@/lib/week/overlay'
 import { useInboxPendingCount } from '@/lib/inbox/use-inbox-pending'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import { useEditorOutlineStore } from '@/stores/editor-outline'
@@ -193,7 +194,8 @@ export function LeftSidebar() {
   const showCollect = useCollectStore(state => state.show)
   const threadsVisible = useThreadsStore(state => state.visible)
   const showThreads = useThreadsStore(state => state.show)
-  const pageVisible = homeVisible || inboxVisible || promptLibraryVisible || (isV3 && (collectVisible || decideVisible || threadsVisible))
+  const weekVisible = useWeekOverlay(state => state.visible)
+  const pageVisible = homeVisible || inboxVisible || promptLibraryVisible || (isV3 && (collectVisible || decideVisible || threadsVisible || weekVisible))
   const pluginsInitialized = usePluginStore((state) => state.initialized)
   const displaySettings = usePluginStore(state => state.deviceSettings)
   const installed = usePluginStore((state) => state.installed)
@@ -244,6 +246,7 @@ export function LeftSidebar() {
         <nav className="flex flex-col gap-px px-2 pt-1 pb-2" aria-label="Launcher">
           <LauncherButton icon={LayoutDashboard} title="Overview" active={homeVisible} onClick={showHome} />
           <LauncherButton icon={CalendarCheck} title="Today" onClick={() => openDailyNoteFromSidebar(new Date(), t('today.calendarNav.openFailed'))} />
+          {isV3 && <LauncherButton icon={CalendarDays} title={t('week.title')} active={weekVisible} onClick={useWeekOverlay.getState().show} />}
           {isV3 && <LauncherButton icon={ListChecks} title="Decide" active={decideVisible} badge={decideCount} badgeLabel={t('decide.count', { count: decideCount })} onClick={showDecide} />}
           {isV3 && <LauncherButton icon={Download} title="Collect" active={collectVisible} onClick={showCollect} />}
           {isV3 && <LauncherButton icon={MessagesSquare} title="Threads" active={threadsVisible} onClick={showThreads} />}

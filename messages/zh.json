@@ -8172,7 +8172,10 @@
       "task": "任务",
       "anchor": "日志时段",
       "empty": "今天没有排进时间轴的事。",
-      "noAccess": "日历还没开放访问，行程不会出现在这里。"
+      "noAccess": "日历还没开放访问，行程不会出现在这里。",
+      "proposal": "提案 · 排程员",
+      "accept": "收下",
+      "reject": "不要"
     },
     "journal": {
       "label": "日志",
@@ -8221,5 +8224,27 @@
       "captured": "收进来了，正在拆分成提案",
       "noModel": "还没设置模型，请先到设置里选一个。"
     }
+  },
+  "week": {
+    "title": "周计划",
+    "previous": "上一周",
+    "next": "下一周",
+    "current": "本周",
+    "gridLabel": "一周日历与任务",
+    "grantAccess": "允许读取日历",
+    "access": {
+      "loading": "正在读取日历…",
+      "notDetermined": "允许访问后即可显示日历事件。",
+      "denied": "日历访问已关闭，可在系统设置中开启。",
+      "restricted": "日历访问受限。",
+      "unavailable": "目前无法读取日历。"
+    },
+    "calendar": "日历事件",
+    "completed": "已完成的任务",
+    "untitledEvent": "无标题事件",
+    "reviewProposal": "查看时段提案 {description}",
+    "slotUnavailable": "此时段已无法使用，或原任务已变更。",
+    "tasksUnavailable": "目前无法读取任务索引。",
+    "loadingTasks": "正在读取任务…"
   }
 }

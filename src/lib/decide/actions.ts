@@ -8,6 +8,7 @@ import { QUICK_ADD_SECTION } from '@/lib/today/today-actions'
 import useCollectStore from '@/stores/collect'
 import useDailySettingsStore from '@/stores/daily-settings'
 import useDecideStore from '@/stores/decide'
+import useSettingStore from '@/stores/setting'
 import type { DecideItem, DecideRef } from './project'
 
 /** 草稿衝突（檔案在草稿之後被改過）或寫入失敗：不在這裡硬寫，交給任務中心的審核畫面逐條確認。 */
@@ -27,8 +28,11 @@ export async function refreshJournal(now: Date = new Date()): Promise<void> {
   try {
     await useDailySettingsStore.getState().initSettings()
     const { dailyFolder, dailyPattern } = useDailySettingsStore.getState()
-    const content = await readNote(dailyNotePath(now, dailyFolder, dailyPattern))
-    useDecideStore.getState().setJournal({ before: content ?? '', fileMissing: content === null, section: QUICK_ADD_SECTION, today: toDateKey(now) })
+    const path = dailyNotePath(now, dailyFolder, dailyPattern)
+    const workspace = useSettingStore.getState().workspacePath
+    const content = await readNote(path)
+    if (workspace !== useSettingStore.getState().workspacePath) return
+    useDecideStore.getState().setJournal({ before: content ?? '', fileMissing: content === null, section: QUICK_ADD_SECTION, today: toDateKey(now), path, workspace })
   } catch (error) {
     console.debug('[decide] journal read skipped:', error)
   }

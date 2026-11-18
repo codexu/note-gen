@@ -32,6 +32,27 @@ pub async fn calendar_events(app_handle: AppHandle, start: f64, end: f64) -> Res
     run_helper(app_handle, "events", start, end).await
 }
 
+/// Reads seven civil days in one EventKit query. The webview supplies local
+/// midnight boundaries in epoch milliseconds so DST and its time zone match the UI.
+#[tauri::command]
+pub async fn calendar_week(
+    app_handle: AppHandle,
+    start: f64,
+    end: f64,
+) -> Result<CalendarResponse, String> {
+    if !valid_week_range(start, end) {
+        return Err("Invalid calendar week range".to_string());
+    }
+    run_helper(app_handle, "events", start, end).await
+}
+
+fn valid_week_range(start: f64, end: f64) -> bool {
+    const DAY_MS: f64 = 86_400_000.0;
+    let duration = end - start;
+    // Clock changes can make a local calendar week shorter or longer than 168 hours.
+    start.is_finite() && end.is_finite() && duration >= 6.0 * DAY_MS && duration < 8.0 * DAY_MS
+}
+
 /// Shows the macOS permission prompt when access was never decided, then returns events.
 #[tauri::command]
 pub async fn calendar_request_access(app_handle: AppHandle, start: f64, end: f64) -> Result<CalendarResponse, String> {
@@ -103,4 +124,40 @@ fn run_helper_sync(command_path: std::path::PathBuf, action: &str, start: f64, e
         ));
     }
     serde_json::from_slice(&output.stdout).map_err(|e| format!("Failed to parse calendar helper output: {}", e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn week_accepts_short_and_long_dst_weeks() {
+        for hours in [167.0, 168.0, 169.0] {
+            assert!(valid_week_range(0.0, hours * 3_600_000.0));
+        }
+    }
+
+    #[test]
+    fn week_rejects_invalid_or_non_week_ranges() {
+        let day = 86_400_000.0;
+        for (start, end) in [
+            (0.0, day),
+            (0.0, 8.0 * day),
+            (day, 0.0),
+            (0.0, f64::INFINITY),
+            (f64::NAN, day),
+        ] {
+            assert!(!valid_week_range(start, end));
+        }
+    }
+
+    #[test]
+    fn helper_returns_permission_states_as_successful_empty_responses() {
+        for access in ["denied", "notDetermined", "restricted", "unavailable"] {
+            let payload = format!(r#"{{"access":"{access}","events":[]}}"#);
+            let response: CalendarResponse = serde_json::from_str(&payload).unwrap();
+            assert_eq!(response.access, access);
+            assert!(response.events.is_empty());
+        }
+    }
 }

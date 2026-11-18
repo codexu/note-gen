@@ -5,36 +5,27 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { localDay } from '@/lib/week/dates'
 import type { CalendarEvent } from '@/lib/today/today-model'
 
 export type CalendarAccess = 'granted' | 'denied' | 'notDetermined' | 'restricted' | 'unavailable'
 
-interface CalendarResponse {
+export interface CalendarResponse {
   access: CalendarAccess
-  events: Array<{
-    id: string
-    title: string
-    start: number
-    end: number
-    allDay: boolean
-    calendar: string
-  }>
+  events: CalendarEvent[]
 }
 
-async function invokeCalendar(command: 'calendar_events' | 'calendar_request_access', args: Record<string, unknown> = {}): Promise<CalendarResponse> {
+export async function invokeCalendar(command: 'calendar_events' | 'calendar_request_access' | 'calendar_week', args: { start: number, end: number }): Promise<CalendarResponse> {
   try {
     const { invoke } = await import('@tauri-apps/api/core')
     return await invoke<CalendarResponse>(command, args)
-  } catch (error) {
-    // 非 macOS、未打包 Swift 小工具、或瀏覽器預覽時
-    console.warn('[calendar] unavailable:', error)
+  } catch {
     return { access: 'unavailable', events: [] }
   }
 }
 
 function dayRange(day: Date): { start: number, end: number } {
-  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime()
-  return { start, end: start + 86_400_000 }
+  return { start: localDay(day).getTime(), end: localDay(day, 1).getTime() }
 }
 
 export async function loadCalendarEvents(day: Date): Promise<CalendarResponse> {

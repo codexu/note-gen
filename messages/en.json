@@ -8172,7 +8172,10 @@
       "task": "Task",
       "anchor": "Journal slot",
       "empty": "Nothing scheduled on the timeline today.",
-      "noAccess": "Calendar access is off, so events will not show here."
+      "noAccess": "Calendar access is off, so events will not show here.",
+      "proposal": "Proposal · Scheduler",
+      "accept": "Accept",
+      "reject": "Dismiss"
     },
     "journal": {
       "label": "Journal",
@@ -8221,5 +8224,27 @@
       "captured": "Collected. Splitting into proposals",
       "noModel": "No model configured yet. Pick one in settings first."
     }
+  },
+  "week": {
+    "title": "Week plan",
+    "previous": "Previous week",
+    "next": "Next week",
+    "current": "This week",
+    "gridLabel": "Weekly calendar and tasks",
+    "grantAccess": "Allow calendar access",
+    "access": {
+      "loading": "Loading calendar…",
+      "notDetermined": "Allow access to show calendar events.",
+      "denied": "Calendar access is off. You can enable it in System Settings.",
+      "restricted": "Calendar access is restricted.",
+      "unavailable": "Calendar is unavailable."
+    },
+    "calendar": "Calendar event",
+    "completed": "Completed task",
+    "untitledEvent": "Untitled event",
+    "reviewProposal": "Review proposed time slot {description}",
+    "slotUnavailable": "This slot is no longer available or the task has changed.",
+    "tasksUnavailable": "The task index is unavailable.",
+    "loadingTasks": "Loading tasks…"
   }
 }

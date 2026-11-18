@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { TimelineEntry, TimelineView } from '@/lib/today-v3/layout'
+import type { TimelineEntry, TimelineProposal, TimelineView } from '@/lib/today-v3/layout'
 import { LABEL } from './styles'
 
 /** 一小時的高度（px）。 */
@@ -47,7 +47,40 @@ function Entry({ entry, startHour, onOpenTask }: { entry: TimelineEntry, startHo
     : <div className={className} style={style} data-kind={entry.kind}>{body}</div>
 }
 
-export function Timeline({ view, onOpenTask, noAccess }: { view: TimelineView, onOpenTask: (path: string) => void, noAccess: boolean }) {
+/** 排程員的時段提案：虛線框，收下／不要直接走等你定（ALMNC-16）。 */
+function ProposalBlock({ proposal, startHour, busy, onAccept, onReject }: {
+  proposal: TimelineProposal, startHour: number, busy: boolean, onAccept: () => void, onReject: () => void,
+}) {
+  const t = useTranslations('todayV3.timeline')
+  const top = ((proposal.startMin - startHour * 60) / 60) * HOUR_PX + 1
+  // 30 分鐘只有 22px，放不下標籤、標題與收下／不要：至少留三行加按鈕的高度
+  const height = Math.max(((proposal.endMin - proposal.startMin) / 60) * HOUR_PX - 3, 66)
+  return (
+    <div
+      className="absolute z-[1] flex flex-col overflow-hidden rounded-md border border-dashed border-line bg-bg px-2 py-[5px] text-xs leading-4"
+      style={{ top, height, left: GUTTER_PX, right: 0 }}
+      data-kind="proposal"
+      data-testid="today-v3-proposal"
+    >
+      <span className="text-[10.5px] text-faint">{t('proposal')}</span>
+      <span className="font-medium text-ink">{proposal.title} <span className="font-mono text-[10.5px] text-muted-ink">{proposal.time}–{proposal.end}</span></span>
+      <span className="mt-auto flex gap-3 pt-1">
+        <button type="button" disabled={busy} onClick={onAccept} className="cursor-pointer font-medium text-ink hover:underline disabled:opacity-50">{t('accept')}</button>
+        <button type="button" disabled={busy} onClick={onReject} className="cursor-pointer text-muted-ink hover:text-ink disabled:opacity-50">{t('reject')}</button>
+      </span>
+    </div>
+  )
+}
+
+export function Timeline({ view, onOpenTask, noAccess, proposals = [], busyKey = null, onAccept, onReject }: {
+  view: TimelineView
+  onOpenTask: (path: string) => void
+  noAccess: boolean
+  proposals?: TimelineProposal[]
+  busyKey?: string | null
+  onAccept?: (key: string) => void
+  onReject?: (key: string) => void
+}) {
   const t = useTranslations('todayV3.timeline')
   const hours = Array.from({ length: view.endHour - view.startHour + 1 }, (_, i) => view.startHour + i)
   const height = (view.endHour - view.startHour) * HOUR_PX
@@ -78,6 +111,16 @@ export function Timeline({ view, onOpenTask, noAccess }: { view: TimelineView, o
           </div>
         ))}
         {view.entries.map(entry => <Entry key={entry.key} entry={entry} startHour={view.startHour} onOpenTask={onOpenTask} />)}
+        {proposals.map(proposal => (
+          <ProposalBlock
+            key={proposal.key}
+            proposal={proposal}
+            startHour={view.startHour}
+            busy={busyKey === proposal.key}
+            onAccept={() => onAccept?.(proposal.key)}
+            onReject={() => onReject?.(proposal.key)}
+          />
+        ))}
         {view.nowMin !== null && (
           <div
             ref={nowRef}

@@ -2,6 +2,8 @@
 // 保存的是「收集」這個來源自己的狀態（還沒收下的提案關頁、重開後還在），等你定只讀它、不複製。
 // 放在 store.json 的 collectItems：資料小、和其他 fork 設定（新介面開關、首頁卡片）同一處、Tauri 已有權限，
 // 不需要另開資料表或新增檔案位置。
+import { toDateKey } from '@/lib/daily/format'
+import { isSlotTarget } from '@/lib/timeslots/model'
 import type { CollectInput, Proposal, SplitSource } from './types'
 
 export const COLLECT_ITEMS_KEY = 'collectItems'
@@ -48,6 +50,7 @@ export function serializeItems(items: readonly ItemLike[]): PersistedItem[] {
     proposals: item.proposals.map(proposal => ({
       id: proposal.id, kind: proposal.kind, title: proposal.title, body: proposal.body,
       due: proposal.due, time: proposal.time, tags: [...proposal.tags],
+      ...(proposal.slot ? { slot: proposal.slot } : {}),
       status: proposal.status,
       result: proposal.result ? { path: proposal.result.path } : undefined,
     })),
@@ -59,6 +62,7 @@ function isProposal(value: unknown): value is PersistedProposal {
   const p = value as Record<string, unknown>
   return typeof p.id === 'string' && (p.kind === 'note' || p.kind === 'task' || p.kind === 'event')
     && typeof p.title === 'string' && typeof p.body === 'string' && typeof p.due === 'string' && typeof p.time === 'string'
+    && (p.slot === undefined || (p.kind === 'event' && isSlotTarget(p.slot)))
     && Array.isArray(p.tags) && (p.status === 'wait' || p.status === 'ok' || p.status === 'no')
 }
 
@@ -66,6 +70,7 @@ function isProposal(value: unknown): value is PersistedProposal {
 export function parseItems(value: unknown, now: number): PersistedItem[] {
   if (!Array.isArray(value)) return []
   const out: PersistedItem[] = []
+  const today = toDateKey(new Date(now))
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') continue
     const item = raw as Record<string, unknown>
@@ -74,6 +79,7 @@ export function parseItems(value: unknown, now: number): PersistedItem[] {
     if (input.kind !== 'text' && input.kind !== 'link' && input.kind !== 'image' && input.kind !== 'file') continue
     const proposals = Array.isArray(item.proposals) ? item.proposals.filter(isProposal) : []
     const waiting = proposals.some(proposal => proposal.status === 'wait')
+    if (proposals.length && proposals.every(proposal => proposal.slot && proposal.due < today)) continue
     if (!waiting && now - item.createdAt > DECIDED_KEEP_MS) continue
     out.push({
       id: item.id,

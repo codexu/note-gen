@@ -7899,5 +7899,69 @@
     "split": "拆分",
     "queued": "已在收集",
     "writeHint": "新笔记、任务和时段都要你收下才会写入；没有收下的提案不会留下任何文件。"
+  },
+  "anywhere": {
+    "palette": {
+      "title": "命令面板",
+      "description": "搜索笔记与命令",
+      "placeholder": "搜索笔记或输入命令",
+      "empty": "没有找到匹配的笔记或命令",
+      "group": {
+        "command": "命令",
+        "plugin": "插件命令",
+        "note": "笔记"
+      }
+    },
+    "commands": {
+      "ask": {
+        "title": "问 AI（随处对话）",
+        "keywords": "ask,chat,ai,对话,提问"
+      },
+      "newChat": {
+        "title": "开始新对话",
+        "keywords": "new chat,conversation,新对话"
+      },
+      "home": {
+        "title": "打开首页",
+        "keywords": "home,今天,首页"
+      },
+      "inbox": {
+        "title": "打开收集箱",
+        "keywords": "inbox,收集,待整理"
+      },
+      "searchSidebar": {
+        "title": "聚焦侧栏搜索",
+        "keywords": "search,find,搜索"
+      },
+      "leftSidebar": {
+        "title": "切换左侧栏",
+        "keywords": "sidebar,files,文件,侧栏"
+      },
+      "rightSidebar": {
+        "title": "切换右侧栏",
+        "keywords": "sidebar,chat,对话,侧栏"
+      },
+      "theme": {
+        "title": "切换亮色／深色",
+        "keywords": "theme,dark,light,主题,深色,亮色"
+      },
+      "settings": {
+        "title": "打开设置",
+        "keywords": "settings,preferences,偏好,设置"
+      }
+    },
+    "chat": {
+      "title": "随处对话",
+      "contextNote": "可见：{title}",
+      "contextSelection": "可见：{title} 的选中内容（{count} 字）",
+      "contextUntitled": "当前笔记",
+      "contextNone": "没有打开的笔记",
+      "moveToSidebar": "移到侧栏",
+      "close": "收起",
+      "placeholder": "问 AI，会带上当前笔记或选中内容",
+      "noModel": "请先在设置里选择主要模型",
+      "send": "发送",
+      "hint": "Enter 发送，Shift+Enter 换行"
+    }
   }
 }

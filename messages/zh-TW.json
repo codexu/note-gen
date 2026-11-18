@@ -7546,5 +7546,69 @@
     "split": "拆分",
     "queued": "已在收集",
     "writeHint": "新筆記、任務和時段都要你收下才會寫入；沒有收下的提案不會留下任何檔案。"
+  },
+  "anywhere": {
+    "palette": {
+      "title": "命令面板",
+      "description": "搜尋筆記與指令",
+      "placeholder": "搜尋筆記或下指令",
+      "empty": "找不到符合的筆記或指令",
+      "group": {
+        "command": "指令",
+        "plugin": "外掛命令",
+        "note": "筆記"
+      }
+    },
+    "commands": {
+      "ask": {
+        "title": "問 AI（隨處對話）",
+        "keywords": "ask,chat,ai,對話,提問"
+      },
+      "newChat": {
+        "title": "開始新對話",
+        "keywords": "new chat,conversation,新對話"
+      },
+      "home": {
+        "title": "開啟首頁",
+        "keywords": "home,今天,首頁"
+      },
+      "inbox": {
+        "title": "開啟收集箱",
+        "keywords": "inbox,收集,待整理"
+      },
+      "searchSidebar": {
+        "title": "聚焦側欄搜尋",
+        "keywords": "search,find,搜尋"
+      },
+      "leftSidebar": {
+        "title": "切換左側欄",
+        "keywords": "sidebar,files,檔案,側欄"
+      },
+      "rightSidebar": {
+        "title": "切換右側欄",
+        "keywords": "sidebar,chat,對話,側欄"
+      },
+      "theme": {
+        "title": "切換亮色／深色",
+        "keywords": "theme,dark,light,主題,深色,亮色"
+      },
+      "settings": {
+        "title": "開啟設定",
+        "keywords": "settings,preferences,偏好,設定"
+      }
+    },
+    "chat": {
+      "title": "隨處對話",
+      "contextNote": "看得到：{title}",
+      "contextSelection": "看得到：{title} 的選取（{count} 字）",
+      "contextUntitled": "目前筆記",
+      "contextNone": "沒有開啟的筆記",
+      "moveToSidebar": "移到側欄",
+      "close": "收起",
+      "placeholder": "問 AI，會帶上目前的筆記或選取",
+      "noModel": "請先在設定裡選一個主要模型",
+      "send": "送出",
+      "hint": "Enter 送出，Shift+Enter 換行"
+    }
   }
 }

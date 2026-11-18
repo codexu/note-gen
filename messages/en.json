@@ -7899,5 +7899,69 @@
     "split": "Split",
     "queued": "Queued",
     "writeHint": "New notes, tasks and slots are written only when you accept them; discarded proposals leave no file behind."
+  },
+  "anywhere": {
+    "palette": {
+      "title": "Command palette",
+      "description": "Search notes and commands",
+      "placeholder": "Search notes or run a command",
+      "empty": "No matching notes or commands",
+      "group": {
+        "command": "Commands",
+        "plugin": "Plugin commands",
+        "note": "Notes"
+      }
+    },
+    "commands": {
+      "ask": {
+        "title": "Ask AI (chat anywhere)",
+        "keywords": "ask,chat,ai,question"
+      },
+      "newChat": {
+        "title": "Start a new chat",
+        "keywords": "new chat,conversation"
+      },
+      "home": {
+        "title": "Open Home",
+        "keywords": "home,today"
+      },
+      "inbox": {
+        "title": "Open Inbox",
+        "keywords": "inbox,capture,triage"
+      },
+      "searchSidebar": {
+        "title": "Focus sidebar search",
+        "keywords": "search,find"
+      },
+      "leftSidebar": {
+        "title": "Toggle left sidebar",
+        "keywords": "sidebar,files"
+      },
+      "rightSidebar": {
+        "title": "Toggle right sidebar",
+        "keywords": "sidebar,chat"
+      },
+      "theme": {
+        "title": "Switch light / dark",
+        "keywords": "theme,dark,light"
+      },
+      "settings": {
+        "title": "Open settings",
+        "keywords": "settings,preferences"
+      }
+    },
+    "chat": {
+      "title": "Chat anywhere",
+      "contextNote": "Sees: {title}",
+      "contextSelection": "Sees: selection in {title} ({count} chars)",
+      "contextUntitled": "current note",
+      "contextNone": "No note open",
+      "moveToSidebar": "Move to sidebar",
+      "close": "Close",
+      "placeholder": "Ask AI about the current note or selection",
+      "noModel": "Choose a primary model in Settings first",
+      "send": "Send",
+      "hint": "Enter to send, Shift+Enter for a new line"
+    }
   }
 }

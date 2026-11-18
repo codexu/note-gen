@@ -5,6 +5,7 @@
 // 只在 Dialog 裡的面板啟用（彈出式選單維持上游的靜態選中底）。
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { LayoutGroup, motion, useReducedMotion } from 'framer-motion'
+import { useUiV3 } from '@/lib/fork-ui'
 
 const ScopeContext = createContext<string | null>(null)
 
@@ -23,6 +24,7 @@ export function CommandItemHighlight() {
   const marker = useRef<HTMLSpanElement>(null)
   const [selected, setSelected] = useState(false)
   const [inDialog, setInDialog] = useState(false)
+  const isUiV3 = useUiV3()
 
   useEffect(() => {
     const item = marker.current?.parentElement
@@ -38,7 +40,7 @@ export function CommandItemHighlight() {
   return (
     <>
       <span ref={marker} hidden />
-      {scope && inDialog && selected ? (
+      {isUiV3 && scope && inDialog && selected ? (
         <motion.span
           layoutId="command-highlight"
           aria-hidden

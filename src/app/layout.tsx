@@ -13,6 +13,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { DeveloperModeController } from "@/components/developer-mode-controller";
 import { AppLockGate } from "@/components/app-lock-gate";
 import { CustomCssController } from "@/components/custom-css-controller";
+import { UiModeSync } from '@/components/fork/ui-mode'
+import { UI_MODE_BOOT_SCRIPT } from '@/lib/fork-ui'
 
 function AppRuntime({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -29,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <>
-      <html lang="en" suppressHydrationWarning>
+      <html lang="en" data-ui="v3" suppressHydrationWarning>
         <head>
           {/* 移动端视口设置 */}
           <meta
@@ -41,6 +43,8 @@ export default function RootLayout({
           <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
           {/* Define isSpace function globally to fix markdown-it issues with Next.js + Turbopack
           https://github.com/markdown-it/markdown-it/issues/1082#issuecomment-2749656365 */}
+          {/* Fork（almanac ALMNC-7）：首屏前套用新舊介面開關 */}
+          <Script id="almanac-ui-mode" strategy="beforeInteractive">{UI_MODE_BOOT_SCRIPT}</Script>
           <Script id="markdown-it-fix" strategy="beforeInteractive">
             {`
               if (typeof window !== 'undefined' && typeof window.isSpace === 'undefined') {
@@ -55,6 +59,7 @@ export default function RootLayout({
           <ConsoleFilter />
           <DeveloperModeController />
           <CustomCssController />
+          <UiModeSync />
           <Suspense>
             <TooltipProvider>
               <NextIntlProvider>

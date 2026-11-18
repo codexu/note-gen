@@ -10,6 +10,7 @@ import { FileManagerTextSizeSettings } from './file-manager-text-size'
 import { RecordTextSizeSettings } from './record-text-size'
 import { CustomThemeSettings } from './custom-theme'
 import { CustomCssSettings } from './custom-css'
+import { UiModeSettings } from '@/components/fork/ui-mode'
 
 export function InterfaceSettings({ mobile = false }: { mobile?: boolean }) {
   const t = useTranslations('settings.general.interface')
@@ -18,6 +19,7 @@ export function InterfaceSettings({ mobile = false }: { mobile?: boolean }) {
     <>
       <SettingSection title={t('appearance.title')} desc={t('appearance.desc')}>
         <div className="flex flex-col gap-3">
+          <UiModeSettings />
           <ThemeSettings />
           <LanguageSettings mobile={mobile} />
           <FontFamilySettings />

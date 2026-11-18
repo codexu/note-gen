@@ -596,6 +596,10 @@
         "themePackage": {
           "title": "Theme package",
           "default": "Built-in colors"
+        },
+        "uiMode": {
+          "title": "New interface (V3)",
+          "desc": "Use the almanac V3 monochrome look and new pages. Turn off to return to the previous look and hide the new pages."
         }
       },
       "tools": {

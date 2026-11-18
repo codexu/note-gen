@@ -1,0 +1,15 @@
+# Fork（almanac P0.5）：pnpm 10 起不再讀 package.json 的 "pnpm" 欄位，設定搬到這裡。
+# package.json 的 pnpm.overrides 是上游的，保留給舊版 pnpm；兩邊要一致。
+# packages 只有根目錄：pnpm 9 要求這個欄位非空。
+packages:
+  - .
+
+overrides:
+  "@lezer/common": 1.5.2
+
+# pnpm 10 起預設不跑套件的 build script；這四個需要（原生模組或下載 binary）。
+allowBuilds:
+  "@parcel/watcher": true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

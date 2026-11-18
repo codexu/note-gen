@@ -12,6 +12,8 @@ import useDecideStore from '@/stores/decide'
 import { hideWhen, linkExclusiveOverlays } from '@/lib/fork-overlays/exclusive'
 import { useUiModeStore } from '@/lib/fork-ui'
 import { useWeekOverlay } from '@/lib/week/overlay'
+import { useKnowledgeOverlay } from '@/lib/sidebar-v3/knowledge'
+import { KnowledgeScreen } from '../sidebar-v3/knowledge-screen'
 import { SlotService } from '../week/slot-service'
 import { WeekScreen } from '../week/week-screen'
 import { CollectScreen } from '../collect/collect-screen'
@@ -38,7 +40,7 @@ export function HomeService() {
 
   // Fork（almanac 段1）：全頁覆蓋層一次只開一個；切回 classic 時關掉 V3 專屬頁。
   useEffect(() => {
-    const v3Only = [useCollectStore, useDecideStore, useThreadsStore, useWeekOverlay]
+    const v3Only = [useCollectStore, useDecideStore, useThreadsStore, useWeekOverlay, useKnowledgeOverlay]
     const unlink = linkExclusiveOverlays([useHomeStore, useInboxStore, usePromptLibraryStore, ...v3Only])
     const unsubscribeMode = useUiModeStore.subscribe(state => hideWhen(() => state.mode !== 'v3', v3Only))
     return () => {
@@ -106,6 +108,7 @@ export function HomeService() {
       if (useCollectStore.getState().visible) useCollectStore.getState().hide()
       if (useThreadsStore.getState().visible) useThreadsStore.getState().hide()
       if (useWeekOverlay.getState().visible) useWeekOverlay.getState().hide()
+      if (useKnowledgeOverlay.getState().visible) useKnowledgeOverlay.getState().hide()
     })
     return () => {
       for (const type of TOUCH_EVENTS) document.removeEventListener(type, onTouch, true)
@@ -125,6 +128,7 @@ export function HomeService() {
       <DecideScreen />
       <ThreadsScreen />
       <WeekScreen />
+      <KnowledgeScreen />
       <SlotService />
     </>
   )

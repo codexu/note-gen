@@ -20,6 +20,7 @@ import useCollectStore, { type CaptureItem, type CaptureProposal } from '@/store
 import useInboxStore, { selectUnprocessedRecords } from '@/stores/inbox'
 import { getMarkListItemContent } from '../mark/mark-list-item-content'
 import { Count, EmptyState, PageHeader, PageSurface } from '../page-ui'
+import { CollectTabs } from '../sidebar-v3/section-tabs'
 
 const KIND_ICON: Record<ProposalKind, typeof FileText> = { note: FileText, task: ListTodo, event: CalendarClock }
 const INPUT_ICON = { text: Type, link: Link2, image: ImagePlus, file: Paperclip } as const
@@ -311,7 +312,9 @@ export function CollectScreen() {
 
   return (
     <PageSurface label="Collect">
-      <PageHeader title={t('title')} subtitle={t('subtitle')} onBack={hide} />
+      <PageHeader title={t('title')} subtitle={t('subtitle')} onBack={hide}>
+        <CollectTabs active="collect" />
+      </PageHeader>
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_300px] lg:overflow-hidden">
         <div className="min-w-0 px-6 py-5 lg:overflow-y-auto">
           <div className="mx-auto max-w-[760px]">

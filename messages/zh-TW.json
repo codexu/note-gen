@@ -7892,6 +7892,41 @@
     "reviewProposal": "查看時段提案 {description}",
     "slotUnavailable": "此時段已無法使用，或原任務已變更。",
     "tasksUnavailable": "目前無法讀取任務索引。",
-    "loadingTasks": "正在讀取任務…"
+    "loadingTasks": "正在讀取任務…",
+    "calendarLabel": "月曆"
+  },
+  "sidebarV3": {
+    "navLabel": "主要導覽",
+    "search": "搜尋或下指令",
+    "count": "{count} 件",
+    "nav": {
+      "today": "今天",
+      "decide": "等你定",
+      "collect": "收集",
+      "threads": "對話",
+      "knowledge": "知識",
+      "plan": "計畫"
+    },
+    "agents": {
+      "title": "代理人",
+      "running": "{count} 執行中",
+      "live": "執行中",
+      "add": "新增代理人",
+      "addFirst": "新增第一位代理人"
+    },
+    "vault": "MyVault",
+    "rules": {
+      "label": "規則",
+      "text": "代理人只能提案；寫入一律經過等你定。"
+    },
+    "tabs": {
+      "collectGroup": "收集頁面",
+      "collect": "收集",
+      "knowledgeGroup": "知識頁面"
+    },
+    "knowledge": {
+      "title": "知識",
+      "subtitle": "時間線、畫布與標籤；筆記檔案樹在左側 MyVault"
+    }
   }
 }

@@ -35,6 +35,7 @@ import usePromptLibraryStore from '@/stores/prompt-library'
 import useVaultIndexStore from '@/stores/vault-index'
 import { moveFileManagerEntries } from '../file/file-dnd'
 import { PromptDetailPanel } from './prompt-detail-panel'
+import { KnowledgeTabs } from '../sidebar-v3/section-tabs'
 
 const ILLEGAL_NAME_RE = /[\\/:*?"<>|#^[\]\n\r\t]+/g
 
@@ -170,6 +171,7 @@ export function PromptLibraryScreen() {
     <div className="absolute top-0 right-0 bottom-7 left-(--home-left) z-30 flex flex-col bg-card" role="region" aria-label="Prompt Library">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b px-5">
         <h1 className="flex items-center gap-2 text-lg font-semibold"><ScrollText className="size-5" aria-hidden />{t('title')}</h1>
+        <KnowledgeTabs active="prompts" />
         <div className="ml-auto flex items-center gap-2">
           <Button variant="default" size="sm" className="gap-2" onClick={() => setNewPromptOpen(true)}>
             <Plus className="size-4" aria-hidden />{t('newPrompt')}

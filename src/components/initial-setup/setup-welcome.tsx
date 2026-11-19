@@ -1,7 +1,7 @@
 'use client'
 
-import type { Ref } from 'react'
-import { ArrowRight, ChevronRight, FolderOpen, MessagesSquare, PencilLine, RefreshCw } from 'lucide-react'
+import { useEffect, useState, type Ref } from 'react'
+import { ArrowRight, BookOpen, ChevronRight, FolderOpen, MessagesSquare, PencilLine, RefreshCw } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 
 import { collectGroupedChatModels, findGroupedChatModel } from '@/app/core/main/chat/model-selection'
@@ -13,6 +13,7 @@ import { getWorkspaceDisplayName } from '@/lib/workspace-name'
 import useSettingStore from '@/stores/setting'
 import { useWorkspaceNamesStore } from '@/stores/workspace-names'
 import { SYNC_PLATFORM_INFO } from '@/types/sync'
+import type { WikiSettings } from '@/types/wiki'
 
 type ConfigurationPage = Exclude<InitialSetupStep, 'welcome'>
 
@@ -28,6 +29,7 @@ export function SetupWelcome({ headingRef, onCapture, onLeave, onConfigure, leav
   const t = useTranslations('initialSetup')
   const syncText = useTranslations('settings.sync')
   const modelText = useTranslations('settings.defaultModel')
+  const wikiText = useTranslations('wiki')
   const workspace = useSettingStore(state => state.workspacePath)
   const names = useWorkspaceNamesStore(state => state.names)
   const primaryModel = useSettingStore(state => state.primaryModel)
@@ -43,9 +45,25 @@ export function SetupWelcome({ headingRef, onCapture, onLeave, onConfigure, leav
   const syncName = sync === 'local' || sync === 'cloudFolder' || sync === 'selfHosted'
     ? syncText(`${sync}.title`)
     : SYNC_PLATFORM_INFO[sync].name
+  const [knowledge, setKnowledge] = useState<Pick<WikiSettings, 'enabled' | 'semanticSearchEnabled'> | null>(null)
+
+  useEffect(() => {
+    let active = true
+    setKnowledge(null)
+    void import('@/lib/wiki/settings').then(({ getWikiSettings }) => getWikiSettings()).then(settings => {
+      if (active) setKnowledge(settings)
+    }).catch(error => { if (active) console.error('Failed to read knowledge base settings:', error) })
+    return () => { active = false }
+  }, [workspace])
+
+  const knowledgeName = knowledge
+    ? [knowledge.enabled ? wikiText('wikiTitle') : '', knowledge.semanticSearchEnabled ? 'RAG' : '']
+      .filter(Boolean).join(' + ') || t('knowledge.disabled')
+    : undefined
   const settings = [
     { page: 'workspace', icon: FolderOpen, value: getWorkspaceDisplayName(workspace, t('welcome.defaultFolder'), names) },
     { page: 'model', icon: MessagesSquare, value: modelName },
+    { page: 'knowledge', icon: BookOpen, value: knowledgeName },
     { page: 'sync', icon: RefreshCw, value: syncName },
   ] as const
 
@@ -71,14 +89,14 @@ export function SetupWelcome({ headingRef, onCapture, onLeave, onConfigure, leav
 
       <section aria-labelledby="setup-options-heading" className="flex flex-col gap-3 border-t pt-5 sm:pt-6">
         <h2 id="setup-options-heading" className="text-sm font-medium">{t('welcome.preferences')}</h2>
-        <div className="grid gap-2 sm:grid-cols-3 sm:gap-3">
+        <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
           {settings.map(({ page, icon: Icon, value }) => (
             <Item key={page} variant="outline" asChild className="flex-nowrap hover:bg-muted/60">
               <button type="button" id={`initial-setup-open-${page}`} onClick={() => onConfigure(page)} className="text-start">
                 <ItemMedia variant="icon" className="size-8 shrink-0 rounded-md bg-muted"><Icon aria-hidden="true" /></ItemMedia>
                 <ItemContent className="min-w-0">
                   <ItemTitle>{t(`steps.${page}`)}</ItemTitle>
-                  <ItemDescription className="truncate" title={value}>{value}</ItemDescription>
+                  {value !== undefined && <ItemDescription className="truncate" title={value}>{value}</ItemDescription>}
                 </ItemContent>
                 <ItemActions><ChevronRight aria-hidden="true" className="size-4 text-muted-foreground" /></ItemActions>
               </button>

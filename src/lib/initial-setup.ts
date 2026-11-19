@@ -1,6 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store'
 
-export const INITIAL_SETUP_STEPS = ['welcome', 'workspace', 'model', 'sync'] as const
+export const INITIAL_SETUP_STEPS = ['welcome', 'workspace', 'model', 'knowledge', 'sync'] as const
 export type InitialSetupStep = typeof INITIAL_SETUP_STEPS[number]
 export type InitialSetupStatus = 'pending' | 'completed' | 'skipped' | 'existing-user'
 

@@ -6885,6 +6885,7 @@
     "steps": {
       "workspace": "Workspace",
       "model": "AI model",
+      "knowledge": "Knowledge base",
       "sync": "Sync method"
     },
     "welcome": {
@@ -6928,6 +6929,16 @@
       "settingsSavedFocusedHint": "Provider settings save automatically. Choose a chat model, then select Use this model.",
       "saveFailed": "Could not save the model configuration. Please try again."
     },
+    "knowledge": {
+      "title": "Choose knowledge base features",
+      "description": "You can change these options anytime in the getting started guide.",
+      "ragDescription": "Uses an embedding model to index your sources and find related material by meaning.",
+      "save": "Save settings",
+      "loadFailed": "Could not load knowledge base settings.",
+      "saveFailed": "Could not save knowledge base settings. Please try again.",
+      "retry": "Retry",
+      "disabled": "Disabled"
+    },
     "sync": {
       "title": "How would you like to sync?",
       "description": "Keep your notes on this device or connect a service to continue writing on another.",
@@ -6950,7 +6961,7 @@
     },
     "reopen": {
       "title": "Getting started",
-      "description": "Start a capture or change your workspace, AI model, and sync settings.",
+      "description": "Start a capture or change your workspace, AI model, knowledge base, and sync settings.",
       "action": "Open guide"
     }
   }

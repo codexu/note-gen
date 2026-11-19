@@ -19,6 +19,7 @@ import { SetupWelcome } from './setup-welcome'
 const loading = () => <div className="grid flex-1 place-items-center"><Spinner /></div>
 const SetupWorkspaceStep = dynamic(() => import('./workspace-step').then(module => module.SetupWorkspaceStep), { loading })
 const SetupModelStep = dynamic(() => import('./model-step').then(module => module.SetupModelStep), { loading })
+const SetupKnowledgeStep = dynamic(() => import('./knowledge-step').then(module => module.SetupKnowledgeStep), { loading })
 const SetupSyncStep = dynamic(() => import('./sync-step').then(module => module.SetupSyncStep), { loading })
 
 export function InitialSetupScreen({ ready }: { ready: boolean }) {
@@ -117,6 +118,7 @@ export function InitialSetupScreen({ ready }: { ready: boolean }) {
               </header>
               {step === 'workspace' && <SetupWorkspaceStep {...props} />}
               {step === 'model' && <SetupModelStep {...props} />}
+              {step === 'knowledge' && <SetupKnowledgeStep {...props} />}
               {step === 'sync' && <SetupSyncStep {...props} />}
             </section>
           )}

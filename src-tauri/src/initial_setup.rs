@@ -190,7 +190,10 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
     let pending = previous["schemaVersion"].as_u64() == Some(1)
         && status == Some("pending")
         && previous["isNewInstallation"].as_bool() == Some(true)
-        && matches!(previous["step"].as_str(), Some("welcome" | "workspace" | "model" | "sync"));
+        && matches!(
+            previous["step"].as_str(),
+            Some("welcome" | "workspace" | "model" | "knowledge" | "sync")
+        );
     let existing = read_json(&data_dir.join("store.json")).and_then(|settings| {
         if !settings.is_null() && !settings.is_object() {
             return Err("Settings are not a JSON object".into());

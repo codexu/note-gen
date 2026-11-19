@@ -6885,6 +6885,7 @@
     "steps": {
       "workspace": "工作区",
       "model": "AI 模型",
+      "knowledge": "知识库",
       "sync": "同步方式"
     },
     "welcome": {
@@ -6928,6 +6929,16 @@
       "settingsSavedFocusedHint": "服务商设置会自动保存。选好对话模型后，点击「使用此模型」。",
       "saveFailed": "模型配置保存失败，请重试。"
     },
+    "knowledge": {
+      "title": "选择知识库功能",
+      "description": "这些选项可随时在入门指南中调整。",
+      "ragDescription": "使用向量模型为原始资料建立索引，按语义查找相关内容。",
+      "save": "保存设置",
+      "loadFailed": "无法读取知识库设置。",
+      "saveFailed": "知识库设置保存失败，请重试。",
+      "retry": "重试",
+      "disabled": "未启用"
+    },
     "sync": {
       "title": "笔记如何同步？",
       "description": "选择保存笔记的方式。你可以只用本机，也可以在多台设备上接着写。",
@@ -6950,7 +6961,7 @@
     },
     "reopen": {
       "title": "入门指南",
-      "description": "开始记录，或调整工作区、AI 模型和同步设置。",
+      "description": "开始记录，或调整工作区、AI 模型、知识库和同步设置。",
       "action": "打开指南"
     }
   }

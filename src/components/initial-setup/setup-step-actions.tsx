@@ -18,16 +18,17 @@ interface SetupStepActionsProps {
   onNext: () => void
   nextLabel: string
   busy?: boolean
+  disableBack?: boolean
   disableNext?: boolean
 }
 
-export function SetupStepActions({ onBack, onNext, nextLabel, busy, disableNext }: SetupStepActionsProps) {
+export function SetupStepActions({ onBack, onNext, nextLabel, busy, disableBack, disableNext }: SetupStepActionsProps) {
   const t = useTranslations('initialSetup')
   return (
     <footer className="shrink-0">
       <Separator />
       <div className="flex items-center justify-between gap-3 py-4">
-        <Button type="button" variant="ghost" size="lg" className="h-11" onClick={onBack}>
+        <Button type="button" variant="ghost" size="lg" className="h-11" disabled={disableBack} onClick={onBack}>
           <ArrowLeft data-icon="inline-start" />{t('back')}
         </Button>
         <Button type="button" size="lg" className="h-11 px-5" disabled={busy || disableNext} onClick={onNext}>

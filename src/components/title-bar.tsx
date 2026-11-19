@@ -42,7 +42,7 @@ import { useWikiNavigation } from '@/components/wiki/use-wiki-navigation'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
-export function TitleBar() {
+export function TitleBar({ minimal = false }: { minimal?: boolean }) {
   const { openFolder: openWikiFolder } = useWikiNavigation()
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
   const [isMobile, setIsMobile] = useState(true)
@@ -211,8 +211,12 @@ export function TitleBar() {
         }}
         data-tauri-drag-region
       >
+        {!minimal && <>
         {/* 左侧记录工具栏按钮 */}
         <div id="onboarding-target-record-toolbar" className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+          {!recordToolbarConfig.some(item => item.id === 'text' && item.enabled) && (
+            <ControlText setupCapturePath="/core/main" showTrigger={false} />
+          )}
           <TooltipProvider>
             <DndContext
               sensors={sensors}
@@ -231,7 +235,7 @@ export function TitleBar() {
                       const renderToolbarItem = () => {
                         switch (item.id) {
                           case 'text':
-                            return <ControlText />
+                            return <ControlText setupCapturePath="/core/main" />
                           case 'recording':
                             return <ControlRecording />
                           case 'scan':
@@ -267,13 +271,14 @@ export function TitleBar() {
         </div>
 
         <PluginTitleBar location="title-bar-left" />
+        </>}
 
         <div className="flex min-w-[120px] flex-1 items-center justify-center self-stretch px-[60px]" data-tauri-drag-region>
-          <PluginTitleBar location="title-bar-center" />
+          {!minimal && <PluginTitleBar location="title-bar-center" />}
         </div>
 
         {/* 右侧按钮 */}
-        <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+        {!minimal && <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
           <PluginTitleBar location="title-bar-right" />
           <Tooltip>
             <TooltipTrigger asChild><Button variant="ghost" size="icon" className="size-8" aria-label={t('wiki.open')} onClick={() => void openWikiFolder()}><BookOpen /></Button></TooltipTrigger>
@@ -368,7 +373,7 @@ export function TitleBar() {
           </Tooltip>
           
           <AppStatus />
-        </div>
+        </div>}
 
         {/* Windows 控制按钮 */}
         {!isMacOS && (

@@ -48,6 +48,8 @@ import { PluginCommandPalette } from "@/components/plugins/plugin-command-palett
 import { PluginHostBridge } from "@/components/plugins/plugin-host-bridge"
 import { PluginDialogHost } from "@/components/plugins/plugin-dialog-host"
 import { DesktopScreenshotBridge } from "@/components/desktop-screenshot-bridge"
+import { InitialSetupScreen } from '@/components/initial-setup/initial-setup-screen'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 
 export default function RootLayout({
   children,
@@ -71,6 +73,8 @@ export default function RootLayout({
   const t = useTranslations()
   const { toast } = useToast()
   const [pluginsReady, setPluginsReady] = useState(false)
+  const setupVisible = useInitialSetupStore(state => state.visible)
+  const showSetup = pluginsReady && setupVisible
 
   useEffect(() => {
     let cancelled = false
@@ -452,6 +456,7 @@ export default function RootLayout({
   // 禁用浏览器后退快捷键（Backspace）和添加搜索快捷键（Cmd/Ctrl+F）
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (useInitialSetupStore.getState().visible) return
       // 搜索快捷键：Cmd+F (macOS) 或 Ctrl+F (Windows/Linux)
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         if (e.defaultPrevented) return
@@ -502,11 +507,12 @@ export default function RootLayout({
       disableTransitionOnChange
     >
       <TextSizeProvider>
-        <TitleBar />
-        <main className="flex flex-1 flex-col overflow-hidden w-full h-[calc(100vh-36px)] mt-9">
+        <TitleBar minimal={showSetup} />
+        <main inert={showSetup} aria-hidden={showSetup} className="flex flex-1 flex-col overflow-hidden w-full h-[calc(100vh-36px)] mt-9">
           {children}
         </main>
-        <SettingsDialog />
+        {!showSetup && <SettingsDialog />}
+        <InitialSetupScreen ready={pluginsReady} />
         <SyncConfirmDialog />
         <MemoryAutoNotifications />
         <WebClipperBridge />

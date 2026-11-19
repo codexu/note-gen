@@ -1,3 +1,6 @@
+'use client'
+
+import { usePathname } from 'next/navigation'
 import { TooltipButton } from "@/components/tooltip-button"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -36,9 +39,19 @@ import { RecordSaveTarget } from './record-save-target'
 import { useRecordCompletion } from './use-record-completion'
 import useSettingStore from '@/stores/setting'
 import { getRecordSaveTagIdFromTags } from '@/lib/record-save-target'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 
-export function ControlText() {
+interface ControlTextProps {
+  setupCapturePath?: '/core/main' | '/mobile/record'
+  showTrigger?: boolean
+}
+
+export function ControlText({ setupCapturePath, showTrigger = true }: ControlTextProps = {}) {
   const t = useTranslations();
+  const pathname = usePathname()
+  const captureRequested = useInitialSetupStore(
+    state => setupCapturePath === pathname && !state.visible && state.captureRequested,
+  )
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('')
   const [creatingTag, setCreatingTag] = useState(false)
@@ -50,6 +63,13 @@ export function ControlText() {
 
   const { currentTagId, tags, fetchTags, initTags } = useTagStore()
   const [selectedTagId, setSelectedTagId] = useState<number>(currentTagId)
+
+  useEffect(() => {
+    if (captureRequested) {
+      setOpen(true)
+      useInitialSetupStore.getState().consumeCapture()
+    }
+  }, [captureRequested])
 
   // 初始化时从 store 读取设置
   useEffect(() => {
@@ -212,12 +232,6 @@ export function ControlText() {
     return () => window.clearTimeout(focusTimer)
   }, [isMobile, open])
 
-  const handleDrawerAnimationEnd = useCallback((drawerOpen: boolean) => {
-    if (!drawerOpen) return
-
-    textAreaRef.current?.focus()
-  }, [])
-
   useEffect(() => {
     const handleOnboardingPrefillChange = (payload?: { prefillText?: string }) => {
       onboardingPrefillRef.current = payload?.prefillText || null
@@ -236,14 +250,26 @@ export function ControlText() {
     }
   }, [handleOpen])
 
+  const trigger = showTrigger && (
+    <TooltipButton
+      buttonId="onboarding-target-record-text"
+      icon={<CopySlash />}
+      tooltipText={t('record.mark.type.text')}
+    />
+  )
+
   return (
     <>
       {isMobile ? (
-        <Drawer open={open} onOpenChange={handleOpenChange} onAnimationEnd={handleDrawerAnimationEnd}>
-          <DrawerTrigger asChild>
-            <TooltipButton buttonId="onboarding-target-record-text" icon={<CopySlash />} tooltipText={t('record.mark.type.text')} />
-          </DrawerTrigger>
-          <DrawerContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }}>
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          {trigger && <DrawerTrigger asChild>{trigger}</DrawerTrigger>}
+          <DrawerContent
+            onOpenAutoFocus={event => {
+              event.preventDefault()
+              textAreaRef.current?.focus({ preventScroll: true })
+            }}
+            onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }}
+          >
             <DrawerHeader>
               <DrawerTitle>{t('record.mark.text.title')}</DrawerTitle>
               <DrawerDescription>
@@ -290,9 +316,7 @@ export function ControlText() {
         </Drawer>
       ) : (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-          <DialogTrigger asChild>
-            <TooltipButton buttonId="onboarding-target-record-text" icon={<CopySlash />} tooltipText={t('record.mark.type.text')} />
-          </DialogTrigger>
+          {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
           <DialogContent onEscapeKeyDown={event => { if (creatingTag) event.preventDefault() }} className="min-w-full md:min-w-[650px]">
             <DialogHeader>
               <DialogTitle>{t('record.mark.text.title')}</DialogTitle>

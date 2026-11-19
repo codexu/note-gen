@@ -94,6 +94,7 @@ fn should_skip_app_data_entry(path: &Path) -> bool {
                 | "temp_import.zip"
                 | "self-hosted-secrets.json"
                 | ".self-hosted-secrets.json.tmp"
+                | crate::initial_setup::INITIAL_SETUP_FILE
         )
     ) || path
         .file_name()
@@ -508,7 +509,9 @@ fn copy_directory(
         let source_path = entry.path();
         let entry_name = source_path.file_name().and_then(|name| name.to_str());
         if skip_app_local_state
-            && entry_name.is_some_and(|name| name == "article" || is_plugin_local_state_entry(name))
+            && entry_name.is_some_and(|name| name == "article"
+                || name == crate::initial_setup::INITIAL_SETUP_FILE
+                || is_plugin_local_state_entry(name))
         {
             continue;
         }

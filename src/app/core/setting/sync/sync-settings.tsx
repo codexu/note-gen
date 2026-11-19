@@ -1,0 +1,624 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { confirm } from '@tauri-apps/plugin-dialog'
+import { Store } from '@tauri-apps/plugin-store'
+import {
+  Cloud,
+  Database,
+  FileDown,
+  FolderSync,
+  GitBranch,
+  GitFork,
+  HardDrive,
+  Loader2,
+  Network,
+  RefreshCcw,
+  Server,
+  Settings2,
+  SlidersHorizontal,
+  type LucideIcon,
+} from 'lucide-react'
+import Image from 'next/image'
+import { usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+
+import { GiteeSync } from './gitee-sync'
+import { GiteaSync } from './gitea-sync'
+import { GithubSync } from './github-sync'
+import { GitlabSync } from './gitlab-sync'
+import { S3Sync } from './s3-sync'
+import { WebDAVSync } from './webdav-sync'
+import { CloudFolderSync } from './cloud-folder-sync'
+import { SelfHostedSync } from './self-hosted-sync'
+import { SelfHostedPersonalDataOptions } from './self-hosted-personal-data-options'
+import { UsePlatformButton } from './components/use-platform-button'
+import { restorePlatformSwitchRecovery, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
+import { WorkspaceRepoMapping } from './components/workspace-repo-mapping'
+import { DataSyncOverview } from './components/data-sync-overview'
+import { Badge } from '@/components/ui/badge'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import { RepoNames, SyncStateEnum } from '@/lib/sync/github.types'
+import { checkSyncProviderStatus } from '@/lib/sync/provider-status'
+import { hasConfiguredSelfHostedSync } from '@/lib/diagnostics/self-hosted'
+import type { SyncRepoPlatform, WorkspaceSyncRepos } from '@/lib/sync/workspace-repos'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
+import useSyncStore from '@/stores/sync'
+import { useSettingsDialogStore } from '@/stores/settings-dialog'
+import { SYNC_PLATFORMS, SYNC_PLATFORM_INFO, type SyncPlatform } from '@/types/sync'
+
+const PLATFORM_ICONS: Record<SyncPlatform, LucideIcon> = {
+  local: HardDrive,
+  github: GitBranch,
+  gitee: GitFork,
+  gitlab: Network,
+  gitea: Server,
+  s3: Database,
+  webdav: Cloud,
+  cloudFolder: FolderSync,
+  selfHosted: Server,
+}
+
+const PLATFORM_LOGOS: Partial<Record<SyncPlatform, string>> = {
+  github: '/sync-platforms/github.svg',
+  gitee: '/sync-platforms/gitee.svg',
+  gitlab: '/sync-platforms/gitlab.svg',
+  gitea: '/sync-platforms/gitea.svg',
+  selfHosted: '/app-icon.png',
+}
+
+export function SyncSettings({ selectedPlatform, onActivate }: {
+  selectedPlatform?: SyncPlatform
+  onActivate?: () => void
+} = {}) {
+  const t = useTranslations()
+  const pathname = usePathname()
+  const syncSettingsOpen = useSettingsDialogStore(state => state.open && state.activeSection === 'sync')
+  const embedded = selectedPlatform !== undefined
+  const active = embedded || syncSettingsOpen || pathname === '/core/setting/sync'
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const {
+    primaryBackupMethod,
+    autoSync,
+    setAutoSync,
+    autoRecordSyncEnabled,
+    setAutoRecordSyncEnabled,
+    autoSettingsSyncEnabled,
+    setAutoSettingsSyncEnabled,
+    autoConversationSyncEnabled,
+    setAutoConversationSyncEnabled,
+    excludeSensitiveConfig,
+    setExcludeSensitiveConfig,
+    autoPullOnOpen,
+    setAutoPullOnOpen,
+    workspacePath,
+    workspaceHistory,
+    setGithubCustomSyncRepo,
+    setGiteeCustomSyncRepo,
+    setGitlabCustomSyncRepo,
+    setGiteaCustomSyncRepo,
+    developerMode,
+  } = useSettingStore()
+  const {
+    syncRepoState,
+    giteeSyncRepoState,
+    gitlabSyncProjectState,
+    giteaSyncRepoState,
+    s3Connected,
+    webdavConnected,
+    cloudFolderConnected,
+    selfHostedConnected,
+  } = useSyncStore()
+
+  const [settingsPlatform, setPlatform] = useState<SyncPlatform>(primaryBackupMethod)
+  const platform = selectedPlatform ?? settingsPlatform
+  const [activeTab, setActiveTab] = useState('connection')
+  const [isLoading, setIsLoading] = useState(!embedded)
+  const [checkingPlatforms, setCheckingPlatforms] = useState<Set<SyncPlatform>>(new Set())
+  const checkingPlatformsRef = useRef(new Map<SyncPlatform, number>())
+  const checkRequestRef = useRef(0)
+  const [workspaceRepos, setWorkspaceRepos] = useState<Record<string, WorkspaceSyncRepos>>({})
+  const [hasSelfHostedConfiguration, setHasSelfHostedConfiguration] = useState(false)
+
+  const visiblePlatforms = useMemo(
+    () => SYNC_PLATFORMS.filter(itemPlatform => itemPlatform !== 'selfHosted'
+      || developerMode
+      || primaryBackupMethod === 'selfHosted'
+      || hasSelfHostedConfiguration),
+    [developerMode, hasSelfHostedConfiguration, primaryBackupMethod],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    void hasConfiguredSelfHostedSync().then(configured => {
+      if (!cancelled) setHasSelfHostedConfiguration(configured)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selfHostedConnected])
+
+  const workspaceOptions = useMemo(
+    () => Array.from(new Set([workspacePath, '', ...workspaceHistory])),
+    [workspaceHistory, workspacePath],
+  )
+  const workspaceReposLoaded = workspaceOptions.every(path => workspaceRepos[path] !== undefined)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadWorkspaceRepos() {
+      const { getWorkspaceSyncRepos } = await import('@/lib/sync/workspace-repos')
+      const entries = await Promise.all(workspaceOptions.map(async (path) => {
+        return [path, await getWorkspaceSyncRepos(path)] as const
+      }))
+      if (!cancelled) setWorkspaceRepos(Object.fromEntries(entries))
+    }
+
+    void loadWorkspaceRepos()
+    return () => {
+      cancelled = true
+    }
+  }, [workspaceOptions])
+
+  async function handleWorkspaceRepoChange(workspacePath: string, repoPlatform: SyncRepoPlatform, repo: string) {
+    const setters: Record<SyncRepoPlatform, (value: string, targetWorkspacePath?: string) => Promise<void>> = {
+      github: setGithubCustomSyncRepo,
+      gitee: setGiteeCustomSyncRepo,
+      gitlab: setGitlabCustomSyncRepo,
+      gitea: setGiteaCustomSyncRepo,
+    }
+
+    await setters[repoPlatform](repo, workspacePath)
+    setWorkspaceRepos(current => ({
+      ...current,
+      [workspacePath]: {
+        ...current[workspacePath],
+        [repoPlatform]: repo,
+      },
+    }))
+  }
+
+  useEffect(() => {
+    if (embedded) return
+    async function loadPrimaryBackupMethod() {
+      try {
+        await restorePlatformSwitchRecovery()
+        const store = await Store.load('store.json')
+        const savedMethod = await store.get<SyncPlatform>('primaryBackupMethod')
+        if (savedMethod) {
+          setPlatform(usePlatformSwitchStore.getState().platform || savedMethod)
+        }
+      } catch (error) {
+        console.error('Failed to load primary backup method:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void loadPrimaryBackupMethod()
+  }, [embedded])
+
+  const checkPlatformStatus = useCallback(async (targetPlatform: SyncPlatform, isActive: () => boolean = () => true) => {
+    if (targetPlatform === 'local' || !isActive()) return
+
+    const requestId = ++checkRequestRef.current
+    checkingPlatformsRef.current.set(targetPlatform, requestId)
+    setCheckingPlatforms(new Set(checkingPlatformsRef.current.keys()))
+    try {
+      if (targetPlatform === 'github' || targetPlatform === 'gitee' || targetPlatform === 'gitlab' || targetPlatform === 'gitea') {
+        const { refreshGitSyncProviderStatus } = await import('@/lib/sync/repository-check')
+        if (!isActive()) return
+        await refreshGitSyncProviderStatus(targetPlatform, { isActive })
+      } else {
+        await checkSyncProviderStatus(targetPlatform, { isActive })
+      }
+    } catch (error) {
+      console.error('Failed to refresh sync provider status:', error)
+    } finally {
+      if (checkingPlatformsRef.current.get(targetPlatform) === requestId) {
+        checkingPlatformsRef.current.delete(targetPlatform)
+        setCheckingPlatforms(new Set(checkingPlatformsRef.current.keys()))
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!active || isLoading || !settingsReady) return
+    let cancelled = false
+    void checkPlatformStatus(platform, () => !cancelled)
+    return () => { cancelled = true }
+  }, [active, isLoading, settingsReady, platform, workspacePath, checkPlatformStatus])
+
+  function getSyncState(targetPlatform: SyncPlatform) {
+    if (checkingPlatforms.has(targetPlatform)) return SyncStateEnum.checking
+
+    switch (targetPlatform) {
+      case 'local':
+        return SyncStateEnum.success
+      case 'github':
+        return syncRepoState
+      case 'gitee':
+        return giteeSyncRepoState
+      case 'gitlab':
+        return gitlabSyncProjectState
+      case 'gitea':
+        return giteaSyncRepoState
+      case 's3':
+        return s3Connected ? SyncStateEnum.success : SyncStateEnum.fail
+      case 'webdav':
+        return webdavConnected ? SyncStateEnum.success : SyncStateEnum.fail
+      case 'cloudFolder':
+        return cloudFolderConnected ? SyncStateEnum.success : SyncStateEnum.fail
+      case 'selfHosted':
+        return selfHostedConnected ? SyncStateEnum.success : SyncStateEnum.fail
+    }
+  }
+
+  const currentSyncState = getSyncState(platform)
+  const isAutoSyncDisabled = currentSyncState !== SyncStateEnum.success
+  const getPlatformName = (targetPlatform: SyncPlatform) => {
+    if (targetPlatform === 'local') return t('settings.sync.local.title')
+    if (targetPlatform === 'cloudFolder') return t('settings.sync.cloudFolder.title')
+    if (targetPlatform === 'selfHosted') return t('settings.sync.selfHosted.title')
+    return SYNC_PLATFORM_INFO[targetPlatform].name
+  }
+  const currentPlatformName = getPlatformName(platform)
+
+  function handlePlatformChange(nextPlatform: SyncPlatform) {
+    setPlatform(nextPlatform)
+    setActiveTab('connection')
+  }
+
+  async function handleExcludeSensitiveConfigChange(checked: boolean) {
+    if (!checked) {
+      const accepted = await confirm(t('settings.sync.autoDataSyncPrivacyDisableConfirm'), {
+        title: t('settings.sync.autoDataSyncPrivacyTitle'),
+        kind: 'warning',
+      })
+      if (!accepted) return
+    }
+
+    await setExcludeSensitiveConfig(checked)
+  }
+
+  function renderSyncContent() {
+    if (isLoading || !settingsReady) return null
+    switch (platform) {
+      case 'local':
+        return (
+          <Card>
+            <CardHeader>
+              <CardDescription>{t('settings.sync.local.description')}</CardDescription>
+            </CardHeader>
+          </Card>
+        )
+      case 'github':
+        return <GithubSync />
+      case 'gitee':
+        return <GiteeSync />
+      case 'gitlab':
+        return <GitlabSync />
+      case 'gitea':
+        return <GiteaSync />
+      case 's3':
+        return <S3Sync />
+      case 'webdav':
+        return <WebDAVSync />
+      case 'cloudFolder':
+        return <CloudFolderSync />
+      case 'selfHosted':
+        return <SelfHostedSync active={active} />
+    }
+  }
+
+  function renderStatusBadge(state: SyncStateEnum) {
+    const isChecking = state === SyncStateEnum.checking || state === SyncStateEnum.creating
+    const label = state === SyncStateEnum.success
+      ? t(platform === 'selfHosted' ? 'settings.sync.selfHosted.authorized' : 'settings.sync.status.connected')
+      : state === SyncStateEnum.checking
+        ? t('settings.sync.checking')
+        : state === SyncStateEnum.creating
+          ? t('settings.sync.creating')
+          : t('settings.sync.status.disconnected')
+    const refreshHint = t('settings.sync.workspaceConnection.platformRefreshHint')
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            asChild
+            variant={state === SyncStateEnum.success ? 'success' : isChecking ? 'secondary' : 'destructive'}
+          >
+            <button
+              type="button"
+              className={cn(
+                'cursor-pointer disabled:cursor-wait disabled:opacity-70',
+                state === SyncStateEnum.success
+                  ? 'hover:bg-success/20'
+                  : !isChecking && 'hover:bg-destructive/20'
+              )}
+              disabled={isChecking}
+              aria-label={`${currentPlatformName}: ${label}. ${refreshHint}`}
+              onClick={() => void checkPlatformStatus(platform)}
+            >
+              {isChecking ? (
+                <Loader2 data-icon="inline-start" className="animate-spin" aria-hidden="true" />
+              ) : (
+                <RefreshCcw data-icon="inline-start" aria-hidden="true" />
+              )}
+              {label}
+            </button>
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>{refreshHint}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn("grid min-w-0 items-start gap-4", !embedded && "lg:grid-cols-[260px_minmax(0,1fr)]")}>
+        {!embedded && <Card size="sm" className="lg:sticky lg:top-2">
+          <CardHeader>
+            <CardTitle>{t('settings.sync.platformSettings')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ItemGroup className="gap-1">
+              {visiblePlatforms.map((itemPlatform) => {
+                const isCurrentPlatform = primaryBackupMethod === itemPlatform
+                const isSelectedPlatform = platform === itemPlatform
+                return (
+                  <Item
+                    key={itemPlatform}
+                    asChild
+                    size="sm"
+                    variant={isSelectedPlatform ? 'outline' : 'default'}
+                    className="data-[state=on]:border-primary data-[state=on]:bg-primary/5"
+                  >
+                    <button
+                      type="button"
+                      data-state={isSelectedPlatform ? 'on' : 'off'}
+                      aria-pressed={isSelectedPlatform}
+                      onClick={() => void handlePlatformChange(itemPlatform)}
+                    >
+                      <ItemMedia>
+                        <SyncPlatformIcon platform={itemPlatform} small />
+                      </ItemMedia>
+                      <ItemContent>
+                        <ItemTitle>
+                          {getPlatformName(itemPlatform)}
+                        </ItemTitle>
+                      </ItemContent>
+                      {isCurrentPlatform ? (
+                        <ItemActions>
+                          <Badge>{t('settings.sync.currentPlatform')}</Badge>
+                        </ItemActions>
+                      ) : null}
+                    </button>
+                  </Item>
+                )
+              })}
+            </ItemGroup>
+          </CardContent>
+        </Card>}
+
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card>
+            <CardHeader className="min-w-0 max-sm:has-data-[slot=card-action]:grid-cols-1">
+              <div className="flex min-w-0 items-center gap-3">
+                <SyncPlatformIcon platform={platform} />
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="flex items-center gap-2">
+                    {currentPlatformName}
+                    {platform === 'selfHosted' ? (
+                      <Badge
+                        variant="outline"
+                        className="border-warning/40 bg-warning/10 text-warning-foreground"
+                      >
+                        {t('settings.sync.experimental')}
+                      </Badge>
+                    ) : null}
+                  </CardTitle>
+                  {!embedded && platform !== 'local' ? <CardDescription>{t(platform === 'selfHosted' ? 'settings.sync.selfHosted.connectionDescription' : 'settings.sync.platformDesc')}</CardDescription> : null}
+                </div>
+              </div>
+              <CardAction className="max-sm:col-start-1 max-sm:row-start-auto max-sm:row-span-1 max-sm:justify-self-start">
+                <div className="flex flex-wrap items-center gap-2">
+                  {platform !== 'local' ? renderStatusBadge(currentSyncState) : null}
+                  <UsePlatformButton
+                    platform={platform}
+                    onActivate={onActivate}
+                    disabled={currentSyncState !== SyncStateEnum.success}
+                  />
+                </div>
+              </CardAction>
+            </CardHeader>
+          </Card>
+
+          {platform === 'local' ? renderSyncContent() : <Tabs orientation="horizontal" value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid h-9 w-full grid-cols-2">
+              <TabsTrigger className="!justify-center" value="connection">
+                <Settings2 data-icon="inline-start" />
+                {t('settings.sync.connectionTab')}
+              </TabsTrigger>
+              <TabsTrigger className="!justify-center" value="options">
+                <SlidersHorizontal data-icon="inline-start" />
+                {t('settings.sync.syncOptionsTab')}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="connection" forceMount={embedded || undefined} className="flex flex-col gap-4 data-[state=inactive]:hidden">
+              {renderSyncContent()}
+              {platform !== 's3' && platform !== 'webdav' && platform !== 'cloudFolder' && platform !== 'selfHosted' ? (
+                workspaceReposLoaded ? <WorkspaceRepoMapping
+                  active={active}
+                  platform={platform}
+                  workspaceOptions={workspaceOptions}
+                  currentWorkspacePath={workspacePath}
+                  workspaceRepos={workspaceRepos}
+                  defaultRepoName={RepoNames.sync}
+                  onRepoChange={(targetWorkspacePath, repo) => handleWorkspaceRepoChange(targetWorkspacePath, platform, repo)}
+                /> : <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground" role="status">
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  {t('settings.sync.checking')}
+                </div>
+              ) : null}
+            </TabsContent>
+
+            <TabsContent value="options" className="flex flex-col gap-4">
+              {platform === 'selfHosted' ? <Alert>
+                <RefreshCcw />
+                <AlertTitle>{t('settings.sync.selfHosted.automaticSyncTitle')}</AlertTitle>
+                <AlertDescription>{t('settings.sync.selfHosted.automaticSyncDescription')}</AlertDescription>
+              </Alert> : <Card>
+                <CardHeader>
+                  <CardTitle>{t('settings.sync.noteSettings')}</CardTitle>
+                  <CardDescription>{t('settings.sync.noteSettingsDesc')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ItemGroup>
+                    <Item variant="outline">
+                      <ItemMedia variant="icon"><RefreshCcw /></ItemMedia>
+                      <ItemContent>
+                        <ItemTitle>{t('settings.sync.autoSync')}</ItemTitle>
+                        <ItemDescription>{t('settings.sync.autoSyncDesc')}</ItemDescription>
+                      </ItemContent>
+                      <ItemActions>
+                        <Select
+                          value={autoSync}
+                          onValueChange={setAutoSync}
+                          disabled={isAutoSyncDisabled || platform === 'cloudFolder'}
+                        >
+                          <SelectTrigger className="w-45">
+                            <SelectValue placeholder={t('settings.sync.autoSyncOptions.placeholder')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectItem value="disabled">{t('settings.sync.autoSyncOptions.disabled')}</SelectItem>
+                              <SelectItem value="2">{t('settings.sync.autoSyncOptions.2s')}</SelectItem>
+                              <SelectItem value="3">{t('settings.sync.autoSyncOptions.3s')}</SelectItem>
+                              <SelectItem value="5">{t('settings.sync.autoSyncOptions.5s')}</SelectItem>
+                              <SelectItem value="10">{t('settings.sync.autoSyncOptions.10s')}</SelectItem>
+                              <SelectItem value="20">{t('settings.sync.autoSyncOptions.20s')}</SelectItem>
+                              <SelectItem value="30">{t('settings.sync.autoSyncOptions.30s')}</SelectItem>
+                              <SelectItem value="60">{t('settings.sync.autoSyncOptions.1m')}</SelectItem>
+                              <SelectItem value="120">{t('settings.sync.autoSyncOptions.2m')}</SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </ItemActions>
+                    </Item>
+
+                    <Item variant="outline">
+                      <ItemMedia variant="icon"><FileDown /></ItemMedia>
+                      <ItemContent>
+                        <ItemTitle>{t('settings.sync.autoPullOnOpen')}</ItemTitle>
+                        <ItemDescription>{t('settings.sync.autoPullOnOpenDesc')}</ItemDescription>
+                      </ItemContent>
+                      <ItemActions className="mobile-setting-inline-action">
+                        <Switch
+                          checked={autoPullOnOpen}
+                          onCheckedChange={setAutoPullOnOpen}
+                          disabled={isAutoSyncDisabled || platform === 'cloudFolder'}
+                        />
+                      </ItemActions>
+                    </Item>
+
+                  </ItemGroup>
+                </CardContent>
+              </Card>}
+
+              {platform === 'selfHosted' ? (
+                <SelfHostedPersonalDataOptions />
+              ) : (
+                <DataSyncOverview
+                  autoRecordSyncEnabled={autoRecordSyncEnabled}
+                  autoSettingsSyncEnabled={autoSettingsSyncEnabled}
+                  autoConversationSyncEnabled={autoConversationSyncEnabled}
+                  excludeSensitiveConfig={excludeSensitiveConfig}
+                  onRecordSyncChange={setAutoRecordSyncEnabled}
+                  onSettingsSyncChange={setAutoSettingsSyncEnabled}
+                  onConversationSyncChange={setAutoConversationSyncEnabled}
+                  onSensitiveConfigChange={handleExcludeSensitiveConfigChange}
+                />
+              )}
+
+            </TabsContent>
+          </Tabs>}
+        </div>
+    </div>
+  )
+}
+
+function SyncPlatformIcon({
+  platform,
+  small = false,
+}: {
+  platform: SyncPlatform
+  small?: boolean
+}) {
+  const platformInfo = SYNC_PLATFORM_INFO[platform]
+  const PlatformIcon = PLATFORM_ICONS[platform]
+  const logo = PLATFORM_LOGOS[platform]
+
+  return (
+    <span
+      className={cn(
+        'flex shrink-0 items-center justify-center',
+        small ? 'size-6' : 'size-8',
+      )}
+    >
+      {logo ? (
+        <Image
+          className={cn(
+            'size-full object-contain',
+            platform === 'selfHosted' && 'rounded-[22%]',
+          )}
+          src={logo}
+          alt={`${platformInfo.name} logo`}
+          width={small ? 24 : 32}
+          height={small ? 24 : 32}
+        />
+      ) : (
+        <PlatformIcon className="size-full" />
+      )}
+    </span>
+  )
+}

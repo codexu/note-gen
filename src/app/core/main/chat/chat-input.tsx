@@ -4,8 +4,10 @@ import { PluginError } from '@notegen/plugin-api'
 import { PluginEmbeddedViews } from '@/components/plugins/plugin-embedded-views'
 import * as React from "react"
 import { useEffect, useRef, useState, useCallback } from "react"
-import useSettingStore from "@/stores/setting"
+import useSettingStore, { useSettingsHydrationStore } from "@/stores/setting"
 import { Textarea } from "@/components/ui/textarea"
+import { Button } from '@/components/ui/button'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 import useChatStore from "@/stores/chat"
 import useArticleStore from "@/stores/article"
 import useCanvasStore from "@/stores/canvas"
@@ -29,6 +31,7 @@ import { ShineBorder } from "@/components/ui/shine-border"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { buildTypingFrames } from './onboarding-typing'
+import { collectGroupedChatModels, findGroupedChatModel } from './model-selection'
 import { ChatToolsPopover } from './chat-tools-popover'
 import { AttachmentAddMenu } from './attachment-add-menu'
 import { PendingFileAttachments } from './chat-file-attachments'
@@ -125,7 +128,9 @@ export const ChatInput = React.memo(function ChatInput() {
     requestAnimationFrame(() => textareaRef.current?.focus())
   }), [])
 
-  const { primaryModel } = useSettingStore()
+  const { primaryModel, aiModelList } = useSettingStore()
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const hasChatModel = React.useMemo(() => Boolean(findGroupedChatModel(collectGroupedChatModels(aiModelList), primaryModel)), [aiModelList, primaryModel])
   const {
     loading,
     setLinkedResource: setChatLinkedResource,
@@ -142,6 +147,7 @@ export const ChatInput = React.memo(function ChatInput() {
     isTemporaryConversation,
     mobileActiveContexts,
   } = useChatStore()
+  const showModelSetup = settingsReady && !hasChatModel && !loading
   const {
     activeFilePath,
     activeTabId,
@@ -1506,6 +1512,14 @@ ${previewLines.join('\n')}
         isMobile ? "px-2 pb-1 pt-0" : "p-1"
       )}
     >
+      {showModelSetup && (
+        <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 pb-1">
+          <p className="text-xs text-muted-foreground">{t('initialSetup.model.chatHint')}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => void useInitialSetupStore.getState().openStep('model')}>
+            {t('initialSetup.model.chatAction')}
+          </Button>
+        </div>
+      )}
       {/* 移动端图片选择 */}
       {isMobileDevice_ && (
         <input

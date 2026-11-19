@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { confirm } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
 import { ArrowRightLeft, FolderOpen, Loader2, TriangleAlert } from 'lucide-react'
@@ -32,9 +32,13 @@ import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivatio
 
 type ICloudFolderSyncProps = {
   onActiveProviderChange?: (provider: 'folder') => void
+  isActive?: () => boolean
 }
 
-export function ICloudFolderSync({ onActiveProviderChange }: ICloudFolderSyncProps) {
+export function ICloudFolderSync({ onActiveProviderChange, isActive: isCallerActive = () => true }: ICloudFolderSyncProps) {
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const isActive = () => mounted.current && isCallerActive()
   const t = useTranslations('settings.sync.iCloud')
   const { workspacePath, setWorkspacePath } = useSettingStore()
   const setCloudFolderConnected = useSyncStore(state => state.setCloudFolderConnected)
@@ -106,21 +110,25 @@ export function ICloudFolderSync({ onActiveProviderChange }: ICloudFolderSyncPro
   async function saveConfig(next: CloudFolderConfig) {
     const store = await Store.load('store.json')
     const previous = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+    if (!isActive()) return false
     if (previous?.provider === 'oneDrive') await disconnectOneDrive()
     await store.set('cloudFolderSyncConfig', { ...next, provider: 'folder' } satisfies CloudFolderConfig)
     await store.save()
-    setConfig({ ...next, provider: 'folder' })
+    if (isActive()) setConfig({ ...next, provider: 'folder' })
+    return true
   }
 
   async function chooseFolder() {
-    if (selecting) return
+    if (!isActive() || selecting) return
     setSelecting(true)
     setError('')
     let selectedAccess: IOSFolderAccess | null = null
+    let committed = false
     try {
       const selected = await pickIOSSyncFolder()
       if (!selected) return
       selectedAccess = selected
+      if (!isActive()) return
       const next: CloudFolderConfig = {
         provider: 'folder',
         path: selected.path,
@@ -128,13 +136,17 @@ export function ICloudFolderSync({ onActiveProviderChange }: ICloudFolderSyncPro
         displayName: selected.displayName,
       }
       const connected = await testCloudFolderConnection(next)
+      if (!isActive()) return
       if (!connected) throw new Error(t('accessFailedDescription'))
       const autoDataSyncQueue = await import('@/lib/sync/auto-data-sync-queue')
+      if (!isActive()) return
       await autoDataSyncQueue.prepareAutoDataSyncForRepositoryChange()
       try {
-        await saveConfig(next)
+        if (!isActive()) return
+        committed = await saveConfig(next)
+        if (!committed) return
         setCloudFolderConnected(true)
-        onActiveProviderChange?.('folder')
+        if (isActive()) onActiveProviderChange?.('folder')
       } finally {
         autoDataSyncQueue.finishAutoDataSyncRepositoryChange()
       }
@@ -148,12 +160,12 @@ export function ICloudFolderSync({ onActiveProviderChange }: ICloudFolderSyncPro
       }
     } catch (cause) {
       console.error('Failed to select the iOS cloud folder:', cause)
-      if (selectedAccess?.bookmarkBase64 && selectedAccess.path !== config.path) {
+      if (isActive()) setError(cause instanceof Error ? cause.message : t('accessFailedDescription'))
+    } finally {
+      if (!committed && selectedAccess?.bookmarkBase64 && selectedAccess.path !== config.path) {
         await releaseIOSSyncFolder(selectedAccess.bookmarkBase64).catch(() => undefined)
       }
-      setError(cause instanceof Error ? cause.message : t('accessFailedDescription'))
-    } finally {
-      setSelecting(false)
+      if (isActive()) setSelecting(false)
     }
   }
 
@@ -181,16 +193,18 @@ export function ICloudFolderSync({ onActiveProviderChange }: ICloudFolderSyncPro
   }
 
   async function migrateWorkspace() {
-    if (!config.path || migrating) return
+    if (!isActive() || !config.path || migrating) return
     const accepted = await confirm(t('migrationConfirm'), {
       title: t('migrationConfirmTitle'),
       kind: 'warning',
     })
-    if (!accepted) return
+    if (!accepted || !isActive()) return
     if (!await prepareWorkspaceSwitch()) return
+    if (!isActive()) return
 
     const previousWorkspacePath = workspacePath
     const previousWorkspaceAccess = await getIOSWorkspaceFolderAccess()
+    if (!isActive()) return
     const nextWorkspaceAccess: IOSFolderAccess | null = config.bookmarkBase64
       ? {
           path: config.path,

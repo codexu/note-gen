@@ -13,12 +13,14 @@ interface UsePlatformButtonProps {
   platform: SyncPlatform
   disabled?: boolean
   size?: 'default' | 'sm'
+  onActivate?: () => void
 }
 
 export function UsePlatformButton({
   platform,
   disabled = false,
   size = 'sm',
+  onActivate,
 }: UsePlatformButtonProps) {
   const t = useTranslations()
   const p = useTranslations('settings.sync.switchPlan')
@@ -47,7 +49,11 @@ export function UsePlatformButton({
       variant={canResume ? 'outline' : isCurrent ? 'secondary' : 'default'}
       size={size}
       disabled={!canResume && (disabled || isCurrent || (switchingPlatform !== null && !(step === 'completed' && skipped)))}
-      onClick={() => { if (canResume) setPlatformSwitchRecoveryVisible(true); else void switchSyncPlatform(platform) }}
+      onClick={() => {
+        if (canResume) setPlatformSwitchRecoveryVisible(true)
+        else if (onActivate) onActivate()
+        else void switchSyncPlatform(platform)
+      }}
     >
       {isSaving ? (
         <Loader2 data-icon="inline-start" className="animate-spin" />

@@ -6665,6 +6665,7 @@
     },
     "localOnly": "Local storage only",
     "localOnlyDescription": "Data stays on this device and will not sync remotely.",
+    "enableSync": "Set up sync",
     "title": "Sync status",
     "target": "Sync destination",
     "lastSuccess": "Last successful sync",
@@ -6877,6 +6878,80 @@
       "failedTasks": "Failed tasks",
       "scopeTitle": "Manage sources in their folders",
       "scopeDescription": "Include or exclude original material from Wiki in its folder details. This folder stores organized results and is never used as a source again."
+    }
+  },
+  "initialSetup": {
+    "back": "Back",
+    "steps": {
+      "workspace": "Workspace",
+      "model": "AI model",
+      "sync": "Sync method"
+    },
+    "welcome": {
+      "title": "Capture first, organize later.",
+      "description": "Capture text, voice, and source material, then use AI to organize, connect, and turn it into notes, articles, diagrams, and canvases.",
+      "capture": "New capture",
+      "enter": "Open workspace",
+      "close": "Close guide",
+      "preferences": "Optional settings",
+      "defaultFolder": "Default folder",
+      "noModel": "No model selected"
+    },
+    "workspace": {
+      "title": "Where should your notes go?",
+      "description": "NoteGen saves Markdown files here. Use the default location or open a folder that already holds your notes.",
+      "default": "Use the default workspace",
+      "defaultDescription": "Start writing in a folder NoteGen sets up for you.",
+      "custom": "Open a local folder",
+      "customDescription": "Use a folder and notes you already have.",
+      "location": "Where your notes are saved",
+      "notSelected": "No folder selected",
+      "browse": "Choose folder",
+      "chooseFolder": "Choose a workspace folder",
+      "unsupportedDirectory": "This folder cannot be used directly. Choose an accessible local folder or use the default workspace.",
+      "invalidDirectory": "Choose a valid folder. Symbolic link folders are not supported.",
+      "failed": "Could not use this workspace. Try again or choose the default workspace.",
+      "changeFolder": "Change",
+      "apply": "Use this workspace"
+    },
+    "model": {
+      "title": "Choose a chat model",
+      "description": "Use this model for conversations and for turning your captures into notes.",
+      "chatHint": "Choose an AI model to start chatting.",
+      "chatAction": "Choose a model",
+      "save": "Use this model",
+      "choose": "Choose how to configure a model",
+      "free": "Built-in NoteGen model",
+      "freeDescription": "No API key needed. When the daily allowance runs out, NoteGen switches to a fallback model.",
+      "custom": "Connect your own model",
+      "customDescription": "Choose a provider or connect a local model.",
+      "settingsSavedFocusedHint": "Provider settings save automatically. Choose a chat model, then select Use this model.",
+      "saveFailed": "Could not save the model configuration. Please try again."
+    },
+    "sync": {
+      "title": "How would you like to sync?",
+      "description": "Keep your notes on this device or connect a service to continue writing on another.",
+      "remoteTitle": "Sync across devices",
+      "remoteDescription": "Use cloud storage or connect your own service.",
+      "done": "Done",
+      "settingsSavedHint": "Set up the connection, then confirm to enable sync.",
+      "loadFailed": "Could not load sync settings. Please reopen this step.",
+      "connectionFailed": "Could not connect. Check the address, credentials, and network.",
+      "activationFailed": "Sync is not enabled yet. Open the sync task to review it.",
+      "cloudWorkspaceRequired": "Move or switch the current workspace into the selected cloud folder before enabling sync.",
+      "taskHint": "A sync task is running or waiting for your input. You can leave setup and return to its progress later.",
+      "categories": {
+        "local": {
+          "title": "Keep notes on this device",
+          "description": "Save notes in your current workspace."
+        }
+      },
+      "useLocal": "Switch to local only"
+    },
+    "reopen": {
+      "title": "Getting started",
+      "description": "Start a capture or change your workspace, AI model, and sync settings.",
+      "action": "Open guide"
     }
   }
 }

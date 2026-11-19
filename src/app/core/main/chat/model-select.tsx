@@ -26,6 +26,7 @@ import { NoteGenModelLabel, noteGenModelDisplayName } from '@/components/notegen
 import {
   changePrimaryChatModel,
   collectGroupedChatModels,
+  findGroupedChatModel,
   type GroupedChatModel,
 } from "./model-selection"
 
@@ -44,7 +45,7 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
 
   async function modelSelectChangeHandler(modelId: string) {
     const nextModel = groupedModels.find(item => item.model.id === modelId)
-    const previousModel = groupedModels.find(item => item.model.id === primaryModel)
+    const previousModel = findGroupedChatModel(groupedModels, primaryModel)
     const nextName = noteGenModelDisplayName(nextModel?.model.model || modelId, nextModel?.configKey === 'note-gen-free')
     const previousName = noteGenModelDisplayName(previousModel?.model.model || primaryModel, previousModel?.configKey === 'note-gen-free')
     const result = await changePrimaryChatModel({
@@ -85,7 +86,7 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
     return acc
   }, {} as Record<string, GroupedChatModel[]>)
 
-  const selectedModel = groupedModels.find((item) => item.model.id === primaryModel)
+  const selectedModel = findGroupedChatModel(groupedModels, primaryModel)
   const appliesNextTurn = Boolean(
     (loading || agentState.isRunning)
     && agentState.activeModelId
@@ -158,7 +159,7 @@ export function ModelSelect({ display = 'icon', disabled = false }: ModelSelectP
                     className="min-w-0"
                     key={item.model.id}
                     value={item.model.id}
-                    data-checked={primaryModel === item.model.id}
+                    data-checked={selectedModel === item}
                     onSelect={(currentValue) => {
                       modelSelectChangeHandler(currentValue)
                       setOpen(false)

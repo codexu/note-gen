@@ -14,6 +14,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { toast } from 'sonner'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 import {
   executePluginUserCommand,
   getPluginCommands,
@@ -25,12 +26,14 @@ export function PluginCommandPalette() {
   const t = useTranslations('settings.plugins.commandPalette')
   const [open, setOpen] = useState(false)
   const [commands, setCommands] = useState<RegisteredPluginCommand[]>(() => getPluginCommands())
+  const setupVisible = useInitialSetupStore(state => state.visible)
 
   useEffect(() => subscribePluginCommands(() => setCommands(getPluginCommands())), [])
+  useEffect(() => { if (setupVisible) setOpen(false) }, [setupVisible])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing || event.repeat) return
+      if (useInitialSetupStore.getState().visible || event.isComposing || event.repeat) return
       if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'p') {
         event.preventDefault()
         setOpen((current) => !current)
@@ -41,6 +44,7 @@ export function PluginCommandPalette() {
   }, [])
 
   const runCommand = async (command: RegisteredPluginCommand) => {
+    if (useInitialSetupStore.getState().visible) return
     setOpen(false)
     try {
       await executePluginUserCommand(command.id)
@@ -53,8 +57,11 @@ export function PluginCommandPalette() {
 
   return (
     <CommandDialog
-      open={open}
-      onOpenChange={setOpen}
+      open={open && !setupVisible}
+      onOpenChange={nextOpen => {
+        if (nextOpen && useInitialSetupStore.getState().visible) return
+        setOpen(nextOpen)
+      }}
       title={t('title')}
       description={t('description')}
     >

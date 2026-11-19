@@ -6665,6 +6665,7 @@
     },
     "localOnly": "仅本地存储",
     "localOnlyDescription": "当前只保存在本机，不会同步到远端。",
+    "enableSync": "设置同步",
     "title": "同步状态",
     "target": "同步目标",
     "lastSuccess": "最近同步成功",
@@ -6877,6 +6878,80 @@
       "failedTasks": "失败任务",
       "scopeTitle": "来源由文件夹管理",
       "scopeDescription": "在原始资料所在的文件夹详情中加入或移出 Wiki。此目录只保存整理结果，不会再次参与整理。"
+    }
+  },
+  "initialSetup": {
+    "back": "返回",
+    "steps": {
+      "workspace": "工作区",
+      "model": "AI 模型",
+      "sync": "同步方式"
+    },
+    "welcome": {
+      "title": "先记录，再整理。",
+      "description": "随手留下文字、语音和资料，再用 AI 整理、连接并创作成笔记、文章、图表与画布。",
+      "capture": "开始记录",
+      "enter": "进入工作区",
+      "close": "关闭指南",
+      "preferences": "按需设置",
+      "defaultFolder": "默认文件夹",
+      "noModel": "尚未选择模型"
+    },
+    "workspace": {
+      "title": "笔记保存在哪里？",
+      "description": "笔记以 Markdown 文件保存在这里。你可以使用默认位置，也可以打开已有的笔记文件夹。",
+      "default": "使用默认工作区",
+      "defaultDescription": "用 NoteGen 准备好的文件夹开始写。",
+      "custom": "打开本地文件夹",
+      "customDescription": "使用你已有的文件夹和笔记。",
+      "location": "笔记保存位置",
+      "notSelected": "尚未选择文件夹",
+      "browse": "选择文件夹",
+      "chooseFolder": "选择工作区文件夹",
+      "unsupportedDirectory": "当前无法直接使用这个目录，请选择可访问的本地文件夹，或使用默认工作区。",
+      "invalidDirectory": "请选择有效的文件夹，暂不支持符号链接目录。",
+      "failed": "无法使用这个工作区，请重试或选择默认工作区。",
+      "changeFolder": "更改",
+      "apply": "使用此工作区"
+    },
+    "model": {
+      "title": "选择对话模型",
+      "description": "这个模型用于 AI 对话，也可以帮你把零散记录整理成笔记。",
+      "chatHint": "选一个 AI 模型就能开始对话。",
+      "chatAction": "选择模型",
+      "save": "使用此模型",
+      "choose": "选择模型配置方式",
+      "free": "NoteGen 内置模型",
+      "freeDescription": "无需填写 API Key。每日额度用完后会自动切换至备用模型。",
+      "custom": "连接自己的模型",
+      "customDescription": "选择模型服务商，或连接本地模型。",
+      "settingsSavedFocusedHint": "服务商设置会自动保存。选好对话模型后，点击「使用此模型」。",
+      "saveFailed": "模型配置保存失败，请重试。"
+    },
+    "sync": {
+      "title": "笔记如何同步？",
+      "description": "选择保存笔记的方式。你可以只用本机，也可以在多台设备上接着写。",
+      "remoteTitle": "跨设备同步",
+      "remoteDescription": "选择云盘或连接自己的服务。",
+      "done": "完成",
+      "settingsSavedHint": "配置连接后，确认启用同步。",
+      "loadFailed": "读取同步配置失败，请重新打开此步骤。",
+      "connectionFailed": "连接失败，请检查地址、凭据和网络。",
+      "activationFailed": "同步尚未启用，请在同步任务中查看并处理。",
+      "cloudWorkspaceRequired": "请先将当前工作区切换或迁移到所选云盘目录，再启用同步。",
+      "taskHint": "同步任务正在进行或等待处理。你可以退出引导，稍后继续查看进度。",
+      "categories": {
+        "local": {
+          "title": "仅保存在本机",
+          "description": "笔记保存在当前工作区。"
+        }
+      },
+      "useLocal": "切换为仅本地"
+    },
+    "reopen": {
+      "title": "入门指南",
+      "description": "开始记录，或调整工作区、AI 模型和同步设置。",
+      "action": "打开指南"
     }
   }
 }

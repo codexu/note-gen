@@ -33,3 +33,7 @@ export const noteGenDefaultModels: AiConfig[] = [
 ]
 
 export const noteGenModelKeys = ['note-gen-free', 'note-gen-limited', 'note-gen-chat', 'note-gen-free-chat', 'note-gen-embedding', 'note-gen-vlm', 'note-gen-stt']
+
+export function isNoteGenProvider(key: string, title: string) {
+  return noteGenModelKeys.includes(key) || title === 'NoteGen Limited'
+}

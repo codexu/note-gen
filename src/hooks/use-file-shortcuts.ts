@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState } from 'react'
 import { isMobileDevice } from '@/lib/check'
 import { platform } from '@tauri-apps/plugin-os'
 import useArticleStore from '@/stores/article'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -60,6 +61,7 @@ export function useFileShortcuts({
   }, [currentPlatform])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (useInitialSetupStore.getState().visible) return
     // 移动端不处理快捷键
     if (isMobileDevice()) {
       return

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { platform } from '@tauri-apps/plugin-os'
 import emitter from '@/lib/emitter'
 import useSettingStore from '@/stores/setting'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 import { resolveToolbarShortcutIndex } from '@/lib/toolbar-shortcuts'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
@@ -10,6 +11,7 @@ export function useToolbarShortcuts() {
   const [currentPlatform, setCurrentPlatform] = useState<Platform>('unknown')
   const [isModifierPressed, setIsModifierPressed] = useState(false)
   const { recordToolbarConfig } = useSettingStore()
+  const setupVisible = useInitialSetupStore(state => state.visible)
   const enabledItemsRef = useRef<typeof recordToolbarConfig>([])
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export function useToolbarShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (useInitialSetupStore.getState().visible) return
       const shortcutIndex = resolveToolbarShortcutIndex(
         e,
         currentPlatform,
@@ -84,7 +87,7 @@ export function useToolbarShortcuts() {
   }, [currentPlatform])
 
   return {
-    isModifierPressed,
+    isModifierPressed: !setupVisible && isModifierPressed,
     currentPlatform,
   }
 }

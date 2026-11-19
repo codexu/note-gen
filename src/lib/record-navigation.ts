@@ -5,6 +5,12 @@ type RecordRouter = {
   push: (path: string) => void
 }
 
+export function showRecordSidebar() {
+  const { leftSidebarVisible, setLeftSidebarTab, toggleLeftSidebar } = useSidebarStore.getState()
+  if (!leftSidebarVisible) void toggleLeftSidebar()
+  void setLeftSidebarTab('notes')
+}
+
 /**
  * 记录完成后的导航处理
  * 桌面端：切换到记录 tab
@@ -22,10 +28,6 @@ export function handleRecordComplete(router?: RecordRouter) {
     }
   } else {
     // 桌面端：切换到记录 tab
-    const { leftSidebarVisible, setLeftSidebarTab, toggleLeftSidebar } = useSidebarStore.getState()
-    if (!leftSidebarVisible) {
-      void toggleLeftSidebar()
-    }
-    void setLeftSidebarTab('notes')
+    showRecordSidebar()
   }
 }

@@ -51,7 +51,7 @@ pub async fn import_app_data_from_file(
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let file_name = entry.file_name();
 
-        if file_name == "store.json" {
+        if file_name == "store.json" || file_name == crate::initial_setup::INITIAL_SETUP_FILE {
             continue;
         }
 
@@ -161,7 +161,7 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let file_name = entry.file_name();
 
-        if file_name == "store.json" {
+        if file_name == "store.json" || file_name == crate::initial_setup::INITIAL_SETUP_FILE {
             continue;
         }
 
@@ -259,6 +259,10 @@ fn add_dir_to_zip<W: Write + Seek>(
         let relative_path = path
             .strip_prefix(base_path)
             .map_err(|e| format!("Failed to get relative path: {}", e))?;
+
+        if relative_path == Path::new(crate::initial_setup::INITIAL_SETUP_FILE) {
+            continue;
+        }
 
         if path.is_file() {
             let file_name = relative_path.to_string_lossy();

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { confirm, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { Store } from '@tauri-apps/plugin-store'
 import { ArrowRightLeft, FolderInput, FolderOpen, Loader2, Trash2, TriangleAlert } from 'lucide-react'
@@ -19,7 +19,10 @@ import type { CloudFolderConfig } from '@/types/sync'
 import { toast } from '@/hooks/use-toast'
 import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
 
-export function CloudFolderSync() {
+export function CloudFolderSync({ isActive: isCallerActive = () => true }: { isActive?: () => boolean } = {}) {
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const isActive = () => mounted.current && isCallerActive()
   const t = useTranslations('settings.sync.cloudFolder')
   const setCloudFolderConnected = useSyncStore(state => state.setCloudFolderConnected)
   const { workspacePath, setWorkspacePath } = useSettingStore()
@@ -58,36 +61,41 @@ export function CloudFolderSync() {
   }, [])
 
   async function saveConfig(next: CloudFolderConfig) {
-    setConfig(next)
     const store = await Store.load('store.json')
+    if (!isActive()) return false
     await store.set('cloudFolderSyncConfig', next)
     await store.save()
+    if (isActive()) setConfig(next)
+    return true
   }
 
   async function testConnection(target = config) {
-    if (!target.path) return
+    if (!isActive() || !target.path) return
     try {
-      setCloudFolderConnected(await testCloudFolderConnection(target))
+      const connected = await testCloudFolderConnection(target)
+      if (isActive()) setCloudFolderConnected(connected)
     } catch (error) {
       console.error('Cloud folder connection test failed:', error)
-      setCloudFolderConnected(false)
+      if (isActive()) setCloudFolderConnected(false)
     }
   }
 
   async function chooseFolder() {
+    if (!isActive()) return
     const selected = await openDialog({
       directory: true,
       multiple: false,
       title: t('dialogTitle'),
     })
-    if (typeof selected !== 'string') return
+    if (typeof selected !== 'string' || !isActive()) return
     const next = { path: selected }
     setCloudFolderConnected(false)
-    await saveConfig(next)
+    if (!await saveConfig(next) || !isActive()) return
     await testConnection(next)
   }
 
   async function clearFolder() {
+    if (!isActive()) return
     setCloudFolderConnected(false)
     await saveConfig({ path: '' })
   }
@@ -116,13 +124,14 @@ export function CloudFolderSync() {
   }
 
   async function migrateWorkspace() {
-    if (!config.path || migrating || switchingWorkspace) return
+    if (!isActive() || !config.path || migrating || switchingWorkspace) return
     const accepted = await confirm(t('migrationConfirm'), {
       title: t('migrationConfirmTitle'),
       kind: 'warning',
     })
-    if (!accepted) return
+    if (!accepted || !isActive()) return
     if (!await prepareWorkspaceSwitch()) return
+    if (!isActive()) return
 
     const previousWorkspacePath = workspacePath
     setMigrating(true)
@@ -156,8 +165,9 @@ export function CloudFolderSync() {
   }
 
   async function switchToCloudWorkspace() {
-    if (!config.path || migrating || switchingWorkspace) return
+    if (!isActive() || !config.path || migrating || switchingWorkspace) return
     if (!await prepareWorkspaceSwitch()) return
+    if (!isActive()) return
 
     const previousWorkspacePath = workspacePath
     setSwitchingWorkspace(true)

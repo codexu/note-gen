@@ -310,7 +310,7 @@ function SelfHostedSwitchOverview({ preview, strategy }: { preview: SelfHostedSw
   </section>
 }
 
-export function PlatformSwitchProgress() {
+export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean }) {
   const t = useTranslations()
   const p = useTranslations('settings.sync.switchPlan')
   const state = usePlatformSwitchStore()
@@ -333,18 +333,18 @@ export function PlatformSwitchProgress() {
   const failureToast = useRef<ReturnType<typeof toast> | null>(null)
   useEffect(() => { void restorePlatformSwitchRecovery() }, [])
   useEffect(() => {
-    setOpen(Boolean(platform) && !hideCancelled)
+    setOpen(autoOpen && Boolean(platform) && !hideCancelled)
     if (platform) setOrigin(useSettingStore.getState().primaryBackupMethod)
-  }, [platform, hideCancelled])
+  }, [platform, hideCancelled, autoOpen])
   useEffect(() => {
     // Retrying an intentionally skipped target starts a new attempt even when
     // the target ID is unchanged; its current primary is now the origin.
     if (platform && step === 'local') setOrigin(useSettingStore.getState().primaryBackupMethod)
   }, [platform, step])
   useEffect(() => {
-    if (platform && !hideCancelled && (state.recoveringSelfHostedBackup || ['review', 'confirm', 'error'].includes(step))) setOpen(true)
+    if (autoOpen && platform && !hideCancelled && (state.recoveringSelfHostedBackup || ['review', 'confirm', 'error'].includes(step))) setOpen(true)
     setSkipAcknowledged(false)
-  }, [platform, step, state.recoveringSelfHostedBackup, hideCancelled])
+  }, [platform, step, state.recoveringSelfHostedBackup, hideCancelled, autoOpen])
   useEffect(() => { setConfirmation(null) }, [platform])
   useEffect(() => { if (step === 'completed' || step === 'cancelled') setConfirmation(null) }, [step])
   useEffect(() => { setAcknowledged(false) }, [step, strategy, plan, resolutions])

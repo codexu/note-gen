@@ -6,6 +6,7 @@ import { Settings } from 'lucide-react'
 import { InterfaceSettings } from './interface-settings'
 import { AdvancedSettings } from './advanced-settings'
 import { SystemBehaviorSettings } from './system-behavior-settings'
+import { ReopenSetup } from '@/components/initial-setup/reopen-setup'
 
 export default function GeneralSettingsPage() {
   const t = useTranslations('settings.general')
@@ -17,6 +18,7 @@ export default function GeneralSettingsPage() {
       desc={t('desc')}
       icon={<Settings className="size-4 lg:size-6" />}
     >
+      <ReopenSetup />
       <SystemBehaviorSettings />
       <InterfaceSettings />
       <AdvancedSettings />

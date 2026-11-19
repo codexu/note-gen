@@ -1,4 +1,5 @@
 export type SyncPlatform = 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
+export type SyncProvider = SyncPlatform | 'iCloud' | 'oneDrive'
 
 export type SyncPlatformType = {
   platform: SyncPlatform

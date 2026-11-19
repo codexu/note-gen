@@ -63,6 +63,7 @@ export interface SyncExclusionOptions {
 export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   // 运行时、设备和页面会话状态
   'version',
+  'initialSetupDismissed',
   'agentCorePromptVersion',
   'activeFilePath',
   'activeTabId',

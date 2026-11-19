@@ -17,6 +17,7 @@ mod document_parser;
 mod file_open;
 mod fonts;
 mod fuzzy_search;
+mod initial_setup;
 mod local_mcp;
 mod mcp;
 mod mcp_runtime;
@@ -357,6 +358,9 @@ fn main() {
         ])
         // 应用设置 - 在所有插件和命令注册后
         .setup(|app| {
+            if let Err(error) = initial_setup::initialize(app.handle()) {
+                eprintln!("Failed to initialize first-use state: {error}");
+            }
             screenshot::cleanup_temp_screenshot_dir(app.handle());
             screenshot::cleanup_desktop_screenshot_captures(app.handle());
             screenshot::cleanup_pinned_screenshot_cache(app.handle());

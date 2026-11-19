@@ -415,25 +415,40 @@ export function holdPlatformSwitchCompletion() {
   if (hideTimer) clearTimeout(hideTimer)
   hideTimer = null
 }
-export async function reviewSelfHostedConnection(): Promise<boolean> {
+export interface PlatformSwitchStartOptions {
+  isActive?: () => boolean
+}
+
+export async function reviewSelfHostedConnection(options: PlatformSwitchStartOptions = {}): Promise<boolean> {
+  if (options.isActive?.() === false) return false
   await restorePlatformSwitchRecovery()
+  if (options.isActive?.() === false) return false
   const { retrySecureStorageAccess } = await import('@/lib/self-hosted-sync/profile')
   await retrySecureStorageAccess()
-  const state = usePlatformSwitchStore.getState()
+  if (options.isActive?.() === false) return false
   const database = await import('@/db').then(module => module.getDb())
   const profiles = await database.select<Array<{ id: string }>>("select id from self_hosted_sync_profiles where state = 'connected' order by updated_at desc limit 1")
+  if (options.isActive?.() === false) return false
   if (!profiles[0]) throw new Error('SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED')
   const { requireConnectionReview } = await import('@/lib/self-hosted-sync/profile')
+  if (options.isActive?.() === false) return false
   await requireConnectionReview(profiles[0].id)
+  if (options.isActive?.() === false) return false
   pauseSyncEngine('selfHosted')
+  const state = usePlatformSwitchStore.getState()
   if (running || cancelling || dismissing || state.platform && state.platform !== 'selfHosted') return false
   const retry = state.platform === 'selfHosted' && (['error', 'cancelled'].includes(state.step) || state.skipped)
   if (state.platform === 'selfHosted' && state.step === 'completed' && !state.skipped) await dismissPlatformSwitch()
-  return switchSyncPlatform('selfHosted', retry, undefined, true)
+  return switchSyncPlatform('selfHosted', retry, undefined, true, options)
 }
 
-export async function switchSyncPlatform(platform: SyncPlatform, retry = false, workspaceSetup?: PlatformSwitchRecovery['workspaceSetup'], reviewConnection = false): Promise<boolean> {
+export async function switchSyncPlatform(platform: SyncPlatform, retry = false, workspaceSetup?: PlatformSwitchRecovery['workspaceSetup'], reviewConnection = false, options: PlatformSwitchStartOptions = {}): Promise<boolean> {
+  if (options.isActive?.() === false) return false
   await restorePlatformSwitchRecovery()
+  // A caller may have left setup while durable recovery was being restored.
+  // This only guards starting a task; an already started write keeps its own
+  // cancellation, backup and recovery lifecycle.
+  if (options.isActive?.() === false) return false
   if (retry && usePlatformSwitchStore.getState().platform !== platform) return false
   const previousState = usePlatformSwitchStore.getState()
   if (running || cancelling || dismissing || (!retry && previousState.platform && !(previousState.step === 'completed' && previousState.skipped))) return false

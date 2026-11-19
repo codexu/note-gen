@@ -12,6 +12,7 @@ mod record_transaction;
 mod device;
 mod document_parser;
 mod fonts;
+mod initial_setup;
 #[cfg(target_os = "ios")]
 mod ios_ocr;
 mod mcp;
@@ -319,6 +320,9 @@ pub fn run() {
             self_hosted_files::self_hosted_recover_file_journal,
         ])
         .setup(|app| {
+            if let Err(error) = initial_setup::initialize(app.handle()) {
+                eprintln!("Failed to initialize first-use state: {error}");
+            }
             plugins::cleanup_plugin_artifacts(app.handle());
             Ok(())
         })

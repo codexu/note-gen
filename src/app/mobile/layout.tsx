@@ -29,6 +29,8 @@ import AppStatus from "@/components/app-status"
 import useMarkStore from "@/stores/mark"
 import useCanvasStore from "@/stores/canvas"
 import { PluginHostBridge } from "@/components/plugins/plugin-host-bridge"
+import { InitialSetupScreen } from '@/components/initial-setup/initial-setup-screen'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 
 const WritingScreen = dynamic(
   () => import('./writing/writing-screen').then(module => module.WritingScreen),
@@ -112,6 +114,8 @@ export default function RootLayout({
   const { initVectorDb } = useVectorStore()
   const { currentLocale } = useI18n()
   const [pluginsReady, setPluginsReady] = useState(false)
+  const setupVisible = useInitialSetupStore(state => state.visible)
+  const showSetup = pluginsReady && setupVisible
   useEffect(() => {
     if (isWritingRoute) {
       setHasWritingCache(true)
@@ -272,7 +276,7 @@ export default function RootLayout({
           <MobileStatusBar />
           <AppStatus />
           <TooltipProvider>
-            <div className="mobile-app-shell flex flex-col">
+            <div inert={showSetup} aria-hidden={showSetup} className="mobile-app-shell flex flex-col">
               <main className="mobile-app-main flex flex-1 w-full overflow-clip">
                 {hasWritingCache ? (
                   <div
@@ -307,8 +311,8 @@ export default function RootLayout({
               ) : null}
             </div>
             {/* 隐藏的记录工具组件，用于监听事件 */}
-            <div className="absolute opacity-0 pointer-events-none -z-50">
-              <ControlText />
+            <div inert={showSetup} className="absolute opacity-0 pointer-events-none -z-50">
+              <ControlText setupCapturePath="/mobile/record" showTrigger={false} />
               <ControlRecording />
               <ControlImage />
               <ControlLink />
@@ -317,6 +321,7 @@ export default function RootLayout({
             </div>
           </TooltipProvider>
           <SyncConfirmDialog />
+          <InitialSetupScreen ready={pluginsReady} />
           <MobileUpdateChecker />
           <MemoryAutoNotifications />
           <PluginHostBridge ready={pluginsReady} locale={currentLocale} />

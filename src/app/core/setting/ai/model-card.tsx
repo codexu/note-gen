@@ -41,7 +41,7 @@ import {
 import { ModelConfig, ModelType, AiConfig } from "../config"
 import { useTranslations } from 'next-intl'
 import ModelSelect from "./modelSelect"
-import { useState, useRef } from "react"
+import { useEffect, useState, useRef } from "react"
 import { createOpenAIClient } from "@/lib/ai/utils"
 import { toast } from "@/hooks/use-toast"
 import { blobToBytes, invokeAiBinary, invokeAiJson, invokeAiMultipart, resolveAiRequestConfig } from "@/lib/ai/tauri-client"
@@ -50,6 +50,7 @@ interface ModelCardProps {
   modelConfig: ModelConfig
   aiConfig: AiConfig
   mobile?: boolean
+  manualModelFetch?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
   onUpdate: <K extends keyof ModelConfig>(modelId: string, field: K, value: ModelConfig[K]) => void
@@ -79,6 +80,7 @@ export default function ModelCard({
   modelConfig,
   aiConfig,
   mobile = false,
+  manualModelFetch = false,
   open,
   onOpenChange,
   onUpdate,
@@ -88,6 +90,8 @@ export default function ModelCard({
   const tc = useTranslations('common')
   const [checkState, setCheckState] = useState<'ok' | 'error' | 'checking' | 'init'>('init')
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => () => abortControllerRef.current?.abort(), [])
 
   const handleCheck = async () => {
     // 取消之前的请求
@@ -216,7 +220,7 @@ export default function ModelCard({
               role: 'user' as const,
               content: 'Hello'
             }],
-          })
+          }, { signal })
           return true
       }
     } catch (error) {
@@ -351,6 +355,7 @@ export default function ModelCard({
                   model={modelConfig.model}
                   setModel={(model) => onUpdate(modelConfig.id, 'model', model)}
                   aiConfig={aiConfig}
+                  manualFetch={manualModelFetch}
                 />
               </Field>
 

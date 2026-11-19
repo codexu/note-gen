@@ -28,12 +28,14 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import useShortcutStore from '@/stores/shortcut'
 import useSettingStore from '@/stores/setting'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 import { useSidebarStore } from '@/stores/sidebar'
 import { getActiveOnboardingStep, getNextOnboardingStep, isOnboardingComplete, type OnboardingProgress, type OnboardingStepId } from './onboarding-state'
 import { createNewNoteFromEmptyState } from './empty-state-actions'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -186,6 +188,7 @@ export function EmptyState({
   const { newFile } = useArticleStore()
   const { setLeftSidebarTab } = useSidebarStore()
   const t = useTranslations('article.emptyState')
+  const setupText = useTranslations('initialSetup')
   const { shortcuts } = useShortcutStore()
   const { setWorkspacePath } = useSettingStore()
   const [textRecordShortcut, setTextRecordShortcut] = useState('')
@@ -278,6 +281,7 @@ export function EmptyState({
   useEffect(() => {
     if (!enableShortcuts) return
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (useInitialSetupStore.getState().visible) return
       // Cmd/Ctrl + N 创建笔记
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
@@ -400,7 +404,7 @@ export function EmptyState({
     : -1
   const showCompletedState = Boolean(completedStep && hasPendingNextStep)
   const onboardingComplete = isOnboardingComplete(onboardingProgress)
-  const showOnboarding = showCompletedState || Boolean(currentOnboardingStep)
+  const openGuide = () => void useInitialSetupStore.getState().open()
   const showActivity = preferences.visibility.activity || preferences.visibility.activityDetail
   const activity = useActivityData(showActivity)
   const customizationSections: Array<{ id: NewTabSectionId; label: string }> = [
@@ -418,9 +422,8 @@ export function EmptyState({
     ...preferences.order.filter(id => availableSectionIds.includes(id)),
     ...availableSectionIds.filter(id => !preferences.order.includes(id)),
   ]
-  const visibleSectionIds = orderedSectionIds.filter(section => (
-    preferences.visibility[section] !== false && (section !== 'onboarding' || showOnboarding)
-  ))
+  const visibleSectionIds = orderedSectionIds.filter(section => preferences.visibility[section] !== false
+    && (section !== 'onboarding' || showCompletedState || currentOnboardingStep))
   const activitySectionIds: NewTabSectionId[] = ['activity', 'activityDetail']
   const firstVisibleActivitySection = visibleSectionIds.find(section => activitySectionIds.includes(section))
   const renderedSectionIds = activity.data
@@ -468,6 +471,9 @@ export function EmptyState({
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
+            {!visibleSectionIds.includes('onboarding') && (
+              <DropdownMenuItem onSelect={openGuide}>{setupText('reopen.action')}</DropdownMenuItem>
+            )}
             {onboardingComplete && (
               <DropdownMenuItem onSelect={() => void handleResetOnboarding()}>
                 {t('customize.resetOnboarding')}
@@ -572,8 +578,13 @@ export function EmptyState({
                   <CardHeader>
                     <CardTitle>{t('onboarding.title')}</CardTitle>
                     <CardDescription>{t('onboarding.subtitle')}</CardDescription>
+                    <CardAction>
+                      <Button type="button" variant="outline" size="sm" onClick={openGuide}>
+                        {setupText('reopen.title')}
+                      </Button>
+                    </CardAction>
                   </CardHeader>
-                  <CardContent>
+                  {(showCompletedState || currentOnboardingStep) && <CardContent>
                     {showCompletedState && completedStep ? (
                       <div className="flex flex-col gap-4 @lg/new-tab:flex-row @lg/new-tab:items-end @lg/new-tab:justify-between @lg/new-tab:gap-6">
                         <div className="flex flex-col gap-1">
@@ -605,7 +616,7 @@ export function EmptyState({
                         </Button>
                       </div>
                     ) : null}
-                  </CardContent>
+                  </CardContent>}
                 </>
               )}
 

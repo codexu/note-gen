@@ -35,6 +35,7 @@ import { useDocumentSyncStore } from '@/stores/document-sync'
 import { useSyncAvailability } from './file/use-sync-availability'
 import { usePlatformSwitchStore, retryPlatformSwitch, restorePlatformSwitchRecovery } from '@/stores/sync-platform-switch'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 import { SYNC_PLATFORM_INFO } from '@/types/sync'
 import { DocumentSyncPanel } from './document-sync-panel'
 import { useSelfHostedNoteConflicts } from '@/hooks/use-self-hosted-note-conflicts'
@@ -64,7 +65,11 @@ function formatSyncTime(timestamp: number, locale: string) {
   return new Date(timestamp).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })
 }
 
-export function UnifiedSyncStatus({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void } = {}) {
+export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
+  mobile?: boolean
+  onNavigate?: () => void
+  onOpenSetup?: () => void
+} = {}) {
   const router = useRouter()
   const settingsStatus = useSettingsHydrationStore(state => state.status)
   const settingsReady = settingsStatus === 'ready'
@@ -437,6 +442,16 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate }: { mobile?: boo
     else useSettingsDialogStore.getState().openSettings('sync')
   }
 
+  function configureSync() {
+    if (method !== 'local' || (switchStep && switchStep !== 'completed') || switchSkipped) {
+      openSyncSettings()
+      return
+    }
+    setOpen(false)
+    onOpenSetup?.()
+    void useInitialSetupStore.getState().openStep('sync')
+  }
+
   async function openNoteConflict(conflict: SelfHostedNoteConflictSummary) {
     if (openingConflictRef.current) return
     openingConflictRef.current = true
@@ -599,9 +614,11 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate }: { mobile?: boo
               </time>}
             </div>}
             {(opensConfiguration || switchNeedsReview || canRetry) && <div className="flex flex-wrap items-center gap-2 [&>button]:h-auto [&>button]:min-h-9 [&>button]:min-w-0 [&>button]:whitespace-normal [&>button]:[overflow-wrap:anywhere]">
-              {(opensConfiguration || switchNeedsReview) && <Button type="button" size="sm" className="flex-1" onClick={openSyncSettings}>
+              {(opensConfiguration || switchNeedsReview) && <Button type="button" size="sm" className="flex-1" onClick={configureSync}>
                 <Settings2 data-icon="inline-start" aria-hidden="true" />
-                {needsReauthentication ? t('selfHostedStatus.signInAgain') : needsConfirmation || switchNeedsReview ? t('continueSetup') : configureLabel}
+                {needsReauthentication ? t('selfHostedStatus.signInAgain')
+                  : needsConfirmation || switchNeedsReview ? t('continueSetup')
+                    : method === 'local' ? t('enableSync') : configureLabel}
               </Button>}
               {canRetry && <Button type="button" variant="outline" size="sm" className="flex-1"
                 disabled={retrying} aria-busy={retrying} onClick={() => void retrySync()}>

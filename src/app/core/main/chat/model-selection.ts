@@ -10,6 +10,10 @@ export interface GroupedChatModel {
   model: ModelConfig
 }
 
+export function findGroupedChatModel(models: GroupedChatModel[], selected: string) {
+  return models.find(({ configKey, model }) => model.id === selected || `${configKey}-${model.id}` === selected)
+}
+
 export interface ModelChangeMarker {
   fromModel: string
   toModel: string

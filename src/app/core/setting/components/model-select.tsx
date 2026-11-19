@@ -35,6 +35,7 @@ export function ModelSelect({
   onValueChange,
   value,
   persistSelection = true,
+  configs,
 }: {
   modelKey: string
   emptyLabel?: string
@@ -42,16 +43,14 @@ export function ModelSelect({
   onValueChange?: (model: string) => void | Promise<void>
   value?: string
   persistSelection?: boolean
+  configs?: AiConfig[]
 }) {
   const [groupedModels, setGroupedModels] = useState<GroupedModel[]>([])
   const { setCompletionModel, setEditorModel, setMarkDescModel, setPrimaryModel, setImageMethodModel, setAudioModel, setSttModel, setEmbeddingModel, setRerankingModel } = useSettingStore()
-  const [model, setModel] = useState<string>('')
+  const [localModel, setModel] = useState<string>('')
+  const model = value ?? localModel
   const [open, setOpen] = React.useState(false)
   const t = useTranslations('settings.defaultModel')
-
-  useEffect(() => {
-    if (value !== undefined) setModel(value)
-  }, [value])
 
   // 获取正确的存储键名
   function getStoreKey(modelKey: string): string {
@@ -131,10 +130,7 @@ export function ModelSelect({
     }
   }
 
-  async function initModelList() {
-    const store = await Store.load('store.json');
-    const aiConfigs = await store.get<AiConfig[]>('aiModelList')
-    if (!aiConfigs) return
+  function groupModels(aiConfigs: AiConfig[]) {
     const models: GroupedModel[] = []
     const targetModelType = getTargetModelType(modelKey)
     
@@ -175,7 +171,14 @@ export function ModelSelect({
       }
     })
 
-    setGroupedModels(models)
+    return models
+  }
+
+  async function initModelList() {
+    const store = await Store.load('store.json');
+    const aiConfigs = await store.get<AiConfig[]>('aiModelList')
+    if (!aiConfigs) return
+    setGroupedModels(groupModels(aiConfigs))
     if (value !== undefined) {
       setModel(value)
       return
@@ -222,12 +225,14 @@ export function ModelSelect({
     return model === item.model.id || model === `${item.configKey}-${item.model.id}`
   }
 
+  const availableModels = configs ? groupModels(configs) : groupedModels
+
   // 查找当前选中的模型显示信息
   const findSelectedModelDisplay = () => {
-    if (!model || !groupedModels.length) return null
+    if (!model || !availableModels.length) return null
     
     // 首先尝试精确匹配（新格式的组合键）
-    const selectedItem = groupedModels.find(isModelSelected)
+    const selectedItem = availableModels.find(isModelSelected)
     
     if (selectedItem) {
       if (selectedItem.configKey === 'note-gen-free') return <span className="truncate"><NoteGenModelLabel model={selectedItem.model.model} builtin /></span>
@@ -238,7 +243,7 @@ export function ModelSelect({
   }
 
   // 按配置分组模型
-  const groupedByConfig = groupedModels.reduce((acc, item) => {
+  const groupedByConfig = availableModels.reduce((acc, item) => {
     if (!acc[item.configTitle]) {
       acc[item.configTitle] = []
     }
@@ -247,7 +252,7 @@ export function ModelSelect({
   }, {} as Record<string, GroupedModel[]>)
 
   useEffect(() => {
-    initModelList()
+    if (!configs) void initModelList()
   }, [])
   
   return (
@@ -288,8 +293,9 @@ export function ModelSelect({
               >
                 {models.map((item) => (
                   <CommandItem
-                    key={item.model.id}
-                    value={item.model.id}
+                    key={`${item.configKey}-${item.model.id}`}
+                    value={persistSelection ? item.model.id : `${item.configKey}-${item.model.id}`}
+                    keywords={[item.configTitle, item.model.model]}
                     data-checked={isModelSelected(item)}
                     onSelect={(currentValue) => {
                       modelSelectChangeHandler(currentValue)

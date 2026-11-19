@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import useSettingStore from '@/stores/setting'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 import type { Mark } from '@/db/marks'
 import { isRecordTabPath } from '../mark/mark-record-tab'
 import { getMarkTypeListBadgeClasses } from '../mark/mark-type-meta'
@@ -389,6 +390,7 @@ export function TabBar({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (useInitialSetupStore.getState().visible) return
       if (
         !isActiveGroup
         || event.defaultPrevented

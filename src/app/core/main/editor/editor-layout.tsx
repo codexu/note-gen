@@ -32,6 +32,7 @@ import useMarkStore from '@/stores/mark'
 import useCanvasStore from '@/stores/canvas'
 import useChatStore from '@/stores/chat'
 import useSettingStore from '@/stores/setting'
+import { useInitialSetupStore } from '@/stores/initial-setup'
 import { useSidebarStore } from '@/stores/sidebar'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { OnboardingSpotlight } from '@/components/onboarding-spotlight'
@@ -1713,6 +1714,7 @@ export function EditorLayout() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (useInitialSetupStore.getState().visible) return
       if (event.defaultPrevented || event.isComposing) return
       let currentPlatform = ''
       try { currentPlatform = platform() } catch { currentPlatform = '' }

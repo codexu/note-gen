@@ -24,8 +24,8 @@ import { useTranslations } from "next-intl";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 
 export default function ModelSelect(
-  { model, setModel, aiConfig }:
-  { model: string, setModel?: (model: string) => void, aiConfig?: AiConfig }
+  { model, setModel, aiConfig, manualFetch = false }:
+  { model: string, setModel?: (model: string) => void, aiConfig?: AiConfig, manualFetch?: boolean }
 ) {
   const [loading, setLoading] = useState(false)
   const { currentAi } = useSettingStore()
@@ -33,6 +33,7 @@ export default function ModelSelect(
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState<string>("") 
   const currentRequestIdRef = useRef<number>(0)
+  const requestRef = useRef<AbortController | null>(null)
   const t = useTranslations('settings.ai')
   
   // 检查输入的模型是否存在于列表中
@@ -41,6 +42,8 @@ export default function ModelSelect(
   }
 
   async function initModelList() {
+    const requestId = ++currentRequestIdRef.current
+    requestRef.current?.abort()
     const store = await Store.load('store.json')
     let model: AiConfig | undefined
     
@@ -53,10 +56,10 @@ export default function ModelSelect(
       model = aiModelList?.find(item => item.key === currentAi)
     }
     
-    if (!model) return
-    
-    const requestId = ++currentRequestIdRef.current
-    const models = await getModels(model, requestId)
+    if (!model || requestId !== currentRequestIdRef.current) return
+    const controller = new AbortController()
+    requestRef.current = controller
+    const models = await getModels(model, requestId, controller.signal)
     
     if (requestId !== currentRequestIdRef.current) return
     
@@ -75,7 +78,7 @@ export default function ModelSelect(
   }
 
   // 获取模型列表
-  async function getModels(model: AiConfig, requestId: number) {
+  async function getModels(model: AiConfig, requestId: number, signal: AbortSignal) {
     try {
       setLoading(true)
       if (requestId !== currentRequestIdRef.current) return null;
@@ -84,7 +87,7 @@ export default function ModelSelect(
       
       if (requestId !== currentRequestIdRef.current) return null;
       
-      const models = await openai.models.list()
+      const models = await openai.models.list({ signal })
       
       if (requestId !== currentRequestIdRef.current) return null;
       
@@ -124,15 +127,18 @@ export default function ModelSelect(
   }
 
   useEffect(() => {
-    emitter.on('getSettingModelList', () => {
-      setTimeout(() => {
-        initModelList()
-      }, 500)
-    })
-    return () => {
-      emitter.off('getSettingModelList')
+    if (manualFetch) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const refresh = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => void initModelList(), 500)
     }
-  }, [])
+    emitter.on('getSettingModelList', refresh)
+    return () => {
+      clearTimeout(timer)
+      emitter.off('getSettingModelList', refresh)
+    }
+  }, [manualFetch])
 
   // 只在初始化和模型变化时设置输入值
   useEffect(() => {
@@ -144,10 +150,13 @@ export default function ModelSelect(
   useEffect(() => {
     setList([])
     setInputValue('')
-    // Increment the request ID to cancel any in-progress requests
-    currentRequestIdRef.current++;
-    initModelList()
-  }, [currentAi])
+    setLoading(false)
+    if (!manualFetch) void initModelList()
+    return () => {
+      currentRequestIdRef.current++
+      requestRef.current?.abort()
+    }
+  }, [currentAi, manualFetch])
   
   return (<>
     {list.length ? (

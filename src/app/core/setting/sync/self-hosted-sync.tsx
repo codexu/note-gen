@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { AlertTriangle, ListChecks, Loader2, LogIn, LogOut, RefreshCw, Server } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
@@ -29,7 +29,10 @@ import { formatSyncDataError } from '@/lib/sync/remote-file'
 
 let serverUrlDraftWrite: Promise<void> = Promise.resolve()
 
-export function SelfHostedSync({ active = true }: { active?: boolean }) {
+export function SelfHostedSync({ active = true, isActive: isCallerActive = () => true }: { active?: boolean; isActive?: () => boolean }) {
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const isActive = () => mounted.current && isCallerActive()
   const t = useTranslations('settings.sync.selfHosted')
   const p = useTranslations('settings.sync.switchPlan')
   const tStatus = useTranslations('syncOverview')
@@ -175,15 +178,18 @@ export function SelfHostedSync({ active = true }: { active?: boolean }) {
   }
 
   async function connect(mode: 'browser' | 'password', confirmation?: { serverUrl: string; instanceId: string }) {
+    if (!isActive()) return
     setConnectionError(null)
     setConnecting(true)
     try {
       const connectionUrl = confirmation?.serverUrl ?? serverUrl
       await persistServerUrlDraft(connectionUrl)
+      if (!isActive()) return
       let connectedProfileId: string
       let connectedServerUrl: string
       if (mode === 'browser') {
         const profile = await connectWithBrowser({ serverUrl: connectionUrl, deviceName: 'NoteGen', confirmedInstanceId: confirmation?.instanceId })
+        if (!isActive()) return
         connectedProfileId = profile.id
         connectedServerUrl = profile.serverUrl
         await persistServerUrlDraft(profile.serverUrl)
@@ -194,10 +200,12 @@ export function SelfHostedSync({ active = true }: { active?: boolean }) {
           ...(totpCode.trim() ? { totpCode: totpCode.trim() } : {}),
           deviceName: 'NoteGen',
         })
+        if (!isActive()) return
         connectedProfileId = profile.id
         connectedServerUrl = profile.serverUrl
         await persistServerUrlDraft(profile.serverUrl)
       }
+      if (!isActive()) return
       setProfileId(connectedProfileId)
       setServerUrl(connectedServerUrl)
       setSelfHostedConnected(true)
@@ -205,26 +213,29 @@ export function SelfHostedSync({ active = true }: { active?: boolean }) {
       setConnectionReviewRequired(true)
       setWorkspaceRevision(revision => revision + 1)
       toast.success(t('connectedToast'))
-      await reviewSelfHostedConnection()
+      await reviewSelfHostedConnection({ isActive })
     } catch (error) {
+      if (!isActive()) return
       if (error instanceof SelfHostedInstanceChangedError) {
         setInstanceChange({ mode, serverUrl: error.serverUrl, instanceId: error.instanceId })
       } else {
         setConnectionError(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? formatSyncDataError(error.message, p) : t('connectionFailed'))
       }
     } finally {
-      setConnecting(false)
+      if (isActive()) setConnecting(false)
     }
   }
 
   async function reviewConnection() {
+    if (!isActive()) return
     setConnecting(true)
     try {
-      await reviewSelfHostedConnection()
+      await reviewSelfHostedConnection({ isActive })
     } catch (error) {
+      if (!isActive()) return
       toast.error(isSelfHostedSecureStorageError(error) ? p('selfHostedSecureStorageUnavailable') : error instanceof Error ? error.message : t('operationFailed'))
     } finally {
-      setConnecting(false)
+      if (isActive()) setConnecting(false)
     }
   }
 

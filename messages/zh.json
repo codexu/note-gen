@@ -5551,7 +5551,7 @@
         "menuLabel": "显示与排序",
         "dragHandle": "拖动排序：{section}",
         "reset": "恢复默认",
-        "resetOnboarding": "重置新手引导",
+        "resetOnboarding": "重新开始引导",
         "sections": {
           "actions": "快捷入口",
           "onboarding": "新手引导",
@@ -5580,70 +5580,65 @@
       },
       "onboarding": {
         "title": "新手引导",
-        "subtitle": "跟着这三步体验 NoteGen 的核心工作流。",
-        "start": "开始引导",
-        "viewHint": "查看提示",
-        "continue": "继续下一步",
+        "progress": "已完成 {completed}/{total} 步",
+        "start": "查看记录入口",
+        "continue": "继续",
         "completed": "已完成",
-        "allDone": "新手任务已全部完成，你已经体验了 NoteGen 的基础工作流。",
-        "stepLabel": "任务 ({current}/{total})",
-        "stepCompletedLabel": "已完成任务 ({current}/{total})",
+        "allDone": "引导完成。你已试过记录、整理和用 Agent 改写笔记。",
+        "status": {
+          "current": "下一步",
+          "pending": "待完成"
+        },
+        "configureModel": "选择对话模型",
+        "modelRequired": "先选择一个对话模型，再继续整理或翻译。",
+        "recreateRecord": "重新记录",
+        "recreateNote": "重新整理",
+        "artifactMissing": "原来的练习内容已不可用，请重新完成这一步。",
+        "workspaceMismatch": "练习内容在另一个工作区。可以切回去继续，也可以在这里重新开始。",
+        "restartInWorkspace": "在这里重新开始",
+        "openPracticeFailed": "没能打开这一步，请重试。",
+        "dismissHint": "关闭提示",
+        "sampleRecord": "这周想试试先记后写。想到什么就先记一句，有空再回头整理。\n\n周五花十分钟翻一遍这周的记录，把相关的想法放在一起，挑一个写成短笔记。",
         "afterOrganizeDialog": {
-          "title": "已完成任务 (2/3)",
-          "description": "你已经把记录整理成了一篇笔记。要继续体验下一步，用 AI Agent 把这篇笔记翻译成双语版本吗？",
-          "confirm": "继续下一步",
-          "cancel": "暂时不用"
+          "title": "练习笔记已保存",
+          "description": "接下来用 Agent 把这篇笔记改成中英双语。",
+          "confirm": "体验双语翻译",
+          "cancel": "稍后继续"
         },
         "agentPrompt": {
-          "label": "示例提示词",
-          "use": "使用这条提示词",
-          "intro": "请将我刚刚整理出的这篇笔记直接修改为中英双语版本。",
-          "requirement1": "",
-          "requirement2": "",
-          "requirement3": "",
-          "requirement4": "",
-          "outro": ""
+          "intro": "请把练习笔记「{path}」改成中英双语版本。保留原文，在各段后补上对应的译文。只修改这篇笔记。",
+          "unavailable": "请从新手引导重新打开练习笔记。",
+          "retry": "Agent 未完成笔记修改，可以再次发送示例。"
         },
         "steps": {
           "createRecord": {
-            "title": "创建第一条记录",
-            "desc": "先记录一段示例内容，熟悉记录入口。"
+            "shortTitle": "记录",
+            "title": "保存一条文本记录",
+            "desc": "用示例试一次，也可以换成自己的内容。"
           },
           "organizeNote": {
-            "title": "整理成笔记",
-            "desc": "把刚才的记录整理成一篇正式笔记。"
+            "shortTitle": "整理",
+            "title": "把记录整理成笔记",
+            "desc": "让 AI 用刚保存的记录生成一篇 Markdown 笔记。"
           },
           "aiPolish": {
-            "title": "用 Agent 翻译成双语",
-            "desc": "用 AI Agent 将刚整理好的笔记翻译成双语版本。"
-          }
-        },
-        "completedStates": {
-          "create-record": {
-            "title": "你已经创建了第一条记录",
-            "desc": "现在你已经知道如何快速记录内容了。"
-          },
-          "organize-note": {
-            "title": "你已经把记录整理成笔记",
-            "desc": "下一步可以体验 AI 如何继续修改这篇笔记。"
-          },
-          "ai-polish": {
-            "title": "你已经用 Agent 处理了笔记",
-            "desc": "你已经体验了从记录到整理，再到 Agent 处理内容的完整流程。"
+            "shortTitle": "翻译",
+            "title": "把笔记改成中英双语",
+            "desc": "发送聊天框里的示例，让 Agent 修改刚生成的笔记。"
           }
         },
         "spotlight": {
           "create-record": {
-            "title": "这里可以快速记录内容",
-            "desc": "点击这个文本记录入口，系统会自动带入一段示例内容，你也可以自己改。"
+            "title": "打开文本记录",
+            "desc": "点击标题栏的「文本」，编辑示例内容后保存。"
           },
           "organize-note": {
-            "title": "这里可以整理记录",
-            "desc": "点击这个按钮，把刚才的记录整理成一篇正式笔记。"
+            "title": "用 AI 整理记录",
+            "desc": "点击左侧的「整理笔记」。刚保存的练习记录会自动选中。"
           },
           "ai-polish": {
-            "title": "这里可以用 Agent 处理刚生成的笔记",
-            "desc": "把示例提示词填进对话框后发送，Agent 会基于当前笔记生成双语版本。"
+            "title": "在聊天框发送示例",
+            "desc": "输入框没有草稿、附件或引用时会填入示例。确认后点击「发送」。"
           }
         }
       }
@@ -6890,14 +6885,18 @@
       "sync": "同步方式"
     },
     "welcome": {
-      "title": "先记录，再整理。",
-      "description": "随手留下文字、语音和资料，再用 AI 整理、连接并创作成笔记、文章、图表与画布。",
+      "title": "先记录，再整理",
+      "description": "随手记下一段文字，再用 AI 把它整理成笔记。",
       "capture": "开始记录",
+      "practice": "开始练习",
+      "continuePractice": "继续练习",
+      "viewPractice": "查看练习进度",
+      "enterApp": "进入应用",
       "enter": "进入工作区",
       "close": "关闭指南",
-      "preferences": "按需设置",
+      "preferences": "可选设置",
       "defaultFolder": "默认文件夹",
-      "noModel": "尚未选择模型"
+      "noModel": "未选择模型"
     },
     "workspace": {
       "title": "笔记保存在哪里？",
@@ -6962,7 +6961,7 @@
     },
     "reopen": {
       "title": "入门指南",
-      "description": "开始记录，或调整工作区、AI 模型、知识库和同步设置。",
+      "description": "练习记录和整理笔记，或调整工作区、对话模型、知识库和同步方式。",
       "action": "打开指南"
     }
   }

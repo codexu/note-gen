@@ -259,6 +259,7 @@ export interface AgentRuntimeInput {
   imageUrls?: string[]
   activeChatId?: number
   activeFilePath?: string
+  activeEditorOnly?: boolean
   activeCanvasId?: string
   currentEditorState?: AgentEditorStateSnapshot
   currentQuote?: AgentQuoteSnapshot

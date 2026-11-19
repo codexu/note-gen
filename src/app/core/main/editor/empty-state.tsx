@@ -30,14 +30,13 @@ import useShortcutStore from '@/stores/shortcut'
 import useSettingStore from '@/stores/setting'
 import { useInitialSetupStore } from '@/stores/initial-setup'
 import { useSidebarStore } from '@/stores/sidebar'
-import { getActiveOnboardingStep, getNextOnboardingStep, isOnboardingComplete, type OnboardingProgress, type OnboardingStepId } from './onboarding-state'
+import { ONBOARDING_STEP_ORDER, type OnboardingProgress } from './onboarding-state'
+import { OnboardingChecklist } from './onboarding-checklist'
 import { createNewNoteFromEmptyState } from './empty-state-actions'
 import { Button } from '@/components/ui/button'
 import {
   Card,
-  CardAction,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -165,24 +164,26 @@ interface ActionItem {
 interface EmptyStateProps {
   enableShortcuts?: boolean
   contextKey?: string
-  onboardingProgress: OnboardingProgress
-  activeOnboardingStep: OnboardingStepId | null
-  visibleOnboardingStep: OnboardingStepId | null
-  completedOnboardingStep: OnboardingStepId | null
-  onStartOnboardingStep: (step: OnboardingStepId) => void | Promise<void>
-  onContinueToNextStep: () => void | Promise<void>
+  revealOnboarding?: boolean
+  onDismissOnboardingReveal: () => void
+  onboardingProgress: OnboardingProgress | null
+  onboardingActionLabel: string
+  onboardingNotice?: string
+  onboardingBusy: boolean
+  onStartOnboardingStep: () => void | Promise<void>
   onResetOnboarding: () => void | Promise<void>
 }
 
 export function EmptyState({
   enableShortcuts = true,
   contextKey = '',
+  revealOnboarding = false,
+  onDismissOnboardingReveal,
   onboardingProgress,
-  activeOnboardingStep,
-  visibleOnboardingStep,
-  completedOnboardingStep,
+  onboardingActionLabel,
+  onboardingNotice,
+  onboardingBusy,
   onStartOnboardingStep,
-  onContinueToNextStep,
   onResetOnboarding,
 }: EmptyStateProps) {
   const { newFile } = useArticleStore()
@@ -241,6 +242,7 @@ export function EmptyState({
   }
 
   const handleSectionVisibilityChange = (section: NewTabSectionId, checked: boolean) => {
+    if (section === 'onboarding') onDismissOnboardingReveal()
     const next = {
       ...preferences,
       visibility: { ...preferences.visibility, [section]: checked },
@@ -373,38 +375,7 @@ export function EmptyState({
     }
   ]
 
-  const onboardingSteps: Array<{ id: OnboardingStepId; title: string; description: string }> = [
-    {
-      id: 'create-record',
-      title: t('onboarding.steps.createRecord.title'),
-      description: t('onboarding.steps.createRecord.desc'),
-    },
-    {
-      id: 'organize-note',
-      title: t('onboarding.steps.organizeNote.title'),
-      description: t('onboarding.steps.organizeNote.desc'),
-    },
-    {
-      id: 'ai-polish',
-      title: t('onboarding.steps.aiPolish.title'),
-      description: t('onboarding.steps.aiPolish.desc'),
-    },
-  ]
-  const completedStep = onboardingSteps.find((step) => step.id === completedOnboardingStep) || null
-  const nextOnboardingStepId = getNextOnboardingStep(onboardingProgress, completedOnboardingStep)
-  const hasPendingNextStep = getActiveOnboardingStep(onboardingProgress) !== null
-  const currentOnboardingStep = onboardingSteps.find((step) => step.id === activeOnboardingStep)
-    || onboardingSteps.find((step) => step.id === nextOnboardingStepId)
-    || null
-  const currentOnboardingIndex = currentOnboardingStep
-    ? onboardingSteps.findIndex((step) => step.id === currentOnboardingStep.id)
-    : -1
-  const completedOnboardingIndex = completedStep
-    ? onboardingSteps.findIndex((step) => step.id === completedStep.id)
-    : -1
-  const showCompletedState = Boolean(completedStep && hasPendingNextStep)
-  const onboardingComplete = isOnboardingComplete(onboardingProgress)
-  const openGuide = () => void useInitialSetupStore.getState().open()
+  const canResetOnboarding = onboardingProgress && ONBOARDING_STEP_ORDER.some(step => onboardingProgress.steps[step])
   const showActivity = preferences.visibility.activity || preferences.visibility.activityDetail
   const activity = useActivityData(showActivity)
   const customizationSections: Array<{ id: NewTabSectionId; label: string }> = [
@@ -422,8 +393,9 @@ export function EmptyState({
     ...preferences.order.filter(id => availableSectionIds.includes(id)),
     ...availableSectionIds.filter(id => !preferences.order.includes(id)),
   ]
-  const visibleSectionIds = orderedSectionIds.filter(section => preferences.visibility[section] !== false
-    && (section !== 'onboarding' || showCompletedState || currentOnboardingStep))
+  const visibleSectionIds = orderedSectionIds.filter(section => (
+    preferences.visibility[section] !== false || (section === 'onboarding' && revealOnboarding)
+  ))
   const activitySectionIds: NewTabSectionId[] = ['activity', 'activityDetail']
   const firstVisibleActivitySection = visibleSectionIds.find(section => activitySectionIds.includes(section))
   const renderedSectionIds = activity.data
@@ -463,7 +435,7 @@ export function EmptyState({
                   id={sectionId}
                   label={sectionLabels[sectionId]}
                   dragLabel={t('customize.dragHandle', { section: sectionLabels[sectionId] })}
-                  checked={preferences.visibility[sectionId] !== false}
+                  checked={visibleSectionIds.includes(sectionId)}
                   onCheckedChange={checked => handleSectionVisibilityChange(sectionId, checked)}
                 />
               ))}
@@ -471,11 +443,11 @@ export function EmptyState({
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            {!visibleSectionIds.includes('onboarding') && (
-              <DropdownMenuItem onSelect={openGuide}>{setupText('reopen.action')}</DropdownMenuItem>
-            )}
-            {onboardingComplete && (
-              <DropdownMenuItem onSelect={() => void handleResetOnboarding()}>
+            <DropdownMenuItem onSelect={() => void useInitialSetupStore.getState().open()}>
+              {setupText('reopen.action')}
+            </DropdownMenuItem>
+            {canResetOnboarding && (
+              <DropdownMenuItem disabled={onboardingBusy} onSelect={() => void handleResetOnboarding()}>
                 {t('customize.resetOnboarding')}
               </DropdownMenuItem>
             )}
@@ -541,6 +513,18 @@ export function EmptyState({
           {renderedSectionIds.map(sectionId => {
             const panel = pluginPanels.find(item => `plugin:${item.key}` === sectionId)
             if (panel) return enableShortcuts ? <PluginEmbeddedView key={sectionId} item={panel} contextKey={contextKey} /> : null
+            if (sectionId === 'onboarding') {
+              return (
+                <OnboardingChecklist
+                  key={sectionId}
+                  progress={onboardingProgress}
+                  actionLabel={onboardingActionLabel}
+                  notice={onboardingNotice}
+                  busy={onboardingBusy}
+                  onStart={onStartOnboardingStep}
+                />
+              )
+            }
             return (
             <Card key={sectionId}>
               {sectionId === 'actions' && (
@@ -570,53 +554,6 @@ export function EmptyState({
                       ))}
                     </div>
                   </CardContent>
-                </>
-              )}
-
-              {sectionId === 'onboarding' && (
-                <>
-                  <CardHeader>
-                    <CardTitle>{t('onboarding.title')}</CardTitle>
-                    <CardDescription>{t('onboarding.subtitle')}</CardDescription>
-                    <CardAction>
-                      <Button type="button" variant="outline" size="sm" onClick={openGuide}>
-                        {setupText('reopen.title')}
-                      </Button>
-                    </CardAction>
-                  </CardHeader>
-                  {(showCompletedState || currentOnboardingStep) && <CardContent>
-                    {showCompletedState && completedStep ? (
-                      <div className="flex flex-col gap-4 @lg/new-tab:flex-row @lg/new-tab:items-end @lg/new-tab:justify-between @lg/new-tab:gap-6">
-                        <div className="flex flex-col gap-1">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                            {t('onboarding.stepCompletedLabel', { current: completedOnboardingIndex + 1, total: onboardingSteps.length })}
-                          </p>
-                          <h4 className="text-sm font-medium">
-                            {t(`onboarding.completedStates.${completedStep.id}.title`)}
-                          </h4>
-                          <p className="text-xs text-muted-foreground">
-                            {t(`onboarding.completedStates.${completedStep.id}.desc`)}
-                          </p>
-                        </div>
-                        <Button type="button" size="xs" onClick={() => void onContinueToNextStep()}>
-                          {t('onboarding.continue')}
-                        </Button>
-                      </div>
-                    ) : currentOnboardingStep ? (
-                      <div className="flex flex-col gap-4 @lg/new-tab:flex-row @lg/new-tab:items-end @lg/new-tab:justify-between @lg/new-tab:gap-6">
-                        <div className="flex flex-col gap-1">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                            {t('onboarding.stepLabel', { current: currentOnboardingIndex + 1, total: onboardingSteps.length })}
-                          </p>
-                          <h4 className="text-sm font-medium">{currentOnboardingStep.title}</h4>
-                          <p className="text-xs text-muted-foreground">{currentOnboardingStep.description}</p>
-                        </div>
-                        <Button type="button" size="xs" onClick={() => void onStartOnboardingStep(currentOnboardingStep.id)}>
-                          {visibleOnboardingStep === currentOnboardingStep.id ? t('onboarding.viewHint') : t('onboarding.start')}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </CardContent>}
                 </>
               )}
 

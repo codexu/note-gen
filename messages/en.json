@@ -5551,7 +5551,7 @@
         "menuLabel": "Show and reorder",
         "dragHandle": "Drag to reorder: {section}",
         "reset": "Restore defaults",
-        "resetOnboarding": "Restart onboarding",
+        "resetOnboarding": "Restart guide",
         "sections": {
           "actions": "Quick actions",
           "onboarding": "Getting started",
@@ -5579,71 +5579,66 @@
         }
       },
       "onboarding": {
-        "title": "Onboarding",
-        "subtitle": "Walk through these three tasks to learn the core NoteGen flow.",
-        "start": "Start",
-        "viewHint": "Show hint",
+        "title": "Getting started",
+        "progress": "{completed} of {total} complete",
+        "start": "Find the record button",
         "continue": "Continue",
         "completed": "Done",
-        "allDone": "All getting-started tasks are complete. You've already tried the core NoteGen workflow.",
-        "stepLabel": "Task ({current}/{total})",
-        "stepCompletedLabel": "Completed Task ({current}/{total})",
+        "allDone": "Guide complete. You saved a record, organized a note, and edited it with the Agent.",
+        "status": {
+          "current": "Next",
+          "pending": "Pending"
+        },
+        "configureModel": "Choose a chat model",
+        "modelRequired": "Choose a chat model to continue organizing or translating.",
+        "recreateRecord": "Record again",
+        "recreateNote": "Organize again",
+        "artifactMissing": "Your practice content is unavailable. Repeat this step to continue.",
+        "workspaceMismatch": "Your practice content is in another workspace. Switch back to continue or start over here.",
+        "restartInWorkspace": "Start over here",
+        "openPracticeFailed": "Could not open this step. Please try again.",
+        "dismissHint": "Dismiss hint",
+        "sampleRecord": "This week I want to jot ideas down before I try to write them up. When something comes to mind, I'll save one sentence and sort it out later.\n\nOn Friday I'll spend ten minutes reading through the week's records, grouping related ideas, and turning one of them into a short note.",
         "afterOrganizeDialog": {
-          "title": "Completed Task (2/3)",
-          "description": "You've turned the record into a note. Do you want to continue and use the AI Agent to turn this note into a bilingual version?",
-          "confirm": "Continue",
-          "cancel": "Not now"
+          "title": "Practice note saved",
+          "description": "Next, use the Agent to make this note bilingual in Chinese and English.",
+          "confirm": "Try bilingual translation",
+          "cancel": "Continue later"
         },
         "agentPrompt": {
-          "label": "Sample Prompt",
-          "use": "Use This Prompt",
-          "intro": "Please directly revise the note I just organized into a bilingual Chinese-English version.",
-          "requirement1": "",
-          "requirement2": "",
-          "requirement3": "",
-          "requirement4": "",
-          "outro": ""
+          "intro": "Make the practice note “{path}” bilingual in Chinese and English. Keep the original text and add the corresponding translation after each paragraph. Edit only this note.",
+          "unavailable": "Reopen the practice note from the getting-started checklist.",
+          "retry": "The Agent did not finish editing the note. You can send the sample again."
         },
         "steps": {
           "createRecord": {
-            "title": "Create your first record",
-            "desc": "Save a sample record and learn where quick capture lives."
+            "shortTitle": "Capture",
+            "title": "Save a text record",
+            "desc": "Try the sample or replace it with your own text."
           },
           "organizeNote": {
-            "title": "Organize it into a note",
-            "desc": "Turn that record into a structured note."
+            "shortTitle": "Organize",
+            "title": "Turn the record into a note",
+            "desc": "Use AI to create a Markdown note from the record you just saved."
           },
           "aiPolish": {
-            "title": "Use Agent for bilingual translation",
-            "desc": "Use the AI Agent to turn the note you just organized into a bilingual version."
-          }
-        },
-        "completedStates": {
-          "create-record": {
-            "title": "Your first record is saved",
-            "desc": "You now know where quick capture lives."
-          },
-          "organize-note": {
-            "title": "Your record is now a note",
-            "desc": "Next, try using AI to revise the note."
-          },
-          "ai-polish": {
-            "title": "You used the Agent on the note",
-            "desc": "You've completed the flow from capture to note organization to Agent-assisted processing."
+            "shortTitle": "Translate",
+            "title": "Make the note bilingual",
+            "desc": "Send the sample in chat so the Agent can edit the note you just created."
           }
         },
         "spotlight": {
           "create-record": {
-            "title": "This is the quick record entry",
-            "desc": "Click here to open text capture. We'll preload a sample record so you can save it right away."
+            "title": "Open text capture",
+            "desc": "Click Text in the title bar. Edit the sample, then save it."
           },
           "organize-note": {
-            "title": "This button organizes records into a note",
-            "desc": "Use it to turn your captured record into a full Markdown note."
+            "title": "Organize your record with AI",
+            "desc": "Click Organize Notes in the left sidebar. The record you just saved will be selected for you."
           },
           "ai-polish": {
-            "title": "Use the Agent on the note you just created here",
-            "desc": "Insert the sample prompt into chat and send it. The Agent will generate a bilingual version based on the current note."
+            "title": "Send the sample in chat",
+            "desc": "The sample appears when the chat input has no draft, attachments, or references. Review it and click Send."
           }
         }
       }
@@ -6890,9 +6885,13 @@
       "sync": "Sync method"
     },
     "welcome": {
-      "title": "Capture first, organize later.",
-      "description": "Capture text, voice, and source material, then use AI to organize, connect, and turn it into notes, articles, diagrams, and canvases.",
-      "capture": "New capture",
+      "title": "Capture first, organize later",
+      "description": "Jot down an idea, then use AI to turn it into a note.",
+      "capture": "Start a record",
+      "practice": "Try the guide",
+      "continuePractice": "Resume the guide",
+      "viewPractice": "View progress",
+      "enterApp": "Open the app",
       "enter": "Open workspace",
       "close": "Close guide",
       "preferences": "Optional settings",
@@ -6962,7 +6961,7 @@
     },
     "reopen": {
       "title": "Getting started",
-      "description": "Start a capture or change your workspace, AI model, knowledge base, and sync settings.",
+      "description": "Practice capturing and organizing notes, or adjust your workspace, chat model, knowledge base, and sync settings.",
       "action": "Open guide"
     }
   }

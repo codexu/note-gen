@@ -19,6 +19,7 @@ export interface AgentHandlerConfig {
   modelName?: string
   aiConfig?: AiConfig
   activeFilePath?: string
+  activeEditorOnly?: boolean
   activeCanvasId?: string
   permissionMode?: AgentPermissionMode
   conversationId?: number
@@ -130,6 +131,7 @@ export class AgentHandler {
         imageUrls,
         activeChatId: this.config.activeChatId,
         activeFilePath: this.config.activeFilePath,
+        activeEditorOnly: this.config.activeEditorOnly,
         activeCanvasId: this.config.activeCanvasId,
         currentEditorState,
         currentQuote: this.config.currentQuote,

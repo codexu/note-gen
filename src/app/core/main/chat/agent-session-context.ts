@@ -1,5 +1,6 @@
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import useChatStore from '@/stores/chat'
+import type { AgentOnboardingAttempt } from '@/stores/desktop-onboarding'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { isLinkedFolder, type LinkedResource, type MarkdownFile } from '@/lib/files'
 import type { RuntimeChatAttachment } from '@/lib/chat-attachments'
@@ -51,6 +52,7 @@ export interface AgentQuoteData {
 }
 
 export interface AgentRequestSnapshot {
+  onboardingAttempt?: AgentOnboardingAttempt
   reasoningOverride?: ChatReasoningOverride | null
   inputValue: string
   requestText: string

@@ -2,13 +2,15 @@
 import { Send, Square } from "lucide-react"
 import useSettingStore from "@/stores/setting"
 import useChatStore from "@/stores/chat"
+import { getDesktopOnboardingWorkspaceIdentity, useDesktopOnboardingStore, type AgentOnboardingAttempt } from '@/stores/desktop-onboarding'
 import useTagStore from "@/stores/tag"
 import { TooltipButton } from "@/components/tooltip-button"
 import { useEffect, useImperativeHandle, forwardRef, useRef } from "react"
 import { useTranslations } from "next-intl"
 import { LinkedResource, isLinkedFolder, type MarkdownFile } from "@/lib/files"
-import { readTextFile } from "@tauri-apps/plugin-fs"
+import { exists, readTextFile } from "@tauri-apps/plugin-fs"
 import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
+import { editorPathsReferToSameFile, getCurrentEditorWorkspaceRoot } from '@/lib/editor-deactivation'
 import { AgentHandler } from "@/lib/agent/agent-handler"
 import { requestChatUiInteraction } from '@/lib/chat-ui/interaction'
 import { getChatResponseCompletion } from '@/lib/chat-ui/serialization'
@@ -22,7 +24,7 @@ import { getToolByName } from "@/lib/agent/tools"
 import { getSessionApprovalScope, matchesSessionApproval } from "@/lib/agent/session-approval"
 import { ImageAttachment } from "./image-attachments"
 import { cn } from "@/lib/utils"
-import type { AgentEditPreview, AgentTraceEvent, ConfirmationRecord } from "@/lib/agent/types"
+import type { AgentChange, AgentEditPreview, AgentTraceEvent, ConfirmationRecord } from "@/lib/agent/types"
 import type { AgentApprovalDecision, AgentSteeringPayload } from "@/lib/agent/types"
 import { serializeChatAttachments, type RuntimeChatAttachment } from '@/lib/chat-attachments'
 import { retainCompletedAgentTraceEvents } from '@/lib/agent/trace-retention'
@@ -132,8 +134,40 @@ function isUnknownProviderError(error: unknown) {
     && /Unknown error/i.test(text)
 }
 
+async function isOnboardingTargetActive(attempt: AgentOnboardingAttempt) {
+  const article = (await import('@/stores/article')).default
+  const workspaceRoot = await getCurrentEditorWorkspaceRoot()
+  const workspaceId = await getDesktopOnboardingWorkspaceIdentity()
+  return workspaceId === attempt.workspaceId
+    && useDesktopOnboardingStore.getState().attempt?.id === attempt.id
+    && editorPathsReferToSameFile(article.getState().activeFilePath, attempt.notePath, workspaceRoot)
+}
+
+function hasVerifiedOnboardingEdit(
+  attempt: AgentOnboardingAttempt,
+  workspaceRoot: string,
+  changes: AgentChange[],
+) {
+  const targetChanges = changes.filter(change =>
+    (change.type === 'editor' || change.type === 'file')
+    && change.workspacePath === attempt.workspaceId
+    && editorPathsReferToSameFile(change.target, attempt.notePath, workspaceRoot)
+  )
+  const before = targetChanges[0]?.before
+  const after = targetChanges.at(-1)?.after
+  return typeof before === 'string'
+    && Boolean(after?.trim())
+    && before !== after
+    && targetChanges.every(change => change.outcome === 'applied')
+}
+
 interface ChatSendProps {
   inputValue: string;
+  guidedSend?: {
+    attempt: AgentOnboardingAttempt
+    onSent: () => void
+    onFailure: (reason: 'unavailable' | 'retry') => void
+  } | null;
   preparingAttachments?: boolean;
   onSent?: () => void;
   linkedResource?: LinkedResource | null;
@@ -158,6 +192,7 @@ export interface ChatSendHandle {
 
 export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
   inputValue,
+  guidedSend,
   preparingAttachments = false,
   onSent,
   linkedResource,
@@ -188,6 +223,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
   const imageAnalysisAbortControllerRef = useRef<AbortController | null>(null)
   const steeringImageAnalysisAbortControllerRef = useRef<AbortController | null>(null)
   const manualStopRequestedRef = useRef(false)
+  const onboardingRunRef = useRef(false)
   const repeatedScriptApprovalRef = useRef<{ signature: string; count: number }>({ signature: '', count: 0 })
   const contextOverflowRetryRef = useRef(0)
   const t = useTranslations()
@@ -460,6 +496,11 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
     userMessage: Chat,
     modelSnapshot: { id: string; name: string; config?: AiConfig }
   ) {
+    const onboardingAttempt = request.onboardingAttempt
+    const onboardingWorkspaceRoot = onboardingAttempt ? await getCurrentEditorWorkspaceRoot() : undefined
+    if (onboardingAttempt && (!await isOnboardingTargetActive(onboardingAttempt) || manualStopRequestedRef.current)) return
+    let onboardingRunWasSteered = false
+    let onboardingTargetUnavailable = false
     // 先创建一个占位的 AI 消息
     const placeholderMessage = await insert({
       tagId: currentTagId,
@@ -481,13 +522,13 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
     const useCanvasStore = (await import('@/stores/canvas')).default
     const canvasStore = useCanvasStore.getState()
     const mobileContexts = useChatStore.getState().mobileActiveContexts
-    const activeCanvasId = !isMobile || mobileContexts.canvasId
+    const activeCanvasId = !onboardingAttempt && (!isMobile || mobileContexts.canvasId)
       ? canvasStore.activeCanvasId
       : null
     let pendingCapacityProbe: { contextWindow: number } | undefined
     let deferredOverflowError: string | undefined
     let contextCapacityProbeActive = false
-    const agentImageAttachments = collectAgentImageAttachments(
+    const agentImageAttachments = onboardingAttempt ? [] : collectAgentImageAttachments(
       useChatStore.getState().chats.filter(chat => chat.id !== userMessage.id)
     )
 
@@ -569,15 +610,33 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
     if (useSettingStore.getState().workspacePath !== agentWorkspacePath) throw new Error('WORKSPACE_CHANGED')
     const agentHandler = new AgentHandler({
       stateAdapter: chatAgentStateAdapter,
-      resourceAdapter: chatAgentResourceAdapter,
+      resourceAdapter: onboardingAttempt ? {
+        ...chatAgentResourceAdapter,
+        initializeMcp: async () => {},
+        getSelectedMcpServerIds: () => [],
+        getSkillsInfo: async () => [],
+        getCurrentEditorState: async () => {
+          try {
+            if (await isOnboardingTargetActive(onboardingAttempt)) {
+              const state = await chatAgentResourceAdapter.getCurrentEditorState(onboardingAttempt.notePath)
+              if (state && await isOnboardingTargetActive(onboardingAttempt)) return { ...state, selection: undefined }
+            }
+          } catch (error) {
+            console.error('Failed to read the onboarding note:', error)
+          }
+          onboardingTargetUnavailable = true
+          throw new Error(t('article.emptyState.onboarding.agentPrompt.unavailable'))
+        },
+      } : chatAgentResourceAdapter,
       activeChatId: placeholderMessage.id,
       modelId: modelSnapshot.id,
       modelName: modelSnapshot.name,
       aiConfig: modelSnapshot.config,
       conversationId: placeholderMessage.conversationId,
       workspaceId: useSettingStore.getState().workspacePath.trim().replace(/\\/g, '/').replace(/\/+$/, '') || 'default',
-      useMemories: !useChatStore.getState().isTemporaryConversation,
-      activeFilePath: activeArticle.activeFilePath,
+      useMemories: !onboardingAttempt && !useChatStore.getState().isTemporaryConversation,
+      activeFilePath: onboardingAttempt?.notePath ?? activeArticle.activeFilePath,
+      activeEditorOnly: Boolean(onboardingAttempt),
       activeCanvasId: activeCanvasId || undefined,
       permissionMode: agentPermissionMode,
       requestConfirmation: (toolName, params, context) => requestConfirmation(toolName, params, context, { chatId: placeholderMessage.id, conversationId: placeholderMessage.conversationId, workspacePath: agentWorkspacePath }),
@@ -601,7 +660,10 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
       attachments: request.fileAttachments,
       imageAttachments: agentImageAttachments,
       selectedSkills: request.selectedSkillIds,
-      onSteeringDelivered: sequences => agentSession.acknowledgeSteering(sequences),
+      onSteeringDelivered: sequences => {
+        onboardingRunWasSteered ||= sequences.length > 0
+        agentSession.acknowledgeSteering(sequences)
+      },
       onFinalAnswerRender: (markdownContent) => {
         // 检测到 Final Answer 时触发渲染
         setAgentState({
@@ -615,10 +677,21 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
         deferredOverflowError = undefined
         // 获取 Agent 执行历史，保存结构化运行轨迹
         const { agentState } = useChatStore.getState()
+        const agentTrace = agentState.traceEvents ?? []
         const renderedResponseCompleted = Boolean(getChatResponseCompletion(agentState))
         const effectivelyStopped = Boolean(stopped)
           || manualStopRequestedRef.current
           || (!renderedResponseCompleted && isRequestAbortError(result))
+        if (onboardingAttempt && onboardingWorkspaceRoot && !effectivelyStopped && !onboardingRunWasSteered
+          && agentState.status === 'completed' && agentState.activeChatId === placeholderMessage.id
+          && useSettingStore.getState().workspacePath === agentWorkspacePath
+          && agentTrace.findLast(event => event.type === 'final')?.status === 'success'
+          && !agentTrace.some(event => event.approvalDecision === 'denied'
+            || event.editOutcome === 'cancelled' || event.editOutcome === 'unverified'
+            || event.editOutcome === 'stale' || event.editOutcome === 'not-applied')
+          && hasVerifiedOnboardingEdit(onboardingAttempt, onboardingWorkspaceRoot, agentState.changes ?? [])) {
+          useDesktopOnboardingStore.getState().completeAgent(onboardingAttempt.id)
+        }
         if (!effectivelyStopped && pendingCapacityProbe) {
           const aiConfig = modelSnapshot.config
           if (aiConfig) {
@@ -630,7 +703,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
           pendingCapacityProbe = undefined
         }
         const completedAt = Date.now()
-        const completedTraceEvents = (agentState.traceEvents || []).map(rawEvent => {
+        const completedTraceEvents = agentTrace.map(rawEvent => {
           const recordedEvent = resolveRecordedApprovalEvent(rawEvent, agentState.confirmationHistory)
           const event = effectivelyStopped ? finalizeInterruptedAgentEvent(recordedEvent, completedAt) : recordedEvent
           if (event.status !== 'running') {
@@ -721,7 +794,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
           traceEvents,
         })
 
-        if (!effectivelyStopped) {
+        if (!effectivelyStopped && !onboardingAttempt) {
           startProactiveCompaction()
           const { scheduleConversationMemoryExtraction } = await import('@/lib/memory/auto-memory')
           scheduleConversationMemoryExtraction(placeholderMessage.conversationId)
@@ -756,7 +829,8 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
 
         const currentState = useChatStore.getState()
         const canRecoverFromOverflow =
-          overflow.detected
+          !onboardingAttempt
+          && overflow.detected
           && contextOverflowRetryRef.current === 0
           && currentState.agentState.toolCalls.length === 0
           && !currentState.isTemporaryConversation
@@ -774,6 +848,11 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
         await persistAgentError(error)
       },
     })
+
+    if (onboardingAttempt && manualStopRequestedRef.current) {
+      await persistAgentError(t('record.chat.input.stopped'))
+      return
+    }
 
     agentSession.setActiveRunner(agentHandler)
 
@@ -839,7 +918,7 @@ export const ChatSend = forwardRef<ChatSendHandle, ChatSendProps>(({
         })
       }
 
-      const historicalImageContext = buildHistoricalImageContext(
+      const historicalImageContext = onboardingAttempt ? '' : buildHistoricalImageContext(
         useChatStore.getState().chats.filter(chat => chat.id !== userMessage.id)
       )
       if (historicalImageContext) {
@@ -1017,13 +1096,13 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
         activeArticle.activeFilePath ? activeArticle.currentArticle : '',
       ].filter(Boolean).join('\n\n')
       const chatState = useChatStore.getState()
-      const { chats } = chatState
+      const chats = onboardingAttempt ? [] : chatState.chats
       const {
         buildMessagesWithHistory,
         prepareConversationHistory,
       } = await import('@/lib/ai/condense')
       let preparedHistory: Awaited<ReturnType<typeof prepareConversationHistory>> | null = null
-      if (!chatState.isTemporaryConversation && chatState.currentConversationId) {
+      if (!onboardingAttempt && !chatState.isTemporaryConversation && chatState.currentConversationId) {
         try {
           preparedHistory = await prepareConversationHistory({
             conversationId: chatState.currentConversationId,
@@ -1087,7 +1166,8 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
             ? { detected: true }
             : parsedOverflow
         const canRetry =
-          overflow.detected
+          !onboardingAttempt
+          && overflow.detected
           && contextOverflowRetryRef.current === 0
           && useChatStore.getState().agentState.toolCalls.length === 0
           && !chatState.isTemporaryConversation
@@ -1131,6 +1211,9 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
         await agentHandler.execute(request.requestText, messages)
       }
     } catch (error) {
+      if (onboardingTargetUnavailable) {
+        await persistAgentError(t('article.emptyState.onboarding.agentPrompt.unavailable'))
+      }
       if (deferredOverflowError) {
         await persistAgentError(deferredOverflowError)
         deferredOverflowError = undefined
@@ -1216,6 +1299,9 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
       const aiConfig = applyChatReasoningOverride(
         await getAISettingsByModelId(modelId), modelId, request.reasoningOverride ?? null,
       )
+      if (request.onboardingAttempt && (!aiConfig
+        || !await isOnboardingTargetActive(request.onboardingAttempt)
+        || manualStopRequestedRef.current)) return
       const modelSnapshot = {
         id: modelId,
         name: noteGenModelDisplayName(aiConfig?.model || modelId, aiConfig?.key === 'note-gen-free'),
@@ -1242,7 +1328,13 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
 
   // 对话（Agent 模式）
   async function handleSubmit(overrideText?: string) {
-    if (preparingAttachments) return
+    if (preparingAttachments || onboardingRunRef.current) return
+    if (overrideText === undefined && guidedSend !== undefined) {
+      if (!guidedSend) return
+      const result = await handleOnboardingSubmit(inputValue, guidedSend)
+      if (result) guidedSend.onFailure(result)
+      return
+    }
     const request = createRequestSnapshot(overrideText)
     if (!request.inputValue.trim() && request.images.length === 0 && request.fileAttachments.length === 0) return
     const wasStreaming = agentSession.isStreaming
@@ -1273,6 +1365,51 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
     }
   }
 
+  async function handleOnboardingSubmit(
+    prompt: string,
+    { attempt, onSent: onGuidedSent }: NonNullable<ChatSendProps['guidedSend']>,
+  ): Promise<'unavailable' | 'retry' | undefined> {
+    if (onboardingRunRef.current || agentSession.isStreaming || useChatStore.getState().loading) return
+    onboardingRunRef.current = true
+    let started = false
+    try {
+      const { path, baseDir } = await getFilePathOptions(attempt.notePath)
+      if (!await exists(path, { baseDir }) || !await isOnboardingTargetActive(attempt)) return 'unavailable'
+      if (agentSession.isStreaming || useChatStore.getState().loading) return
+
+      const request: AgentRequestSnapshot = {
+        onboardingAttempt: attempt,
+        reasoningOverride: useChatStore.getState().reasoningOverride,
+        inputValue: prompt,
+        requestText: prompt,
+        images: [],
+        fileAttachments: [],
+        quoteData: null,
+        canvasSelectionContext: null,
+        selectedSkillIds: [],
+        mentionedFiles: [],
+        mentionedRecords: [],
+        mentionedCanvases: [],
+        browserTabId: null,
+        browserPageContext: '',
+      }
+      manualStopRequestedRef.current = false
+      contextOverflowRetryRef.current = 0
+      repeatedScriptApprovalRef.current = { signature: '', count: 0 }
+      started = true
+      setLoading(true)
+      onGuidedSent()
+      await agentSession.prompt(request)
+      if (useDesktopOnboardingStore.getState().attempt?.id === attempt.id) return 'retry'
+    } catch (error) {
+      console.error('Failed to run the onboarding Agent prompt:', error)
+      return started ? 'retry' : 'unavailable'
+    } finally {
+      onboardingRunRef.current = false
+      if (started) setLoading(false)
+    }
+  }
+
   const handleStop = async () => {
     manualStopRequestedRef.current = true
     imageAnalysisAbortControllerRef.current?.abort()
@@ -1293,7 +1430,7 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
   }
 
   const hasInput = Boolean(inputValue.trim() || attachedImages.length > 0 || fileAttachments.length > 0)
-  const showStop = loading && !hasInput
+  const showStop = loading && (!hasInput || onboardingRunRef.current)
 
   return (
     <span className="relative inline-flex">
@@ -1301,7 +1438,7 @@ ${hasValidRange ? `**仅在用户明确要求修改/改写/补充/插入时才�
         variant={dockStyle ? "ghost" : showStop ? "destructive" : "default"}
         size={dockStyle ? "icon" : "sm"}
         icon={showStop ? <Square className="fill-current" /> : <Send />}
-        disabled={!showStop && (preparingAttachments || !primaryModel || !hasInput)}
+        disabled={!showStop && (preparingAttachments || guidedSend === null || !primaryModel || !hasInput)}
         tooltipText={showStop
           ? t('record.chat.input.stop')
           : preparingAttachments

@@ -125,8 +125,8 @@ interface ChatState {
   setEditorSelectionQuote: (quote: PendingQuote | null) => void
   clearEditorSelectionQuote: () => void
 
-  onboardingPromptDraft: string | null
-  setOnboardingPromptDraft: (prompt: string | null) => void
+  canvasPromptDraft: string | null
+  setCanvasPromptDraft: (prompt: string | null) => void
 
   // === 新增：会话管理 ===
   // 当前会话
@@ -309,9 +309,9 @@ const useChatStore = create<ChatState>((set, get) => ({
     set({ editorSelectionQuote: null })
   },
 
-  onboardingPromptDraft: null,
-  setOnboardingPromptDraft: (prompt: string | null) => {
-    set({ onboardingPromptDraft: prompt })
+  canvasPromptDraft: null,
+  setCanvasPromptDraft: (prompt: string | null) => {
+    set({ canvasPromptDraft: prompt })
   },
 
   chats: [],

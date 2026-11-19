@@ -20,6 +20,7 @@ interface CompleteRecordOptions {
   tagId?: number | null
   typeLabel?: string
   background?: boolean
+  revealInRecordSidebar?: boolean
 }
 
 export function useRecordCompletion() {
@@ -82,7 +83,7 @@ export function useRecordCompletion() {
     await useSidebarStore.getState().showCenterPanel()
   }, [pathname, refreshRecords, router, t])
 
-  return useCallback(async ({ markId, tagId, typeLabel, background = false }: CompleteRecordOptions = {}) => {
+  return useCallback(async ({ markId, tagId, typeLabel, background = false, revealInRecordSidebar = false }: CompleteRecordOptions = {}) => {
     if (tagId) {
       await useSettingStore.getState().setLastRecordTagId(tagId)
     }
@@ -94,7 +95,7 @@ export function useRecordCompletion() {
       return
     }
 
-    const completionBehavior = useSettingStore.getState().recordCompletionBehavior
+    const completionBehavior = revealInRecordSidebar ? 'highlight' : useSettingStore.getState().recordCompletionBehavior
     if (completionBehavior === 'stay') {
       await refreshRecords()
     } else if (completionBehavior === 'open' && markId) {

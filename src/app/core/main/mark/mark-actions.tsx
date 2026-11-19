@@ -4,17 +4,19 @@ import { TooltipButton } from "@/components/tooltip-button"
 import { Sparkles, TagPlus } from "lucide-react"
 import { useTranslations } from "next-intl"
 import useMarkStore from "@/stores/mark"
-import { OrganizeNotes } from "./organize-notes"
+import { OrganizeNotes, type OrganizeNotesHandle } from "./organize-notes"
 import { useEffect, useRef } from "react"
 import { MarkFilterPopover } from "./mark-filter-popover"
 import { MarkMoreMenu } from "./mark-more-menu"
 import emitter from "@/lib/emitter"
 import { EmitterRecordEvents } from "@/config/emitters"
+import { useDesktopOnboardingStore } from '@/stores/desktop-onboarding'
 
 export function MarkActions() {
   const t = useTranslations('record.mark')
   const { trashState, setTrashState, initRecordFilters } = useMarkStore()
-  const organizeRef = useRef<{ openOrganize: () => void }>(null)
+  const organizeRef = useRef<OrganizeNotesHandle>(null)
+  const practicingOrganize = useDesktopOnboardingStore(state => state.attempt?.step === 'organize-note')
 
   useEffect(() => {
     initRecordFilters()
@@ -29,7 +31,17 @@ export function MarkActions() {
   }
 
   const handleOrganize = () => {
-    organizeRef.current?.openOrganize()
+    const organizer = organizeRef.current
+    if (!organizer) return
+    const onboarding = useDesktopOnboardingStore.getState()
+    if (onboarding.attempt?.step !== 'organize-note') {
+      organizer.openOrganize()
+      return
+    }
+    const request = onboarding.organizeRequest
+    if (request?.id !== onboarding.attempt.id) return
+    onboarding.consumeOrganizeRequest(request.id)
+    organizer.openOrganize(request)
   }
 
   return (
@@ -44,7 +56,7 @@ export function MarkActions() {
         />
       )}
       <MarkFilterPopover />
-      {!trashState && (
+      {(!trashState || practicingOrganize) && (
         <TooltipButton
           buttonId="onboarding-target-organize-notes"
           icon={<Sparkles className="h-4 w-4" />}

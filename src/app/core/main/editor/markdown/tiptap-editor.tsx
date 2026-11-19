@@ -5710,7 +5710,6 @@ export function TipTapEditor({
         originalText: selectedText, suggestedText: accumulatedResult, type,
         position: getEditorPositionRect(editor, generatedRange.to), generatedRange,
       })
-      if (type !== 'translate') emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
     } catch (error) {
       if (isCurrentOperation() && !controller.signal.aborted) console.error('Selection AI request failed:', error)
     } finally {
@@ -7966,7 +7965,7 @@ export function TipTapEditor({
     await useSidebarStore.getState().setLeftSidebarTab('canvases')
     if (!useSidebarStore.getState().rightSidebarVisible) await useSidebarStore.getState().toggleRightSidebar()
     const instruction = t(`bubbleMenu.canvasPrompts.${type}`)
-    useChatStore.getState().setOnboardingPromptDraft(
+    useChatStore.getState().setCanvasPromptDraft(
       `${instruction}\n\n${t('bubbleMenu.canvasSource')}\n---\n${selectedText.slice(0, 12000)}\n---\n${t('bubbleMenu.canvasPromptSuffix')}`
     )
   }

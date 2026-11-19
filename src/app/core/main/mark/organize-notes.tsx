@@ -19,7 +19,7 @@ import { Store } from "@tauri-apps/plugin-store"
 import { Label } from "@/components/ui/label"
 import { useSidebarStore } from "@/stores/sidebar"
 import { useRouter } from "next/navigation"
-import dayjs, { Dayjs } from "dayjs"
+import dayjs from "dayjs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
@@ -29,7 +29,6 @@ import { getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
 import { joinRelativePath } from "@/lib/path"
 import { toast } from "@/hooks/use-toast"
 import emitter from "@/lib/emitter"
-import { shouldEmitOrganizeOnboardingComplete } from "./organize-onboarding"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -49,7 +48,7 @@ import {
 } from "@/components/ui/popover"
 import { getTemplateRangeLabel, getTemplateRangeOptions } from "@/lib/template-range-utils"
 import { ArrowLeft, ArrowRight, Check, ChevronDown, FileText, FolderOpen, Home, ListChecks, Pencil, Settings2, X, Zap } from "lucide-react"
-import { getMarkLocalAssetPath, type Mark } from "@/db/marks"
+import { getMarkById, getMarkLocalAssetPath, type Mark } from "@/db/marks"
 import { MarkItem } from "./mark-item"
 import { useSettingsDialogStore } from "@/stores/settings-dialog"
 import { saveImageToWorkspace } from "@/lib/image-handler"
@@ -75,6 +74,7 @@ import {
   prepareActiveEditorPathMutationDurably,
   runEditorPathWriteTransaction,
 } from "@/lib/editor-deactivation"
+import { getDesktopOnboardingWorkspaceIdentity, useDesktopOnboardingStore, type OrganizeNoteOnboardingAttempt } from '@/stores/desktop-onboarding'
 
 function shouldAutoSyncOnInitialRead(options?: { isNewFile?: boolean }) {
   return options?.isNewFile !== true
@@ -84,12 +84,28 @@ interface OrganizeNotesProps {
   inputValue?: string;
 }
 
+export interface OrganizeNotesHandle {
+  openOrganize: (attempt?: OrganizeNoteOnboardingAttempt) => void
+}
+
 type OrganizeStep = 'template' | 'records' | 'settings'
 
 const ROOT_FOLDER_VALUE = '__root__'
 const NO_TEMPLATE_VALUE = '__no_template__'
 const ALL_TAGS_VALUE = '__all_tags__'
 const ORGANIZE_STEP_ORDER: OrganizeStep[] = ['template', 'records', 'settings']
+
+function getRangeStart(range: GenTemplateRange) {
+  const now = dayjs()
+  switch (range) {
+    case GenTemplateRange.Today: return now.subtract(1, 'day')
+    case GenTemplateRange.Week: return now.subtract(1, 'week')
+    case GenTemplateRange.Month: return now.subtract(1, 'month')
+    case GenTemplateRange.ThreeMonth: return now.subtract(3, 'month')
+    case GenTemplateRange.Year: return now.subtract(1, 'year')
+    default: return now.subtract(99, 'year')
+  }
+}
 
 function sanitizeMarkdownTitle(title: string) {
   const sanitized = title.trim().replace(/[\/\\:*?"<>|]/g, '_').substring(0, 50)
@@ -163,7 +179,17 @@ async function readLocalRecordImage(mark: Mark, localAssetPath: string) {
   }
 }
 
-export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNotesProps>(({ inputValue }, ref) => {
+async function isCurrentOrganizeAttempt(attempt: OrganizeNoteOnboardingAttempt) {
+  return await getDesktopOnboardingWorkspaceIdentity() === attempt.workspaceId
+    && useDesktopOnboardingStore.getState().attempt?.id === attempt.id
+}
+
+function cancelOrganizeAttempt(attempt: OrganizeNoteOnboardingAttempt) {
+  const onboarding = useDesktopOnboardingStore.getState()
+  if (onboarding.attempt?.id === attempt.id) onboarding.cancelAttempt()
+}
+
+export const OrganizeNotes = forwardRef<OrganizeNotesHandle, OrganizeNotesProps>(({ inputValue }, ref) => {
   const [open, setOpen] = useState(false)
   const { primaryModel, templateList } = useSettingStore()
   const { marks, fetchAllMarks, allMarks } = useMarkStore()
@@ -179,6 +205,9 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   const [loading, setLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
   const organizingRef = useRef(false)
+  const openSequence = useRef(0)
+  const activePracticeAttemptId = useDesktopOnboardingStore(state => state.attempt?.id)
+  const [practice, setPractice] = useState<{ attempt: OrganizeNoteOnboardingAttempt; record: Mark } | null>(null)
   const [isRemoveThinking, setIsRemoveThinking] = useState(true)
   const [templateRange, setTemplateRange] = useState<GenTemplateRange>(GenTemplateRange.All)
   const [templateContent, setTemplateContent] = useState('')
@@ -195,12 +224,13 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   const tGlobal = useTranslations()
   const tMark = useTranslations('record.mark')
 
-  async function initGenTemplates() {
+  async function initGenTemplates(sequence: number) {
     const store = await Store.load('store.json')
     const storedTemplates = await store.get<GenTemplate[]>('templateList')
     const template = storedTemplates ?? useSettingStore.getState().templateList
     const enabledTemplates = template.filter(item => item.status !== false)
     const lastTemplateId = await store.get<string>('lastOrganizeTemplateId')
+    if (sequence !== openSequence.current) return
     setGenTemplate(template)
     setTab(() => {
       if (lastTemplateId === NO_TEMPLATE_VALUE) {
@@ -221,47 +251,25 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
   const handleTemplateChange = useCallback((templateId: string) => {
     setTab(templateId)
     setOrganizeStep('template')
-    void persistLastTemplateId(templateId)
-  }, [persistLastTemplateId])
+    if (!practice) void persistLastTemplateId(templateId)
+  }, [persistLastTemplateId, practice])
 
   const availableTemplates = useMemo(() => {
     return genTemplate.filter(item => item.status !== false)
   }, [genTemplate])
 
   const recordSourceMarks = useMemo(() => {
+    if (practice) return [practice.record]
     return (allMarks.length > 0 ? allMarks : marks).filter(item =>
       (!selectedRecordTagId || recordMatchesTag(item, selectedRecordTagId, tags)) &&
       (tagScope === 'all' || recordMatchesTag(item, tagScope, tags)) && matchesTagRules(item, tagRules, tags))
-  }, [allMarks, marks, selectedRecordTagId, tags, tagRules, tagScope])
+  }, [allMarks, marks, practice, selectedRecordTagId, tags, tagRules, tagScope])
 
-  // 使用 useMemo 优化过滤的记录
   const marksByRange = useMemo(() => {
-    let subtractDate: Dayjs
-    switch (templateRange) {
-      case GenTemplateRange.All:
-        subtractDate = dayjs().subtract(99, 'year')
-        break
-      case GenTemplateRange.Today:
-        subtractDate = dayjs().subtract(1, 'day')
-        break
-      case GenTemplateRange.Week:
-        subtractDate = dayjs().subtract(1, 'week')
-        break
-      case GenTemplateRange.Month:
-        subtractDate = dayjs().subtract(1, 'month')
-        break
-      case GenTemplateRange.ThreeMonth:
-        subtractDate = dayjs().subtract(3, 'month')
-        break
-      case GenTemplateRange.Year:
-        subtractDate = dayjs().subtract(1, 'year')
-        break
-      default:
-        subtractDate = dayjs().subtract(99, 'year')
-        break
-    }
-    return recordSourceMarks.filter(item => dayjs(item.createdAt).isAfter(subtractDate))
-  }, [recordSourceMarks, templateRange])
+    if (practice) return recordSourceMarks
+    const rangeStart = getRangeStart(templateRange)
+    return recordSourceMarks.filter(item => dayjs(item.createdAt).isAfter(rangeStart))
+  }, [practice, recordSourceMarks, templateRange])
 
   const recordPreviewMarks = useMemo(() => {
     return [...marksByRange]
@@ -477,12 +485,38 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
     }
   }, [])
 
-  const openOrganize = useCallback(() => {
+  const openOrganize = useCallback(async (attempt?: OrganizeNoteOnboardingAttempt) => {
+    if (open || organizingRef.current) {
+      if (attempt) cancelOrganizeAttempt(attempt)
+      return
+    }
+    const sequence = ++openSequence.current
+    let practiceRecord: Mark | undefined
+    if (attempt) {
+      try {
+        practiceRecord = await getMarkById(attempt.recordId)
+        if (!await isCurrentOrganizeAttempt(attempt) || sequence !== openSequence.current) {
+          cancelOrganizeAttempt(attempt)
+          return
+        }
+        if (!practiceRecord || practiceRecord.deleted) {
+          toast({ description: t('noRecords'), variant: 'destructive' })
+          cancelOrganizeAttempt(attempt)
+          return
+        }
+      } catch (error) {
+        console.error('Failed to prepare the onboarding record:', error)
+        toast({ description: tMark('toolbar.organizeError'), variant: 'destructive' })
+        cancelOrganizeAttempt(attempt)
+        return
+      }
+    }
     const latestTemplates = useSettingStore.getState().templateList
     const enabledTemplates = latestTemplates.filter(item => item.status !== false)
-    const nextTemplate = tab === NO_TEMPLATE_VALUE
+    const nextTemplate = attempt || tab === NO_TEMPLATE_VALUE
       ? undefined
       : enabledTemplates.find(item => item.id === tab)
+    setPractice(attempt && practiceRecord ? { attempt, record: practiceRecord } : null)
     setGenTemplate(latestTemplates)
     setTab(nextTemplate?.id ?? NO_TEMPLATE_VALUE)
     setTemplateRange(nextTemplate?.range ?? GenTemplateRange.All)
@@ -492,11 +526,13 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
     setSelectedRecordTagId(null)
     setAdditionalRequirement(inputValue ?? '')
     setOutputTitle('')
-    setOutputFolderValue(activeFilePath.includes('/') ? activeFilePath.split('/').slice(0, -1).join('/') : ROOT_FOLDER_VALUE)
-    void initGenTemplates()
+    setOutputFolderValue(!attempt && activeFilePath.includes('/') ? activeFilePath.split('/').slice(0, -1).join('/') : ROOT_FOLDER_VALUE)
     void fetchTags()
-    void fetchAllMarks()
-  }, [activeFilePath, fetchAllMarks, fetchTags, inputValue, tab])
+    if (!attempt) {
+      void initGenTemplates(sequence)
+      void fetchAllMarks()
+    }
+  }, [activeFilePath, fetchAllMarks, fetchTags, inputValue, open, t, tab, tMark])
 
   const handleOrganize = useCallback(async (options?: { quick?: boolean }) => {
     if (loading || organizingRef.current) {
@@ -508,17 +544,18 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
 
     if (!primaryModel || recordIdsToUse.size === 0) return
 
-    const articleState = useArticleStore.getState()
-    if (!await prepareActiveEditorDeactivationDurably(articleState.activeFilePath)) {
-      return
-    }
-
     organizingRef.current = true
-    setOpen(false)
     setLoading(true)
     const controller = new AbortController()
     abortControllerRef.current = controller
     const signal = controller.signal
+    const attempt = practice?.attempt
+    const workspaceSettingsPath = useSettingStore.getState().workspacePath
+    const workspaceChanged = () => attempt && useSettingStore.getState().workspacePath !== workspaceSettingsPath
+    let streamingStarted = false
+    const stopWatchingWorkspace = attempt && useSettingStore.subscribe((current, previous) => {
+      if (current.workspacePath !== previous.workspacePath) controller.abort()
+    })
 
     // Prepare file path outside try block for access in finally
     const timestamp = new Date().getTime()
@@ -529,20 +566,33 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
     const filePath = buildOutputPath(outputFolder, fileName)
 
     try {
+      const articleState = useArticleStore.getState()
+      if (!await prepareActiveEditorDeactivationDurably(articleState.activeFilePath)) return
+      let practiceRecord: Mark | undefined
+      if (attempt) {
+        practiceRecord = await getMarkById(attempt.recordId)
+        if (!await isCurrentOrganizeAttempt(attempt) || signal.aborted) return
+        if (!practiceRecord || practiceRecord.deleted) {
+          toast({ description: t('noRecords'), variant: 'destructive' })
+          return
+        }
+      }
+      if (signal.aborted) return
+      setOpen(false)
       const workspace = await getWorkspacePath()
       const pathOptions = await getFilePathOptions(filePath)
-
-      if (workspace.isCustom) {
-        await writeTextFile(pathOptions.path, '')
-      } else {
-        await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir })
-      }
+      if (attempt && !await isCurrentOrganizeAttempt(attempt)) return
+      if (signal.aborted || useArticleStore.getState().activeFilePath !== articleState.activeFilePath) return
+      await writeTextFile(pathOptions.path, '', { baseDir: pathOptions.baseDir, createNew: true })
 
       await loadFileTree()
+      if (signal.aborted) return
+      const activePathAfterFileCreation = useArticleStore.getState().activeFilePath
+      if (activePathAfterFileCreation !== articleState.activeFilePath) return
       await setActiveFilePath(
         filePath,
         shouldAutoSyncOnInitialRead({ isNewFile: true }),
-        { deactivationAlreadyPrepared: true },
+        { deactivationAlreadyPrepared: true, createIfMissing: false },
       )
 
       // Switch to files tab in sidebar
@@ -554,53 +604,31 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
 
       await new Promise(resolve => setTimeout(resolve, 500))
 
-      await fetchAllMarks()
-
-      // Get latest marks from store after fetch
-      const latestTagScope = useMarkStore.getState().recordFilters.tagId
-      const latestMarks = useMarkStore.getState().allMarks
-        .filter(item => (!selectedRecordTagId || recordMatchesTag(item, selectedRecordTagId, useTagStore.getState().tags)) &&
-          (latestTagScope === 'all' || recordMatchesTag(item, latestTagScope, useTagStore.getState().tags)) &&
-          matchesTagRules(item, useMarkStore.getState().recordFilters.tagRules, useTagStore.getState().tags))
-
-      // Calculate marksByRange with latest marks
-      let subtractDate: Dayjs
-      switch (templateRange) {
-        case GenTemplateRange.All:
-          subtractDate = dayjs().subtract(99, 'year')
-          break
-        case GenTemplateRange.Today:
-          subtractDate = dayjs().subtract(1, 'day')
-          break
-        case GenTemplateRange.Week:
-          subtractDate = dayjs().subtract(1, 'week')
-          break
-        case GenTemplateRange.Month:
-          subtractDate = dayjs().subtract(1, 'month')
-          break
-        case GenTemplateRange.ThreeMonth:
-          subtractDate = dayjs().subtract(3, 'month')
-          break
-        case GenTemplateRange.Year:
-          subtractDate = dayjs().subtract(1, 'year')
-          break
-        default:
-          subtractDate = dayjs().subtract(99, 'year')
-          break
+      let records: Mark[]
+      if (practiceRecord) {
+        records = [practiceRecord]
+      } else {
+        await fetchAllMarks()
+        const { allMarks: latestMarks, recordFilters } = useMarkStore.getState()
+        const { tags: latestTags } = useTagStore.getState()
+        const rangeStart = getRangeStart(templateRange)
+        records = latestMarks.filter(item =>
+          (!selectedRecordTagId || recordMatchesTag(item, selectedRecordTagId, latestTags))
+          && (recordFilters.tagId === 'all' || recordMatchesTag(item, recordFilters.tagId, latestTags))
+          && matchesTagRules(item, recordFilters.tagRules, latestTags)
+          && dayjs(item.createdAt).isAfter(rangeStart)
+          && (quickMode || recordIdsToUse.has(item.id)))
       }
-      const marksByRange = latestMarks
-        .filter(item => dayjs(item.createdAt).isAfter(subtractDate))
-        .filter(item => quickMode || recordIdsToUse.has(item.id))
 
       // Calculate categorizedMarks with latest marks
       const categorizedMarks = {
-        scanMarks: marksByRange.filter(item => item.type === 'scan'),
-        textMarks: marksByRange.filter(item => item.type === 'text'),
-        imageMarks: marksByRange.filter(item => item.type === 'image'),
-        linkMarks: marksByRange.filter(item => item.type === 'link'),
-        fileMarks: marksByRange.filter(item => item.type === 'file'),
-        recordingMarks: marksByRange.filter(item => item.type === 'recording'),
-        todoMarks: marksByRange.filter(item => item.type === 'todo'),
+        scanMarks: records.filter(item => item.type === 'scan'),
+        textMarks: records.filter(item => item.type === 'text'),
+        imageMarks: records.filter(item => item.type === 'image'),
+        linkMarks: records.filter(item => item.type === 'link'),
+        fileMarks: records.filter(item => item.type === 'file'),
+        recordingMarks: records.filter(item => item.type === 'recording'),
+        todoMarks: records.filter(item => item.type === 'todo'),
       }
 
       // Process image marks
@@ -683,8 +711,10 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       `
 
       // A navigation during preparation must not start a stream into another note.
+      if (attempt && !await isCurrentOrganizeAttempt(attempt)) return
       if (signal.aborted || useArticleStore.getState().activeFilePath !== filePath) return
 
+      streamingStarted = true
       setSkipSyncOnSave(true)
       setAiGeneratingFilePath(filePath)
       setAiTerminateFn(terminateGeneration)
@@ -711,7 +741,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         if (state.activeFilePath !== filePath) controller.abort()
       })
       const displayContent = () => {
-        if (fullContent === displayedContent || useArticleStore.getState().activeFilePath !== filePath) return
+        if (fullContent === displayedContent || workspaceChanged() || useArticleStore.getState().activeFilePath !== filePath) return
         displayedContent = fullContent
         markEditorPathMutation(filePath)
         setCurrentArticle(fullContent)
@@ -719,8 +749,9 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       }
       const flushContent = async () => {
         const content = fullContent
-        if (content === savedContent) return
+        if (content === savedContent || workspaceChanged()) return
         const written = await runEditorPathWriteTransaction(filePath, async () => {
+          if (workspaceChanged()) return true
           markEditorPathMutation(filePath)
           if (workspace.isCustom) {
             await writeTextFile(pathOptions.path, content)
@@ -774,7 +805,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
             console.info('[OrganizeNotes] Model is returning reasoning before content')
           }
         })
-        if (!signal.aborted && (!result || result !== fullContent)) {
+        if (attempt && !signal.aborted && (!result?.trim() || result !== fullContent)) {
           throw new Error('Note generation did not complete successfully')
         }
       } finally {
@@ -795,6 +826,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
           unsubscribe()
         }
       }
+      if (attempt && !await isCurrentOrganizeAttempt(attempt)) return
       if (signal.aborted || useArticleStore.getState().activeFilePath !== filePath) return
 
       // Re-enable sync after AI generation
@@ -807,6 +839,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         isStreaming: false,
         targetFilePath: filePath
       })
+      streamingStarted = false
 
       // 6. Extract title and rename file
       let cleanedContent = fullContent
@@ -823,6 +856,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         titleMatch = cleanedContent.match(/^###\s+(.+)$/m)
       }
 
+      let savedPath = filePath
       if ((titleMatch && titleMatch[1]) || preferredTitle) {
         const title = preferredTitle || titleMatch?.[1]?.trim() || fileName.replace(/\.md$/, '')
         const { filePath: newFilePath, pathOptions: newPathOptions, sanitizedTitle } = await getAvailableOutputPath(outputFolder, title, workspace.isCustom)
@@ -837,12 +871,13 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
           throw new Error('Active editor could not be durably deactivated before renaming the generated note')
         }
 
-        // Write to new file
-        if (workspace.isCustom) {
-          await writeTextFile(newPathOptions.path, cleanedContent)
-        } else {
-          await writeTextFile(newPathOptions.path, cleanedContent, { baseDir: newPathOptions.baseDir })
-        }
+        if (attempt && !await isCurrentOrganizeAttempt(attempt)) return
+        if (signal.aborted) return
+        await writeTextFile(newPathOptions.path, cleanedContent, {
+          baseDir: newPathOptions.baseDir,
+          createNew: pathChanged,
+        })
+        savedPath = newFilePath
 
         // Delete old file
         const { remove } = await import('@tauri-apps/plugin-fs')
@@ -852,6 +887,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
           } else {
             await remove(pathOptions.path, { baseDir: pathOptions.baseDir })
           }
+          if (signal.aborted) return
           await useArticleStore.getState().syncOpenTabsForPathChange(filePath, newFilePath)
         }
 
@@ -864,10 +900,6 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
             pathChanged ? { deactivationAlreadyPrepared: true } : undefined,
           )
         }
-        if (shouldEmitOrganizeOnboardingComplete({ streamFinished, aborted: signal.aborted })) {
-          emitter.emit('onboarding-step-complete', { step: 'organize-note', filePath: newFilePath })
-        }
-
         toast({
           description: tMark('toolbar.organizeSuccess', { title: sanitizedTitle }),
         })
@@ -881,13 +913,13 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         if (useArticleStore.getState().activeFilePath === filePath) {
           await readArticle(filePath, '', shouldAutoSyncOnInitialRead())
         }
-        if (shouldEmitOrganizeOnboardingComplete({ streamFinished, aborted: signal.aborted })) {
-          emitter.emit('onboarding-step-complete', { step: 'organize-note', filePath })
-        }
-
         toast({
           description: tMark('toolbar.organizeSuccess', { title: fileName }),
         })
+      }
+
+      if (attempt && await isCurrentOrganizeAttempt(attempt) && !signal.aborted) {
+        useDesktopOnboardingStore.getState().completeOrganize(attempt.id, savedPath)
       }
 
     } catch (error: unknown) {
@@ -899,18 +931,17 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
         })
       }
     } finally {
+      stopWatchingWorkspace?.()
+      if (attempt) cancelOrganizeAttempt(attempt)
       organizingRef.current = false
       abortControllerRef.current = null
       setLoading(false)
-      // Re-enable sync in case of termination
-      setSkipSyncOnSave(false)
-      setAiGeneratingFilePath(null)
-      setAiTerminateFn(null)
-      // Emit AI streaming end event
-      emitter.emit('editor-ai-streaming', {
-        isStreaming: false,
-        targetFilePath: filePath
-      })
+      if (streamingStarted) {
+        setSkipSyncOnSave(false)
+        setAiGeneratingFilePath(null)
+        setAiTerminateFn(null)
+        emitter.emit('editor-ai-streaming', { isStreaming: false, targetFilePath: filePath })
+      }
     }
   }, [
     additionalRequirement,
@@ -922,6 +953,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
     loading,
     outputFolderValue,
     outputTitle,
+    practice,
     primaryModel,
     readArticle,
     marksByRange,
@@ -936,14 +968,24 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
     setLeftSidebarTab,
     setSkipSyncOnSave,
     isMobile,
+    t,
     tMark,
     router,
     terminateGeneration,
   ])
 
   useImperativeHandle(ref, () => ({
-    openOrganize
+    openOrganize: attempt => { void openOrganize(attempt) },
   }))
+
+  useEffect(() => () => { ++openSequence.current }, [])
+
+  useEffect(() => {
+    if (!practice || activePracticeAttemptId === practice.attempt.id) return
+    terminateGeneration()
+    setOpen(false)
+    setPractice(null)
+  }, [activePracticeAttemptId, practice, terminateGeneration])
 
   // Listen for abort event from editor
   useEffect(() => {
@@ -963,6 +1005,13 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
     setSelectedRecordIds(new Set(marksByRange.map(item => item.id)))
   }, [marksByRange, open])
 
+  const closeDialog = useCallback(() => {
+    if (organizingRef.current) return
+    if (practice) cancelOrganizeAttempt(practice.attempt)
+    setOpen(false)
+    setPractice(null)
+  }, [practice])
+
   const handleDialogKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!open || e.nativeEvent.isComposing) return
 
@@ -971,13 +1020,13 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
       if (loading) {
         terminateGeneration()
       } else {
-        setOpen(false)
+        closeDialog()
       }
     }
-  }, [open, loading, terminateGeneration])
+  }, [closeDialog, open, loading, terminateGeneration])
 
   return (
-    <Dialog onOpenChange={setOpen} open={open}>
+    <Dialog onOpenChange={nextOpen => { if (!nextOpen) closeDialog() }} open={open}>
       <DialogContent
         className={cn(
           "flex flex-col gap-0 overflow-hidden p-0",
@@ -1015,7 +1064,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
                 className="size-8 p-0"
                 disabled={loading}
                 variant="ghost"
-                onClick={() => setOpen(false)}
+                onClick={closeDialog}
               >
                 <X />
               </Button>
@@ -1084,10 +1133,10 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
                 <div className={cn("flex min-w-0 flex-col gap-2", isMobile && "rounded-2xl border bg-background p-3")}>
                   <div className="flex min-w-0 items-center justify-between gap-2">
                     <Label>{t('selectTemplate')}</Label>
-                    <Button className={cn("h-8 gap-1 px-2", isMobile && "rounded-full text-xs")} variant="outline" disabled={loading} onClick={handleManageTemplate}>
+                    {!practice && <Button className={cn("h-8 gap-1 px-2", isMobile && "rounded-full text-xs")} variant="outline" disabled={loading} onClick={handleManageTemplate}>
                       <Pencil className="size-4" />
                       {t('manageTemplate')}
-                    </Button>
+                    </Button>}
                   </div>
                   <Select value={tab} onValueChange={handleTemplateChange}>
                     <SelectTrigger id="organize-template" className={cn("w-full", isMobile && "rounded-xl")}>
@@ -1104,7 +1153,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                  <Field>
+                  {!practice && <Field>
                     <FieldLabel htmlFor="organize-template-range">{t('recordRange')}</FieldLabel>
                     <Select
                       value={templateRange}
@@ -1123,7 +1172,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                  </Field>
+                  </Field>}
                 </div>
                 <Field className={cn(isMobile && "rounded-2xl border bg-background p-3")}>
                   <FieldLabel htmlFor="organize-template-content">{t('templateContent')}</FieldLabel>
@@ -1140,8 +1189,10 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
               </div>
             ) : organizeStep === 'records' ? (
               <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3">
-                {tagScope !== 'all' || tagRules.include.length > 0 || tagRules.exclude.length > 0 ? <Badge variant="secondary">{tGlobal('record.tagging.activeRules')}</Badge> : null}
-                <div className={cn(
+                {!practice && (tagScope !== 'all' || tagRules.include.length > 0 || tagRules.exclude.length > 0) && (
+                  <Badge variant="secondary">{tGlobal('record.tagging.activeRules')}</Badge>
+                )}
+                {!practice && <div className={cn(
                   "flex min-w-0 gap-2",
                   isMobile ? "flex-col rounded-2xl border bg-background p-3" : "flex-wrap items-center justify-between"
                 )}>
@@ -1192,7 +1243,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
                     <Button className={cn("h-8 px-2", isMobile && "h-9 rounded-xl")} variant="outline" onClick={selectAllPreviewRecords}>{t('selectAllRecords')}</Button>
                     <Button className={cn("h-8 px-2", isMobile && "h-9 rounded-xl")} variant="outline" onClick={clearSelectedPreviewRecords}>{t('clearRecordSelection')}</Button>
                   </div>
-                </div>
+                </div>}
                 <ScrollArea className="min-h-0 flex-1">
                   <ItemGroup className={isMobile ? "p-2.5" : "p-2"}>
                     {
@@ -1210,6 +1261,7 @@ export const OrganizeNotes = forwardRef<{ openOrganize: () => void }, OrganizeNo
                             <ItemMedia className="pt-2">
                               <Checkbox
                                 checked={selectedRecordIds.has(mark.id)}
+                                disabled={Boolean(practice)}
                                 id={`organize-record-${mark.id}`}
                                 onCheckedChange={() => toggleSelectedRecord(mark.id)}
                               />

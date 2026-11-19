@@ -30,7 +30,6 @@ import emitter, { type Events } from '@/lib/emitter'
 import useArticleStore, { findFolderInTree, type DirTree } from '@/stores/article'
 import useMarkStore from '@/stores/mark'
 import useCanvasStore from '@/stores/canvas'
-import useChatStore from '@/stores/chat'
 import useSettingStore from '@/stores/setting'
 import { useInitialSetupStore } from '@/stores/initial-setup'
 import { useSidebarStore } from '@/stores/sidebar'
@@ -93,21 +92,8 @@ import {
   type EditorSplitDirection,
   type EditorWorkspaceLayout,
 } from './editor-group-layout'
-import {
-  createDefaultOnboardingProgress,
-  getCompletionFeedbackMode,
-  getActiveOnboardingStep,
-  markOnboardingStepDone,
-  normalizeOnboardingProgress,
-  type OnboardingProgress,
-  type OnboardingStepId,
-} from './onboarding-state'
-import {
-  findRecentOnboardingFile,
-  getOnboardingAgentPrompt,
-  getOnboardingSpotlightTarget,
-  ONBOARDING_SAMPLE_RECORD,
-} from './empty-state-actions'
+import { useDesktopOnboarding } from './use-desktop-onboarding'
+import type { OnboardingStepId } from './onboarding-state'
 
 const MARKDOWN_EXTENSIONS = new Set([
   'md', 'txt', 'markdown', 'py', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss', 'less',
@@ -116,8 +102,12 @@ const MARKDOWN_EXTENSIONS = new Set([
   'gitignore', 'env', 'example', 'template',
 ])
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'])
-const ONBOARDING_PROGRESS_STORE_KEY = 'desktopOnboardingProgress'
 const EDITOR_LAYOUT_STORE_KEY = 'editorWorkspaceLayout:main'
+const ONBOARDING_TARGETS: Record<OnboardingStepId, string> = {
+  'create-record': 'onboarding-target-record-text',
+  'organize-note': 'onboarding-target-organize-notes',
+  'ai-polish': 'onboarding-chat-composer',
+}
 type PendingEditorNavigationMutation =
   | { type: 'move'; oldPath: string; newPath: string }
   | { type: 'delete'; path: string; isFolder: boolean; workspaceRoot?: string }
@@ -309,7 +299,15 @@ function EditorGroupPane({
   )
 }
 
-export function EditorLayout() {
+export function EditorLayout({
+  revealEditorPanel,
+  revealRecordPanel,
+  revealAgentPanel,
+}: {
+  revealEditorPanel: () => Promise<void>
+  revealRecordPanel: () => Promise<void>
+  revealAgentPanel: () => Promise<void>
+}) {
   const {
     activeFilePath, fileTree, fileTreeInitialized, fileTreeWorkspaceKey,
     setActiveFilePath, openTabs, activeTabId,
@@ -338,9 +336,7 @@ export function EditorLayout() {
     initOpenTabs: state.initOpenTabs,
     initShowCloudFiles: state.initShowCloudFiles,
   })))
-  const { setLeftSidebarTab, rightSidebarVisible, toggleRightSidebar } = useSidebarStore()
   const workspacePath = useSettingStore(state => state.workspacePath)
-  const { setOnboardingPromptDraft } = useChatStore()
   const setActiveMarkId = useMarkStore(state => state.setActiveMarkId)
   const clearActiveMark = useMarkStore(state => state.clearActiveMark)
   const setActiveCanvasId = useCanvasStore(state => state.setActiveCanvasId)
@@ -366,7 +362,6 @@ export function EditorLayout() {
     status: 'idle' | 'running' | 'done'
   }>({ sequence: 0, status: 'idle' })
   const initializedRef = useRef(false)
-  const currentOnboardingTaskRef = useRef<OnboardingStepId | null>(null)
   const [layoutReady, setLayoutReady] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [detachingTabId, setDetachingTabId] = useState('')
@@ -374,12 +369,8 @@ export function EditorLayout() {
   const handleRestartPluginTab = useCallback((tabId: string) => {
     setPluginTabRevisions(current => ({ ...current, [tabId]: (current[tabId] ?? 0) + 1 }))
   }, [])
-  const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress>(createDefaultOnboardingProgress())
-  const [currentOnboardingTask, setCurrentOnboardingTask] = useState<OnboardingStepId | null>(null)
-  const [activeOnboardingStep, setActiveOnboardingStep] = useState<OnboardingStepId | null>(null)
-  const [completedOnboardingStep, setCompletedOnboardingStep] = useState<OnboardingStepId | null>(null)
-  const [showOrganizeNextStepDialog, setShowOrganizeNextStepDialog] = useState(false)
-  const [onboardingResumeFilePath, setOnboardingResumeFilePath] = useState('')
+  const [onboardingReveal, setOnboardingReveal] = useState<{ tabId: string } | null>(null)
+  const dismissOnboardingReveal = useCallback(() => setOnboardingReveal(null), [])
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -572,48 +563,6 @@ export function EditorLayout() {
       emitter.off('editor-navigation-path-deleted', handleNavigationPathDeleted)
     }
   }, [setLayout])
-
-  useEffect(() => {
-    currentOnboardingTaskRef.current = currentOnboardingTask
-  }, [currentOnboardingTask])
-
-  const persistOnboardingProgress = useCallback(async (progress: OnboardingProgress) => {
-    const store = await Store.load('store.json')
-    await store.set(ONBOARDING_PROGRESS_STORE_KEY, progress)
-    await store.save()
-  }, [])
-
-  useEffect(() => {
-    void Store.load('store.json').then(async store => {
-      const saved = await store.get<OnboardingProgress>(ONBOARDING_PROGRESS_STORE_KEY)
-      setOnboardingProgress(normalizeOnboardingProgress(saved))
-    })
-  }, [])
-
-  useEffect(() => {
-    const handleComplete = ({ step, filePath }: Events['onboarding-step-complete']) => {
-      setOnboardingProgress(current => {
-        if (current.steps[step]) return current
-        const next = markOnboardingStepDone(current, step)
-        const feedbackMode = getCompletionFeedbackMode(step, currentOnboardingTaskRef.current)
-        if (feedbackMode === 'dialog') {
-          setOnboardingResumeFilePath(filePath || activeFilePath)
-          setCurrentOnboardingTask(null)
-          setActiveOnboardingStep(null)
-          setCompletedOnboardingStep(null)
-          setShowOrganizeNextStepDialog(true)
-        } else if (currentOnboardingTaskRef.current) {
-          setCurrentOnboardingTask(null)
-          setActiveOnboardingStep(null)
-          setCompletedOnboardingStep(step)
-        }
-        void persistOnboardingProgress(next)
-        return next
-      })
-    }
-    emitter.on('onboarding-step-complete', handleComplete)
-    return () => emitter.off('onboarding-step-complete', handleComplete)
-  }, [activeFilePath, persistOnboardingProgress])
 
   const isRecordEditorTab = useCallback((tab: TabInfo) => tab.kind === 'record' || isRecordTabPath(tab.path), [])
   const isCanvasEditorTab = useCallback((tab: TabInfo) => tab.kind === 'canvas' || isCanvasTabPath(tab.path), [])
@@ -1270,6 +1219,7 @@ export function EditorLayout() {
       }
     })
     void activateTab(groupId, tab)
+    return id
   }, [activateTab, addTab, canDeactivateActiveEditor, setLayout, tGroups])
 
   const handleNewBrowser = useCallback((groupId: string, initialUrl?: string) => {
@@ -1811,55 +1761,43 @@ export function EditorLayout() {
     )
   }, [layout.activeGroupId, layout.groups, layout.maximizedGroupId, dragging, detachingTabId, getItemType, getRecordIdForTab, handleCloseTab, isCanvasEditorTab, isRecordEditorTab, isPluginEditorTab, isBrowserEditorTab, pluginTabRevisions, workspacePath])
 
-  const onboardingAgentPrompt = getOnboardingAgentPrompt({
-    intro: tOnboarding('agentPrompt.intro'),
-    requirements: [1, 2, 3, 4].map(index => tOnboarding(`agentPrompt.requirement${index}`)),
-    outro: tOnboarding('agentPrompt.outro'),
+  const revealOnboardingChecklist = useCallback(async () => {
+    await revealEditorPanel()
+    const { activeGroupId, groups } = layoutRef.current
+    const groupTabs = groups[activeGroupId]?.tabIds ?? []
+    const existing = useArticleStore.getState().openTabs.find(tab =>
+      isBlankEditorTab(tab) && !tab.autoCreated && groupTabs.includes(tab.id),
+    )
+    if (existing) {
+      if (!await activateTab(activeGroupId, existing)) return false
+      setOnboardingReveal({ tabId: existing.id })
+      return true
+    }
+    const tabId = handleNewTab(activeGroupId)
+    if (!tabId) return false
+    setOnboardingReveal({ tabId })
+    return true
+  }, [activateTab, handleNewTab, isBlankEditorTab, revealEditorPanel])
+
+  const onboarding = useDesktopOnboarding({
+    ready: layoutReady,
+    revealChecklist: revealOnboardingChecklist,
+    revealRecordPanel,
+    revealAgentPanel,
   })
 
-  const handleStartOnboardingStep = useCallback(async (step: OnboardingStepId) => {
-    setCurrentOnboardingTask(step)
-    setActiveOnboardingStep(step)
-    setCompletedOnboardingStep(null)
-    setShowOrganizeNextStepDialog(false)
-    if (step === 'create-record') {
-      emitter.emit('onboarding-record-prefill-changed', { prefillText: ONBOARDING_SAMPLE_RECORD })
-      await setLeftSidebarTab('notes')
-      return
-    }
-    if (step === 'organize-note') {
-      await setLeftSidebarTab('notes')
-      return
-    }
-    const candidate = findRecentOnboardingFile({
-      preferredPath: onboardingResumeFilePath,
-      activeFilePath,
-      openTabPaths: openTabs.filter(tab => !isRecordEditorTab(tab) && !isBlankEditorTab(tab) && !isBrowserEditorTab(tab)).map(tab => tab.path),
-      fileTree,
+  useEffect(() => {
+    if (!onboardingReveal) return
+    const frame = window.requestAnimationFrame(() => {
+      const heading = document.querySelector<HTMLElement>('.editor-group-active [data-onboarding-checklist]')
+      const focused = document.activeElement
+      if (focused === document.body || focused?.closest('[aria-hidden="true"]')) {
+        heading?.scrollIntoView({ block: 'nearest' })
+        heading?.focus({ preventScroll: true })
+      }
     })
-    if (!rightSidebarVisible) await toggleRightSidebar()
-    if (candidate) await setActiveFilePath(candidate)
-    await new Promise(resolve => window.setTimeout(resolve, 120))
-    setOnboardingPromptDraft(onboardingAgentPrompt)
-  }, [activeFilePath, fileTree, isBlankEditorTab, isRecordEditorTab, isBrowserEditorTab, onboardingAgentPrompt, onboardingResumeFilePath, openTabs, rightSidebarVisible, setActiveFilePath, setLeftSidebarTab, setOnboardingPromptDraft, toggleRightSidebar])
-
-  const handleContinueToNextStep = useCallback(() => {
-    const step = getActiveOnboardingStep(onboardingProgress)
-    setCompletedOnboardingStep(null)
-    if (step) void handleStartOnboardingStep(step)
-  }, [handleStartOnboardingStep, onboardingProgress])
-
-  const handleResetOnboarding = useCallback(async () => {
-    const next = createDefaultOnboardingProgress()
-    setOnboardingProgress(next)
-    setCurrentOnboardingTask(null)
-    setActiveOnboardingStep(null)
-    setCompletedOnboardingStep(null)
-    setOnboardingResumeFilePath('')
-    setShowOrganizeNextStepDialog(false)
-    setOnboardingPromptDraft(null)
-    await persistOnboardingProgress(next)
-  }, [persistOnboardingProgress, setOnboardingPromptDraft])
+    return () => window.cancelAnimationFrame(frame)
+  }, [onboardingReveal])
 
   const renderEmpty = useCallback((mode: 'new-tab' | 'empty-group', enableShortcuts = true) => {
     const isOnlyGroup = getEditorGroupIds(layout.root).length === 1
@@ -1870,16 +1808,22 @@ export function EditorLayout() {
       <EmptyState
         enableShortcuts={enableShortcuts}
         contextKey={`${layout.activeGroupId}:${layout.groups[layout.activeGroupId]?.activeTabId ?? 'empty'}`}
-        onboardingProgress={onboardingProgress}
-        activeOnboardingStep={currentOnboardingTask}
-        visibleOnboardingStep={activeOnboardingStep}
-        completedOnboardingStep={completedOnboardingStep}
-        onStartOnboardingStep={handleStartOnboardingStep}
-        onContinueToNextStep={handleContinueToNextStep}
-        onResetOnboarding={handleResetOnboarding}
+        onboardingProgress={onboarding.progress}
+        onboardingActionLabel={onboarding.actionLabel}
+        onboardingNotice={onboarding.notice}
+        onboardingBusy={onboarding.busy}
+        revealOnboarding={enableShortcuts && onboardingReveal !== null
+          && layout.groups[layout.activeGroupId]?.activeTabId === onboardingReveal.tabId}
+        onDismissOnboardingReveal={dismissOnboardingReveal}
+        onStartOnboardingStep={onboarding.startCurrentStep}
+        onResetOnboarding={onboarding.reset}
       />
     )
-  }, [activeOnboardingStep, completedOnboardingStep, currentOnboardingTask, handleContinueToNextStep, handleResetOnboarding, handleStartOnboardingStep, layout.root, layout.activeGroupId, layout.groups, onboardingProgress, tGroups])
+  }, [
+    dismissOnboardingReveal, layout.root, layout.activeGroupId, layout.groups, onboarding.actionLabel, onboarding.busy,
+    onboarding.notice, onboarding.progress, onboarding.reset, onboarding.startCurrentStep,
+    onboardingReveal, tGroups,
+  ])
 
   const renderLayoutNode = useCallback((node: EditorLayoutNode): React.ReactNode => {
     if (node.type === 'group') {
@@ -1942,8 +1886,6 @@ export function EditorLayout() {
   }, [dragging, handleActivateGroup, handleCloseGroup, handleCloseTab, handleKeepTabs, handleMoveToNewWindow, handleNewTab, handleNewBrowser, handlePinTab, handleRestartPluginTab, handleSplitTab, handleToggleMaximize, handleUnpinTab, layout, openTabs, renderContentPanel, renderEmpty, setLayout])
 
   if (!layoutReady) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{tGroups('loadingLayout')}</div>
-  const spotlightTitle = activeOnboardingStep ? tOnboarding(`spotlight.${activeOnboardingStep}.title`) : ''
-  const spotlightDescription = activeOnboardingStep ? tOnboarding(`spotlight.${activeOnboardingStep}.desc`) : ''
 
   return (
     <DndContext
@@ -1956,25 +1898,30 @@ export function EditorLayout() {
       <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
         {renderLayoutNode(layout.root)}
       </div>
-      <OnboardingSpotlight
-        targetId={activeOnboardingStep ? getOnboardingSpotlightTarget(activeOnboardingStep) : null}
-        title={spotlightTitle}
-        description={spotlightDescription}
-        onDismiss={() => setActiveOnboardingStep(null)}
-      />
-      <Dialog open={showOrganizeNextStepDialog} onOpenChange={setShowOrganizeNextStepDialog}>
+      {onboarding.hintedStep && (
+        <OnboardingSpotlight
+          targetId={ONBOARDING_TARGETS[onboarding.hintedStep]}
+          title={tOnboarding(`spotlight.${onboarding.hintedStep}.title`)}
+          description={tOnboarding(`spotlight.${onboarding.hintedStep}.desc`)}
+          dismissLabel={tOnboarding('dismissHint')}
+          onDismiss={onboarding.dismissHint}
+        />
+      )}
+      <Dialog open={onboarding.showOrganizeCompletion} onOpenChange={open => {
+        if (!open) onboarding.dismissOrganizeCompletion()
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{tOnboarding('afterOrganizeDialog.title')}</DialogTitle>
             <DialogDescription>{tOnboarding('afterOrganizeDialog.description')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowOrganizeNextStepDialog(false)}>{tOnboarding('afterOrganizeDialog.cancel')}</Button>
-            <Button onClick={() => {
-              setShowOrganizeNextStepDialog(false)
-              setCompletedOnboardingStep('organize-note')
-              void activateTab(layout.activeGroupId, null)
-            }}>{tOnboarding('afterOrganizeDialog.confirm')}</Button>
+            <Button variant="outline" onClick={onboarding.dismissOrganizeCompletion}>
+              {tOnboarding('afterOrganizeDialog.cancel')}
+            </Button>
+            <Button onClick={() => void onboarding.startCurrentStep()}>
+              {tOnboarding('afterOrganizeDialog.confirm')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

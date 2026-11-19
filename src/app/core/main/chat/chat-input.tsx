@@ -8,6 +8,7 @@ import useSettingStore, { useSettingsHydrationStore } from "@/stores/setting"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from '@/components/ui/button'
 import { useInitialSetupStore } from '@/stores/initial-setup'
+import { useDesktopOnboardingStore } from '@/stores/desktop-onboarding'
 import useChatStore from "@/stores/chat"
 import useArticleStore from "@/stores/article"
 import useCanvasStore from "@/stores/canvas"
@@ -30,7 +31,7 @@ import { readFile, readTextFile, writeFile, BaseDirectory, exists, mkdir, stat }
 import { ShineBorder } from "@/components/ui/shine-border"
 import { toast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { buildTypingFrames } from './onboarding-typing'
+import { buildTypingFrames } from './prompt-typing'
 import { collectGroupedChatModels, findGroupedChatModel } from './model-selection'
 import { ChatToolsPopover } from './chat-tools-popover'
 import { AttachmentAddMenu } from './attachment-add-menu'
@@ -115,7 +116,18 @@ function createImageAttachmentId(prefix: string) {
 }
 
 export const ChatInput = React.memo(function ChatInput() {
-  const [text, setText] = useState("")
+  const [text, setTextValue] = useState("")
+  const [onboardingDraft, setOnboardingDraft] = useState<{ attemptId: string; prompt: string } | null>(null)
+  const onboardingDraftRef = useRef(onboardingDraft)
+  const prefilledOnboardingAttempt = useRef<string | null>(null)
+  const [retryOnboardingAttempt, setRetryOnboardingAttempt] = useState<string | null>(null)
+  const setText = useCallback((value: string) => {
+    if (onboardingDraftRef.current) {
+      onboardingDraftRef.current = null
+      setOnboardingDraft(null)
+    }
+    setTextValue(value)
+  }, [])
   const pluginDraftRef = useRef(text)
   pluginDraftRef.current = text
   useEffect(() => registerPluginChatComposer(options => {
@@ -126,7 +138,7 @@ export const ChatInput = React.memo(function ChatInput() {
     pluginDraftRef.current = next
     setText(next)
     requestAnimationFrame(() => textareaRef.current?.focus())
-  }), [])
+  }), [setText])
 
   const { primaryModel, aiModelList } = useSettingStore()
   const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
@@ -136,8 +148,8 @@ export const ChatInput = React.memo(function ChatInput() {
     setLinkedResource: setChatLinkedResource,
     setLinkedResourcePreview,
     linkedResourcePreview,
-    onboardingPromptDraft,
-    setOnboardingPromptDraft,
+    canvasPromptDraft,
+    setCanvasPromptDraft,
     pendingQuote,
     setPendingQuote,
     clearPendingQuote,
@@ -211,6 +223,10 @@ export const ChatInput = React.memo(function ChatInput() {
   const setCanvasSelectionContext = useCanvasStore(state => state.setSelectionContext)
   const [isComposing, setIsComposing] = useState(false)
   const t = useTranslations()
+  const tGuide = useTranslations('article.emptyState.onboarding.agentPrompt')
+  const onboardingAttempt = useDesktopOnboardingStore(state =>
+    state.attempt?.step === 'ai-polish' ? state.attempt : null,
+  )
   const defaultPlaceholder = t('record.chat.input.placeholder.default')
   const pendingPlaceholder = t('record.chat.input.placeholder.pending')
   const approvalPlaceholder = t('record.chat.input.placeholder.approval')
@@ -240,8 +256,7 @@ export const ChatInput = React.memo(function ChatInput() {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const isMobileDevice_ = isMobileDevice()
   const imageDragDepthRef = useRef(0)
-  const onboardingAgentPromptArmedRef = useRef(false)
-  const onboardingTypingTimerRefs = useRef<number[]>([])
+  const canvasPromptTypingTimers = useRef<number[]>([])
   const maxImageSizeLabel = formatFileSize(MAX_IMAGE_ATTACHMENT_SIZE_BYTES)
   const [lockedQuote, setLockedQuote] = useState<PendingQuote | null>(null)
   const activeQuote = lockedQuote || pendingQuote || editorSelectionQuote
@@ -425,9 +440,7 @@ export const ChatInput = React.memo(function ChatInput() {
     }
   }, [contextUsageLinkedResourceIsActiveFile, linkedResource])
 
-  const applyTypedText = useCallback((value: string) => {
-    setText(value)
-
+  const resizeComposer = useCallback(() => {
     const textarea = textareaRef.current
     if (!textarea) {
       return
@@ -438,6 +451,11 @@ export const ChatInput = React.memo(function ChatInput() {
       textarea.style.height = `${newHeight}px`
     })
   }, [])
+
+  const applyTypedText = useCallback((value: string) => {
+    setText(value)
+    resizeComposer()
+  }, [resizeComposer, setText])
 
   function handleComposerTextChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
     const nextText = event.target.value
@@ -1225,10 +1243,6 @@ export const ChatInput = React.memo(function ChatInput() {
 
   // 处理发送后的清理工作
   function handleSent() {
-    if (onboardingAgentPromptArmedRef.current) {
-      onboardingAgentPromptArmedRef.current = false
-      emitter.emit('onboarding-step-complete', { step: 'ai-polish' })
-    }
     addToHistory(text)
     setText('')
     setComposerMenu(null)
@@ -1277,8 +1291,8 @@ export const ChatInput = React.memo(function ChatInput() {
       chatSendRef.current?.sendPrompt(prompt)
     })
     return () => {
-      onboardingTypingTimerRefs.current.forEach((timerId) => window.clearTimeout(timerId))
-      onboardingTypingTimerRefs.current = []
+      canvasPromptTypingTimers.current.forEach((timerId) => window.clearTimeout(timerId))
+      canvasPromptTypingTimers.current = []
       emitter.off('revertChat')
       emitter.off('fileSelected')
       emitter.off('folderSelected')
@@ -1286,33 +1300,32 @@ export const ChatInput = React.memo(function ChatInput() {
       emitter.off('quick-prompt-insert')
       emitter.off('quick-prompt-send')
     }
-  }, [setPendingQuote])
+  }, [setPendingQuote, setText])
 
   useEffect(() => {
-    if (!onboardingPromptDraft) {
+    if (!canvasPromptDraft) {
       return
     }
 
-    onboardingAgentPromptArmedRef.current = true
-    onboardingTypingTimerRefs.current.forEach((timerId) => window.clearTimeout(timerId))
-    onboardingTypingTimerRefs.current = []
+    canvasPromptTypingTimers.current.forEach((timerId) => window.clearTimeout(timerId))
+    canvasPromptTypingTimers.current = []
     setText('')
     setTimeout(() => {
       textareaRef.current?.focus()
     }, 50)
 
-    const frames = buildTypingFrames(onboardingPromptDraft, 2)
+    const frames = buildTypingFrames(canvasPromptDraft, 2)
     frames.forEach((frame, index) => {
       const timerId = window.setTimeout(() => {
         applyTypedText(frame)
         if (index === frames.length - 1) {
-          onboardingTypingTimerRefs.current = []
-          setOnboardingPromptDraft(null)
+          canvasPromptTypingTimers.current = []
+          setCanvasPromptDraft(null)
         }
       }, 160 + index * 42)
-      onboardingTypingTimerRefs.current.push(timerId)
+      canvasPromptTypingTimers.current.push(timerId)
     })
-  }, [applyTypedText, onboardingPromptDraft, setOnboardingPromptDraft])
+  }, [applyTypedText, canvasPromptDraft, setCanvasPromptDraft, setText])
 
   // 生成文件的行号预览（用于 AI 对话）
   async function generateFilePreview(filePath: string, isCustom: boolean, preferEditorContent: boolean = false): Promise<string> {
@@ -1504,9 +1517,59 @@ ${previewLines.join('\n')}
     }
   }, [activeContextPaths, autoLinkRevision, isMobile, setChatLinkedResource, setLinkedResourcePreview])
 
+  const onboardingPrompt = onboardingAttempt ? tGuide('intro', { path: onboardingAttempt.notePath }) : ''
+  const isOnboardingNoteActive = Boolean(onboardingAttempt && activeFilePath === onboardingAttempt.notePath)
+  const hasOnboardingContextConflict = Boolean(
+    canvasPromptDraft || pendingFolderAttachments || attachedImages.length || fileAttachments.length
+    || activeQuote || canvasSelectionContext || selectedSkills.length || visibleMentionedContexts.length
+    || visibleBrowserPages.length
+    || (linkedResource && (isLinkedFolder(linkedResource) || linkedResource.relativePath !== onboardingAttempt?.notePath))
+    || visibleActiveTabContexts.some(context => context.kind !== 'file' || context.file.relativePath !== onboardingAttempt?.notePath),
+  )
+
+  useEffect(() => {
+    if (onboardingDraft && (onboardingDraft.attemptId !== onboardingAttempt?.id
+      || !isOnboardingNoteActive || hasOnboardingContextConflict)) {
+      if (onboardingDraftRef.current === onboardingDraft) {
+        prefilledOnboardingAttempt.current = null
+        applyTypedText('')
+      }
+      return
+    }
+    if (isMobileDevice_ || !onboardingAttempt || !isOnboardingNoteActive || !hasChatModel || loading
+      || text.length > 0 || hasOnboardingContextConflict || isComposing) return
+    const attemptId = onboardingAttempt.id
+    if (prefilledOnboardingAttempt.current === attemptId && retryOnboardingAttempt !== attemptId) return
+
+    prefilledOnboardingAttempt.current = attemptId
+    setRetryOnboardingAttempt(null)
+    const draft = { attemptId, prompt: onboardingPrompt }
+    onboardingDraftRef.current = draft
+    setOnboardingDraft(draft)
+    setTextValue(draft.prompt)
+    resizeComposer()
+  }, [applyTypedText, hasChatModel, hasOnboardingContextConflict, isComposing, isMobileDevice_, isOnboardingNoteActive,
+    loading, onboardingAttempt, onboardingDraft, onboardingPrompt, resizeComposer, retryOnboardingAttempt, text])
+
+  const guidedSend = onboardingAttempt && onboardingDraft?.attemptId === onboardingAttempt.id
+    && isOnboardingNoteActive && !hasOnboardingContextConflict && text === onboardingDraft.prompt
+    ? {
+        attempt: onboardingAttempt,
+        onSent: () => {
+          if (onboardingDraftRef.current !== onboardingDraft) return
+          addToHistory(onboardingDraft.prompt)
+          applyTypedText('')
+        },
+        onFailure: (reason: 'unavailable' | 'retry') => {
+          if (useDesktopOnboardingStore.getState().attempt?.id !== onboardingAttempt.id) return
+          if (reason === 'retry') setRetryOnboardingAttempt(onboardingAttempt.id)
+          toast({ description: tGuide(reason) })
+        },
+      }
+    : onboardingDraft ? null : undefined
+
   return (
     <footer
-      id="onboarding-target-chat-input"
       className={cn(
         "relative flex w-full flex-col items-center justify-between",
         isMobile ? "px-2 pb-1 pt-0" : "p-1"
@@ -1597,6 +1660,7 @@ ${previewLines.join('\n')}
         <PendingFileAttachments attachments={fileAttachments} onRemove={removeFileAttachment} />
         <div className="relative w-full flex items-start">
           <Textarea
+            id="onboarding-chat-composer"
             ref={textareaRef}
             className={cn(
               "relative flex-1 resize-none overflow-y-auto border-none p-2 shadow-none focus-visible:ring-0",
@@ -1726,6 +1790,7 @@ ${previewLines.join('\n')}
             <AgentPermissionModeSelect />
             <ChatSend
               inputValue={text}
+              guidedSend={guidedSend}
               preparingAttachments={pendingFolderAttachments > 0}
               onSent={handleSent}
               linkedResource={linkedResource}

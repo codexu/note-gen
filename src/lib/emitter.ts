@@ -1,6 +1,5 @@
 import mitt from 'mitt'
 import type { Editor } from '@tiptap/core'
-import type { OnboardingStepId } from '@/app/core/main/editor/onboarding-state'
 import type { CanvasDocument } from '@/types/canvas'
 
 // 定义事件类型
@@ -57,8 +56,6 @@ interface Events {
   'toolbar-reset-selected-text': unknown;
   'quickRecordText': unknown;
   'quickRecordTextHandler': { prefillText?: string } | undefined;
-  'onboarding-record-prefill-changed': { prefillText?: string } | undefined;
-  'onboarding-step-complete': { step: OnboardingStepId; filePath?: string };
   'openWindow': unknown;
   'immediate-pull-needed': { type: string; path: string; hash: string; filePath: string } | { type: string; filePath: string } | { filePath: string; isRemoteFile: boolean };
   'getSettingModelList': unknown;

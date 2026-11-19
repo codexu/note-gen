@@ -770,9 +770,13 @@ export class AgentRuntime {
     const toolCalls: ToolCall[] = []
     const changes: AgentChange[] = []
     const runWorkspaceIdentity = getSkillWorkspaceIdentity(await getWorkspacePath())
-    const assertRunWorkspace = async () => {
+    const activeEditor = input.activeEditorOnly ? (await import('@/stores/article')).default : undefined
+    const assertRunContext = async () => {
       if (getSkillWorkspaceIdentity(await getWorkspacePath()) !== runWorkspaceIdentity) {
         throw new Error('WORKSPACE_CHANGED: 工作区已切换，本次任务已停止。请在目标工作区重新发起请求。')
+      }
+      if (activeEditor && activeEditor.getState().activeFilePath !== input.activeFilePath) {
+        throw new Error('EDITOR_TARGET_CHANGED: 当前笔记已切换，请重新打开目标笔记。')
       }
     }
 
@@ -829,6 +833,7 @@ export class AgentRuntime {
       .filter(tool =>
         (ragAgentPolicy.automaticSearchEnabled || tool.name !== 'knowledge_search')
         && (aiConfig.enableWebSearch === true || tool.category !== 'web')
+        && (!input.activeEditorOnly || tool.category === 'editor' || tool.name === 'render_response')
       )
     const toolMap = new Map(allTools.map((tool) => [tool.name, tool]))
     let tools = selectToolsForContext(context, allTools, input.permissionMode)
@@ -926,7 +931,7 @@ export class AgentRuntime {
       tool: AgentTool,
       args: Record<string, unknown>
     ): Promise<AgentToolResult> => {
-      await assertRunWorkspace()
+      await assertRunContext()
       if (tool.name === 'web_search') {
         const blockedResult = webSearchBudget.startSearch()
         if (blockedResult) return blockedResult
@@ -1763,7 +1768,7 @@ export class AgentRuntime {
           if (this.stopped) {
             throw new Error('USER_STOPPED')
           }
-          await assertRunWorkspace()
+          await assertRunContext()
           const toolName = toolUse.function.name
           const tool = toolMap.get(toolName)
           let args: Record<string, unknown>
@@ -2232,7 +2237,7 @@ export class AgentRuntime {
 
           // Approval can remain open while the user switches workspaces.
           // Recheck its original workspace immediately before any tool executes.
-          await assertRunWorkspace()
+          await assertRunContext()
           callbacks.onStatus?.(
             ['editor-write', 'file-create', 'file-update', 'delete', 'medium'].includes(tool.risk)
               ? 'applying_change'
@@ -2373,7 +2378,7 @@ export class AgentRuntime {
           if (updatedTrace) callbacks.onTrace?.(updatedTrace)
           // An in-flight write can finish after Stop. Record its actual result first.
           if (this.stopped) throw new Error('USER_STOPPED')
-          await assertRunWorkspace()
+          await assertRunContext()
           if (editOutcome === 'unverified') {
             appendToolResult(toolUse.id, toolName, args, result)
             return completeFinalResponse(result.message)
@@ -2418,7 +2423,7 @@ export class AgentRuntime {
             const content = typeof data?.content === 'string' ? data.content : ''
             if (content.trim()) {
               appendToolResult(toolUse.id, tool.name, args, result)
-              await assertRunWorkspace()
+              await assertRunContext()
               if (this.stopped) throw new Error('USER_STOPPED')
               if (this.steeringRequested) {
                 callbacks.onCandidateAnswerClear?.()

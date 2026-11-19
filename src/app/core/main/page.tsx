@@ -6,7 +6,7 @@ import { EditorLayout } from './editor/editor-layout'
 import { PluginRightSidebar } from '@/components/plugins/plugin-right-sidebar'
 import dynamic from 'next/dynamic'
 import { useSidebarStore } from "@/stores/sidebar"
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { Store } from '@tauri-apps/plugin-store'
 import { Layout, PanelImperativeHandle } from 'react-resizable-panels'
 import { restoreEditorWindows } from '@/lib/editor-windows'
@@ -59,8 +59,6 @@ function ResizableWrapper() {
     centerPanelVisible, 
     rightSidebarVisible, 
     initSidebarState,
-    toggleLeftSidebar,
-    toggleRightSidebar,
   } = useSidebarStore()
   
   const leftPanelRef = useRef<PanelImperativeHandle>(null)
@@ -178,21 +176,22 @@ function ResizableWrapper() {
   
   const actualLayout = getActualLayout()
 
-  const revealLeftPanel = () => {
-    if (!leftSidebarVisible) {
-      void toggleLeftSidebar()
-      return
-    }
+  const revealLeftPanel = useCallback(async () => {
+    const sidebar = useSidebarStore.getState()
+    if (!sidebar.leftSidebarVisible) await sidebar.toggleLeftSidebar()
     leftPanelRef.current?.expand()
-  }
+  }, [])
 
-  const revealRightPanel = () => {
-    if (!rightSidebarVisible) {
-      void toggleRightSidebar()
-      return
-    }
+  const revealEditorPanel = useCallback(async () => {
+    await useSidebarStore.getState().showCenterPanel()
+    centerPanelRef.current?.expand()
+  }, [])
+
+  const revealRightPanel = useCallback(async () => {
+    const sidebar = useSidebarStore.getState()
+    if (!sidebar.rightSidebarVisible) await sidebar.toggleRightSidebar()
     rightPanelRef.current?.expand()
-  }
+  }, [])
   
   const onLayout = (layout: Layout) => {
     // 保存当前面板布局
@@ -248,7 +247,11 @@ function ResizableWrapper() {
         collapsible={true}
         collapsedSize="0%"
       >
-        <EditorLayout />
+        <EditorLayout
+          revealEditorPanel={revealEditorPanel}
+          revealRecordPanel={revealLeftPanel}
+          revealAgentPanel={revealRightPanel}
+        />
       </ResizablePanel>
     )
 

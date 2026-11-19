@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { insertMark } from "@/db/marks"
 import useTagStore from "@/stores/tag"
 import { CopySlash } from "lucide-react"
-import { useEffect, useState, useCallback, useRef } from "react"
+import { useEffect, useState, useCallback, useRef, type ChangeEvent } from "react"
 import emitter from "@/lib/emitter"
 import { useIsMobile } from '@/hooks/use-mobile'
 import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
@@ -40,6 +40,7 @@ import { useRecordCompletion } from './use-record-completion'
 import useSettingStore from '@/stores/setting'
 import { getRecordSaveTagIdFromTags } from '@/lib/record-save-target'
 import { useInitialSetupStore } from '@/stores/initial-setup'
+import { getDesktopOnboardingWorkspaceIdentity, useDesktopOnboardingStore, type CreateRecordOnboardingAttempt } from '@/stores/desktop-onboarding'
 
 interface ControlTextProps {
   setupCapturePath?: '/core/main' | '/mobile/record'
@@ -52,17 +53,51 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
   const captureRequested = useInitialSetupStore(
     state => setupCapturePath === pathname && !state.visible && state.captureRequested,
   )
+  const desktopCapture = setupCapturePath === '/core/main' && pathname === setupCapturePath
+  const practiceAttemptId = useDesktopOnboardingStore(state => desktopCapture ? state.attempt?.id : undefined)
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('')
   const [creatingTag, setCreatingTag] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [autoReadClipboard, setAutoReadClipboard] = useState(true)
   const isMobile = useIsMobile() || checkIsMobileDevice()
-  const onboardingPrefillRef = useRef<string | null>(null)
+  const practiceCaptureRef = useRef<{ attempt: CreateRecordOnboardingAttempt; previousDraft: string } | null>(null)
+  const saveInProgress = useRef(false)
+  const clipboardReadId = useRef(0)
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
   const completeRecord = useRecordCompletion()
 
   const { currentTagId, tags, fetchTags, initTags } = useTagStore()
   const [selectedTagId, setSelectedTagId] = useState<number>(currentTagId)
+
+  const closeCapture = useCallback((saved = false) => {
+    ++clipboardReadId.current
+    const practiceCapture = practiceCaptureRef.current
+    practiceCaptureRef.current = null
+    if (practiceCapture) {
+      setText(practiceCapture.previousDraft)
+      const onboarding = useDesktopOnboardingStore.getState()
+      if (!saved && onboarding.attempt?.id === practiceCapture.attempt.id) onboarding.cancelAttempt()
+    } else if (saved) setText('')
+    setOpen(false)
+  }, [])
+
+  function handlePracticeTrigger() {
+    if (open || saveInProgress.current) return
+    const onboarding = useDesktopOnboardingStore.getState()
+    const practiceRequest = onboarding.recordRequest
+    if (!practiceRequest || onboarding.attempt?.id !== practiceRequest.attempt.id) return
+    ++clipboardReadId.current
+    practiceCaptureRef.current = { attempt: practiceRequest.attempt, previousDraft: text }
+    setText(practiceRequest.sampleText)
+    setOpen(true)
+    onboarding.consumeRecordRequest(practiceRequest.attempt.id)
+  }
+
+  useEffect(() => {
+    const practiceCapture = practiceCaptureRef.current
+    if (practiceCapture && practiceCapture.attempt.id !== practiceAttemptId && !saveInProgress.current) closeCapture()
+  }, [closeCapture, practiceAttemptId])
 
   useEffect(() => {
     if (captureRequested) {
@@ -87,58 +122,40 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
     loadSetting()
   }, [])
 
-  // 保存设置到 store
-  const handleAutoReadChange = useCallback(async (checked: boolean) => {
-    setAutoReadClipboard(checked)
+  const readClipboardIntoDraft = useCallback(async () => {
+    if (practiceCaptureRef.current) return
+    const readId = ++clipboardReadId.current
     try {
-      const store = await Store.load('store.json')
-      await store.set('autoReadClipboard', checked)
-      // 如果勾选了 checkbox，立即读取剪贴板
-      if (checked) {
-        try {
-          const hasTextRes = await hasText()
-          if (hasTextRes) {
-            const clipboardText = await readText()
-            if (clipboardText) {
-              setText(clipboardText)
-            }
-          }
-        } catch {
-          // 忽略剪贴板读取错误
-        }
+      if (await hasText()) {
+        const clipboardText = await readText()
+        if (clipboardText && readId === clipboardReadId.current) setText(clipboardText)
       }
     } catch {
-      // 忽略保存错误
+      // Ignore unreadable clipboard contents.
     }
   }, [])
 
-  // 检查剪贴板中的文本
-  const checkClipboard = useCallback(async () => {
-    if (onboardingPrefillRef.current) {
-      setText(onboardingPrefillRef.current)
-      return
-    }
-
-    // 只有启用自动读取时才检查剪贴板
-    if (!autoReadClipboard) {
-      return
-    }
-
+  // 保存设置到 store
+  const handleAutoReadChange = useCallback(async (checked: boolean) => {
+    setAutoReadClipboard(checked)
+    const shouldReadClipboard = checked && !practiceCaptureRef.current
+    const readId = ++clipboardReadId.current
     try {
-      const hasTextRes = await hasText()
-      if (hasTextRes) {
-        const clipboardText = await readText()
-        if (clipboardText) {
-          setText(clipboardText)
-        }
-      }
+      const store = await Store.load('store.json')
+      await store.set('autoReadClipboard', checked)
     } catch {
-      // 忽略剪贴板读取错误
+      return
     }
-  }, [autoReadClipboard])
+    if (shouldReadClipboard && clipboardReadId.current === readId) await readClipboardIntoDraft()
+  }, [readClipboardIntoDraft])
+
+  const handleTextChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    ++clipboardReadId.current
+    setText(event.target.value)
+  }
 
   async function handleSuccess() {
-    if (creatingTag) return
+    if (creatingTag || saveInProgress.current) return
     const resetText = text.replace(/'/g, '').trim()
 
     if (!resetText) {
@@ -150,24 +167,34 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
       return
     }
 
+    saveInProgress.current = true
+    setSaving(true)
+    const practiceAttempt = practiceCaptureRef.current?.attempt
+    const isCurrentPractice = async () => practiceAttempt !== undefined
+      && await getDesktopOnboardingWorkspaceIdentity() === practiceAttempt.workspaceId
+      && useDesktopOnboardingStore.getState().attempt?.id === practiceAttempt.id
     try {
       const store = await Store.load('store.json')
       await store.set('currentTagId', selectedTagId)
       await store.save()
 
-      const result = await insertMark({ tagId: selectedTagId, type: 'text', desc: resetText, content: resetText })
+      const result = await insertMark({ tagId: selectedTagId, type: 'text', desc: resetText, content: resetText }, practiceAttempt ? async () => {
+        if (!await isCurrentPractice()) throw new Error(t('common.error'))
+      } : undefined)
       const markId = Number(result.lastInsertId || 0) || null
-      emitter.emit('onboarding-step-complete', { step: 'create-record' })
-      emitter.emit('onboarding-record-prefill-changed', {})
+      const completedPractice = practiceAttempt && markId && await isCurrentPractice()
+
+      closeCapture(true)
+      if (completedPractice && practiceAttempt && markId) {
+        useDesktopOnboardingStore.getState().completeRecord(practiceAttempt.id, markId)
+      }
 
       await completeRecord({
         markId,
         tagId: selectedTagId,
         typeLabel: t('record.mark.type.text'),
+        revealInRecordSidebar: Boolean(completedPractice),
       })
-
-      setText('')
-      setOpen(false)
     } catch (error) {
       console.error('Failed to save text record:', error)
       toast({
@@ -175,23 +202,30 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
         description: error instanceof Error ? error.message : t('common.error'),
         variant: 'destructive',
       })
+    } finally {
+      if (practiceAttempt && useDesktopOnboardingStore.getState().attempt?.id !== practiceAttempt.id && practiceCaptureRef.current) {
+        closeCapture()
+      }
+      saveInProgress.current = false
+      setSaving(false)
     }
   }
 
   const handleOpen = useCallback(async (payload?: { prefillText?: string }) => {
-    if (payload?.prefillText) {
-      onboardingPrefillRef.current = payload.prefillText
-    }
+    if (practiceCaptureRef.current || saveInProgress.current) return
     setOpen(true)
-    await checkClipboard()
-  }, [checkClipboard])
-
-  const handleOpenChange = useCallback(async (open: boolean) => {
-    setOpen(open)
-    if (open) {
-      await checkClipboard()
+    if (payload?.prefillText) {
+      ++clipboardReadId.current
+      setText(payload.prefillText)
+    } else if (autoReadClipboard) {
+      await readClipboardIntoDraft()
     }
-  }, [checkClipboard])
+  }, [autoReadClipboard, readClipboardIntoDraft])
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    if (open) void handleOpen()
+    else if (!saveInProgress.current) closeCapture()
+  }, [closeCapture, handleOpen])
 
   useEffect(() => {
     if (!open) {
@@ -233,28 +267,24 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
   }, [isMobile, open])
 
   useEffect(() => {
-    const handleOnboardingPrefillChange = (payload?: { prefillText?: string }) => {
-      onboardingPrefillRef.current = payload?.prefillText || null
-    }
     const handleShortcutOpen = () => {
       void handleOpen()
     }
 
     emitter.on('quickRecordTextHandler', handleOpen)
     emitter.on('toolbar-shortcut-text', handleShortcutOpen)
-    emitter.on('onboarding-record-prefill-changed', handleOnboardingPrefillChange)
     return () => {
       emitter.off('quickRecordTextHandler', handleOpen)
       emitter.off('toolbar-shortcut-text', handleShortcutOpen)
-      emitter.off('onboarding-record-prefill-changed', handleOnboardingPrefillChange)
     }
   }, [handleOpen])
 
   const trigger = showTrigger && (
     <TooltipButton
-      buttonId="onboarding-target-record-text"
+      buttonId={desktopCapture ? 'onboarding-target-record-text' : undefined}
       icon={<CopySlash />}
       tooltipText={t('record.mark.type.text')}
+      onClick={desktopCapture ? handlePracticeTrigger : undefined}
     />
   )
 
@@ -290,7 +320,7 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
                 rows={10}
                 maxRows={24}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={handleTextChange}
               />
             </div>
             <DrawerFooter className="flex items-center justify-between gap-4">
@@ -309,7 +339,7 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
               </div>
               <div className="flex items-center gap-4">
                 <p className="text-sm text-zinc-500">{t('record.mark.text.characterCount', { count: text.length })}</p>
-                <Button type="submit" disabled={creatingTag} onClick={handleSuccess}>{t('record.mark.text.save')}</Button>
+                <Button type="submit" disabled={creatingTag || saving} onClick={handleSuccess}>{t('record.mark.text.save')}</Button>
               </div>
             </DrawerFooter>
           </DrawerContent>
@@ -336,7 +366,7 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
               rows={10}
               maxRows={30}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={handleTextChange}
               autoFocus
             />
             <DialogFooter className="flex items-center justify-between gap-4">
@@ -355,7 +385,7 @@ export function ControlText({ setupCapturePath, showTrigger = true }: ControlTex
               </div>
               <div className="flex items-center gap-4">
                 <p className="text-sm text-zinc-500">{t('record.mark.text.characterCount', { count: text.length })}</p>
-                <Button type="submit" disabled={creatingTag} onClick={handleSuccess}>{t('record.mark.text.save')}</Button>
+                <Button type="submit" disabled={creatingTag || saving} onClick={handleSuccess}>{t('record.mark.text.save')}</Button>
               </div>
             </DialogFooter>
           </DialogContent>

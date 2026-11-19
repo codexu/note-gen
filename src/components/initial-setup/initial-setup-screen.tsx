@@ -7,10 +7,11 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 
 import { PlatformSwitchProgress } from '@/app/core/setting/sync/components/platform-switch-progress'
+import { getActiveOnboardingStep } from '@/app/core/main/editor/onboarding-state'
 import { Spinner } from '@/components/ui/spinner'
 import type { InitialSetupStep } from '@/lib/initial-setup'
-import { showRecordSidebar } from '@/lib/record-navigation'
 import { cn } from '@/lib/utils'
+import { useDesktopOnboardingStore } from '@/stores/desktop-onboarding'
 import { useInitialSetupStore } from '@/stores/initial-setup'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { usePlatformSwitchStore } from '@/stores/sync-platform-switch'
@@ -29,6 +30,7 @@ export function InitialSetupScreen({ ready }: { ready: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const mobile = pathname.startsWith('/mobile')
+  const desktopPractice = useDesktopOnboardingStore(state => state.progress)
   const settingsOpen = useSettingsDialogStore(state => state.open)
   const settingsSection = useSettingsDialogStore(state => state.activeSection)
   const syncTarget = usePlatformSwitchStore(state => state.platform)
@@ -36,6 +38,9 @@ export function InitialSetupScreen({ ready }: { ready: boolean }) {
   const previousPage = useRef<InitialSetupStep | null>(null)
 
   useEffect(() => { if (ready) void hydrate() }, [ready, hydrate])
+  useEffect(() => {
+    if (ready && visible && !mobile) void useDesktopOnboardingStore.getState().hydrate()
+  }, [mobile, ready, visible])
 
   useEffect(() => {
     if (!ready || !visible) {
@@ -57,9 +62,13 @@ export function InitialSetupScreen({ ready }: { ready: boolean }) {
 
     if (capture) {
       useSettingsDialogStore.getState().closeSettings()
-      if (!mobile) showRecordSidebar()
-      router.replace(mobile ? '/mobile/record' : '/core/main')
-      useInitialSetupStore.getState().requestCapture()
+      if (mobile) {
+        router.replace('/mobile/record')
+        useInitialSetupStore.getState().requestCapture()
+      } else {
+        useDesktopOnboardingStore.getState().setWelcomeRequested(true)
+        router.replace('/core/main')
+      }
     } else if (status === 'pending') {
       router.replace(mobile ? '/mobile/writing' : '/core/main')
     }
@@ -78,6 +87,14 @@ export function InitialSetupScreen({ ready }: { ready: boolean }) {
     onBack: leaveConfiguration,
     onNext: leaveConfiguration,
   }
+  const practiceStep = desktopPractice && getActiveOnboardingStep(desktopPractice)
+  const captureLabel = mobile ? t('welcome.capture')
+    : practiceStep && desktopPractice?.steps['create-record'] ? t('welcome.continuePractice')
+    : desktopPractice && !practiceStep ? t('welcome.viewPractice')
+    : t('welcome.practice')
+  const leaveLabel = status === 'pending'
+    ? t(mobile ? 'welcome.enter' : 'welcome.enterApp')
+    : t('welcome.close')
   const brand = (
     <div className="flex items-center gap-2.5">
       <Image src="/app-icon.png" alt="" width={32} height={32} className="size-8 rounded-lg dark:invert" />
@@ -101,7 +118,7 @@ export function InitialSetupScreen({ ready }: { ready: boolean }) {
               <div className="m-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-8 sm:gap-8 sm:px-10 sm:py-12">
                 <header className="flex sm:justify-center">{brand}</header>
                 <SetupWelcome headingRef={titleRef} onCapture={() => leaveWelcome(true)} onLeave={() => leaveWelcome(false)}
-                  onConfigure={page => void goTo(page)} leaveLabel={t(status === 'pending' ? 'welcome.enter' : 'welcome.close')} />
+                  onConfigure={page => void goTo(page)} captureLabel={captureLabel} leaveLabel={leaveLabel} />
               </div>
             </div>
           ) : (

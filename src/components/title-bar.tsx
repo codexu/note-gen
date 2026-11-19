@@ -8,6 +8,7 @@ import { isMobileDevice } from '@/lib/check'
 import { Settings, Minus, Square, Copy, X, PanelLeft, PanelRight, SquarePen, Cog, BookOpen } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useSidebarStore } from '@/stores/sidebar'
+import { useDesktopOnboardingStore } from '@/stores/desktop-onboarding'
 import { PluginTitleBar } from './plugins/plugin-title-bar'
 import { PinToggle } from './pin-toggle'
 import AppStatus from './app-status'
@@ -69,6 +70,7 @@ export function TitleBar({ minimal = false }: { minimal?: boolean }) {
     return false
   }
   const { recordToolbarConfig, setRecordToolbarConfig } = useSettingStore()
+  const showPracticeRecordTrigger = useDesktopOnboardingStore(state => state.attempt?.step === 'create-record')
   const { hasUpdate } = useUpdateStore()
   const t = useTranslations()
   const { isModifierPressed } = useToolbarShortcuts()
@@ -213,9 +215,9 @@ export function TitleBar({ minimal = false }: { minimal?: boolean }) {
       >
         {!minimal && <>
         {/* 左侧记录工具栏按钮 */}
-        <div id="onboarding-target-record-toolbar" className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
+        <div className="flex items-center gap-0.5 px-2 shrink-0" data-tauri-drag-region="false">
           {!recordToolbarConfig.some(item => item.id === 'text' && item.enabled) && (
-            <ControlText setupCapturePath="/core/main" showTrigger={false} />
+            <ControlText setupCapturePath="/core/main" showTrigger={showPracticeRecordTrigger} />
           )}
           <TooltipProvider>
             <DndContext

@@ -22,10 +22,11 @@ interface SetupWelcomeProps {
   onCapture: () => void
   onLeave: () => void
   onConfigure: (page: ConfigurationPage) => void
+  captureLabel: string
   leaveLabel: string
 }
 
-export function SetupWelcome({ headingRef, onCapture, onLeave, onConfigure, leaveLabel }: SetupWelcomeProps) {
+export function SetupWelcome({ headingRef, onCapture, onLeave, onConfigure, captureLabel, leaveLabel }: SetupWelcomeProps) {
   const t = useTranslations('initialSetup')
   const syncText = useTranslations('settings.sync')
   const modelText = useTranslations('settings.defaultModel')
@@ -79,7 +80,7 @@ export function SetupWelcome({ headingRef, onCapture, onLeave, onConfigure, leav
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-2 sm:mt-7 sm:justify-center">
           <Button size="lg" type="button" onClick={onCapture} className="h-11 px-4">
-            <PencilLine data-icon="inline-start" />{t('welcome.capture')}
+            <PencilLine data-icon="inline-start" />{captureLabel}
           </Button>
           <Button size="lg" type="button" variant="ghost" onClick={onLeave} className="h-11">
             {leaveLabel}<ArrowRight data-icon="inline-end" />

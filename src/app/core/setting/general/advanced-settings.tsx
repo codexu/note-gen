@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { message } from '@tauri-apps/plugin-dialog'
 import { BaseDirectory, exists, remove } from '@tauri-apps/plugin-fs'
+import { exit } from '@tauri-apps/plugin-process'
 import { Store } from '@tauri-apps/plugin-store'
 import { useTranslations } from 'next-intl'
 import {
@@ -32,6 +33,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { openDeveloperTools, supportsNativeDeveloperTools } from '@/lib/developer-tools'
+import { scheduleLocalDataReset } from '@/lib/initial-setup'
 import useSettingStore from '@/stores/setting'
 import { ConfigFileActions } from './config-file-actions'
 import { AlertTriangle, Code2, Database, FolderX, Gauge, MonitorCog, Network } from 'lucide-react'
@@ -68,16 +70,23 @@ export function AdvancedSettings({ showConfigFileActions = true }: { showConfigF
 
   async function handleClearData() {
     setPendingAction('data')
+    let scheduled = false
     try {
-      const store = await Store.load('store.json')
-      await store.clear()
-      await remove('store.json', { baseDir: BaseDirectory.AppData })
-      await remove('note.db', { baseDir: BaseDirectory.AppData })
       await message(t('dataClearedRestartDesc'), {
         title: t('dataClearedRestartTitle'),
         kind: 'info',
       })
-      await getCurrentWindow().close()
+      await scheduleLocalDataReset()
+      scheduled = true
+      if (desktop) await exit(0)
+      else await getCurrentWindow().close()
+    } catch (error) {
+      console.error('Failed to schedule local data reset or close the app:', error)
+      toast({
+        title: t(scheduled ? 'dataClearedRestartTitle' : 'clearDataFailed'),
+        description: scheduled ? t('dataClearedRestartDesc') : String(error),
+        variant: scheduled ? 'default' : 'destructive',
+      })
     } finally {
       setPendingAction(null)
     }

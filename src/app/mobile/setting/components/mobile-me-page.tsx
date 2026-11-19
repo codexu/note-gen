@@ -117,6 +117,7 @@ export function MobileMePage({
   } = useSyncStore()
 
   async function refreshActivity() {
+    if (!settingsReady) return
     setLoading(true)
     try {
       const nextData = await loadActivityCalendarData()
@@ -137,7 +138,7 @@ export function MobileMePage({
   }
 
   useEffect(() => {
-    if (!refreshOnMountRef.current) return
+    if (!refreshOnMountRef.current || !settingsReady) return
     if (
       mobileActivityCache
       && Date.now() - mobileActivityCacheTime < MOBILE_ACTIVITY_CACHE_TTL
@@ -145,7 +146,7 @@ export function MobileMePage({
       return
     }
     refreshActivity()
-  }, [])
+  }, [settingsReady])
 
   useEffect(() => {
     if (!refreshOnMountRef.current || !settingsReady) return

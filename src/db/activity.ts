@@ -1,4 +1,4 @@
-import { getDb } from './index'
+import { getDb, initAllDatabases } from './index'
 import { getAllChats } from './chats'
 import { getCanvasProjects } from './canvases'
 import { getAllMarks } from './marks'
@@ -28,9 +28,25 @@ interface InsertActivityEventInput {
   createdAt?: number
 }
 
-export async function initActivityDb() {
-  const db = await getDb()
+type ActivityDatabase = Awaited<ReturnType<typeof getDb>>
 
+const activitySchema = new WeakMap<ActivityDatabase, Promise<void>>()
+
+async function getActivityDb() {
+  const db = await getDb()
+  let schema = activitySchema.get(db)
+  if (!schema) {
+    schema = createActivitySchema(db).catch(error => {
+      activitySchema.delete(db)
+      throw error
+    })
+    activitySchema.set(db, schema)
+  }
+  await schema
+  return db
+}
+
+async function createActivitySchema(db: ActivityDatabase) {
   await db.execute(`
     create table if not exists activity_events (
       id integer primary key autoincrement,
@@ -62,12 +78,15 @@ export async function initActivityDb() {
     create index if not exists idx_activity_events_source_path_created_at
     on activity_events(source, path, createdAt desc)
   `)
+}
 
+export async function initActivityDb() {
+  await getActivityDb()
   await backfillActivityEvents()
 }
 
 export async function insertActivityEvent(event: InsertActivityEventInput) {
-  const db = await getDb()
+  const db = await getActivityDb()
   const createdAt = event.createdAt ?? Date.now()
 
   return await db.execute(
@@ -87,7 +106,9 @@ export async function insertActivityEvent(event: InsertActivityEventInput) {
 }
 
 export async function getAllActivityEvents() {
-  const db = await getDb()
+  // Calendar reads include the initial backfill. Backfill writes only need the schema.
+  await initAllDatabases().catch(error => console.error('Failed to initialize activity history:', error))
+  const db = await getActivityDb()
   return await db.select<ActivityEvent[]>(`
     select id, source, title, description, path, tagId, dedupeKey, createdAt
     from activity_events
@@ -96,7 +117,7 @@ export async function getAllActivityEvents() {
 }
 
 async function getLatestWritingEventTimestamp(path: string) {
-  const db = await getDb()
+  const db = await getActivityDb()
   const result = await db.select<{ createdAt: number }[]>(
     `select createdAt from activity_events
      where source = 'writing' and path = $1
@@ -109,7 +130,7 @@ async function getLatestWritingEventTimestamp(path: string) {
 }
 
 async function getLatestCanvasEventTimestamp(path: string) {
-  const db = await getDb()
+  const db = await getActivityDb()
   const result = await db.select<{ createdAt: number }[]>(
     `select createdAt from activity_events
      where source = 'canvas' and path = $1

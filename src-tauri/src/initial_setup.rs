@@ -180,11 +180,45 @@ fn read_json(path: &Path) -> Result<Value, String> {
     }
 }
 
+fn welcome_state(existing: bool) -> Value {
+    json!({
+        "schemaVersion": 1,
+        "status": if existing { "existing-user" } else { "pending" },
+        "step": "welcome",
+        "isNewInstallation": !existing,
+    })
+}
+
+fn apply_requested_data_reset(app: &AppHandle, data_dir: &Path, config_dir: &Path) -> Result<(), String> {
+    let setup = app.store(INITIAL_SETUP_FILE).map_err(|error| error.to_string())?;
+    let settings = app.store("store.json").map_err(|error| error.to_string())?;
+
+    // Consume the request before touching data. If startup cannot finish the
+    // reset, a subsequent launch must not erase data created after that failure.
+    setup.delete("localDataResetRequested");
+    setup.save().map_err(|error| error.to_string())?;
+
+    crate::database_recovery::remove_local_database_files(config_dir)?;
+    if config_dir != data_dir {
+        crate::database_recovery::remove_local_database_files(data_dir)?;
+    }
+    settings.clear();
+    settings.set("primaryBackupMethod", json!("local"));
+    settings.save().map_err(|error| error.to_string())?;
+
+    setup.set("state", welcome_state(false));
+    setup.save().map_err(|error| error.to_string())
+}
+
 /// Decide whether to show the guide before normal startup writes defaults.
 pub fn initialize(app: &AppHandle) -> Result<(), String> {
     let data_dir = app.path().app_data_dir().map_err(|error| error.to_string())?;
     let config_dir = app.path().app_config_dir().map_err(|error| error.to_string())?;
     let saved = read_json(&data_dir.join(INITIAL_SETUP_FILE))?;
+    if saved["localDataResetRequested"].as_bool() == Some(true) {
+        return apply_requested_data_reset(app, &data_dir, &config_dir);
+    }
+
     let previous = &saved["state"];
     let status = previous["status"].as_str();
     let pending = previous["schemaVersion"].as_u64() == Some(1)
@@ -217,14 +251,8 @@ pub fn initialize(app: &AppHandle) -> Result<(), String> {
 
     let resume = !existing && pending;
     if !resume {
-        let state = json!({
-            "schemaVersion": 1,
-            "status": if existing { "existing-user" } else { "pending" },
-            "step": "welcome",
-            "isNewInstallation": !existing,
-        });
         let store = app.store(INITIAL_SETUP_FILE).map_err(|error| error.to_string())?;
-        store.set("state", state);
+        store.set("state", welcome_state(existing));
         store.save().map_err(|error| error.to_string())?;
     }
 

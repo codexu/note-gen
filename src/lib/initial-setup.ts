@@ -45,6 +45,17 @@ export async function readInitialSetupProgress(): Promise<InitialSetupProgress> 
   return normalizeInitialSetupProgress(await store.get<unknown>('state'))
 }
 
+export async function scheduleLocalDataReset(): Promise<void> {
+  const store = await Store.load(INITIAL_SETUP_FILE, { autoSave: false })
+  await store.set('localDataResetRequested', true)
+  try {
+    await store.save()
+  } catch (error) {
+    await store.delete('localDataResetRequested')
+    throw error
+  }
+}
+
 let persistenceQueue = Promise.resolve()
 
 export function persistInitialSetupProgress(progress: InitialSetupProgress): Promise<void> {

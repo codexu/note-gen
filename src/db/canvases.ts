@@ -93,8 +93,29 @@ function reconcileCanvasKnowledgeIndex() {
   })
 }
 
-export async function initCanvasesDb() {
+type CanvasDatabase = Awaited<ReturnType<typeof getDb>>
+
+const canvasSchema = new WeakMap<CanvasDatabase, Promise<void>>()
+
+async function getCanvasDb() {
   const db = await getDb()
+  let schema = canvasSchema.get(db)
+  if (!schema) {
+    schema = createCanvasSchema(db).catch(error => {
+      canvasSchema.delete(db)
+      throw error
+    })
+    canvasSchema.set(db, schema)
+  }
+  await schema
+  return db
+}
+
+export async function initCanvasesDb() {
+  await getCanvasDb()
+}
+
+async function createCanvasSchema(db: CanvasDatabase) {
   await db.execute(`
     create table if not exists canvases (
       id text primary key,
@@ -124,7 +145,7 @@ export async function initCanvasesDb() {
 }
 
 export async function getCanvasProjects(options: { includeDeleted?: boolean } = {}) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   const where = options.includeDeleted ? '' : 'where deletedAt is null'
   const rows = await db.select<CanvasProjectRow[]>(`
     select * from canvases ${where} order by updatedAt desc
@@ -133,7 +154,7 @@ export async function getCanvasProjects(options: { includeDeleted?: boolean } = 
 }
 
 export async function getCanvasProject(id: string) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   const rows = await db.select<CanvasProjectRow[]>(
     'select * from canvases where id = $1 limit 1',
     [id]
@@ -149,7 +170,7 @@ export async function insertCanvasProject(input: {
   createdAt?: number
   updatedAt?: number
 }) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   const now = Date.now()
   const createdAt = input.createdAt ?? now
   const updatedAt = input.updatedAt ?? now
@@ -174,7 +195,7 @@ export async function insertCanvasProject(input: {
 }
 
 export async function updateCanvasDocument(id: string, document: CanvasDocument, options: { enqueueSync?: boolean } = {}) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   const updatedAt = Date.now()
   const content = JSON.stringify(document)
   await db.execute(
@@ -190,7 +211,7 @@ export async function updateCanvasDocument(id: string, document: CanvasDocument,
 }
 
 export async function updateCanvasHistory(id: string, history: CanvasHistoryState) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   await db.execute(
     'update canvases set undoStack = $1, redoStack = $2 where id = $3',
     [JSON.stringify(history.undo), JSON.stringify(history.redo), id]
@@ -198,7 +219,7 @@ export async function updateCanvasHistory(id: string, history: CanvasHistoryStat
 }
 
 export async function renameCanvasProject(id: string, title: string) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   const updatedAt = Date.now()
   await db.execute(
     'update canvases set title = $1, updatedAt = $2 where id = $3',
@@ -212,12 +233,12 @@ export async function renameCanvasProject(id: string, title: string) {
 }
 
 export async function updateCanvasThumbnailPath(id: string, thumbnailPath: string | null) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   await db.execute('update canvases set thumbnailPath = $1 where id = $2', [thumbnailPath, id])
 }
 
 export async function setCanvasPinnedAt(id: string, pinnedAt: number | null) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   const updatedAt = Date.now()
   await db.execute(
     'update canvases set pinnedAt = $1, updatedAt = $2 where id = $3',
@@ -231,7 +252,7 @@ export async function softDeleteCanvasProject(
   id: string,
   options: { enqueueSync?: boolean } = {}
 ) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   const deletedAt = Date.now()
   await db.execute(
     'update canvases set deletedAt = $1, updatedAt = $1 where id = $2',
@@ -243,7 +264,7 @@ export async function softDeleteCanvasProject(
 }
 
 export async function restoreCanvasProject(id: string) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   const updatedAt = Date.now()
   await db.execute(
     'update canvases set deletedAt = null, updatedAt = $1 where id = $2',
@@ -255,20 +276,20 @@ export async function restoreCanvasProject(id: string) {
 }
 
 export async function permanentlyDeleteCanvasProject(id: string) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   await db.execute('delete from canvases where id = $1', [id])
   await removeCanvasKnowledgeIndex(id)
 }
 
 export async function clearCanvasProjects() {
-  const db = await getDb()
+  const db = await getCanvasDb()
   await db.execute('delete from canvases')
   enqueueCanvasSync('canvases-cleared')
   reconcileCanvasKnowledgeIndex()
 }
 
 export async function replaceAllCanvasProjects(projects: CanvasProject[]) {
-  const db = await getDb()
+  const db = await getCanvasDb()
   for (const project of projects) {
     await db.execute(
       `insert into canvases

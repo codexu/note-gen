@@ -26,6 +26,7 @@ import { CONVERSATION_ASSETS_DIRECTORY, resolveConversationAssetPath } from '@/l
 import { sanitizeChatUiBlocksForSync } from '@/lib/chat-ui/serialization'
 import { normalizeTagBoolean, normalizeTagSnapshot, remapRemoteProtectedTags, projectConversationTagsForRemote, type TagSyncIdentityBaseline } from '@/lib/tag-sync'
 import type { Tag } from '@/db/tags'
+import { isKnowledgeSourceType, isPortableRecordSourceId } from '@/types/knowledge'
 
 export const CONVERSATION_SYNC_DIRECTORY = '.data/conversations'
 export const CONVERSATION_SYNC_INDEX_PATH = `${CONVERSATION_SYNC_DIRECTORY}/index.json`
@@ -509,15 +510,26 @@ function sanitizeRagSourceDetails(value?: string) {
   try {
     const parsed: unknown = JSON.parse(value)
     if (!Array.isArray(parsed)) return undefined
+    const pageId = (value: unknown) => typeof value === 'string' && /^(?:source|topic):[a-f0-9]{64}$/.test(value) ? value : undefined
     const sanitized = parsed.flatMap(item => {
       if (!isRecord(item)
         || typeof item.filename !== 'string'
         || typeof item.content !== 'string') return []
+      const wikiEvidence = Array.isArray(item.wikiEvidence) ? item.wikiEvidence.flatMap(page => {
+        if (!isRecord(page) || !pageId(page.pageId) || typeof page.title !== 'string' || typeof page.content !== 'string') return []
+        return [{ pageId: page.pageId, title: page.title, content: page.content, updatedAt: optionalNumber(page.updatedAt),
+          pageVersion: typeof page.pageVersion === 'string' && /^[a-f0-9]{64}:[a-f0-9]{64}$/.test(page.pageVersion) ? page.pageVersion : undefined }]
+      }) : undefined
       return [{
-        // A filename keeps the citation useful without exposing a device path.
-        filepath: item.filename,
-        filename: item.filename,
-        content: item.content,
+        // A record UUID can be resolved on another device without transferring local paths or row IDs.
+        sourceType: isKnowledgeSourceType(item.sourceType) ? item.sourceType : undefined,
+        stableId: item.sourceType === 'record' && isPortableRecordSourceId(item.stableId) ? item.stableId : undefined,
+        filepath: item.filename, filename: item.filename, content: item.content,
+        originalContentHash: typeof item.originalContentHash === 'string' && /^[a-f0-9]{64}$/.test(item.originalContentHash)
+          ? item.originalContentHash : undefined,
+        updatedAt: optionalNumber(item.updatedAt),
+        evidenceKind: item.evidenceKind === 'source' || item.evidenceKind === 'wiki' ? item.evidenceKind : undefined,
+        wikiPageId: pageId(item.wikiPageId), wikiEvidence,
       }]
     })
     return sanitized.length > 0 ? JSON.stringify(sanitized) : undefined

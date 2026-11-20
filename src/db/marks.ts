@@ -152,9 +152,9 @@ async function invalidateMarkKnowledgeIndex(id: number) {
   }
 }
 
-async function removeMarkKnowledgeIndex(id: number) {
+async function removeMarkKnowledgeIndex(id: number, sourceId?: string | null) {
   const { removeKnowledgeSourceIndex } = await import('@/lib/knowledge-index')
-  await removeKnowledgeSourceIndex(`record:${id}`)
+  await removeKnowledgeSourceIndex(`record:${id}`, sourceId ? `record:${sourceId}` : sourceId)
 }
 
 function reconcileRecordKnowledgeIndex() {
@@ -232,6 +232,14 @@ export async function getMarkById(id: number) {
   const db = await getDb()
   const marks = await db.select<Mark[]>(`select ${MARK_COLUMNS} from marks where id = $1`, [id])
   return (await attachMarkTagIds(marks))[0]
+}
+
+export async function getRecordLocatorBySourceId(sourceId: string) {
+  const db = await getDb()
+  const rows = await db.select<Array<Pick<Mark, 'id' | 'deleted'>>>(
+    'select id, deleted from marks where sourceId = $1 limit 1', [sourceId],
+  )
+  return rows[0]
 }
 
 export async function updateMarkTag(id: number, tagId: number) {
@@ -361,7 +369,7 @@ export async function deleteAllMarks() {
   const marks = await getAllMarks()
   const result = await db.execute("delete from marks")
   enqueueRecordsAutoSync('mark:delete-all')
-  await Promise.all(marks.map(mark => removeMarkKnowledgeIndex(mark.id)))
+  await Promise.all(marks.map(mark => removeMarkKnowledgeIndex(mark.id, mark.sourceId ?? null)))
   return result
 }
 
@@ -407,23 +415,23 @@ export async function insertMarks(marks: Partial<Mark>[]) {
 
 export async function delMarkForever(id: number) {
   const db = await getDb();
-  const marks = await db.select<Mark[]>("select type, url, content from marks where id = $1", [id])
+  const marks = await db.select<Mark[]>("select type, url, content, sourceId from marks where id = $1", [id])
   await queueRecordAssetRemoteDeletions(marks)
   await deleteMarkLocalAssets(marks)
   const result = await db.execute("delete from marks where id = $1", [id])
   enqueueRecordsAutoSync('mark:delete-forever')
-  await removeMarkKnowledgeIndex(id)
+  await removeMarkKnowledgeIndex(id, marks[0]?.sourceId ?? null)
   return result
 }
 
 export async function clearTrash() {
   const db = await getDb();
-  const marks = await db.select<Mark[]>("select id, type, url, content from marks where deleted = $1", [1])
+  const marks = await db.select<Mark[]>("select id, type, url, content, sourceId from marks where deleted = $1", [1])
   await queueRecordAssetRemoteDeletions(marks)
   await deleteMarkLocalAssets(marks)
   const result = await db.execute("delete from marks where deleted = $1", [1])
   enqueueRecordsAutoSync('mark:clear-trash')
-  await Promise.all(marks.map(mark => removeMarkKnowledgeIndex(mark.id)))
+  await Promise.all(marks.map(mark => removeMarkKnowledgeIndex(mark.id, mark.sourceId ?? null)))
   return result
 }
 
@@ -456,7 +464,7 @@ export async function deleteMarks(ids: number[]) {
       );
     }
     enqueueRecordsAutoSync('mark:bulk-delete')
-    await Promise.all(ids.map(removeMarkKnowledgeIndex))
+    await Promise.all(ids.map(id => removeMarkKnowledgeIndex(id)))
   } catch (error) {
     console.error('Error deleting marks:', error);
     throw error;

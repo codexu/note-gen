@@ -1,10 +1,13 @@
 'use client'
 
 import { ReactNode, useRef } from 'react'
-import { FileText, Folder, LoaderCircle, MoreVertical } from 'lucide-react'
+import { BookOpen, ChevronDown, FileText, Folder, LoaderCircle, MoreVertical } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { BrowserEntry } from './types'
 import { MobileActionDrawer } from '@/app/mobile/components/mobile-action-drawer'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 import { cn } from '@/lib/utils'
 import { FileTreeDecorations } from '@/app/core/main/file/file-tree-decorations'
 
@@ -53,6 +56,9 @@ export function EntryListItem({
   onDragEnd,
   onDragCancel,
 }: EntryListItemProps) {
+  const tWiki = useTranslations('wiki')
+  const wikiEligible = (entry.type === 'folder' || entry.name.toLowerCase().endsWith('.md'))
+    && !entry.relativePath.split('/').some(segment => segment.startsWith('.'))
   const touchStartXRef = useRef(0)
   const touchStartYRef = useRef(0)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -181,6 +187,17 @@ export function EntryListItem({
           />
           <MobileActionDrawer
             title={entry.name}
+            renderExtraItems={wikiEligible ? dismiss => <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="ghost" className="h-12 w-full justify-start px-3">
+                  <BookOpen />{tWiki('wikiTitle')}<ChevronDown className="ml-auto" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="ml-4 border-l pl-1">
+                <WikiMenuItems variant="drawer" kind={entry.type === 'folder' ? 'article-folder' : 'article'}
+                  id={entry.relativePath} label={entry.name} local={entry.isLocale} onDismiss={dismiss} />
+              </CollapsibleContent>
+            </Collapsible> : undefined}
             trigger={
               <Button
                 type="button"

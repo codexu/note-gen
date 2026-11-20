@@ -5,8 +5,10 @@ import { BaseDirectory, copyFile, exists, mkdir, readDir, rename as fsRename, st
 import { platform as getRuntimePlatform } from '@tauri-apps/plugin-os'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ClipboardPaste, Copy, FilePlus, FileUp, FolderDown, FolderInput, FolderPlus, FolderUp, Pencil, Scissors, Search, Trash2 } from 'lucide-react'
+import { BookOpen, ChevronLeft, ClipboardPaste, Copy, FilePlus, FileUp, FolderDown, FolderInput, FolderPlus, FolderUp, Pencil, Scissors, Search, Trash2 } from 'lucide-react'
 import { MobileMeSheet } from '@/app/mobile/components/mobile-me-sheet'
+import { MobileActionDrawer } from '@/app/mobile/components/mobile-action-drawer'
+import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 import { WorkspaceSwitcher } from '@/app/core/setting/file/setting-workspace'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -82,6 +84,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   const tSyncStatus = useTranslations('article.file.syncStatus')
   const tToolbar = useTranslations('article.file.toolbar')
   const tSync = useTranslations('settings.sync')
+  const tWiki = useTranslations('wiki')
   const {
     activeFilePath,
     setActiveFilePath,
@@ -1058,14 +1061,22 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4 pt-3">
-        <div className="relative mb-3">
-          <Search className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder={t('searchPlaceholder')}
-            className="h-9 pl-8"
-          />
+        <div className="mb-3 flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={t('searchPlaceholder')}
+              className="h-9 pl-8"
+            />
+          </div>
+          {!currentDir.split('/').some(segment => segment.startsWith('.')) && <MobileActionDrawer
+            key={`${workspacePath}:${currentDir}`} title={currentDir || currentDirLabel} items={[]}
+            trigger={<Button type="button" variant="outline" className="h-9"><BookOpen />{tWiki('wikiTitle')}</Button>}
+            renderExtraItems={dismiss => <WikiMenuItems variant="drawer" kind="article-folder"
+              id={currentDir} label={currentDir || currentDirLabel} local={!currentDir || currentFolderNode?.isLocale === true} onDismiss={dismiss} />}
+          />}
         </div>
         {currentDir !== '' && (
                 <button

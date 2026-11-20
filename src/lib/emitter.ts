@@ -1,9 +1,11 @@
 import mitt from 'mitt'
 import type { Editor } from '@tiptap/core'
 import type { CanvasDocument } from '@/types/canvas'
+import type { WikiRelatedFilesRequest } from '@/components/wiki/wiki-related-files'
 
 // 定义事件类型
 interface Events {
+  'wiki-show-related-files': WikiRelatedFilesRequest;
   'workspace-file-changed': {
     kind: 'created' | 'changed' | 'deleted' | 'moved' | 'rescan'
     path: string

@@ -127,6 +127,7 @@ export function VectorKnowledgeMenu({ item, hasVector, onVectorUpdated }: Vector
     }
 
     await store.set('vectorExcludedFiles', excludedFiles)
+    window.dispatchEvent(new Event('wiki-settings-changed'))
     setExcludeFromKB(!checked)
   }
 

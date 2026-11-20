@@ -7,26 +7,25 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { writeText } from 'tauri-plugin-clipboard-api'
 import { type ResponseAction, type ResponseComponentProps, isResponseImageUrl } from '@/lib/chat-ui/response-catalog'
 import { assertResponseWorkspace, verifyResponseNote } from '@/lib/chat-ui/response-host'
-import { toWorkspaceRelativePath } from '@/lib/workspace'
 import { openChatArtifact, resolveChatArtifact, saveChatArtifactAs } from '@/lib/chat-artifacts'
-import { createCanvasTab } from '@/app/core/main/canvas/canvas-tab'
 import useArticleStore from '@/stores/article'
-import useCanvasStore from '@/stores/canvas'
-import useMarkStore from '@/stores/mark'
-import useTagStore from '@/stores/tag'
-import { useSidebarStore } from '@/stores/sidebar'
 import { toast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useKnowledgeSourceLink } from './knowledge-source-link'
 import { ResponseIcon } from './response-icon'
 import { useChatResponseContext } from './response-context'
 
-function useResponseAction() {
+function useResponseAction(sourceKey?: string) {
   const context = useChatResponseContext()
   const pathname = usePathname()
   const router = useRouter()
   const t = useTranslations('record.chat.response')
+  const reference = !context.isPreview && sourceKey
+    ? context.sources.find(item => item.sourceKey === sourceKey) : undefined
+  const citedSource = reference?.verifiedPortableRecord || context.workspaceFingerprint ? reference : undefined
+  const sourceLink = useKnowledgeSourceLink(citedSource, citedSource?.verifiedPortableRecord ? undefined : context.workspaceFingerprint, true)
   const checkWorkspace = () => assertResponseWorkspace(context.workspaceFingerprint)
   const openNote = async (path: string) => {
     await checkWorkspace()
@@ -37,45 +36,18 @@ function useResponseAction() {
     await checkWorkspace()
     if (pathname.startsWith('/mobile') && useArticleStore.getState().activeFilePath === target) router.push('/mobile/writing')
   }
-  return async (action: ResponseAction) => {
+  const run = async (action: ResponseAction) => {
     if (context.isPreview) return
     if (action.type === 'copy') {
       await writeText(action.text)
       toast({ title: t('copied') })
       return
     }
-    await checkWorkspace()
+    if (action.type !== 'open-source' || !citedSource?.verifiedPortableRecord) await checkWorkspace()
     if (action.type === 'open-note') return openNote(action.path)
     if (action.type === 'open-source') {
-      const source = context.sources.find(item => item.sourceKey === action.sourceKey)
-      if (!source) throw new Error('RESPONSE_SOURCE_UNAVAILABLE')
-      if (source.sourceType === 'record' && source.locator?.markId) {
-        if (source.locator.tagId) await useTagStore.getState().setCurrentTagId(source.locator.tagId)
-        await checkWorkspace()
-        await useMarkStore.getState().fetchMarks()
-        await checkWorkspace()
-        useMarkStore.getState().setPendingScrollMarkId(source.locator.markId)
-        useMarkStore.getState().setHighlightedMarkId(source.locator.markId)
-        await useSidebarStore.getState().setLeftSidebarTab('notes')
-        if (pathname.startsWith('/mobile')) router.push('/mobile/record')
-        return
-      }
-      if (source.sourceType === 'canvas' && source.locator?.canvasId) {
-        const canvasId = source.locator.canvasId
-        const project = await useCanvasStore.getState().openProject(canvasId)
-        await checkWorkspace()
-        if (!project) throw new Error('RESPONSE_SOURCE_UNAVAILABLE')
-        useCanvasStore.getState().setPendingFocus({ canvasId, nodeIds: source.locator.nodeIds ?? [] })
-        if (pathname.startsWith('/mobile')) router.push(`/mobile/canvas/editor?id=${encodeURIComponent(canvasId)}`)
-        else {
-          await useArticleStore.getState().addTab(createCanvasTab(project))
-          await useSidebarStore.getState().setLeftSidebarTab('canvases')
-        }
-        return
-      }
-      const path = source.locator?.filePath || source.filepath
-      if (!path) throw new Error('RESPONSE_SOURCE_UNAVAILABLE')
-      return openNote(await toWorkspaceRelativePath(path))
+      if (action.sourceKey !== citedSource?.sourceKey || !await sourceLink.open()) throw new Error('RESPONSE_SOURCE_UNAVAILABLE')
+      return
     }
     const artifact = context.artifacts.artifacts.find(item => item.path === action.path || item.absolutePath === action.path)
     if (!artifact) throw new Error('RESPONSE_ARTIFACT_UNAVAILABLE')
@@ -83,6 +55,7 @@ function useResponseAction() {
     if (action.type === 'open-artifact') await openChatArtifact(artifact.absolutePath, access)
     else if (await saveChatArtifactAs(artifact.absolutePath, access)) toast({ title: t('saved') })
   }
+  return { run, sourceAvailable: sourceLink.available }
 }
 
 const actionIcons = {
@@ -93,15 +66,15 @@ const actionIcons = {
 /** Markdown citations use the same workspace checks and navigation as structured source actions. */
 export function ResponseSourceLink({ sourceKey, href, children }: { sourceKey: string; href: string; children: ReactNode }) {
   const context = useChatResponseContext()
-  const run = useResponseAction()
+  const { run, sourceAvailable } = useResponseAction(sourceKey)
   const t = useTranslations('record.chat.response')
   const busy = useRef(false)
-  const available = !context.isPreview && Boolean(context.workspaceFingerprint)
-    && context.sources.some(source => source.sourceKey === sourceKey)
-  return <a href={href} className="text-primary underline underline-offset-4" aria-disabled={!available} onClick={event => {
+  const available = !context.isPreview && sourceAvailable
+  if (!available) return <span>{children}</span>
+  return <a href={href} className="text-primary underline underline-offset-4" onClick={event => {
     event.preventDefault()
     event.stopPropagation()
-    if (!available || busy.current) return
+    if (busy.current) return
     busy.current = true
     void run({ type: 'open-source', sourceKey, label: sourceKey }).catch(() => {
       toast({ title: t('actionFailed'), description: t('unavailable'), variant: 'destructive' })
@@ -115,10 +88,10 @@ export function ResponseActionButton({ action, variant = 'outline' }: {
 }) {
   const t = useTranslations('record.chat.response')
   const context = useChatResponseContext()
-  const run = useResponseAction()
+  const { run, sourceAvailable } = useResponseAction(action.type === 'open-source' ? action.sourceKey : undefined)
   const [pending, setPending] = useState(false)
   const busy = useRef(false)
-  const referenceAvailable = action.type === 'open-source' ? context.sources.some(source => source.sourceKey === action.sourceKey)
+  const referenceAvailable = action.type === 'open-source' ? sourceAvailable
     : action.type === 'open-artifact' || action.type === 'save-artifact'
       ? context.artifacts.artifacts.some(artifact => artifact.path === action.path || artifact.absolutePath === action.path)
       : true

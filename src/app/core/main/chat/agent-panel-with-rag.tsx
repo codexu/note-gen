@@ -1,41 +1,17 @@
 "use client"
 import * as React from "react"
 import { AgentPlan } from "@/components/ui/agent-plan"
-import { FileText, ChevronRight, Database, ExternalLink, NotebookPen, PanelsTopLeft } from "lucide-react"
+import { FileText, ChevronRight, Database, NotebookPen, PanelsTopLeft } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
-import { usePathname, useRouter } from "next/navigation"
 import { useState } from "react"
-import { createCanvasTab } from "@/app/core/main/canvas/canvas-tab"
-import useArticleStore from "@/stores/article"
-import useCanvasStore from "@/stores/canvas"
-import useMarkStore from "@/stores/mark"
-import { useSidebarStore } from "@/stores/sidebar"
-import useTagStore from "@/stores/tag"
 import { AgentRunTimeline } from "./agent-run-timeline"
 import type { AgentChange, AgentRunStatus, AgentSkillSummary, AgentTraceEvent, ToolCall } from "@/lib/agent/types"
 import type { Chat } from "@/db/chats"
 import { ChatUiMessages } from "@/components/chat-ui/chat-ui-messages"
-import { Badge } from '@/components/ui/badge'
-import { useWikiNavigation } from '@/components/wiki/use-wiki-navigation'
-
-interface RagSourceDetail {
-  filepath: string
-  filename: string
-  content: string
-  sourceKey?: string
-  sourceType?: 'article' | 'record' | 'canvas'
-  sourceId?: string
-  locator?: {
-    filePath?: string
-    markId?: number
-    tagId?: number
-    canvasId?: string
-    nodeIds?: string[]
-  }
-  updatedAt?: number
-  evidenceKind?: 'wiki' | 'source'
-  wikiPageId?: string
-}
+import { getChatResponseWorkspaceFingerprint } from '@/lib/chat-ui/response-host'
+import { KnowledgeSourceLink } from '@/components/chat-ui/knowledge-source-link'
+import { KnowledgeSourceEvidence } from './knowledge-source-evidence'
+import type { RagSourceDetail } from '@/types/knowledge'
 
 interface AgentPanelWithRagProps {
   chat?: Chat
@@ -127,12 +103,8 @@ export function AgentPanelWithRag({
 }: AgentPanelWithRagProps) {
   const t = useTranslations()
   const locale = useLocale()
-  const router = useRouter()
-  const pathname = usePathname()
-  const { openPage: openWikiPage } = useWikiNavigation()
   const [isRagExpanded, setIsRagExpanded] = useState(false)
   const [expandedFiles, setExpandedFiles] = useState<string[]>([])
-  const { setActiveFilePath } = useArticleStore()
 
   const structuredHistory = React.useMemo<StructuredAgentHistory | null>(() => {
     if (!agentHistoryJson) {
@@ -147,6 +119,7 @@ export function AgentPanelWithRag({
     }
   }, [agentHistoryJson])
 
+  const workspaceFingerprint = getChatResponseWorkspaceFingerprint(structuredHistory)
   const hasStructuredHistory = Boolean(
     structuredHistory?.runId ||
     structuredHistory?.status ||
@@ -177,51 +150,12 @@ export function AgentPanelWithRag({
     return new Intl.ListFormat(locale, { style: 'short', type: 'conjunction' }).format(parts)
   }, [detailMap, locale, ragSources, ragSourceDetails, t])
 
-  const handleOpenSource = async (e: React.MouseEvent, detail: RagSourceDetail) => {
-    e.stopPropagation()
-    if (detail.sourceType === 'record' && detail.locator?.markId) {
-      if (detail.locator.tagId) await useTagStore.getState().setCurrentTagId(detail.locator.tagId)
-      await useSidebarStore.getState().setLeftSidebarTab('notes')
-      await useMarkStore.getState().fetchMarks()
-      useMarkStore.getState().setPendingScrollMarkId(detail.locator.markId)
-      useMarkStore.getState().setHighlightedMarkId(detail.locator.markId)
-      if (pathname.startsWith('/mobile')) router.push('/mobile/record')
-      return
-    }
-    if (detail.sourceType === 'canvas' && detail.locator?.canvasId) {
-      const canvasId = detail.locator.canvasId
-      useCanvasStore.getState().setPendingFocus({ canvasId, nodeIds: detail.locator.nodeIds || [] })
-      const project = await useCanvasStore.getState().openProject(canvasId)
-      if (!project) return
-      if (pathname.startsWith('/mobile')) {
-        router.push(`/mobile/canvas/editor?id=${encodeURIComponent(canvasId)}`)
-        return
-      }
-      await useArticleStore.getState().addTab(createCanvasTab(project))
-      await useSidebarStore.getState().setLeftSidebarTab('canvases')
-      return
-    }
-    const filepath = detail.locator?.filePath || detail.filepath
-    if (!filepath) return
-    await setActiveFilePath(
-      filepath,
-      true,
-      pathname.startsWith('/mobile') ? undefined : { tabOpenMode: 'preview' },
-    )
-  }
-
   const sourceIcon = (sourceType?: RagSourceDetail['sourceType']) => {
     if (sourceType === 'record') return <NotebookPen className="size-4 text-muted-foreground" />
     if (sourceType === 'canvas') return <PanelsTopLeft className="size-4 text-muted-foreground" />
     return <FileText className="size-4 text-muted-foreground" />
   }
 
-  const openSourceLabel = (sourceType?: RagSourceDetail['sourceType']) => {
-    if (sourceType === 'record') return t('record.chat.ragSources.openRecord')
-    if (sourceType === 'canvas') return t('record.chat.ragSources.openCanvas')
-    if (sourceType === 'article') return t('record.chat.ragSources.openArticle')
-    return t('record.chat.ragSources.openSource')
-  }
 
   // 切换单个文件的展开状态
   const toggleFileExpansion = (sourceIdentity: string) => {
@@ -333,13 +267,10 @@ export function AgentPanelWithRag({
                       </div>
                     </button>
 
-                    {detail?.evidenceKind === 'wiki' ? <div className="flex flex-wrap items-center gap-2 pl-10">
-                      <Badge variant="secondary">{t('wiki.evidence')}</Badge>
-                      {detail.wikiPageId ? <button type="button" className="text-xs text-primary hover:underline" onClick={() => void openWikiPage(detail.wikiPageId)}>{t('wiki.viewPage')}</button> : null}
-                    </div> : null}
+
 
                     {/* 展开的详情内容 */}
-                    {isFileExpanded && hasDetail && detail?.content && (
+                    {isFileExpanded && detail && (
                       <div className="border-muted mt-1 mr-2 mb-1.5 ml-10">
                         <div className="text-muted-foreground border-foreground/20 border-l border-dashed pl-3 text-xs">
                           <div className="flex items-center justify-between gap-2 py-1">
@@ -347,20 +278,9 @@ export function AgentPanelWithRag({
                               <Database className="size-3.5 text-blue-500 shrink-0" />
                               <span className="font-medium text-xs">{t('record.chat.input.agent.observation')}</span>
                             </div>
-                            {detail && (
-                              <button
-                                onClick={(e) => void handleOpenSource(e, detail)}
-                                className="shrink-0 flex items-center gap-1 text-xs text-primary hover:underline"
-                                title={openSourceLabel(detail.sourceType)}
-                              >
-                                <ExternalLink className="size-3" />
-                                <span>{openSourceLabel(detail.sourceType)}</span>
-                              </button>
-                            )}
+                            <KnowledgeSourceLink source={detail} articleWorkspace={workspaceFingerprint ?? (chat || agentHistoryJson ? null : undefined)} />
                           </div>
-                          <p className="whitespace-pre-wrap wrap-break-word py-1 text-xs leading-relaxed">
-                            {detail.content}
-                          </p>
+                          <KnowledgeSourceEvidence detail={detail} />
                         </div>
                       </div>
                     )}

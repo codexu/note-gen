@@ -100,6 +100,36 @@ export function listWikiSourceStates(contextId: string) {
   return readPayloads<WikiSourceState>('select payload from wiki_sources where context_id=$1', [contextId])
 }
 
+/** Resolve selected records against this device without loading their text or attachments. */
+export async function listWikiOriginalSearchSources(contextId: string) {
+  const states = await listWikiSourceStates(contextId)
+  const localRecords = new Map<string, { sourceKey: string; tagKeys: string[] }>()
+  if (states.some(state => state.sourceType === 'record')) {
+    const rows = await db.select<Array<{ stableId: string; markId: number; tag: string | null }>>(`
+      select s.stable_id as stableId, m.id as markId, t.name as tag
+      from wiki_sources s join marks m on m.sourceId = substr(s.stable_id, 8) and m.deleted = 0
+      left join record_tag_metadata meta on meta.markId = m.id
+      left join tags t on t.id = m.tagId or t.id in (
+        select value from json_each(case when json_valid(meta.tagIds) then meta.tagIds else '[]' end))
+      where s.context_id = $1 and s.stable_id like 'record:%'`, [contextId])
+    for (const row of rows) {
+      const local = localRecords.get(row.stableId) ?? { sourceKey: `record:${row.markId}`, tagKeys: [] }
+      if (row.tag) local.tagKeys.push(row.tag.normalize('NFKC'))
+      localRecords.set(row.stableId, local)
+    }
+  }
+  const sources = new Map<string, WikiSourceState['source']>()
+  for (const state of states) {
+    if (['deleted', 'excluded', 'unavailable'].includes(state.status)) continue
+    if (state.sourceType !== 'record') sources.set(state.sourceKey, state.source)
+    else {
+      const local = localRecords.get(state.stableId)
+      if (local) sources.set(local.sourceKey, { ...state.source, ...local })
+    }
+  }
+  return sources
+}
+
 export async function upsertWikiSourceState(state: WikiSourceState) {
   await initWikiDb()
   await executeRecordTransaction([sourceStatement(state), dirtyStatement(state.contextId)])
@@ -179,20 +209,27 @@ export function listWikiJobs(contextId: string) {
   return readPayloads<WikiJob>('select payload from wiki_jobs where context_id=$1 order by ready_at', [contextId])
 }
 
-export async function upsertWikiJob(job: WikiJob) {
+export async function upsertWikiJob(job: WikiJob, previous?: WikiJob): Promise<boolean> {
   await initWikiDb()
-  await db.execute(`insert into wiki_jobs(context_id,id,status,ready_at,payload) values($1,$2,$3,$4,$5)
-    on conflict(context_id,id) do update set status=excluded.status,ready_at=excluded.ready_at,payload=excluded.payload`,
-  [job.contextId, job.id, job.status, job.readyAt, JSON.stringify(job)])
+  const values = [job.contextId, job.id, job.status, job.readyAt, JSON.stringify(job)]
+  const result = previous
+    ? await db.execute('update wiki_jobs set status=$3,ready_at=$4,payload=$5 where context_id=$1 and id=$2 and payload=$6',
+      [...values, JSON.stringify(previous)])
+    : await db.execute(`insert into wiki_jobs(context_id,id,status,ready_at,payload) values($1,$2,$3,$4,$5)
+      on conflict(context_id,id) do update set status=excluded.status,ready_at=excluded.ready_at,payload=excluded.payload`, values)
+  if (!result.rowsAffected) return false
   emitWikiUpdated()
+  return true
 }
 
-export async function removeWikiJob(contextId: string, id: string, expectedInputHash?: string) {
+export async function removeWikiJob(contextId: string, id: string, expected?: string | WikiJob) {
   await initWikiDb()
-  if (expectedInputHash !== undefined) {
-    const current = (await readPayloads<WikiJob>('select payload from wiki_jobs where context_id=$1 and id=$2', [contextId, id]))[0]
-    if (!current || current.inputHash !== expectedInputHash) return
-    await db.execute('delete from wiki_jobs where context_id=$1 and id=$2 and payload=$3', [contextId, id, JSON.stringify(current)])
+  if (expected !== undefined) {
+    const job = typeof expected === 'string'
+      ? (await readPayloads<WikiJob>('select payload from wiki_jobs where context_id=$1 and id=$2', [contextId, id]))[0]
+      : expected
+    if (!job || (typeof expected === 'string' && job.inputHash !== expected)) return
+    await db.execute('delete from wiki_jobs where context_id=$1 and id=$2 and payload=$3', [contextId, id, JSON.stringify(job)])
   } else await db.execute('delete from wiki_jobs where context_id=$1 and id=$2', [contextId, id])
   emitWikiUpdated()
 }
@@ -285,6 +322,91 @@ export async function cacheWikiMarkdownDocument(
   if (revision) sourceState = await getWikiSourceState(page.contextId, revision.source.stableId)
   if (JSON.stringify(previous) !== JSON.stringify(page)) emitWikiUpdated()
   return sourceState
+}
+
+export const WIKI_METADATA_CONFLICT = 'WIKI_INVALID_MARKDOWN_METADATA'
+
+function markdownJobId(page: WikiPage) {
+  if (page.kind === 'topic') return page.id
+  const source = page.sourceRefs[0]
+  return source ? `source:${source.stableId}` : null
+}
+
+/** Keep the verified locator for recovery while withdrawing unparseable prose and its revision from search. */
+export async function cacheWikiMarkdownConflict(page: WikiPage, missingProjection = false) {
+  const contextId = page.contextId
+  const statements: RecordStatement[] = []
+  if (missingProjection) {
+    statements.push({ sql: 'insert or ignore into wiki_pages(context_id,id,kind,status,payload) values($1,$2,$3,$4,$5)',
+      values: [contextId, page.id, page.kind, page.status, JSON.stringify(page)] })
+  } else if (page.status !== 'archived' || page.body !== '') {
+    const archived: WikiPage = { ...page, status: 'archived', body: '' }
+    statements.push({ sql: 'update wiki_pages set status=$3,payload=$4 where context_id=$1 and id=$2 and payload=$5',
+      values: [contextId, page.id, archived.status, JSON.stringify(archived), JSON.stringify(page)] })
+  }
+  const id = markdownJobId(page)
+  const overwriteKey = `markdown-overwrite:${page.id}`
+  const current = id ? (await readPayloads<WikiJob>('select payload from wiki_jobs where context_id=$1 and id=$2', [contextId, id]))[0] : undefined
+  const rebuilding = current && current.error !== WIKI_METADATA_CONFLICT && await getWikiMeta<boolean>(contextId, overwriteKey)
+  if (id && !rebuilding) {
+    const now = Date.now()
+    const reference = page.kind === 'source' ? page.sourceRefs[0] : undefined
+    const source = reference ? await getWikiSourceState(contextId, reference.stableId) : null
+    if (current?.status !== 'failed' || current.error !== WIKI_METADATA_CONFLICT) {
+      const job: WikiJob = { ...current, id, contextId, kind: page.kind,
+        sourceKey: current?.sourceKey ?? source?.sourceKey ?? reference?.sourceKey ?? page.topicKey ?? id.slice('topic:'.length),
+        inputHash: current?.inputHash ?? page.inputHash, status: 'failed', stage: page.kind, attempts: current?.attempts ?? 0,
+        readyAt: current?.readyAt ?? now, updatedAt: now, error: WIKI_METADATA_CONFLICT }
+      // A simultaneous explicit rebuild owns its pending/running task. A newer job must also survive this scan.
+      statements.push({ sql: `insert into wiki_jobs(context_id,id,status,ready_at,payload)
+        select $1,$2,'failed',$3,$4 where ($5 is null or not exists
+          (select 1 from wiki_meta where context_id=$1 and key=$6 and value='true'))
+        and ($5 is null or exists(select 1 from wiki_jobs where context_id=$1 and id=$2 and payload=$5))
+        on conflict(context_id,id) do update set status='failed',ready_at=excluded.ready_at,payload=excluded.payload
+        where wiki_jobs.payload=$5`,
+      values: [contextId, id, job.readyAt, JSON.stringify(job), current ? JSON.stringify(current) : null, overwriteKey] })
+    }
+    if (reference && !source) {
+      // Older imports may have a page and source reference without a local revision.
+      const failed: WikiSourceState = { contextId, stableId: reference.stableId, sourceKey: reference.sourceKey,
+        sourceType: reference.sourceType, source: reference, contentHash: reference.contentHash,
+        status: 'failed', revisionId: null, version: 1, updatedAt: now, error: WIKI_METADATA_CONFLICT }
+      statements.push({ sql: `insert into wiki_sources(context_id,stable_id,source_key,content_hash,status,revision_id,version,payload)
+        select $1,$2,$3,$4,'failed',null,1,$5 where exists(select 1 from wiki_jobs where context_id=$1 and id=$6
+          and status='failed' and json_extract(payload,'$.error')=$7) on conflict(context_id,stable_id) do nothing`,
+      values: [contextId, failed.stableId, failed.sourceKey, failed.contentHash, JSON.stringify(failed), id, WIKI_METADATA_CONFLICT] })
+    } else if (source && !['deleted', 'excluded', 'unavailable'].includes(source.status)
+      && (source.status !== 'failed' || source.error !== WIKI_METADATA_CONFLICT)) {
+      const failed: WikiSourceState = { ...source, status: 'failed', error: WIKI_METADATA_CONFLICT, updatedAt: now, version: source.version + 1 }
+      statements.push({ sql: `update wiki_sources set status='failed',version=$3,payload=$4
+        where context_id=$1 and stable_id=$2 and version=$5 and (status='ready' or not exists
+          (select 1 from wiki_meta where context_id=$1 and key=$7 and value='true'))
+        and exists(select 1 from wiki_jobs where context_id=$1 and id=$6 and status='failed'
+          and json_extract(payload,'$.error')=$8)`,
+      values: [contextId, source.stableId, failed.version, JSON.stringify(failed), source.version, id, overwriteKey, WIKI_METADATA_CONFLICT] })
+    }
+  }
+  if (!statements.length) return false
+  await executeRecordTransaction(statements)
+  emitWikiUpdated()
+  return true
+}
+
+/** A manual repair resolves the file conflict, but a newer source update still needs to run. */
+export async function recoverWikiMarkdownJob(page: WikiPage, previousInputHash: string) {
+  const id = markdownJobId(page)
+  if (!id) return false
+  const job = (await readPayloads<WikiJob>('select payload from wiki_jobs where context_id=$1 and id=$2', [page.contextId, id]))[0]
+  if (job?.status !== 'failed' || job.error !== WIKI_METADATA_CONFLICT) return false
+  const reference = page.kind === 'source' ? page.sourceRefs[0] : undefined
+  const state = reference && await getWikiSourceState(page.contextId, reference.stableId)
+  const newerSource = state?.status === 'failed' && state.contentHash !== reference?.contentHash
+  if (!newerSource && (job.inputHash === page.inputHash || job.inputHash === previousInputHash)) {
+    await removeWikiJob(page.contextId, id, job)
+  } else {
+    await upsertWikiJob({ ...job, status: 'pending', error: null, readyAt: Date.now(), updatedAt: Date.now() }, job)
+  }
+  return true
 }
 
 /** Removing a Markdown document also removes its searchable cached body. */

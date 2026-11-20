@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { BM25Index } from '@/lib/bm25'
+import { createWikiTopicCatalog } from './topic-catalog'
 import {
   commitWikiSourceRevision, findWikiRevision, getActiveWikiRevisions, getWikiMeta,
-  getWikiPage, getWikiRevision, getWikiSegmentCache, getWikiSourceState, listWikiPages,
+  getWikiPage, getWikiRevision, getWikiSegmentCache, getWikiSourceState,
   recordWikiUsage, saveWikiSegmentCache, upsertWikiJob, upsertWikiPage,
 } from '@/db/wiki'
 import {
@@ -13,9 +13,9 @@ import {
 import { getWikiContext } from './context'
 import { getWikiSettings, isWikiSourceSelected } from './settings'
 import { citeSingleWikiSource, wikiCitationIssues, wikiCitationReferences } from './citations'
-import { compareWikiKeys, getWikiSourceDocument, isWikiSourceDocumentAllowed, normalizeWikiTopicName, wikiHash, wikiTopicKey, type WikiSourceDocument } from './sources'
+import { compareWikiKeys, getWikiSourcePolicy, isWikiSourceDocumentAllowed, resolveEligibleWikiRevision, resolveWikiSourceReference, wikiHash, wikiTopicKey, type WikiSourceDocument } from './sources'
 import {
-  createWikiAiSession, requestWikiJson, splitWikiText, throwIfWikiAborted, wikiInputBudget,
+  createWikiAiSession, requestWikiJson, splitWikiSourceText, splitWikiText, throwIfWikiAborted, wikiInputBudget,
   WikiContextError, type WikiAiSession,
 } from './ai'
 
@@ -111,36 +111,39 @@ async function assertCurrentSource(document: WikiSourceDocument, context: WikiCo
   if ((await getWikiContext()).id !== context.id) throw new WikiSourceChangedError()
   const settings = await getWikiSettings(context.id)
   if (!settings.enabled || !settings.started || !isWikiSourceSelected(document.source, settings)) throw new WikiSourceChangedError()
-  const current = await getWikiSourceDocument(document.source.sourceKey)
+  const current = await resolveWikiSourceReference(document.source)
   if (!current || current.source.contentHash !== document.source.contentHash || current.source.stableId !== document.source.stableId) {
     throw new WikiSourceChangedError()
   }
   if (!isWikiSourceSelected(current.source, settings) || !await isWikiSourceDocumentAllowed(current, context.id)) throw new WikiSourceChangedError()
 }
 
-function existingTopics(document: WikiSourceDocument, pages: WikiPage[]) {
-  const available = pages.filter(page => page.kind === 'topic' && page.status !== 'archived'
-    && page.sourceRefs.every(source => source.syncDomain === document.source.syncDomain))
-  const byId = new Map(available.map(page => [page.id, page]))
-  const index = new BM25Index()
-  index.index(available.map(page => ({ id: page.id, content: [page.title, page.title, ...page.aliases].join('\n') })))
-  return index.search(document.content, 5).flatMap(hit => {
-    const page = byId.get(hit.id)
-    return page ? [{ topicKey: page.id.replace(/^topic:/, ''), title: page.title, aliases: page.aliases }] : []
-  })
+async function eligibleRevisions(context: WikiContext, settings: WikiSettings, matches: (revision: WikiSourceRevision) => boolean) {
+  const policy = await getWikiSourcePolicy(context.id, settings)
+  const eligible: WikiSourceRevision[] = []
+  for (const revision of await getActiveWikiRevisions(context.id)) {
+    if (!matches(revision)) continue
+    const current = await resolveEligibleWikiRevision(revision, policy)
+    if (current) eligible.push(current)
+  }
+  return eligible.sort((a, b) => compareWikiKeys(a.source.stableId, b.source.stableId))
 }
 
 async function extractSegment(
   text: string, document: WikiSourceDocument, session: WikiAiSession, context: WikiContext,
-  settings: WikiSettings, inputHash: string, pages: WikiPage[], signal: AbortSignal | undefined,
+  settings: WikiSettings, segmentNamespace: string, topics: Awaited<ReturnType<typeof createWikiTopicCatalog>>, signal: AbortSignal | undefined,
   totalUsage: WikiUsage,
 ): Promise<WikiSegmentCache[]> {
-  const key = wikiHash(`${inputHash}:segment:${wikiHash(text)}`)
+  const key = wikiHash(`${segmentNamespace}:segment:${wikiHash(text)}`)
+  const resolveContribution = async (item: WikiContribution): Promise<WikiContribution> => {
+    const match = await topics.match(item)
+    return { ...item, topicKey: match?.topicKey ?? wikiTopicKey(item.title, document.source.syncDomain),
+      title: match?.title ?? item.title, aliases: [...new Set([item.title, ...item.aliases])].filter(alias => alias !== (match?.title ?? item.title)),
+      evidence: locateWikiEvidence(document, item.evidence) }
+  }
   const cached = await getWikiSegmentCache(context.id, key)
-  if (cached) return [{ ...cached, contributions: cached.contributions.map(item => ({
-    ...item, evidence: locateWikiEvidence(document, item.evidence),
-  })) }]
-  const catalog = existingTopics({ ...document, content: text }, pages)
+  if (cached) return [{ ...cached, contributions: await Promise.all(cached.contributions.map(resolveContribution)) }]
+  const catalog = await topics.search(text)
   const schema = extractionSchema.superRefine((value, validation) => {
     const normalized = normalizeEvidence(text)
     value.topics.forEach((topic, topicIndex) => topic.evidence.forEach((evidence, evidenceIndex) => {
@@ -171,33 +174,25 @@ Source title: ${document.source.title}
       signal,
       onUsage: async value => { addUsage(totalUsage, value); addUsage(usage, value); await recordWikiUsage(context.id, value) },
     })
-    const contributions: WikiContribution[] = extracted.topics.map(topic => {
-      const exact = catalog.find(item => [item.title, ...item.aliases]
-        .some(alias => normalizeWikiTopicName(alias) === normalizeWikiTopicName(topic.title)))
-      const existing = catalog.find(item => item.topicKey === topic.topicKey) || exact
-      return {
-        topicKey: existing?.topicKey || wikiTopicKey(topic.title, document.source.syncDomain),
-        title: existing?.title || topic.title,
-        aliases: [...new Set([...topic.aliases, ...(existing?.aliases || [])])],
-        content: topic.content,
-        evidence: locateWikiEvidence(document, topic.evidence),
-      }
-    })
+    const contributions: WikiContribution[] = extracted.topics.map(topic => ({
+      ...topic, topicKey: catalog.find(candidate => candidate.topicKey === topic.topicKey)?.topicKey
+        ?? wikiTopicKey(topic.title, document.source.syncDomain),
+    }))
     const result = { summary: extracted.summary, contributions, usage }
     await saveWikiSegmentCache(context.id, key, result)
-    return [result]
+    return [{ ...result, contributions: await Promise.all(contributions.map(resolveContribution)) }]
   } catch (error) {
     if (!(error instanceof WikiContextError) || text.length < 512) throw error
     const half = Math.floor(text.length / 2)
     return [
-      ...await extractSegment(text.slice(0, half), document, session, context, settings, inputHash, pages, signal, totalUsage),
-      ...await extractSegment(text.slice(half), document, session, context, settings, inputHash, pages, signal, totalUsage),
+      ...await extractSegment(text.slice(0, half), document, session, context, settings, segmentNamespace, topics, signal, totalUsage),
+      ...await extractSegment(text.slice(half), document, session, context, settings, segmentNamespace, topics, signal, totalUsage),
     ]
   }
 }
 
 async function summarizeSegments(
-  summaries: string[], session: WikiAiSession, context: WikiContext, signal: AbortSignal | undefined, usage: WikiUsage,
+  summaries: string[], session: WikiAiSession, context: WikiContext, segmentNamespace: string, signal: AbortSignal | undefined, usage: WikiUsage,
 ): Promise<string> {
   if (summaries.length === 1) return summaries[0]
   const instruction = `Merge these source summaries into one coherent Markdown summary in language ${session.language}.
@@ -207,7 +202,7 @@ Use only the supplied summaries. Preserve key facts, uncertainty and disagreemen
     const groups = splitWikiText(current.join('\n\n'), Math.min(6000, wikiInputBudget(session, instruction)))
     const next: string[] = []
     for (const group of groups) {
-      const cacheKey = wikiHash(`summary:${WIKI_PIPELINE_VERSION}:${session.language}:${group}`)
+      const cacheKey = wikiHash(`summary:${segmentNamespace}:${group}`)
       const cached = await getWikiSegmentCache(context.id, cacheKey)
       if (cached) { next.push(cached.summary); continue }
       const result = await requestWikiJson(session, `${instruction}\n<summaries>\n${group}\n</summaries>`,
@@ -265,17 +260,21 @@ export async function compileWikiSource(
   let revision = await findWikiRevision(context.id, inputHash)
   if (!revision) {
     const session = await createWikiAiSession(settings.modelId, settings.language)
-    const pages = await listWikiPages(context.id)
+    const topics = await createWikiTopicCatalog(context.id, settings, document.source.syncDomain)
     const usage = emptyUsage()
     const segments: WikiSegmentCache[] = []
     const budget = Math.min(6000, wikiInputBudget(session, 'source-grounded summary, topics and verbatim supporting quotes'.repeat(10)))
-    const chunks = splitWikiText(document.content, budget)
+    const segmentNamespace = wikiHash(JSON.stringify([
+      'source-segment-v2', WIKI_PIPELINE_VERSION, document.source.stableId, document.source.title,
+      settings.language, generation, session.modelId, session.config.model, session.outputBudget,
+    ]))
+    const chunks = splitWikiSourceText(document.content, budget)
     if (!chunks.length) throw new Error('WIKI_EMPTY_SOURCE')
     for (const chunk of chunks) {
       await assertCurrentSource(document, context, signal)
-      segments.push(...await extractSegment(chunk, document, session, context, settings, inputHash, pages, signal, usage))
+      segments.push(...await extractSegment(chunk, document, session, context, settings, segmentNamespace, topics, signal, usage))
     }
-    const summary = await summarizeSegments(segments.map(segment => segment.summary), session, context, signal, usage)
+    const summary = await summarizeSegments(segments.map(segment => segment.summary), session, context, segmentNamespace, signal, usage)
     const contributions = combineContributions(segments)
     const outputHash = wikiHash(JSON.stringify({ summary, contributions }))
     revision = {
@@ -311,29 +310,35 @@ export async function compileWikiTopic(
   onSources?: (sources: readonly WikiSourceReference[]) => void,
   beforeCommit?: () => Promise<void>,
 ) {
-  const revisions = (await getActiveWikiRevisions(context.id))
-    .filter(revision => isWikiSourceSelected(revision.source, settings))
-    .filter(revision => revision.contributions.some(item => item.topicKey === topicKey))
-    .sort((left, right) => compareWikiKeys(left.source.stableId, right.source.stableId))
+  const contributesToTopic = (revision: WikiSourceRevision) => revision.contributions.some(item => item.topicKey === topicKey)
+  const revisions = await eligibleRevisions(context, settings, contributesToTopic)
   onSources?.(revisions.map(revision => revision.source))
   const existing = await getWikiPage(context.id, `topic:${topicKey}`)
+  const generation = Math.max(settings.generation, existing?.generation ?? 0,
+    await getWikiMeta<number>(context.id, `topic-generation:${topicKey}`) ?? 0)
+  const inputHash = buildWikiTopicInputHash(topicKey, revisions, generation, settings.language)
+  const checkDependencies = async () => {
+    await beforeCommit?.()
+    throwIfWikiAborted(signal)
+    const latestSettings = await getWikiSettings(context.id)
+    const latest = await eligibleRevisions(context, latestSettings, contributesToTopic)
+    if (buildWikiTopicInputHash(topicKey, latest, generation, latestSettings.language) !== inputHash) throw new WikiSourceChangedError()
+    throwIfWikiAborted(signal)
+  }
   if (!revisions.length) {
     if (existing) {
-      await beforeCommit?.()
+      await checkDependencies()
       await upsertWikiPage({ ...existing, status: 'archived', sourceRefs: [], body: '', updatedAt: Date.now() })
       const { notifyWikiChanged } = await import('./sync')
       notifyWikiChanged()
     }
     return
   }
-  const generation = Math.max(settings.generation, existing?.generation ?? 0,
-    await getWikiMeta<number>(context.id, `topic-generation:${topicKey}`) ?? 0)
-  const inputHash = buildWikiTopicInputHash(topicKey, revisions, generation, settings.language)
   const deletedPages = await getWikiMeta<Record<string, string>>(context.id, 'markdown-deleted') ?? {}
   if (deletedPages[`topic:${topicKey}`] === inputHash) return
   if (existing?.inputHash === inputHash && existing.status !== 'archived') {
     if (existing.status !== 'ready') {
-      await beforeCommit?.()
+      await checkDependencies()
       await upsertWikiPage({ ...existing, sourceRefs: revisions.map(revision => wikiSourceWithEvidence(revision.source,
         revision.contributions.filter(item => item.topicKey === topicKey))), status: 'ready' })
       const { notifyWikiChanged } = await import('./sync')
@@ -393,12 +398,9 @@ Do not add a source list or invent references. Return {"body":"Markdown with cit
   }
   throwIfWikiAborted(signal)
   if ((await getWikiContext()).id !== context.id) throw new WikiSourceChangedError()
-  const latestSettings = await getWikiSettings(context.id)
-  const latest = (await getActiveWikiRevisions(context.id)).filter(revision => isWikiSourceSelected(revision.source, latestSettings))
-  if (buildWikiTopicInputHash(topicKey, latest, generation, latestSettings.language) !== inputHash) throw new WikiSourceChangedError()
   const citationIssues = wikiCitationIssues(body, allowed)
   if (citationIssues.length) throw new Error(`WIKI_INVALID_RESPONSE: ${citationIssues.join(' ')}`)
-  await beforeCommit?.()
+  await checkDependencies()
   await upsertWikiPage({
     id: `topic:${topicKey}`, topicKey, contextId: context.id, kind: 'topic', title: topic.title,
     aliases: [...new Set(contributions.flatMap(item => item.contributions.flatMap(contribution => contribution.aliases)))],

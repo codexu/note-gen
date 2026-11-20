@@ -30,7 +30,6 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
   const initSortSettings = useArticleStore(state => state.initSortSettings)
   const [view, setView] = useState<WritingView>('files')
   const initializedRef = useRef(false)
-  const wasWritingRouteRef = useRef(false)
   const editorRef = useRef<MobileEditorHandle>(null)
   const closingEditorRef = useRef(false)
   const isWritingRoute = pathname === '/mobile/writing'
@@ -64,20 +63,13 @@ export function WritingScreen({ isActive }: { isActive: boolean }) {
   }, [initCollapsibleList, initSortSettings])
 
   useEffect(() => {
-    const wasWritingRoute = wasWritingRouteRef.current
-    wasWritingRouteRef.current = isWritingRoute
-
-    if (!wasWritingRoute && isWritingRoute && initializedRef.current) {
+    if (isWritingRoute && initializedRef.current) {
       setView(activeFilePath ? 'editor' : 'files')
       useChatStore.getState().setMobileActiveContexts({ articlePath: activeFilePath || null })
-    }
-  }, [activeFilePath, isWritingRoute])
-
-  useEffect(() => {
-    if (!activeFilePath) {
+    } else if (!activeFilePath) {
       setView('files')
     }
-  }, [activeFilePath])
+  }, [activeFilePath, isWritingRoute])
 
   useEffect(() => {
     if (!requestedConflictId || !isWritingRoute) return

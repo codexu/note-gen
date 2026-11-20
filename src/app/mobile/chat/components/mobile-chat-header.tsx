@@ -90,7 +90,7 @@ export function MobileChatHeader() {
         <MobileMeSheet />
 
         <div className="ml-auto flex shrink-0 items-center">
-          <Button variant="ghost" size="icon" aria-label={tWiki('open')} onClick={() => void openWikiFolder()}><BookOpen /></Button>
+          <Button variant="ghost" size="icon" aria-label={tWiki('folder.openIndex')} onClick={() => void openWikiFolder()}><BookOpen /></Button>
           <Button
             variant="ghost"
             size="icon"

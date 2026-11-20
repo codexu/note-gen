@@ -18,7 +18,9 @@ import type { AgentChange, AgentRunStatus, AgentSkillSummary, AgentTraceEvent, T
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
 import { Separator } from "@/components/ui/separator"
-import { AgentContextTray, type RagSourceDetail } from "./agent-context-tray"
+import { getChatResponseWorkspaceFingerprint } from "@/lib/chat-ui/response-host"
+import { AgentContextTray } from "./agent-context-tray"
+import type { RagSourceDetail } from "@/types/knowledge"
 import {
   agentStatusText,
   formatAgentDuration,
@@ -330,6 +332,7 @@ export function AgentRunTimeline({
   loadedSkills = [],
 }: AgentRunTimelineProps) {
   const t = useTranslations('record.chat')
+  const workspaceFingerprint = React.useMemo(() => getChatResponseWorkspaceFingerprint(chat?.agentHistory), [chat?.agentHistory])
   const chatLoading = useChatStore(state => state.loading)
   const pendingUiId = useChatStore(state => state.agentState.pendingUiInteraction?.id)
   const pendingApproval = useChatStore(state => state.agentState.pendingConfirmation)
@@ -659,6 +662,7 @@ export function AgentRunTimeline({
   const processContent = (
     <div className="flex flex-col gap-2">
       <AgentContextTray
+        workspaceFingerprint={workspaceFingerprint ?? (status === 'completed' || chat?.agentHistory ? null : undefined)}
         ragSources={ragSources}
         ragSourceDetails={ragSourceDetails}
         loadedSkills={loadedSkills}

@@ -1,20 +1,20 @@
 import { BaseDirectory, readTextFile } from '@tauri-apps/plugin-fs'
 import { createHash } from 'crypto'
 import { getDb } from '@/db'
-import { getAllMarks, getMarkById, type Mark } from '@/db/marks'
+import { getAllMarks, getMarkById, getRecordLocatorBySourceId, type Mark } from '@/db/marks'
 import { getTags, type Tag } from '@/db/tags'
 import { getCanvasProject, getCanvasProjects } from '@/db/canvases'
 import { getAllMarkdownFiles } from '@/lib/files'
-import { serializeCanvasDocument } from '@/lib/knowledge-content'
+import { getArticleKnowledgeUpdatedAt, serializeCanvasDocument } from '@/lib/knowledge-content'
 import { parseKnowledgeSourceKey } from '@/types/knowledge'
 import { getFilePathOptions } from '@/lib/workspace'
 import { recordMatchesTag, recordTagIds } from '@/lib/record-tags'
 import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
 import { Store } from '@tauri-apps/plugin-store'
-import { getWikiGeneratedNotes, getWikiSettings, isWikiArticlePathSelected, normalizeWikiScopeId } from './settings'
+import { getWikiGeneratedNotes, getWikiSettings, isWikiArticlePathSelected, isWikiSourceSelected, normalizeWikiScopeId } from './settings'
 import { DEFAULT_EXCLUDED_RAG_PATHS, isPathAllowedForRag } from '@/lib/rag-retrieval-policy'
 import { getKnowledgeSettings } from '@/lib/knowledge-settings'
-import { WIKI_ROOT_FOLDER, type WikiSourceReference, type WikiSyncDomain } from '@/types/wiki'
+import { WIKI_ROOT_FOLDER, type WikiSettings, type WikiSourceReference, type WikiSourceRevision, type WikiSyncDomain } from '@/types/wiki'
 
 export interface WikiSourceDocument {
   source: WikiSourceReference
@@ -77,6 +77,7 @@ async function readWikiRecord(mark: Mark, tags: Tag[]): Promise<WikiSourceDocume
       sourceType: 'record',
       title,
       contentHash: wikiHash(content),
+      updatedAt: mark.createdAt,
       locator: { markId: mark.id, tagId: mark.tagId,
         tagIds: tags.filter(tag => recordMatchesTag(mark, tag.id, tags)).map(tag => tag.id) },
       tagKeys,
@@ -114,6 +115,7 @@ export async function getWikiSourceDocument(sourceKey: string): Promise<WikiSour
         sourceType: 'canvas',
         title: project.title,
         contentHash: wikiHash(content),
+        updatedAt: project.updatedAt,
         locator: { canvasId: project.id, nodeIds: nodes.map(node => node.id) },
         syncDomain: 'account-data',
       },
@@ -135,6 +137,7 @@ export async function getWikiSourceDocument(sourceKey: string): Promise<WikiSour
         sourceType: 'article',
         title: path.split('/').pop() || path,
         contentHash: wikiHash(content),
+        updatedAt: await getArticleKnowledgeUpdatedAt(options) || undefined,
         locator: { filePath: path },
         syncDomain: 'library',
       },
@@ -146,39 +149,53 @@ export async function getWikiSourceDocument(sourceKey: string): Promise<WikiSour
   }
 }
 
-export async function getWikiSourceAvailability(sourceKey: string): Promise<'available' | 'deleted' | 'unavailable'> {
-  const parsed = parseKnowledgeSourceKey(sourceKey)
-  if (!parsed) return 'unavailable'
-  if (parsed.sourceType === 'record') {
-    const id = Number(parsed.sourceId)
-    if (!Number.isSafeInteger(id) || id <= 0) return 'unavailable'
-    const mark = await getMarkById(id)
-    return !mark ? 'unavailable' : mark.deleted ? 'deleted' : 'available'
+export async function getWikiSourceAvailability(reference: WikiSourceReference): Promise<'available' | 'deleted' | 'unavailable'> {
+  if (reference.sourceType === 'record') {
+    const row = await getRecordLocatorBySourceId(reference.stableId.slice('record:'.length))
+    return !row ? 'unavailable' : row.deleted ? 'deleted' : 'available'
   }
-  if (parsed.sourceType === 'canvas') {
-    const canvas = await getCanvasProject(parsed.sourceId)
+  if (reference.sourceType === 'canvas') {
+    const canvas = await getCanvasProject(reference.stableId.slice('canvas:'.length))
     return !canvas ? 'unavailable' : canvas.deletedAt ? 'deleted' : 'available'
   }
   // An undownloaded remote article and an unreadable local file are not deletion evidence.
-  return await getWikiSourceDocument(sourceKey) ? 'available' : 'unavailable'
+  return await resolveWikiSourceReference(reference) ? 'available' : 'unavailable'
 }
 
 /** Only selected sources acquire a legacy synchronization identity; discovery stays read-only. */
 export async function ensureWikiSourceIdentity(document: WikiSourceDocument): Promise<WikiSourceDocument> {
   if (document.source.sourceType !== 'record') return document
+  const identified = await resolveWikiSourceReference(document.source)
+  if (identified) return identified
+  if (!/^record:legacy-[0-9a-f]{64}$/.test(document.source.stableId)) throw new Error('WIKI_SOURCE_NOT_FOUND')
   const mark = await getMarkById(document.source.locator.markId ?? Number(document.source.sourceKey.replace(/^record:/, '')))
-  if (!mark || mark.deleted) return document
-  if (!mark.sourceId) await recordStableId(mark)
-  return await getWikiSourceDocument(document.source.sourceKey) || document
+  if (!mark || mark.deleted) throw new Error('WIKI_SOURCE_NOT_FOUND')
+  const legacy = await readWikiRecord({ ...mark, sourceId: null }, await getTags())
+  if (legacy?.source.stableId !== document.source.stableId) throw new Error('WIKI_SOURCE_NOT_FOUND')
+  const stableId = `record:${await recordStableId(mark)}`
+  const current = await resolveWikiSourceReference({ ...document.source, stableId })
+  if (!current) throw new Error('WIKI_SOURCE_NOT_FOUND')
+  return current
+}
+
+/** A change event identifies a local row, while Wiki jobs and files identify a portable source. */
+export async function getLocalWikiSourceStableId(sourceKey: string) {
+  const parsed = parseKnowledgeSourceKey(sourceKey)
+  if (!parsed) return null
+  if (parsed.sourceType !== 'record') return sourceKey
+  const id = Number(parsed.sourceId)
+  if (!Number.isSafeInteger(id) || id <= 0) return null
+  const mark = await getMarkById(id)
+  return mark?.sourceId ? `record:${mark.sourceId}` : null
 }
 
 /** Resolve portable sync references without trusting another device's local record ID. */
 export async function resolveWikiSourceReference(reference: WikiSourceReference): Promise<WikiSourceDocument | null> {
   if (reference.sourceType === 'record') {
-    const database = await getDb()
-    const stableId = reference.stableId.replace(/^record:/, '')
-    const rows = await database.select<Array<{ id: number }>>('select id from marks where sourceId = $1 limit 1', [stableId])
-    return rows[0] ? getWikiSourceDocument(`record:${rows[0].id}`) : null
+    const row = await getRecordLocatorBySourceId(reference.stableId.slice('record:'.length))
+    if (!row || row.deleted) return null
+    const document = await getWikiSourceDocument(`record:${row.id}`)
+    return document?.source.stableId === reference.stableId ? document : null
   }
   if (reference.sourceType === 'canvas') {
     return getWikiSourceDocument(`canvas:${reference.stableId.replace(/^canvas:/, '')}`)
@@ -186,22 +203,37 @@ export async function resolveWikiSourceReference(reference: WikiSourceReference)
   return getWikiSourceDocument(`article:${reference.stableId.replace(/^article:/, '')}`)
 }
 
+/** Snapshot the same exclusions for a whole discovery, compile or reconciliation pass. */
+export async function getWikiSourcePolicy(contextId?: string, currentSettings?: WikiSettings) {
+  const [generated, store, settings, knowledge] = await Promise.all([
+    getWikiGeneratedNotes(contextId), Store.load('store.json'), currentSettings ?? getWikiSettings(contextId), getKnowledgeSettings(),
+  ])
+  const excludedPaths = await store.get<string[]>('ragExcludedPaths') ?? DEFAULT_EXCLUDED_RAG_PATHS
+  const excludedFiles = new Set(await store.get<string[]>('vectorExcludedFiles') ?? [])
+  const generatedPaths = new Set(generated)
+  const explicitArticles = new Set(settings.scopes.filter(scope => scope.enabled && scope.effect !== 'exclude' && scope.kind === 'article').map(scope => scope.id))
+  const allowsArticle = (filePath: string) => {
+    const path = normalizeWikiScopeId(filePath)
+    return knowledge.enabledSourceTypes.includes('article') && path !== WIKI_ROOT_FOLDER && !path.startsWith(`${WIKI_ROOT_FOLDER}/`)
+      && (!generatedPaths.has(path) || explicitArticles.has(path)) && !excludedFiles.has(path)
+      && isPathAllowedForRag(path, { excludedPaths })
+  }
+  return {
+    settings, allowsArticle,
+    allows(source: WikiSourceReference, derived = false) {
+      return source.sourceType === 'article'
+        ? !derived && allowsArticle(source.locator.filePath ?? source.stableId.slice('article:'.length))
+        : knowledge.enabledSourceTypes.includes(source.sourceType)
+    },
+  }
+}
+
 /** Shared by source discovery and folder statistics, including derived-document exclusions. */
 export async function collectWikiArticleSourceDocuments(paths: string[], contextId?: string): Promise<WikiSourceDocument[]> {
-  const [generated, store, settings, knowledge] = await Promise.all([
-    getWikiGeneratedNotes(contextId), Store.load('store.json'), getWikiSettings(contextId), getKnowledgeSettings(),
-  ])
-  if (!knowledge.enabledSourceTypes.includes('article')) return []
-  const excludedPaths = await store.get<string[]>('ragExcludedPaths') ?? DEFAULT_EXCLUDED_RAG_PATHS
-  const excludedFiles = await store.get<string[]>('vectorExcludedFiles') ?? []
-  const explicitArticles = new Set(settings.scopes.filter(scope => scope.enabled && scope.effect !== 'exclude' && scope.kind === 'article').map(scope => scope.id))
+  const policy = await getWikiSourcePolicy(contextId)
   const documents: WikiSourceDocument[] = []
   for (const filePath of new Set(paths)) {
-    if (filePath === WIKI_ROOT_FOLDER || filePath.startsWith(`${WIKI_ROOT_FOLDER}/`)) continue
-    const path = normalizeWikiScopeId(filePath)
-    if (!isWikiArticlePathSelected(path, settings)) continue
-    if ((generated.includes(filePath) && !explicitArticles.has(path)) || excludedFiles.includes(filePath)
-      || !isPathAllowedForRag(filePath, { excludedPaths })) continue
+    if (!isWikiArticlePathSelected(filePath, policy.settings) || !policy.allowsArticle(filePath)) continue
     const document = await getWikiSourceDocument(`article:${filePath}`)
     if (document && !document.derived) documents.push(document)
   }
@@ -225,14 +257,28 @@ export async function collectWikiSourceDocuments(): Promise<WikiSourceDocument[]
 }
 
 export async function isWikiSourceDocumentAllowed(document: WikiSourceDocument, contextId?: string): Promise<boolean> {
-  if (!(await getKnowledgeSettings()).enabledSourceTypes.includes(document.source.sourceType)) return false
-  if (document.source.sourceType !== 'article') return true
-  const path = document.source.locator.filePath || document.source.sourceKey.replace(/^article:/, '')
-  if (document.derived || path === WIKI_ROOT_FOLDER || path.startsWith(`${WIKI_ROOT_FOLDER}/`)) return false
-  const [store, generated, settings] = await Promise.all([Store.load('store.json'), getWikiGeneratedNotes(contextId), getWikiSettings(contextId)])
-  const excludedPaths = await store.get<string[]>('ragExcludedPaths') ?? DEFAULT_EXCLUDED_RAG_PATHS
-  const excludedFiles = await store.get<string[]>('vectorExcludedFiles') ?? []
-  const explicitlySelected = settings.scopes.some(scope => scope.enabled && scope.effect !== 'exclude' && scope.kind === 'article' && scope.id === normalizeWikiScopeId(path))
-  return (!(generated.includes(path) || document.derived) || explicitlySelected)
-    && !excludedFiles.includes(path) && isPathAllowedForRag(path, { excludedPaths })
+  return (await getWikiSourcePolicy(contextId)).allows(document.source, document.derived)
+}
+
+/** Resolve a compiled revision against the current source, selection and exclusions before use. */
+export async function resolveEligibleWikiRevision(
+  revision: WikiSourceRevision, policy: Awaited<ReturnType<typeof getWikiSourcePolicy>>,
+): Promise<WikiSourceRevision | null> {
+  let source = revision.source
+  if (!policy.allows(source)) return null
+  const original = await resolveWikiSourceReference(source)
+  if (original) {
+    if (original.source.contentHash !== source.contentHash || !policy.allows(original.source, original.derived)
+      || !isWikiSourceSelected(original.source, policy.settings)) return null
+    source = original.source
+  } else {
+    if (!isWikiSourceSelected(source, policy.settings)) return null
+    const { isWikiSourceCurrent } = await import('./sync')
+    if (!await isWikiSourceCurrent(source)) return null
+    if (source.sourceType === 'record') {
+      source = { ...source, sourceKey: source.stableId,
+        locator: { ...source.locator, markId: undefined, tagId: undefined, tagIds: undefined } }
+    }
+  }
+  return { ...revision, source }
 }

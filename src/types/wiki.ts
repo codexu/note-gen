@@ -49,6 +49,8 @@ export interface WikiSourceReference {
   syncDomain: WikiSyncDomain
   /** Remote source version used to verify a snapshot without downloading the original. */
   remoteVersion?: string
+  /** Original source modification time, when known. */
+  updatedAt?: number
   tagKeys?: string[]
 }
 
@@ -71,6 +73,12 @@ export interface WikiSourceState {
 export interface WikiEvidence {
   quote: string
   nodeId?: string
+}
+
+export interface WikiTopicCitation {
+  pageId: string
+  number: number
+  source: WikiSourceReference
 }
 
 export interface WikiContribution {
@@ -122,6 +130,11 @@ export interface WikiPage {
   filePath?: string
 }
 
+/** Identifies the same Markdown page revision across devices and workspace paths. */
+export function wikiPageVersion(page: Pick<WikiPage, 'inputHash' | 'outputHash'>) {
+  return `${page.inputHash}:${page.outputHash}`
+}
+
 export interface WikiJob {
   id: string
   contextId: string
@@ -130,6 +143,8 @@ export interface WikiJob {
   inputHash: string
   status: 'pending' | 'running' | 'failed' | 'paused'
   stage: string
+  /** Failed source whose last successful revision contributes to this topic. */
+  waitingSourceId?: string
   attempts: number
   readyAt: number
   updatedAt: number
@@ -145,7 +160,15 @@ export interface WikiSegmentCache {
 export type WikiSharedSettings = Pick<WikiSettings,
   'enabled' | 'started' | 'language' | 'languageClock' | 'generation' | 'scopes'>
 
+export interface WikiEvidenceRange {
+  start: number
+  end: number
+  reference: number
+}
+
 export interface WikiSearchResult {
+  /** Scoped topic views are built from known source contributions. */
+  evidenceRanges?: WikiEvidenceRange[]
   page: WikiPage
   score: number
   /** A view assembled exclusively from allowed, current source contributions. */

@@ -10,6 +10,8 @@ import type { WikiContext, WikiSourceReference } from '@/types/wiki'
 import { WIKI_ROOT_FOLDER } from '@/types/wiki'
 import { captureWikiWorkspaceGuard, getLegacyWikiContextId, getWikiContext } from './context'
 import { ensureWikiWorkspaceRelativePath } from './path'
+import { noteWikiFileStructureChanged, noteWikiMarkdownFileChanged } from './files'
+import { getWikiSettings } from './settings'
 import { compareWikiKeys, resolveWikiSourceReference, wikiHash } from './sources'
 import { fileSyncContentHash, getFileSyncProof, getFileSyncProofKey, recordFileSyncProof } from '@/lib/sync/file-sync-proof'
 import { gitBlobVersion } from '@/lib/sync/remote-content-cache'
@@ -68,7 +70,8 @@ async function automaticPullAllowed(): Promise<boolean> {
 /** Pull only ordinary Wiki Markdown, using the existing guarded article reader. */
 async function pullRemoteWikiFiles(context: WikiContext): Promise<void> {
   const workspaceIsCurrent = captureWikiWorkspaceGuard()
-  if (context.provider === 'local' || context.provider === 'selfHosted' || !await automaticPullAllowed()) return
+  if (context.provider === 'local' || context.provider === 'selfHosted'
+    || !(await getWikiSettings(context.id)).enabled || !await automaticPullAllowed()) return
   const target = await getLegacyWikiContextId()
   const key = `${context.id}:${target}`
   const existing = remotePulls.get(key)
@@ -126,6 +129,9 @@ async function pullRemoteWikiFiles(context: WikiContext): Promise<void> {
         const proof = await getWikiMeta<RemoteFileProof>(context.id, `markdown-remote-file:${path}`)
         const proofKey = await getFileSyncProofKey(path, context.provider as SyncPlatform).catch(() => null)
         const receipt = proofKey ? await getFileSyncProof(proofKey) : null
+        // No incoming revision to apply. Locally edited notes remain owned by the ordinary sync pipeline.
+        const lastVersion = receipt ? receipt.version : proof?.target === target ? proof.version : undefined
+        if (file.sha && lastVersion === file.sha) return
         const bytes = await readFile(options.path, { baseDir: options.baseDir })
         const hash = await fileSyncContentHash(bytes)
         expectedLocalHash = hash
@@ -227,12 +233,8 @@ export function initWikiSyncRuntime(): () => void {
   attached = true
   const onForeground = () => { if (foreground()) notifyWikiChanged() }
   const onArticle = ({ path }: { path: string }) => {
-    const isCurrent = captureWikiWorkspaceGuard()
-    void import('./files').then(({ noteWikiMarkdownFileChanged }) => {
-      if (!attached || !isCurrent()) return
-      noteWikiMarkdownFileChanged(path)
-      notifyWikiChanged()
-    })
+    noteWikiMarkdownFileChanged(path)
+    notifyWikiChanged()
   }
   const onRemote = ({ path, workspaceRoot, kind = 'changed', previousPath }: {
     path: string; workspaceRoot?: string; kind?: string; previousPath?: string
@@ -246,8 +248,6 @@ export function initWikiSyncRuntime(): () => void {
         if (normalize(workspaceRoot) !== normalize(currentRoot)) return
       }
       if (attached && isCurrent()) {
-        const { noteWikiMarkdownFileChanged, noteWikiFileStructureChanged } = await import('./files')
-        if (!attached || !isCurrent()) return
         if (kind === 'changed') noteWikiMarkdownFileChanged(path)
         else noteWikiFileStructureChanged(path, previousPath)
         notifyWikiChanged()

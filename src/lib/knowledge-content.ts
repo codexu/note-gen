@@ -1,4 +1,4 @@
-import { BaseDirectory, readTextFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, readTextFile, stat } from '@tauri-apps/plugin-fs'
 import { createHash } from 'crypto'
 import { getCanvasProject, getCanvasProjects } from '@/db/canvases'
 import { getAllMarks, getMarkById, type Mark } from '@/db/marks'
@@ -48,6 +48,7 @@ export async function getRecordKnowledgeDocument(mark: Mark, availableTags?: Tag
   return {
     sourceKey,
     sourceType: 'record',
+    stableId: mark.sourceId ? `record:${mark.sourceId}` : `record:legacy-original:${hashKnowledgeContent(content)}`,
     sourceId: String(mark.id),
     title: recordTitle(mark),
     content,
@@ -132,6 +133,16 @@ export async function getCanvasKnowledgeDocument(project: CanvasProject): Promis
   }
 }
 
+/** Zero marks unavailable filesystem dates in the non-null knowledge registry. */
+export async function getArticleKnowledgeUpdatedAt(options: Awaited<ReturnType<typeof getFilePathOptions>>): Promise<number> {
+  try {
+    const info = await stat(options.path, { baseDir: options.baseDir })
+    return info.isFile ? Math.max(0, info.mtime?.getTime() || 0) : 0
+  } catch {
+    return 0
+  }
+}
+
 export async function getArticleKnowledgeDocument(filePath: string): Promise<KnowledgeSourceDocument | null> {
   try {
     const options = await getFilePathOptions(filePath)
@@ -146,7 +157,7 @@ export async function getArticleKnowledgeDocument(filePath: string): Promise<Kno
       title: filePath.replace(/\\/g, '/').split('/').pop() || filePath,
       content,
       contentHash: hashKnowledgeContent(content),
-      updatedAt: Date.now(),
+      updatedAt: await getArticleKnowledgeUpdatedAt(options),
       locator: { filePath },
       status: 'pending',
       chunks: chunkText(content).map(chunk => ({ content: chunk })),

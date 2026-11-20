@@ -37,6 +37,13 @@ export function parseBM25ChunkKey(id: string): { filename: string; chunkId: numb
   return { filename: id.slice(0, separatorIndex), chunkId };
 }
 
+function countDocumentTerms(content: string) {
+  const tokens = tokenizeLexicalText(content);
+  const frequencies = new Map<string, number>();
+  for (const token of tokens) frequencies.set(token, (frequencies.get(token) ?? 0) + 1);
+  return { frequencies, length: tokens.length };
+}
+
 /**
  * BM25 索引类
  */
@@ -71,31 +78,25 @@ export class BM25Index {
    * 构建索引
    * @param documents 文档列表
    */
-  index(documents: BM25Document[]): void {
-    // 清空现有索引
-    this.documents.clear();
-    this.docVectors.clear();
+  index(documents: BM25Document[], previous: BM25Index = this): void {
+    const oldDocuments = previous.documents;
+    const oldVectors = previous.docVectors;
+    const oldLengths = previous.docLengths;
+    this.documents = new Map();
+    this.docVectors = new Map();
+    this.docLengths = new Map();
     this.idfCache.clear();
-    this.docLengths.clear();
-
     const N = documents.length;
     let totalLength = 0;
-
-    // 1. 处理每个文档
     for (const doc of documents) {
-      const tokens = tokenizeLexicalText(doc.content);
-      const tokenFreq = new Map<string, number>();
-
-      // 计算词频
-      for (const token of tokens) {
-        tokenFreq.set(token, (tokenFreq.get(token) || 0) + 1);
-      }
-
-      // 存储文档和词频向量
+      const existing = oldDocuments.get(doc.id) === doc.content ? oldVectors.get(doc.id) : undefined;
+      const { frequencies, length } = existing
+        ? { frequencies: existing, length: oldLengths.get(doc.id) ?? 0 }
+        : countDocumentTerms(doc.content);
       this.documents.set(doc.id, doc.content);
-      this.docVectors.set(doc.id, tokenFreq);
-      this.docLengths.set(doc.id, tokens.length);
-      totalLength += tokens.length;
+      this.docVectors.set(doc.id, frequencies);
+      this.docLengths.set(doc.id, length);
+      totalLength += length;
     }
 
     // 2. 计算平均文档长度
@@ -139,27 +140,7 @@ export class BM25Index {
 
     // 对每个文档计算 BM25 分数
     for (const [docId, docVector] of this.docVectors.entries()) {
-      const docLength = this.docLengths.get(docId) || 0;
-      let score = 0;
-
-      // BM25 公式：
-      // score = Σ IDF(qi) * (f(qi, D) * (k1 + 1)) / (f(qi, D) + k1 * (1 - b + b * |D| / avgDl))
-      for (const token of queryTokens) {
-        // 检查 token 是否在文档中
-        const freq = docVector.get(token) || 0;
-        if (freq === 0) continue;
-
-        // 获取 IDF
-        const idf = this.idfCache.get(token) || 0;
-
-        // 计算 BM25 分数分量
-        const numerator = freq * (this.k1 + 1);
-        const denominator = freq + this.k1 * (1 - this.b + this.b * (docLength / this.averageDocLength));
-        const componentScore = idf * (numerator / denominator);
-
-        score += componentScore;
-      }
-
+      const score = this.scoreTerms(queryTokens, docVector, this.docLengths.get(docId) ?? 0);
       if (score > 0) {
         results.set(docId, score);
       }
@@ -172,6 +153,27 @@ export class BM25Index {
       .map(([id, score]) => ({ id, score }));
 
     return sortedResults;
+  }
+
+  /** Score a verified view using the corpus IDF, including when only some source contributions are visible. */
+  scoreDocument(terms: readonly string[], id: string, content: string): number {
+    const cached = this.documents.get(id) === content ? this.docVectors.get(id) : undefined;
+    if (cached) return this.scoreTerms(terms, cached, this.docLengths.get(id) ?? 0);
+    const { frequencies, length } = countDocumentTerms(content);
+    return this.scoreTerms(terms, frequencies, length);
+  }
+
+  private scoreTerms(terms: readonly string[], vector: Map<string, number>, length: number): number {
+    let score = 0;
+    for (const token of terms) {
+      const freq = vector.get(token);
+      if (!freq) continue;
+      // A filtered topic can contain evidence omitted from the compiled page.
+      const idf = this.idfCache.get(token) ?? Math.log1p((this.documents.size - 0.5) / 1.5);
+      const norm = 1 - this.b + this.b * length / (this.averageDocLength || 1);
+      score += idf * freq * (this.k1 + 1) / (freq + this.k1 * norm);
+    }
+    return score;
   }
 
   /**

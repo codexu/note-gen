@@ -4,6 +4,7 @@ import useTagStore from '@/stores/tag'
 import { BotMessageSquare, ChevronDown, X, Loader2, QuoteIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Chat } from '@/db/chats'
+import type { RagSourceDetail } from '@/types/knowledge'
 import ChatPreview from './chat-preview'
 import './chat.css'
 import { NoteOutput } from './message-control/note-output'
@@ -379,24 +380,7 @@ const Message = React.memo(function Message({ chat }: { chat: Chat }) {
   const ragSourceDetails = useMemo(() => {
     if (!chat.ragSourceDetails) return []
     try {
-      return JSON.parse(chat.ragSourceDetails) as Array<{
-        filepath: string
-        filename: string
-        content: string
-        sourceKey?: string
-        sourceType?: 'article' | 'record' | 'canvas'
-        sourceId?: string
-        locator?: {
-          filePath?: string
-          markId?: number
-          tagId?: number
-          canvasId?: string
-          nodeIds?: string[]
-        }
-        updatedAt?: number
-        evidenceKind?: 'wiki' | 'source'
-        wikiPageId?: string
-      }>
+      return JSON.parse(chat.ragSourceDetails) as RagSourceDetail[]
     } catch {
       return []
     }

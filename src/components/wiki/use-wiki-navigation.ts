@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { useWikiErrorMessage } from './use-wiki-error-message'
-import { openWikiPage } from './wiki-source-actions'
+import { openWikiConflictFile, openWikiFolder, openWikiPage } from './wiki-source-actions'
 import { captureWikiWorkspaceGuard } from '@/lib/wiki/context'
 
 export function useWikiNavigation() {
@@ -15,10 +15,11 @@ export function useWikiNavigation() {
   const t = useTranslations('wiki')
   const errorMessage = useWikiErrorMessage()
 
-  const openPage = useCallback(async (pageId?: string, expectedContextId?: string) => {
+  const mobile = pathname.startsWith('/mobile')
+  const navigate = useCallback(async (resolve: () => Promise<string | null>, onOpened?: () => void) => {
     const isCurrent = captureWikiWorkspaceGuard()
     try {
-      const route = await openWikiPage(pageId, pathname.startsWith('/mobile'), expectedContextId)
+      const route = await resolve()
       if (!isCurrent()) return
       if (!route) {
         toast.error(t('loadFailed'))
@@ -26,11 +27,17 @@ export function useWikiNavigation() {
       }
       useSettingsDialogStore.getState().closeSettings()
       router.push(route)
+      onOpened?.()
     } catch (error) {
       if (isCurrent()) toast.error(t('loadFailed'), { description: errorMessage(error) })
     }
-  }, [errorMessage, pathname, router, t])
+  }, [errorMessage, router, t])
 
-  const openFolder = useCallback((expectedContextId?: string) => openPage(undefined, expectedContextId), [openPage])
-  return { openPage, openFolder }
+  const openPage = useCallback((pageId?: string, expectedContextId?: string, pageVersion?: string, onOpened?: () => void) =>
+    navigate(() => openWikiPage(pageId, mobile, expectedContextId, pageVersion), onOpened), [navigate, mobile])
+  const openFolder = useCallback((expectedContextId?: string) =>
+    navigate(() => openWikiFolder(mobile, expectedContextId)), [navigate, mobile])
+  const openConflictFile = useCallback((path: string, expectedContextId: string) =>
+    navigate(() => openWikiConflictFile(path, mobile, expectedContextId)), [navigate, mobile])
+  return { openPage, openFolder, openConflictFile }
 }

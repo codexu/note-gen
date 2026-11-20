@@ -1,15 +1,16 @@
-import { getKnowledgeSource } from '@/db/knowledge'
 import { matchesKnowledgeSearchScope, readKnowledgeSourcePage, searchKnowledgeWithWiki } from '@/lib/knowledge-search'
 import { isKnowledgeSourceType } from '@/types/knowledge'
-import type { KnowledgeWikiPageGrant } from '@/types/knowledge'
-import { assertWikiContextCurrent, captureWikiWorkspaceGuard, getWikiContext } from '@/lib/wiki/context'
+import type { KnowledgeOriginalGrant, KnowledgeWikiPageGrant, KnowledgeWikiReadGrant } from '@/types/knowledge'
+import { assertWikiContextCurrent, captureWikiSelectionGuard, captureWikiWorkspaceGuard, getWikiContext } from '@/lib/wiki/context'
 import { wikiCitationText } from '@/lib/wiki/citations'
 import MarkdownIt from 'markdown-it'
+import { wikiHash } from '@/lib/wiki/sources'
+import { wikiPageVersion, type WikiEvidenceRange, type WikiSearchResult } from '@/types/wiki'
 import type { AgentTool } from '../types'
 
 const wikiMarkdown = new MarkdownIt({ html: false, linkify: false, typographer: false })
 
-function wikiPageChunk(body: string, offset: number) {
+function wikiPageChunk(body: string, offset: number, contributionRanges?: WikiEvidenceRange[]) {
   let end = Math.min(body.length, offset + 7000)
   if (end < body.length) {
     const newline = body.lastIndexOf('\n', end - 1)
@@ -22,31 +23,40 @@ function wikiPageChunk(body: string, offset: number) {
     }
     if (end > offset && /[\uD800-\uDBFF]/.test(body[end - 1])) end--
   }
-  const lineOffsets = [0]
-  for (let index = 0; index < body.length; index++) if (body[index] === '\n') lineOffsets.push(index + 1)
   const allReferences = new Set<number>()
-  const chunkReferences = new Set<number>()
+  const blockRanges = new Map<number, Array<[number, number]>>()
   let partialBlock = false
-  let rowLines: [number, number] | null = null
-  // Parse the complete page so a continuation inside fenced/inline code or a
-  // reference-style link cannot turn literal [n] data into source evidence.
-  for (const token of wikiMarkdown.parse(body, {})) {
-    if (token.type === 'tr_open') rowLines = token.map
-    if (token.type === 'tr_close') rowLines = null
-    if (token.type !== 'inline') continue
-    const references = [...wikiCitationText(token).matchAll(/\[(\d+)\]/g)].map(match => Number(match[1]))
-    references.forEach(reference => allReferences.add(reference))
-    const lines = token.map ?? rowLines
-    if (!lines) continue
-    const start = lineOffsets[lines[0]] ?? body.length
-    const finish = lineOffsets[lines[1]] ?? body.length
-    if (start >= end || finish <= offset) continue
-    references.forEach(reference => chunkReferences.add(reference))
-    // A very long paragraph may span cursors. Its sources describe the whole
-    // supporting block, rather than claiming each clipped sentence was cited.
-    if (references.length && (start < offset || finish > end)) partialBlock = true
+  const addBlock = (reference: number, start: number, finish: number) => {
+    allReferences.add(reference)
+    if (start >= end || finish <= offset) return
+    const ranges = blockRanges.get(reference) ?? []
+    const from = Math.max(start, offset) - offset
+    const to = Math.min(finish, end) - offset
+    const previous = ranges[ranges.length - 1]
+    if (previous && from <= previous[1]) previous[1] = Math.max(previous[1], to)
+    else ranges.push([from, to])
+    blockRanges.set(reference, ranges)
+    if (start < offset || finish > end) partialBlock = true
   }
-  return { end, content: body.slice(offset, end), allReferences, chunkReferences, partialBlock }
+  if (contributionRanges) {
+    for (const range of contributionRanges) addBlock(range.reference, range.start, range.end)
+  } else {
+    const lineOffsets = [0]
+    for (let index = 0; index < body.length; index++) if (body[index] === '\n') lineOffsets.push(index + 1)
+    let rowLines: [number, number] | null = null
+    // Parse the complete page: code and links can contain literal [n] data.
+    for (const token of wikiMarkdown.parse(body, {})) {
+      if (token.type === 'tr_open') rowLines = token.map
+      if (token.type === 'tr_close') rowLines = null
+      if (token.type !== 'inline') continue
+      const lines = token.map ?? rowLines
+      if (!lines) continue
+      for (const match of wikiCitationText(token).matchAll(/\[(\d+)\]/g)) {
+        addBlock(Number(match[1]), lineOffsets[lines[0]] ?? body.length, lineOffsets[lines[1]] ?? body.length)
+      }
+    }
+  }
+  return { end, content: body.slice(offset, end), allReferences, blockRanges, partialBlock }
 }
 
 function strings(value: unknown) {
@@ -105,8 +115,24 @@ const knowledgeSearchTool: AgentTool = {
       message: `找到 ${results.wikiPages.length} 个 Wiki 页面和 ${results.sources.length} 个文章、记录或画布候选。`,
       data: results.sources,
       wikiPages: results.wikiPages,
+      sourceGrants: results.sourceGrants,
     }
   },
+}
+
+function wikiViewHash(view: WikiSearchResult) {
+  return wikiHash(JSON.stringify([view.page.id, view.content, view.sourceRefs.map(ref => [ref.stableId, ref.contentHash])]))
+}
+
+async function readGrantedWikiPage(pageId: string, grants: KnowledgeWikiPageGrant[], contextId: string) {
+  const allowed = grants.filter(grant => grant.contextId === contextId)
+  if (!allowed.length) return null
+  const { readWikiPage } = await import('@/lib/wiki/search')
+  return readWikiPage(pageId, {}, source => allowed.some(grant =>
+    grant.sourceRefs.some(reference => reference.stableId === source.stableId && reference.contentHash === source.contentHash)
+    && matchesKnowledgeSearchScope({ sourceKey: source.sourceKey, sourceType: source.sourceType,
+      sourceId: source.sourceKey.slice(source.sourceKey.indexOf(':') + 1), title: source.title,
+      contentHash: source.contentHash, locator: source.locator, status: 'ready', updatedAt: source.updatedAt ?? 0 }, grant.scope)))
 }
 
 const knowledgeReadWikiTool: AgentTool = {
@@ -124,6 +150,7 @@ const knowledgeReadWikiTool: AgentTool = {
   },
   execute: async input => {
     const isCurrent = captureWikiWorkspaceGuard()
+    const assertSelection = captureWikiSelectionGuard()
     const context = await getWikiContext()
     const assertCurrent = async () => {
       if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
@@ -131,7 +158,6 @@ const knowledgeReadWikiTool: AgentTool = {
       if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
     }
     await assertCurrent()
-    const { readWikiPage } = await import('@/lib/wiki/search')
     const grants = input.wikiGrants && typeof input.wikiGrants === 'object'
       ? input.wikiGrants as Record<string, KnowledgeWikiPageGrant[]> : {}
     const requests = Array.isArray(input.requests) ? input.requests : []
@@ -141,33 +167,27 @@ const knowledgeReadWikiTool: AgentTool = {
       const value = request as { pageId?: unknown; cursor?: unknown }
       if (typeof value.pageId !== 'string' || !grants[value.pageId]?.length) continue
       await assertCurrent()
-      const pageGrants = grants[value.pageId].filter(grant => grant.contextId === context.id)
-      if (!pageGrants.length) continue
-      // Match portable identities, never a sending device's SQLite row ID.
-      // Recheck the query scope against the current resolved source metadata.
-      const view = await readWikiPage(value.pageId, {}, source => pageGrants.some(grant =>
-        grant.sourceRefs.some(reference => reference.stableId === source.stableId
-          && reference.contentHash === source.contentHash)
-        && matchesKnowledgeSearchScope({ sourceKey: source.sourceKey, sourceType: source.sourceType,
-          sourceId: source.sourceKey.slice(source.sourceKey.indexOf(':') + 1), title: source.title,
-          contentHash: source.contentHash, locator: source.locator, status: 'ready', updatedAt: 0 }, grant.scope)))
+      const view = await readGrantedWikiPage(value.pageId, grants[value.pageId], context.id)
       await assertCurrent()
       if (!view) continue
       const offset = typeof value.cursor === 'string' ? Math.max(0, Number.parseInt(value.cursor, 10) || 0) : 0
-      const { end, content, allReferences, chunkReferences, partialBlock } = wikiPageChunk(view.content, offset)
+      const { end, content, allReferences, blockRanges, partialBlock } = wikiPageChunk(view.content, offset, view.evidenceRanges)
       const numbered = [...allReferences].some(number => number >= 1 && number <= view.sourceRefs.length)
-      pages.push({ pageId: value.pageId, title: view.page.title, content,
-        sourceRefs: view.sourceRefs.flatMap((source, index) => numbered && !chunkReferences.has(index + 1) ? [] : [{
-          sourceKey: source.sourceKey, sourceType: source.sourceType, title: source.title,
+      if (!content.trim()) continue
+      pages.push({ pageId: value.pageId, viewHash: wikiViewHash(view), pageVersion: wikiPageVersion(view.page), title: view.page.title, content,
+        sourceRefs: view.sourceRefs.flatMap((source, index) => numbered && !blockRanges.has(index + 1) ? [] : [{
+          sourceKey: source.sourceKey, stableId: source.stableId, contentHash: source.contentHash,
+          sourceType: source.sourceType, title: source.title, updatedAt: source.updatedAt,
           locator: { filePath: source.locator.filePath, markId: source.locator.markId,
             canvasId: source.locator.canvasId, nodeIds: source.locator.nodeIds },
-          reference: index + 1,
+          reference: index + 1, ranges: numbered ? blockRanges.get(index + 1) : undefined,
         }]), evidenceKind: 'wiki', sourceReferenceMode: numbered
           ? partialBlock ? 'block-citations' : 'chunk-citations' : 'page-linked-sources',
         nextCursor: end < view.content.length ? String(end) : undefined, complete: end >= view.content.length,
         updatedAt: view.page.updatedAt })
     }
     await assertCurrent()
+    assertSelection()
     return pages.length ? { ok: true, message: `已读取 ${pages.length} 个 Wiki 页面。`, data: pages }
       : { ok: false, message: 'Wiki 页面已过期、超出本次检索范围或不可读取，请重新搜索。', error: 'WIKI_NOT_READABLE' }
   },
@@ -200,6 +220,10 @@ const knowledgeReadSourcesTool: AgentTool = {
     additionalProperties: false,
   },
   execute: async input => {
+    const isCurrent = captureWikiWorkspaceGuard()
+    const context = await getWikiContext()
+    const grants = input.sourceGrants as Record<string, KnowledgeOriginalGrant[]> | undefined
+    const assertSelection = grants && Object.keys(grants).length ? captureWikiSelectionGuard() : undefined
     const requests = Array.isArray(input.requests) ? input.requests : []
     const pages = []
     for (const request of requests) {
@@ -208,10 +232,13 @@ const knowledgeReadSourcesTool: AgentTool = {
       if (typeof value.sourceKey !== 'string') continue
       const page = await readKnowledgeSourcePage(
         value.sourceKey,
-        typeof value.cursor === 'string' ? value.cursor : undefined
+        typeof value.cursor === 'string' ? value.cursor : undefined, grants?.[value.sourceKey]
       )
       if (page) pages.push(page)
     }
+    await assertWikiContextCurrent(context.id)
+    if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
+    assertSelection?.()
     return pages.length
       ? { ok: true, message: `已读取 ${pages.length} 个知识来源页面。`, data: pages }
       : { ok: false, message: '没有可读取的知识来源。', error: 'NO_READABLE_SOURCES' }
@@ -234,30 +261,39 @@ const knowledgeCiteSourcesTool: AgentTool = {
   },
   execute: async input => {
     const sourceKeys = Array.from(new Set(strings(input.sourceKeys)))
-    const valid = []
-    const [{ getWikiContext }, { getWikiSettings, isWikiSourceSelected }, { listWikiSourceStates },
-      { isWikiSourceCurrent }, { resolveWikiSourceReference }] = await Promise.all([
-      import('@/lib/wiki/context'), import('@/lib/wiki/settings'), import('@/db/wiki'),
-      import('@/lib/wiki/sync'), import('@/lib/wiki/sources'),
-    ])
+    const isCurrent = captureWikiWorkspaceGuard()
+    const assertSelection = captureWikiSelectionGuard()
     const context = await getWikiContext()
-    const settings = await getWikiSettings(context.id)
-    const wikiSources = settings.enabled ? await listWikiSourceStates(context.id) : []
-    for (const sourceKey of sourceKeys) {
-      if (await getKnowledgeSource(sourceKey)) { valid.push(sourceKey); continue }
-      for (const state of wikiSources) {
-        if (state.status !== 'ready' || !isWikiSourceSelected(state.source, settings)) continue
-        const local = await resolveWikiSourceReference(state.source)
-        const readableKey = local?.source.sourceKey
-          ?? (state.sourceType === 'record' ? state.source.stableId : state.sourceKey)
-        if (readableKey === sourceKey && await isWikiSourceCurrent(state.source)) {
-          valid.push(sourceKey)
-          break
+    const sourceGrants = input.sourceGrants as Record<string, KnowledgeOriginalGrant[]> | undefined
+    const explicit = new Set(strings(input.explicitKeys))
+    const validKeys = new Set<string>()
+    for (const key of sourceKeys) {
+      if (explicit.has(key) || sourceGrants?.[key]?.length) {
+        if (await readKnowledgeSourcePage(key, undefined, explicit.has(key) ? undefined : sourceGrants?.[key])) validKeys.add(key)
+      }
+    }
+    const originals = [...validKeys]
+    const wikiEvidence: Array<{ sourceKey: string; pageId: string; viewHash: string }> = []
+    const citations = input.wikiCitations as KnowledgeWikiReadGrant[] | undefined
+    for (const { pageId, sourceRefs, grants, viewHash } of citations ?? []) {
+      const page = await readGrantedWikiPage(pageId, grants, context.id)
+      // A scoped view may change when one contributing source leaves the scope.
+      // Excerpts from that older view cannot be attributed to the remaining sources.
+      if (!page || wikiViewHash(page) !== viewHash) continue
+      for (const ref of page.sourceRefs) {
+        if (sourceKeys.includes(ref.sourceKey) && sourceRefs.some(read => read.sourceKey === ref.sourceKey
+          && read.stableId === ref.stableId && read.contentHash === ref.contentHash)) {
+          validKeys.add(ref.sourceKey)
+          wikiEvidence.push({ sourceKey: ref.sourceKey, pageId, viewHash })
         }
       }
     }
+    await assertWikiContextCurrent(context.id)
+    if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
+    assertSelection()
+    const valid = sourceKeys.filter(key => validKeys.has(key))
     return valid.length
-      ? { ok: true, message: `已确认 ${valid.length} 个知识来源。`, data: { sourceKeys: valid } }
+      ? { ok: true, message: `已确认 ${valid.length} 个知识来源。`, data: { sourceKeys: valid, originals, wikiEvidence } }
       : { ok: false, message: 'sourceKeys 必须包含实际使用的知识来源。', error: 'EMPTY_KNOWLEDGE_SOURCES' }
   },
 }

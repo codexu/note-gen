@@ -2,7 +2,10 @@
 import { Toaster } from "@/components/ui/sonner"
 import "./globals.css";
 import 'react-photo-view/dist/react-photo-view.css';
-import { Suspense, useEffect } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import emitter from "@/lib/emitter";
+import type { WikiRelatedFilesRequest } from "@/components/wiki/wiki-related-files";
 import { NextIntlProvider } from "@/components/providers/NextIntlProvider";
 import Script from "next/script";
 import { getSyncPushQueue } from "@/lib/sync/sync-push-queue";
@@ -12,12 +15,20 @@ import { DeveloperModeController } from "@/components/developer-mode-controller"
 import { AppLockGate } from "@/components/app-lock-gate";
 import { CustomCssController } from "@/components/custom-css-controller";
 
+const WikiRelatedFiles = dynamic(() => import("@/components/wiki/wiki-related-files"))
+
 function AppRuntime({ children }: { children: React.ReactNode }) {
+  const [relatedFiles, setRelatedFiles] = useState<WikiRelatedFilesRequest | null>(null)
+  const dismiss = useCallback(() => {
+    setRelatedFiles(current => current === relatedFiles ? null : current)
+  }, [relatedFiles])
   useEffect(() => {
     if (['/editor-window', '/quick-record', '/print', '/screenshot'].some(path => window.location.pathname.startsWith(path))) return
     getSyncPushQueue()
+    emitter.on('wiki-show-related-files', setRelatedFiles)
+    return () => { emitter.off('wiki-show-related-files', setRelatedFiles) }
   }, [])
-  return <>{children}</>
+  return <>{children}{relatedFiles && <WikiRelatedFiles key={relatedFiles.key} request={relatedFiles} dismiss={dismiss} />}</>
 }
 
 export default function RootLayout({

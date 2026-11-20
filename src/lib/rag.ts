@@ -31,6 +31,7 @@ import { createHash } from 'crypto';
 import { getIdentifierTerms, getLexicalTerms, replaceLexicalTerm } from './lexical-tokenizer';
 import { isSkillsFolder } from './skills/utils';
 import { getVectorDocumentKey } from './vector-document-key';
+import { getArticleKnowledgeUpdatedAt } from './knowledge-content';
 import {
   createRetrievalStrategy,
   DEFAULT_EXCLUDED_RAG_PATHS,
@@ -533,7 +534,7 @@ export async function processMarkdownFile(
       indexedHash: null,
       status: 'pending',
       error: null,
-      updatedAt: Date.now(),
+      updatedAt: await getArticleKnowledgeUpdatedAt(await getFilePathOptions(articlePath)),
     });
     // 没有有效分块时清理旧索引，避免空内容仍被检索到。
     if (chunks.length === 0) {

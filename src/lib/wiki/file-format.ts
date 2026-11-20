@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import { z } from 'zod'
 import { createRelativeMarkdownHref } from '@/lib/markdown-file-link'
 import type {
-  WikiContribution, WikiEvidence, WikiPage, WikiSharedSettings, WikiSourceRevision,
+  WikiContribution, WikiEvidence, WikiPage, WikiSharedSettings, WikiSourceReference, WikiSourceRevision,
 } from '@/types/wiki'
 
 export type WikiMarkdownDocument = {
@@ -121,12 +121,32 @@ const envelopeSchema = z.union([pageEnvelopeSchema, indexEnvelopeSchema])
 type PageEnvelope = z.infer<typeof pageEnvelopeSchema>
 type Envelope = z.infer<typeof envelopeSchema>
 
-function frontmatter(envelope: Envelope, body: string) {
-  const origin = envelope.kind === 'page' ? envelope.page.id : 'index'
-  return `---\nnotegen-wiki-origin: ${JSON.stringify(origin)}\nnotegen-wiki-data: ${JSON.stringify(envelope)}\n---\n\n${normalizeBody(body)}\n`
+// Older readers strictly validate the v2 envelope and preserve other YAML fields.
+const sourceDateField = 'notegen-wiki-source-date:'
+function envelopeSource(source: WikiSourceReference) {
+  const portable = { ...source }
+  delete portable.updatedAt
+  return portable
 }
 
-function readEnvelope(text: string): { envelope: Envelope; body: string } | null {
+function sourceDate(fields: string[], source: WikiSourceReference): number | undefined {
+  const rows = fields.filter(line => line.startsWith(sourceDateField))
+  if (rows.length !== 1) return undefined
+  try {
+    const value: unknown = JSON.parse(rows[0].slice(sourceDateField.length))
+    if (Array.isArray(value) && value[0] === source.stableId && value[1] === source.contentHash
+      && Number.isSafeInteger(value[2]) && value[2] > 0) return value[2]
+  } catch { /* Invalid optional dates cannot qualify a source for a date range. */ }
+  return undefined
+}
+
+function frontmatter(envelope: Envelope, body: string, source?: WikiSourceReference) {
+  const origin = envelope.kind === 'page' ? envelope.page.id : 'index'
+  const dateLine = source?.updatedAt ? `\n${sourceDateField} ${JSON.stringify([source.stableId, source.contentHash, source.updatedAt])}` : ''
+  return `---\nnotegen-wiki-origin: ${JSON.stringify(origin)}\nnotegen-wiki-data: ${JSON.stringify(envelope)}${dateLine}\n---\n\n${normalizeBody(body)}\n`
+}
+
+function readEnvelope(text: string): { envelope: Envelope; body: string; sourceUpdatedAt?: number } | null {
   const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n')
   const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(normalized)
   if (!match) return null
@@ -139,12 +159,25 @@ function readEnvelope(text: string): { envelope: Envelope; body: string } | null
     if (!parsed.success) return null
     const expected = parsed.data.kind === 'page' ? parsed.data.page.id : 'index'
     if (JSON.parse(origin[0].slice('notegen-wiki-origin:'.length).trim()) !== expected) return null
-    return { envelope: parsed.data, body: normalizeBody(normalized.slice(match[0].length)) }
+    const revision = parsed.data.kind === 'page' ? parsed.data.revision : undefined
+    return { envelope: parsed.data, body: normalizeBody(normalized.slice(match[0].length)),
+      sourceUpdatedAt: revision ? sourceDate(fields, revision.source) : undefined }
   } catch { return null }
 }
 
 function marker(token: string, section: string, edge: 'start' | 'end') {
   return `<!-- notegen-wiki:${token}:${section}:${edge} -->`
+}
+
+/** The visual reader uses the same validated, ordered references as the file itself. */
+export function readWikiTopicCitationHeader(raw: string) {
+  if (!/^notegen-wiki-origin:\s*"topic:/m.test(raw)) return null
+  const envelope = readEnvelope(raw)?.envelope
+  if (envelope?.kind !== 'page' || envelope.page.kind !== 'topic' || !envelope.page.sourceRefs.length) return null
+  return {
+    pageId: envelope.page.id, sourceRefs: envelope.page.sourceRefs,
+    linksStart: marker(envelope.marker, 'links', 'start'), linksEnd: marker(envelope.marker, 'links', 'end'),
+  }
 }
 
 function block(token: string, section: string, body: string) {
@@ -205,7 +238,7 @@ function sourceLinks(page: WikiPage, filePath: string, allPages: WikiPage[], chi
 function pageMetadata(page: WikiPage, filePath: string) {
   return pageMetadataSchema.parse({
     id: page.id, kind: page.kind, title: page.title, aliases: page.aliases,
-    sourceRefs: page.sourceRefs, inputHash: page.inputHash, outputHash: page.outputHash,
+    sourceRefs: page.sourceRefs.map(envelopeSource), inputHash: page.inputHash, outputHash: page.outputHash,
     updatedAt: page.updatedAt, status: page.status, relatedPageIds: page.relatedPageIds,
     topicKey: page.topicKey, generation: page.generation, filePath,
   })
@@ -220,7 +253,7 @@ export function serializeWikiPageFile(
   const revisionData = revision && page.kind === 'source' ? {
     id: revision.id, inputHash: revision.inputHash, outputHash: revision.outputHash,
     pipelineVersion: revision.pipelineVersion, generation: revision.generation, language: revision.language,
-    source: revision.source, createdAt: revision.createdAt, modelId: revision.modelId, usage: revision.usage,
+    source: envelopeSource(revision.source), createdAt: revision.createdAt, modelId: revision.modelId, usage: revision.usage,
     contributions: revision.contributions.map((item, index) => ({
       marker: hash(`${token}:${index}:${item.topicKey}`), topicKey: item.topicKey,
       title: item.title, aliases: item.aliases, evidence: item.evidence.map(evidence => ({ nodeId: evidence.nodeId })),
@@ -245,13 +278,107 @@ export function serializeWikiPageFile(
     schema: 2, kind: 'page', marker: token, page: pageMetadata(page, filePath), revision: revisionData,
     generatedBodyHash: generatedBodyHash ?? hash(body),
   })
-  return frontmatter(envelope, body)
+  return frontmatter(envelope, body, revision?.source)
 }
 
-export function serializeWikiIndexFile(body: string, settings: WikiSharedSettings, generatedBodyHash?: string): string {
-  return frontmatter(indexEnvelopeSchema.parse({
-    schema: 2, kind: 'index', settings, generatedBodyHash: generatedBodyHash ?? hash(normalizeBody(body)),
-  }), body)
+type IndexKind = 'topic' | 'source'
+const indexKinds: IndexKind[] = ['topic', 'source']
+const indexDescription = (zh: boolean) => zh
+  ? '这些 Markdown 文件由 AI 根据选定资料整理，可在文件树中直接阅读和编辑。'
+  : 'These Markdown notes are organized from your selected sources. Read and edit them in the file tree.'
+
+function indexHeading(kind: IndexKind, zh: boolean) {
+  if (kind === 'topic') return zh ? '## 主题' : '## Topics'
+  return zh ? '## 来源摘要' : '## Source summaries'
+}
+
+const indexLinkLine = /^- \[(?:\\.|[^\]\\\r\n])*\]\(.+\)$/
+
+/** Recover only lines proven by the checksum. All other lines belong to the reader. */
+function recoverIndexSection(lines: string[], heading: string, expectedHash: string): string[] | null {
+  const generated = lines.filter(line => line === heading || indexLinkLine.test(line))
+  if (generated[0] !== heading) return null
+  const canonical = normalizeBody([heading, '', ...generated.slice(1)].join('\n'))
+  return hash(canonical) === expectedHash
+    ? lines.filter(line => line !== heading && !indexLinkLine.test(line)) : null
+}
+
+function migrateEditedIndex(body: string, previousLanguage: string, previousHash: string,
+  blocks: Record<IndexKind, string>, newline: string): string {
+  const zh = zhLanguage(previousLanguage)
+  const lines = body.split(newline)
+  const topics = lines.indexOf(indexHeading('topic', zh))
+  const sources = lines.indexOf(indexHeading('source', zh))
+  if (topics >= 0 && sources > topics) {
+    const sections = [lines.slice(topics + 1, sources), lines.slice(sources + 1)]
+    for (const contiguous of [true, false]) {
+      const indexes = sections.map(section => {
+        const result = new Set<number>()
+        for (const [index, line] of section.entries()) {
+          if (indexLinkLine.test(line)) result.add(index)
+          else if (contiguous && (line.trim() || result.size)) break
+        }
+        return result
+      })
+      const old = indexKinds.map((kind, index) => [indexHeading(kind, zh), '',
+        ...sections[index].filter((_, row) => indexes[index].has(row))].join('\n'))
+      const canonical = ['# Wiki', '', indexDescription(zh), '', old[0], '', old[1]].join('\n')
+      if (hash(normalizeBody(canonical)) === previousHash) {
+        return [...lines.slice(0, topics), blocks.topic, ...sections[0].filter((_, row) => !indexes[0].has(row)),
+          blocks.source, ...sections[1].filter((_, row) => !indexes[1].has(row))].join(newline)
+      }
+    }
+  }
+  // Ambiguous old links may be handwritten. Keep them and add a maintained directory once.
+  return body + newline + newline + blocks.topic + newline + newline + blocks.source + newline
+}
+
+function updateIndexSection(body: string, kind: IndexKind, next: string, newline: string): string {
+  const lines = body.split(newline)
+  const startPattern = new RegExp('^<!-- notegen-wiki:([a-f0-9]{64}):index-' + kind + ':start -->$')
+  // The last complete pair can still be maintained when an older marker was damaged.
+  for (let start = lines.length - 1; start >= 0; start--) {
+    const token = startPattern.exec(lines[start])?.[1]
+    if (!token) continue
+    const end = lines.indexOf(marker(token, 'index-' + kind, 'end'), start + 1)
+    if (end < 0) continue
+    const inside = lines.slice(start + 1, end)
+    if (inside.some(line => /^<!-- notegen-wiki:[a-f0-9]{64}:index-/.test(line))) continue
+    const current = normalizeBody(inside.join('\n'))
+    let authored: string[] = []
+    if (hash(current) !== token) {
+      const heading = inside.find(line => line === indexHeading(kind, true) || line === indexHeading(kind, false))
+      authored = (heading && recoverIndexSection(inside, heading, token)) || inside
+    }
+    return [...lines.slice(0, start), next, ...authored, ...lines.slice(end + 1)].join(newline)
+  }
+  return body + newline + newline + next + newline
+}
+
+/** Edit marked directory sections without reserializing user prose or frontmatter. */
+export function serializeWikiIndexFile(settings: WikiSharedSettings, lists: Record<IndexKind, string[]>, previous: string | null): string {
+  const zh = zhLanguage(settings.language)
+  const old = previous ? readEnvelope(previous)?.envelope : null
+  const header = previous && rawFrontmatterPattern.exec(previous)?.[0]
+  const newline = previous?.includes('\r\n') ? '\r\n' : '\n'
+  const section = (kind: IndexKind) => {
+    const content = normalizeBody([indexHeading(kind, zh), '', ...lists[kind]].join('\n'))
+    return block(hash(content), 'index-' + kind, content).replaceAll('\n', newline)
+  }
+  const blocks = { topic: section('topic'), source: section('source') }
+  const generated = ['# Wiki', '', indexDescription(zh), '', blocks.topic, '', blocks.source].join(newline)
+  const original = previous && header ? previous.slice(header.length) : ''
+  let body = newline + generated + newline
+  if (old?.kind === 'index' && hash(normalizeBody(original)) !== old.generatedBodyHash) {
+    body = /<!-- notegen-wiki:[a-f0-9]{64}:index-(?:topic|source):/.test(original)
+      ? indexKinds.reduce((text, kind) => updateIndexSection(text, kind, blocks[kind], newline), original)
+      : migrateEditedIndex(original, old.settings.language, old.generatedBodyHash, blocks, newline)
+  }
+  const envelope = indexEnvelopeSchema.parse({
+    schema: 2, kind: 'index', settings, generatedBodyHash: hash(normalizeBody(generated)),
+  })
+  return header ? header.replace(/^notegen-wiki-data:[^\r\n]*/m, () => 'notegen-wiki-data: ' + JSON.stringify(envelope)) + body
+    : frontmatter(envelope, body)
 }
 
 function parseContribution(
@@ -335,7 +462,15 @@ export function parseWikiMarkdown(text: string, contextId: string): WikiMarkdown
     kind: 'index', settings: envelope.settings,
     generatedBodyHash: envelope.generatedBodyHash, edited: hash(body) !== envelope.generatedBodyHash,
   }
-  return parsePage(envelope, body, contextId)
+  const document = parsePage(envelope, body, contextId)
+  if (document.kind === 'page' && document.revision && parsed.sourceUpdatedAt) {
+    const source = document.revision.source
+    source.updatedAt = parsed.sourceUpdatedAt
+    for (const ref of document.page.sourceRefs) {
+      if (ref.stableId === source.stableId && ref.contentHash === source.contentHash) ref.updatedAt = source.updatedAt
+    }
+  }
+  return document
 }
 
 /** Relocate managed navigation without regenerating or normalizing authored prose. */
@@ -386,11 +521,13 @@ function mergeUserFrontmatter(envelope: Envelope, previous: string, bodySource: 
   if (!match || !bodyMatch) throw new Error('WIKI_INVALID_MARKDOWN_METADATA')
   // Other user frontmatter fields (tags, aliases, etc.) belong to the note as well.
   const origin = envelope.kind === 'page' ? envelope.page.id : 'index'
-  const fields = match[1].split(/\r?\n/).map(line => {
+  const fields = match[1].split(/\r?\n/).filter(line => !line.startsWith(sourceDateField)).map(line => {
     if (line.startsWith('notegen-wiki-data:')) return `notegen-wiki-data: ${JSON.stringify(envelope)}`
     if (line.startsWith('notegen-wiki-origin:')) return `notegen-wiki-origin: ${JSON.stringify(origin)}`
     return line
   })
+  const dateLine = bodyMatch[1].split(/\r?\n/).find(line => line.startsWith(sourceDateField))
+  if (dateLine) fields.push(dateLine)
   const header = `${previous.startsWith('\uFEFF') ? '\uFEFF' : ''}---\n${fields.join('\n')}\n---\n`
   return `${header}${bodySource.slice(bodyMatch[0].length)}`
 }

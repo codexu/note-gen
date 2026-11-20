@@ -94,6 +94,29 @@ export function splitWikiText(text: string, tokenBudget: number): string[] {
   return chunks
 }
 
+/** Isolate substantive chapters and pack short headings together to avoid a request per heading. */
+export function splitWikiSourceText(text: string, budget: number): string[] {
+  if (estimateTokens(text) <= budget) return text.trim() ? [text] : []
+  const chunks: string[] = []
+  let smallSections = ''
+  for (const section of text.split(/(?=^#{1,6}[ \t]+)/m)) {
+    if (!section.trim()) continue
+    if (estimateTokens(section) >= budget / 4) {
+      if (smallSections) chunks.push(smallSections)
+      smallSections = ''
+      chunks.push(...splitWikiText(section, budget))
+    } else {
+      if (smallSections && estimateTokens(smallSections + section) > budget) {
+        chunks.push(smallSections)
+        smallSections = ''
+      }
+      smallSections += section
+    }
+  }
+  if (smallSections) chunks.push(smallSections)
+  return chunks
+}
+
 function parseWikiJson(text: string): unknown {
   const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
   try { return JSON.parse(trimmed) as unknown } catch { /* Allow one surrounding explanatory sentence. */ }

@@ -3,7 +3,7 @@ import type { AiConfig } from '@/app/core/setting/config'
 import type { RuntimeChatAttachment } from '@/lib/chat-attachments'
 import type { AgentImageAttachment } from '@/lib/chat-image-context'
 import type { ChatResponsePreview, PendingChatUi, RequestChatUi } from '@/lib/chat-ui/types'
-import type { KnowledgeWikiPageCandidate } from '@/types/knowledge'
+import type { KnowledgeWikiPageCandidate, KnowledgeOriginalGrant, RagSourceDetail } from '@/types/knowledge'
 
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[]
@@ -170,6 +170,7 @@ export interface AgentToolResult {
   changes?: AgentChange[]
   /** Private evidence grants; the model receives only lightweight page previews. */
   wikiPages?: KnowledgeWikiPageCandidate[]
+  sourceGrants?: Record<string, KnowledgeOriginalGrant>
 }
 
 export interface AgentTool {
@@ -444,24 +445,7 @@ export interface AgentState {
   selectedSkills?: string[]
   currentStepStartTime?: number
   ragSources?: string[]
-  ragSourceDetails?: Array<{
-    filepath: string
-    filename: string
-    content: string
-    sourceKey?: string
-    sourceType?: 'article' | 'record' | 'canvas'
-    sourceId?: string
-    locator?: {
-      filePath?: string
-      markId?: number
-      tagId?: number
-      canvasId?: string
-      nodeIds?: string[]
-    }
-    updatedAt?: number
-    evidenceKind?: 'wiki' | 'source'
-    wikiPageId?: string
-  }>
+  ragSourceDetails?: RagSourceDetail[]
   isFinalAnswerMode?: boolean
   finalAnswerContent?: string
 }

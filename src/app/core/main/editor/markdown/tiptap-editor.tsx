@@ -35,6 +35,8 @@ import 'katex/dist/katex.min.css'
 import { InlineMath, BlockMath } from './math-extension'
 import { MermaidDiagram } from './mermaid-extension'
 import { WikiMetadata } from './wiki-metadata-extension'
+import { WikiCitations } from './wiki-citation-extension'
+import type { WikiTopicCitation } from '@/types/wiki'
 import { SearchReplacePanel } from './search-replace-panel'
 import { useEffect, useId, useLayoutEffect, useRef, useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -170,6 +172,10 @@ import { PluginEditorContextMenu } from '@/components/plugins/plugin-editor-cont
 
 const MathEditorDialog = dynamic(
   () => import('./math-editor-dialog').then((module) => module.MathEditorDialog),
+  { ssr: false }
+)
+const WikiCitationDialog = dynamic(
+  () => import('@/components/wiki/wiki-citation-dialog').then(module => module.WikiCitationDialog),
   { ssr: false }
 )
 const SourceMarkdownEditor = dynamic(
@@ -2495,6 +2501,10 @@ export function TipTapEditor({
   const tImage = useTranslations('editor.image')
   const tSourceMode = useTranslations('settings.editor.sourceMode')
   const tAgentDiff = useTranslations('agentDiffNavigation')
+  const tCitation = useTranslations('wiki.citation')
+  const [wikiCitation, setWikiCitation] = useState<{
+    citation: WikiTopicCitation; filePath: string; trigger: HTMLElement
+  } | null>(null)
   const pendingQuote = useChatStore((state) => state.pendingQuote)
   const pendingSearchKeyword = useArticleStore((state) => state.pendingSearchKeyword)
   const setPendingSearchKeyword = useArticleStore((state) => state.setPendingSearchKeyword)
@@ -2502,6 +2512,7 @@ export function TipTapEditor({
   const getEditorViewState = useArticleStore((state) => state.getEditorViewState)
   // This is an editor-session reading preference, not a filesystem permission.
   const readingWorkspacePath = useSettingStore(state => state.workspacePath)
+  useEffect(() => { setWikiCitation(null) }, [activeFilePath, isActive, readingWorkspacePath])
   const fileReadOnly = useEditorReadingStore(state => Boolean(
     state.readOnlyFiles[readingKey(readingWorkspacePath, activeFilePath)],
   ))
@@ -2924,6 +2935,13 @@ export function TipTapEditor({
       BlockMath,
       MermaidDiagram,
       WikiMetadata,
+      WikiCitations.configure({
+        label: number => tCitation('title', { number }),
+        open: (citation, trigger) => {
+          const filePath = activeFilePathRef.current
+          if (filePath && isActiveRef.current) setWikiCitation({ citation, filePath, trigger })
+        },
+      }),
       Image.extend({
         addAttributes() {
           return {
@@ -7988,6 +8006,15 @@ export function TipTapEditor({
           } : {}),
         } as CSSProperties}
       >
+      {isActive && wikiCitation && wikiCitation.filePath === activeFilePath && (
+        <WikiCitationDialog
+          citation={wikiCitation.citation}
+          filePath={wikiCitation.filePath}
+          trigger={wikiCitation.trigger}
+          standalone={standalone}
+          onClose={() => setWikiCitation(null)}
+        />
+      )}
       {!standalone && primaryBackupMethod === 'selfHosted' && (
         <SelfHostedNoteConflicts
           activeFilePath={activeFilePath}

@@ -99,7 +99,7 @@ function normalizeEditorPath(path: string): NormalizedEditorPath | null {
   }
 }
 
-function getComparableEditorPath(
+export function getComparableEditorPath(
   path: string,
   workspaceRoot?: string,
 ): ComparableEditorPath | null {

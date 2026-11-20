@@ -19,7 +19,7 @@ import { buildMcpAgentToolCatalog } from '@/lib/mcp/agent-tools'
 import { agentDebugLog, agentDebugText, isAgentDebugEnabled, previewText } from './debug-log'
 import { getRagAgentPolicy } from '@/lib/rag-agent-policy'
 import { WebSearchBudget } from './web-search-budget'
-import { parseKnowledgeSourceKey, type KnowledgeWikiPageGrant } from '@/types/knowledge'
+import { parseKnowledgeSourceKey, type KnowledgeWikiPageGrant, type KnowledgeOriginalGrant, type KnowledgeWikiReadGrant } from '@/types/knowledge'
 import { getChatResponseText, parseChatResponseSpec } from '@/lib/chat-ui/response-catalog'
 import { createChatResponseStream } from '@/lib/chat-ui/response-stream'
 import type {
@@ -910,9 +910,11 @@ export class AgentRuntime {
     const webSearchBudget = new WebSearchBudget()
     let knowledgeSearchCount = 0
     const readKnowledgeSourceKeys = new Set<string>()
-    const originalSourceGrants = new Set<string>()
+    const originalSourceGrants = new Map<string, KnowledgeOriginalGrant[]>()
     const readWikiPageIds = new Set<string>()
     const readEvidenceSourceKeys = new Set<string>()
+    const readOriginalEvidence = new Map<string, KnowledgeOriginalGrant[]>()
+    const readWikiEvidence = new Map<string, KnowledgeWikiReadGrant>()
     const wikiPageGrants = new Map<string, KnowledgeWikiPageGrant[]>()
     const knowledgeReadLimit = ragAgentPolicy.strategy === 'fast'
       ? 1
@@ -966,6 +968,8 @@ export class AgentRuntime {
           }
         }
         requestedKeys.forEach(sourceKey => readKnowledgeSourceKeys.add(sourceKey))
+        args = { ...args, sourceGrants: Object.fromEntries(requestedKeys.filter(key => !isExplicitSource(key))
+          .map(key => [key, originalSourceGrants.get(key)!])) }
       }
       if (tool.name === 'knowledge_read_wiki') {
         const requests = Array.isArray(args.requests) ? args.requests : []
@@ -989,6 +993,12 @@ export class AgentRuntime {
         if (keys.some(key => typeof key !== 'string' || !readEvidenceSourceKeys.has(key))) return {
           ok: false, message: '只能引用本次已读取的 Wiki 证据或原文来源。', error: 'KNOWLEDGE_EVIDENCE_NOT_READ',
         }
+        const originals = [...readOriginalEvidence.keys()].filter(key => keys.includes(key))
+        args = { ...args,
+          explicitKeys: originals.filter(isExplicitSource),
+          sourceGrants: Object.fromEntries(originals.filter(key => !isExplicitSource(key)).map(key => [key, readOriginalEvidence.get(key)!])),
+          wikiCitations: [...readWikiEvidence.values()].filter(read => read.sourceRefs.some(ref => keys.includes(ref.sourceKey))),
+        }
       }
 
       const result = await executeAgentTool(
@@ -1010,19 +1020,32 @@ export class AgentRuntime {
           wikiPageGrants.set(page.pageId, [...previous, { contextId: page.contextId,
             sourceRefs: page.sourceRefs, scope: page.scope }])
         }
+        for (const [key, grant] of Object.entries(result.sourceGrants ?? {})) {
+          originalSourceGrants.set(key, [...(originalSourceGrants.get(key) ?? []), grant])
+        }
       }
       if (result.ok && Array.isArray(result.data)) {
         for (const item of result.data) {
           if (!item || typeof item !== 'object') continue
-          const value = item as { sourceKey?: unknown; sourceRefs?: unknown }
-          if (tool.name === 'knowledge_search' && typeof value.sourceKey === 'string') originalSourceGrants.add(value.sourceKey)
-          if (tool.name === 'knowledge_read_sources' && typeof value.sourceKey === 'string') readEvidenceSourceKeys.add(value.sourceKey)
-          if (tool.name === 'knowledge_read_wiki' && Array.isArray(value.sourceRefs)) {
-            for (const reference of value.sourceRefs) {
-              if (reference && typeof reference === 'object' && typeof (reference as { sourceKey?: unknown }).sourceKey === 'string') {
-                readEvidenceSourceKeys.add((reference as { sourceKey: string }).sourceKey)
-              }
+          const value = item as { sourceKey?: unknown; stableId?: unknown; contentHash?: unknown; sourceRefs?: unknown; pageId?: unknown; viewHash?: unknown }
+          if (tool.name === 'knowledge_read_sources' && typeof value.sourceKey === 'string') {
+            const grants = originalSourceGrants.get(value.sourceKey) ?? []
+            const contentHash = typeof value.contentHash === 'string' ? value.contentHash : undefined
+            readOriginalEvidence.set(value.sourceKey, grants.filter(grant => grant.stableId === value.stableId)
+              .map(grant => ({ ...grant, contentHash })))
+            readEvidenceSourceKeys.add(value.sourceKey)
+          }
+          if (tool.name === 'knowledge_read_wiki' && typeof value.pageId === 'string' && typeof value.viewHash === 'string' && Array.isArray(value.sourceRefs)) {
+            const refs = value.sourceRefs.filter((ref): ref is KnowledgeWikiPageGrant['sourceRefs'][number] =>
+              ref && typeof ref.sourceKey === 'string' && typeof ref.stableId === 'string' && typeof ref.contentHash === 'string')
+            refs.forEach(ref => readEvidenceSourceKeys.add(ref.sourceKey))
+            const previous = readWikiEvidence.get(value.viewHash)
+            const sourceRefs = [...(previous?.sourceRefs ?? [])]
+            for (const ref of refs) {
+              if (!sourceRefs.some(read => read.sourceKey === ref.sourceKey && read.stableId === ref.stableId)) sourceRefs.push(ref)
             }
+            readWikiEvidence.set(value.viewHash, { pageId: value.pageId, viewHash: value.viewHash, sourceRefs,
+              grants: [...(wikiPageGrants.get(value.pageId) ?? [])] })
           }
         }
       }

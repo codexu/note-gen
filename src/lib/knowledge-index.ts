@@ -1,3 +1,4 @@
+import { invalidateKnowledgeLexicalCache } from '@/lib/knowledge-lexical-cache'
 import { Store } from '@tauri-apps/plugin-store'
 import {
   deleteKnowledgeSource,
@@ -130,16 +131,18 @@ async function drainQueue() {
 }
 
 export function enqueueKnowledgeSourceIndex(sourceKey: string) {
+  invalidateKnowledgeLexicalCache(sourceKey)
   void import('@/lib/wiki/queue').then(({ enqueueWikiSource }) => enqueueWikiSource(sourceKey))
     .catch(error => console.error('Failed to schedule Wiki source:', error))
   pendingKeys.add(sourceKey)
   void drainQueue()
 }
 
-export async function removeKnowledgeSourceIndex(sourceKey: string) {
+export async function removeKnowledgeSourceIndex(sourceKey: string, wikiStableId?: string | null) {
+  invalidateKnowledgeLexicalCache(sourceKey)
   pendingKeys.delete(sourceKey)
   const { removeWikiSource } = await import('@/lib/wiki/queue')
-  await removeWikiSource(sourceKey)
+  await removeWikiSource(sourceKey, 'deleted', undefined, wikiStableId)
   await deleteVectorDocumentsByFilename(sourceKey)
   await deleteKnowledgeSource(sourceKey)
 }
@@ -194,6 +197,7 @@ export async function bootstrapStructuredKnowledgeRegistry() {
 }
 
 export async function reconcileStructuredKnowledgeSources() {
+  invalidateKnowledgeLexicalCache()
   const documents = [
     ...await collectRecordKnowledgeDocuments(),
     ...await collectCanvasKnowledgeDocuments(),

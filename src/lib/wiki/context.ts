@@ -38,6 +38,21 @@ export function captureWikiWorkspaceGuard(): () => boolean {
   return () => workspaceRevision === revision && useSettingStore.getState().workspacePath === path
 }
 
+let selectionRevision = 0
+let observingSelection = false
+
+/** In-flight reads must respect exclusions changed while source files were being resolved. */
+export function captureWikiSelectionGuard() {
+  if (!observingSelection && typeof window !== 'undefined') {
+    observingSelection = true
+    window.addEventListener('wiki-settings-changed', () => { selectionRevision++ })
+  }
+  const revision = selectionRevision
+  return () => {
+    if (selectionRevision !== revision) throw new Error('WIKI_SELECTION_CHANGED')
+  }
+}
+
 export async function assertWikiContextCurrent(expectedContextId: string): Promise<WikiContext> {
   const isCurrent = captureWikiWorkspaceGuard()
   const context = await getWikiContext()

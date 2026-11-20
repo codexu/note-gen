@@ -2,35 +2,35 @@ import { Store } from '@tauri-apps/plugin-store'
 import { getKnowledgeSource, getKnowledgeSources } from '@/db/knowledge'
 import { getSimilarDocuments } from '@/db/vector'
 import { fetchEmbedding, rerankDocuments } from '@/lib/ai'
+import { lookupKnowledgeLexicalText } from '@/lib/knowledge-lexical-cache'
 import { getBM25Index, parseBM25ChunkKey } from '@/lib/bm25'
-import { getKnowledgeSourceDocument } from '@/lib/knowledge-content'
+import { getArticleKnowledgeUpdatedAt, getKnowledgeSourceDocument } from '@/lib/knowledge-content'
+import { getFilePathOptions } from '@/lib/workspace'
 import { getKnowledgeSettings, isKnowledgeSourceEnabled } from '@/lib/knowledge-settings'
 import { getIdentifierTerms, getLexicalTerms } from '@/lib/lexical-tokenizer'
 import { DEFAULT_EXCLUDED_RAG_PATHS, isPathAllowedForRag } from '@/lib/rag-retrieval-policy'
 import {
   isKnowledgeSourceType,
   type KnowledgeReadPage,
+  type KnowledgeOriginalGrant,
   type KnowledgeSearchCandidate,
   type KnowledgeSearchResults,
   type KnowledgeSearchFragment,
   type KnowledgeSource,
+  type KnowledgeSourceDocument,
   type KnowledgeSourceType,
+  type KnowledgeWikiSearchScope,
 } from '@/types/knowledge'
 
-export interface KnowledgeSearchOptions {
+export interface KnowledgeSearchOptions extends KnowledgeWikiSearchScope {
   mode?: 'auto' | 'rag' | 'keyword'
-  sourceTypes?: KnowledgeSourceType[]
-  sourceMode?: 'prefer' | 'only'
-  folderPath?: string
-  tagId?: number
   limit?: number
-  /** Applied before any indexed content is searched, for authorized callers. */
-  sourceFilter?: (source: KnowledgeSource) => boolean
 }
 
 interface ChunkCandidate {
   sourceKey: string
   chunkId: number
+  nodeId?: string
   content: string
   score: number
 }
@@ -112,6 +112,7 @@ function inferDateRange(query: string): { start: number; end: number } | null {
 }
 
 export function matchesKnowledgeSearchScope(source: KnowledgeSource, options: KnowledgeSearchOptions) {
+  if (options.dateRange && (!source.updatedAt || source.updatedAt < options.dateRange.start || source.updatedAt >= options.dateRange.end)) return false
   if (options.sourceMode === 'only' && options.sourceTypes?.length
     && !options.sourceTypes.includes(source.sourceType)) return false
   if (options.folderPath && source.sourceType !== 'article') return false
@@ -139,17 +140,11 @@ function lexicalScore(content: string, query: string) {
   return terms.filter(term => normalizedContent.includes(term)).length / terms.length
 }
 
-async function resolveFragment(sourceKey: string, chunkId: number, content: string): Promise<KnowledgeSearchFragment> {
-  const document = await getKnowledgeSourceDocument(sourceKey)
-  return {
-    content,
-    nodeId: document?.chunks[chunkId]?.nodeId,
-  }
-}
-
 async function searchOriginalKnowledge(
   query: string,
-  options: KnowledgeSearchOptions = {}
+  options: KnowledgeSearchOptions,
+  assertCurrent: () => Promise<void>,
+  wikiSources: ReadonlyMap<string, { stableId: string }> | null,
 ): Promise<KnowledgeSearchCandidate[]> {
   const normalizedQuery = query.trim()
   if (!normalizedQuery) return []
@@ -164,15 +159,22 @@ async function searchOriginalKnowledge(
   const excludedFiles = new Set(await store.get<string[]>('vectorExcludedFiles') ?? [])
   const shares = sourceShares(normalizedQuery, options)
   const allowedTypes = Object.keys(shares).filter(isKnowledgeSourceType)
-  const dateRange = inferDateRange(normalizedQuery)
-  const sources = (await getKnowledgeSources({ sourceTypes: allowedTypes }))
+  const sources: KnowledgeSource[] = []
+  const { dateRange, ...scope } = options
+  const scoped = (await getKnowledgeSources({ sourceTypes: allowedTypes }))
     .filter(source => (
-      isKnowledgeSourceEnabled(source, settings)
+      isKnowledgeSourceEnabled(source, settings) && matchesKnowledgeSearchScope(source, scope)
       && (source.sourceType !== 'article' || (isPathAllowedForRag(source.locator.filePath || source.sourceId, { excludedPaths })
         && !excludedFiles.has(source.locator.filePath || source.sourceId)))
-      && matchesKnowledgeSearchScope(source, options)
-      && (!dateRange || (source.updatedAt >= dateRange.start && source.updatedAt < dateRange.end))
     ))
+  for (const registered of scoped) {
+    // Older article registry entries carry the indexing time. Check the file
+    // timestamp for date-limited searches even if no reindex has happened.
+    const source = dateRange && registered.sourceType === 'article'
+      ? { ...registered, updatedAt: await getArticleKnowledgeUpdatedAt(await getFilePathOptions(registered.locator.filePath || registered.sourceId)) }
+      : registered
+    if (matchesKnowledgeSearchScope(source, { dateRange })) sources.push(source)
+  }
   if (sources.length === 0) return []
   const sourceByKey = new Map(sources.map(source => [source.sourceKey, source]))
   const lexicalKeys = new Set(sources.map(source => source.sourceKey))
@@ -232,13 +234,40 @@ async function searchOriginalKnowledge(
     })
   }
 
+  // Index hits nominate chunks. Verify current text and scope before sending
+  // anything to the reranker, including hits from a previous workspace.
+  const liveHits = new Map<string, KnowledgeSourceDocument | null>()
+  const stableIds = new Map<string, string>()
+  async function readCurrent(sourceKey: string) {
+    const registered = sourceByKey.get(sourceKey)
+    if (!registered) return null
+    const document = await getKnowledgeSourceDocument(sourceKey)
+    if (!document) return null
+    if (wikiSources && document.sourceType === 'record' && document.stableId !== wikiSources.get(sourceKey)?.stableId) return null
+    const current = { ...registered, title: document.title, contentHash: document.contentHash,
+      updatedAt: document.updatedAt, locator: document.locator }
+    if (!matchesKnowledgeSearchScope(current, options)) return null
+    if (document.stableId) stableIds.set(sourceKey, document.stableId)
+    sourceByKey.set(sourceKey, current)
+    return document
+  }
+  for (const [key, candidate] of candidates) {
+    if (!liveHits.has(candidate.sourceKey)) liveHits.set(candidate.sourceKey, await readCurrent(candidate.sourceKey))
+    const chunk = liveHits.get(candidate.sourceKey)?.chunks[candidate.chunkId]
+    if (!chunk || chunk.content !== candidate.content) candidates.delete(key)
+    else candidate.nodeId = chunk.nodeId
+  }
+
   for (const source of sources) {
     if (candidates.size >= candidatePoolSize * 2) break
-    const document = await getKnowledgeSourceDocument(source.sourceKey)
+    const cached = await lookupKnowledgeLexicalText(source)
+    if (cached.text !== undefined && lexicalScore(cached.text, normalizedQuery) === 0) continue
+    const document = liveHits.has(source.sourceKey) ? liveHits.get(source.sourceKey) : await readCurrent(source.sourceKey)
     if (!document) continue
+    cached.remember(document)
     document.chunks.forEach((chunk, chunkId) => {
       const score = lexicalScore(chunk.content, normalizedQuery)
-      if (score > 0) addCandidate({ sourceKey: source.sourceKey, chunkId, content: chunk.content, score })
+      if (score > 0) addCandidate({ sourceKey: source.sourceKey, chunkId, nodeId: chunk.nodeId, content: chunk.content, score })
     })
   }
 
@@ -273,6 +302,7 @@ async function searchOriginalKnowledge(
   const rankingInput = sourceCandidates.map((candidate, id) => ({
     id, filename: candidate.sourceKey, content: candidate.content, similarity: candidate.score,
   }))
+  await assertCurrent()
   const reranked = options.mode === 'keyword' || !settings.semanticSearchEnabled
     ? rankingInput
     : await rerankDocuments(
@@ -300,13 +330,12 @@ async function searchOriginalKnowledge(
     const baseScore = Math.max(0, result.similarity)
     if (baseScore < finalRelevanceThreshold) continue
     const score = baseScore + (isRelativeTimeQuery(normalizedQuery) ? recencyBoost(source.updatedAt) : 0)
-    const fragments = await Promise.all(candidate.fragments.map(fragment => (
-      resolveFragment(source.sourceKey, fragment.chunkId, fragment.content)
-    )))
+    const fragments = candidate.fragments.map(({ content, nodeId }) => ({ content, nodeId }))
     results.push({
       sourceKey: source.sourceKey,
       sourceType: source.sourceType,
       sourceId: source.sourceId,
+      stableId: stableIds.get(source.sourceKey),
       title: source.title,
       fragments,
       relevanceScore: score,
@@ -337,16 +366,26 @@ const READ_PAGE_SIZE = 7000
 export async function searchKnowledgeWithWiki(
   query: string, options: KnowledgeSearchOptions = {},
 ): Promise<KnowledgeSearchResults> {
-  const [{ getWikiSettings, isWikiSourceSelected }, { getWikiContext, captureWikiWorkspaceGuard, assertWikiContextCurrent }, { searchWiki },
-    { listWikiSourceStates }, { resolveWikiSourceReference }] = await Promise.all([
+  try {
+    return await searchCurrentKnowledge(query, options)
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== 'WIKI_SELECTION_CHANGED') throw error
+    return searchCurrentKnowledge(query, options)
+  }
+}
+
+async function searchCurrentKnowledge(query: string, options: KnowledgeSearchOptions): Promise<KnowledgeSearchResults> {
+  const [{ getWikiSettings, isWikiSourceSelected }, { getWikiContext, captureWikiSelectionGuard, captureWikiWorkspaceGuard, assertWikiContextCurrent }, { searchWiki },
+    { listWikiOriginalSearchSources }] = await Promise.all([
     import('@/lib/wiki/settings'), import('@/lib/wiki/context'), import('@/lib/wiki/search'), import('@/db/wiki'),
-    import('@/lib/wiki/sources'),
   ])
   const isCurrent = captureWikiWorkspaceGuard()
+  const checkSelection = captureWikiSelectionGuard()
   const context = await getWikiContext()
   const assertCurrent = async () => {
     if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
     await assertWikiContextCurrent(context.id)
+    checkSelection()
     if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
   }
   const settings = await getWikiSettings(context.id)
@@ -354,35 +393,27 @@ export async function searchKnowledgeWithWiki(
   const store = await Store.load('store.json')
   const limit = options.limit ?? await store.get<number>('ragResultCount') ?? 5
   const hinted = options.sourceTypes?.length ? options.sourceTypes : inferSourceHints(query)
-  const wikiOptions = { ...options, limit,
+  const dateRange = options.dateRange ?? inferDateRange(query) ?? undefined
+  const wikiOptions = { ...options, limit, dateRange,
     ...(hinted.length && isOnlySourceRequest(query) ? { sourceTypes: hinted, sourceMode: 'only' as const } : {}) }
   const wiki = settings.enabled ? await searchWiki(query, wikiOptions) : []
   await assertCurrent()
-  const states = settings.enabled && !settings.semanticSearchEnabled ? new Map<string,
-    Awaited<ReturnType<typeof listWikiSourceStates>>[number]>() : null
-  if (states) for (const state of await listWikiSourceStates(context.id)) {
-    if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
-    // Article/canvas keys are already portable. Only records need resolving a
-    // device-local SQLite ID; avoid rereading every original a second time.
-    const source = state.sourceType === 'record'
-      ? (await resolveWikiSourceReference(state.source))?.source : state.source
-    if (source) states.set(source.sourceKey, { ...state, sourceKey: source.sourceKey, source })
-  }
-  const original = await searchOriginalKnowledge(query, { ...options, limit,
-    sourceFilter: states ? source => {
-      const state = states.get(source.sourceKey)
-      return Boolean(state && !['deleted', 'excluded', 'unavailable'].includes(state.status)
-        && isWikiSourceSelected(state.source, settings) && (!options.sourceFilter || options.sourceFilter(source)))
-    } : options.sourceFilter })
+  const scopedSources = settings.enabled && !settings.semanticSearchEnabled
+    ? await listWikiOriginalSearchSources(context.id) : null
+  const original = await searchOriginalKnowledge(query, { ...options, limit, dateRange,
+    sourceFilter: scopedSources ? source => {
+      const wikiSource = scopedSources.get(source.sourceKey)
+      return Boolean(wikiSource && isWikiSourceSelected(wikiSource, settings) && (!options.sourceFilter || options.sourceFilter(source)))
+    } : options.sourceFilter }, assertCurrent, scopedSources)
   await assertCurrent()
   const results = new Map<string, KnowledgeSearchCandidate>()
   for (const hit of wiki) {
     for (const source of hit.sourceRefs) {
       const current = results.get(source.sourceKey)
       results.set(source.sourceKey, {
-        sourceKey: source.sourceKey, sourceType: source.sourceType,
+        sourceKey: source.sourceKey, sourceType: source.sourceType, stableId: source.stableId,
         sourceId: source.sourceKey.slice(source.sourceKey.indexOf(':') + 1), title: source.title,
-        locator: source.locator, updatedAt: hit.page.updatedAt,
+        locator: source.locator, updatedAt: source.updatedAt ?? 0,
         relevanceScore: Math.max(current?.relevanceScore ?? 0, hit.score),
         fragments: current?.fragments ?? [],
         wikiPageIds: [...new Set([...(current?.wikiPageIds ?? []), hit.page.id])], evidenceKind: 'wiki',
@@ -390,22 +421,32 @@ export async function searchKnowledgeWithWiki(
     }
   }
   for (const hit of original) {
-    const previous = results.get(hit.sourceKey)
-    results.set(hit.sourceKey, previous ? { ...hit,
+    const compiled = results.get(hit.sourceKey)
+    const previous = hit.sourceType === 'record' && hit.stableId !== compiled?.stableId ? undefined : compiled
+    results.set(hit.sourceKey, previous ? { ...hit, updatedAt: previous.updatedAt || hit.updatedAt,
       relevanceScore: Math.max(previous.relevanceScore, hit.relevanceScore),
       fragments: [...previous.fragments, ...hit.fragments].slice(0, 3),
       wikiPageIds: previous.wikiPageIds, evidenceKind: 'wiki' } : { ...hit, evidenceKind: 'source' })
   }
+  const scope = { sourceTypes: wikiOptions.sourceTypes, sourceMode: wikiOptions.sourceMode,
+    folderPath: wikiOptions.folderPath, tagId: wikiOptions.tagId, dateRange, sourceFilter: wikiOptions.sourceFilter }
+  const sources = [...results.values()].sort((left, right) => right.relevanceScore - left.relevanceScore).slice(0, limit)
+  const originalKeys = new Set(original.map(hit => hit.sourceKey))
+  const sourceGrants: Record<string, KnowledgeOriginalGrant> = {}
+  for (const source of sources) {
+    const stableId = source.sourceType === 'record' ? source.stableId : source.sourceKey
+    if (stableId) sourceGrants[source.sourceKey] = { stableId, contextId: context.id, scope,
+      wikiScoped: Boolean(scopedSources) || !originalKeys.has(source.sourceKey) }
+  }
   return {
-    sources: [...results.values()].sort((left, right) => right.relevanceScore - left.relevanceScore).slice(0, limit),
+    sourceGrants, sources,
     wikiPages: wiki.map(hit => ({
       contextId: context.id,
       pageId: hit.page.id, title: hit.page.title, excerpt: hit.content.slice(0, 2400),
       relevanceScore: hit.score, updatedAt: hit.page.updatedAt,
       sourceRefs: hit.sourceRefs.map(source => ({ sourceKey: source.sourceKey,
         stableId: source.stableId, contentHash: source.contentHash })),
-      scope: { sourceTypes: wikiOptions.sourceTypes, sourceMode: wikiOptions.sourceMode,
-        folderPath: wikiOptions.folderPath, tagId: wikiOptions.tagId, sourceFilter: wikiOptions.sourceFilter },
+      scope,
     })),
   }
 }
@@ -428,10 +469,50 @@ export async function searchKnowledge(query: string, options: KnowledgeSearchOpt
   })
 }
 
-export async function readKnowledgeSourcePage(sourceKey: string, cursor?: string): Promise<KnowledgeReadPage | null> {
+async function originalReadAllowed(document: KnowledgeSourceDocument, grants: KnowledgeOriginalGrant[], contextId: string) {
+  const stableId = document.sourceType === 'record' ? document.stableId : document.sourceKey
+  const matching = grants.filter(grant => grant.contextId === contextId && grant.stableId === stableId
+    && (!grant.contentHash || grant.contentHash === document.contentHash)
+    && matchesKnowledgeSearchScope(document, grant.scope))
+  if (!matching.length) return false
+  const [{ getWikiSettings, isWikiSourceSelected }, knowledge, store] = await Promise.all([
+    import('@/lib/wiki/settings'), getKnowledgeSettings(), Store.load('store.json'),
+  ])
+  if (!isKnowledgeSourceEnabled(document, knowledge)) return false
+  if (document.sourceType === 'article') {
+    const path = document.locator.filePath || document.sourceId
+    const excludedPaths = await store.get<string[]>('ragExcludedPaths') ?? DEFAULT_EXCLUDED_RAG_PATHS
+    const excludedFiles = await store.get<string[]>('vectorExcludedFiles') ?? []
+    if (excludedFiles.includes(path) || !isPathAllowedForRag(path, { excludedPaths })) return false
+  }
+  const settings = await getWikiSettings(contextId)
+  if ((!settings.enabled || settings.semanticSearchEnabled) && matching.some(grant => !grant.wikiScoped)) return true
+  if (!settings.enabled || !stableId) return false
+  const [{ getWikiSourceState }, { getWikiSourceDocument, getWikiSourcePolicy }] = await Promise.all([
+    import('@/db/wiki'), import('@/lib/wiki/sources'),
+  ])
+  const [state, original, policy] = await Promise.all([
+    getWikiSourceState(contextId, stableId), getWikiSourceDocument(document.sourceKey), getWikiSourcePolicy(contextId, settings),
+  ])
+  return Boolean(state && !['deleted', 'excluded', 'unavailable'].includes(state.status)
+    && original && original.source.stableId === stableId && policy.allows(original.source, original.derived)
+    && isWikiSourceSelected(original.source, settings))
+}
+
+export async function readKnowledgeSourcePage(
+  sourceKey: string, cursor?: string, grants?: KnowledgeOriginalGrant[],
+): Promise<KnowledgeReadPage | null> {
+  const { assertWikiContextCurrent, captureWikiSelectionGuard, captureWikiWorkspaceGuard, getWikiContext } = await import('@/lib/wiki/context')
+  const selectionIsCurrent = grants ? captureWikiSelectionGuard() : undefined
+  const workspaceIsCurrent = captureWikiWorkspaceGuard()
+  const context = await getWikiContext()
   const source = await getKnowledgeSource(sourceKey)
+  if (!source || (grants && !grants.some(grant => grant.contextId === context.id))) return null
   const document = await getKnowledgeSourceDocument(sourceKey)
-  if (!source || !document) return null
+  if (!document || (grants && !await originalReadAllowed(document, grants, context.id))) return null
+  await assertWikiContextCurrent(context.id)
+  if (!workspaceIsCurrent()) throw new Error('WIKI_CONTEXT_CHANGED')
+  selectionIsCurrent?.()
   if (source.sourceType !== 'article') {
     const chunkOffset = Math.max(0, Number.parseInt(cursor?.replace(/^chunk:/, '') || '0', 10) || 0)
     const pageChunks: string[] = []
@@ -446,15 +527,15 @@ export async function readKnowledgeSourcePage(sourceKey: string, cursor?: string
     }
     const nextCursor = nextChunk < document.chunks.length ? `chunk:${nextChunk}` : undefined
     return {
-      sourceKey,
+      sourceKey, stableId: document.stableId ?? sourceKey, contentHash: document.contentHash,
       sourceType: source.sourceType,
       title: source.title,
       content: pageChunks.join('\n\n---\n\n'),
       cursor: `chunk:${chunkOffset}`,
       nextCursor,
       complete: !nextCursor,
-      updatedAt: source.updatedAt,
-      locator: source.locator,
+      updatedAt: document.updatedAt,
+      locator: document.locator,
     }
   }
 
@@ -462,14 +543,14 @@ export async function readKnowledgeSourcePage(sourceKey: string, cursor?: string
   const end = Math.min(document.content.length, offset + READ_PAGE_SIZE)
   const nextCursor = end < document.content.length ? String(end) : undefined
   return {
-    sourceKey,
+    sourceKey, stableId: document.stableId ?? sourceKey, contentHash: document.contentHash,
     sourceType: source.sourceType,
     title: source.title,
     content: document.content.slice(offset, end),
     cursor: String(offset),
     nextCursor,
     complete: !nextCursor,
-    updatedAt: source.updatedAt,
-    locator: source.locator,
+    updatedAt: document.updatedAt,
+    locator: document.locator,
   }
 }

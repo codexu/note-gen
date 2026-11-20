@@ -29,12 +29,14 @@ interface MobileActionDrawerProps {
   title: string
   trigger: ReactNode
   items: MobileActionDrawerItem[]
+  renderExtraItems?: (dismiss: () => void) => ReactNode
 }
 
 export function MobileActionDrawer({
   title,
   trigger,
   items,
+  renderExtraItems,
 }: MobileActionDrawerProps) {
   const [open, setOpen] = useState(false)
   const [pendingKey, setPendingKey] = useState<string | null>(null)
@@ -47,6 +49,7 @@ export function MobileActionDrawer({
           <DrawerTitle>{title}</DrawerTitle>
         </DrawerHeader>
         <div className="flex flex-col px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+          {open && renderExtraItems?.(() => setOpen(false))}
           {items.map((item) => (
             <Fragment key={item.key}>
               {item.separatorBefore ? <Separator className="my-1" /> : null}

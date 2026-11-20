@@ -202,6 +202,7 @@ const useRagSettingsStore = create<RagSettingsState>((set, get) => ({
       await store.set('ragGlobalSemanticSearchEnabled', DEFAULT_RAG_SETTINGS.globalSemanticSearchEnabled);
       await store.set('ragKnowledgeIndexPaused', DEFAULT_RAG_SETTINGS.indexPaused);
       await store.set('ragIndexNeedsRebuild', true);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('wiki-settings-changed'));
     } catch (error) {
       toast({
         title: '重置 RAG 设置失败',

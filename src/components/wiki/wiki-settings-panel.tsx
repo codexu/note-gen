@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { BookOpen, ChevronDown, Pause, Play, RefreshCw } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { BookOpen, ChevronDown, Pause, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -19,16 +20,19 @@ import { getPluginLanguages } from '@/i18n/config'
 import { cn } from '@/lib/utils'
 import { useWikiData } from './use-wiki-data'
 import { useWikiErrorMessage } from './use-wiki-error-message'
+import { WikiTaskList } from './wiki-task-list'
 import { WikiSyncNotice } from './wiki-sync-notice'
 import { KnowledgeSettingCard } from './knowledge-setting-card'
 import { useWikiActionScope } from './use-wiki-action-scope'
 
 export function WikiSettingsPanel() {
   const t = useTranslations('wiki')
+  const mobileRoute = usePathname().startsWith('/mobile')
   const errorMessage = useWikiErrorMessage()
   const { data, error, loading, refresh } = useWikiData()
   const { busy, beginAction } = useWikiActionScope(data?.context.id ?? 'loading')
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [failureLimit, setFailureLimit] = useState(5)
 
   async function run(action: () => Promise<unknown>) {
     if (!data) return
@@ -55,9 +59,12 @@ export function WikiSettingsPanel() {
     { value: 'zh', label: '中文' }, { value: 'en', label: 'English' }, ...getPluginLanguages(),
     { value: settings.language, label: settings.language },
   ].reverse().map(language => [language.value, language])).values()].reverse()
-  const failedCount = jobs.filter(job => job.status === 'failed').length
-  const jobPriority = { failed: 0, running: 1, pending: 2, paused: 3 }
-  const visibleJobs = [...jobs].sort((left, right) => jobPriority[left.status] - jobPriority[right.status] || right.updatedAt - left.updatedAt).slice(0, 10)
+  const failedJobs = jobs.filter(job => job.status === 'failed').sort((left, right) => right.updatedAt - left.updatedAt)
+  const jobPriority = { running: 0, pending: 1, paused: 2, failed: 3 }
+  const activeJobs = jobs.filter(job => job.status !== 'failed').sort((left, right) =>
+    jobPriority[left.status] - jobPriority[right.status] || right.updatedAt - left.updatedAt).slice(0, 10)
+  const retry = (job: (typeof jobs)[number]) => run(() => retryWikiJob(job.id, { expectedContextId: context.id }))
+  const rebuild = (job: (typeof jobs)[number]) => run(() => retryWikiJob(job.id, { overwriteEdited: true, expectedContextId: context.id }))
   return <KnowledgeSettingCard
     title={t('wikiTitle')}
     description={t('wikiDescription')}
@@ -68,7 +75,7 @@ export function WikiSettingsPanel() {
   >
     {settings.enabled ? <>
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">{t('folderManagementHint')}</p>
+        <p className="text-sm text-muted-foreground">{t(mobileRoute ? 'folderManagementMobileHint' : 'folderManagementHint')}</p>
         {settings.started ? <>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{t(settings.paused ? 'statuses.paused' : 'automaticMaintenance')}</Badge>
@@ -76,7 +83,11 @@ export function WikiSettingsPanel() {
           </div>
           <p className="text-xs text-muted-foreground">{t('foregroundNotice')}</p>
         </> : null}
-        {failedCount > 0 ? <p className="text-sm text-destructive">{t('failedTasks', { count: failedCount })}</p> : null}
+        {failedJobs.length > 0 && <section className="flex flex-col gap-2">
+          <h3 className="text-sm font-medium">{t('failedTasks', { count: failedJobs.length })}</h3>
+          <WikiTaskList jobs={failedJobs.slice(0, failureLimit)} data={data} busy={busy} onRetry={retry} onRebuild={rebuild} />
+          {failedJobs.length > failureLimit && <Button variant="ghost" size="sm" onClick={() => setFailureLimit(limit => limit + 10)}>{t('folder.showMore')}</Button>}
+        </section>}
       </div>
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="rounded-xl bg-muted/40 p-2">
         <CollapsibleTrigger asChild><Button variant="ghost" size="sm" className="h-auto min-h-8 w-full justify-between py-2"><span className="min-w-0 whitespace-normal text-left">{t('wikiAdvanced')}</span><ChevronDown data-icon="inline-end" className={cn('transition-transform', advancedOpen && 'rotate-180')} /></Button></CollapsibleTrigger>
@@ -93,7 +104,8 @@ export function WikiSettingsPanel() {
           </ItemGroup>
           <dl className="grid grid-cols-2 gap-4"><div><dt className="text-xs text-muted-foreground">{t('inputTokens')}</dt><dd className="font-medium">{usage.inputTokens.toLocaleString()}</dd></div><div><dt className="text-xs text-muted-foreground">{t('outputTokens')}</dt><dd className="font-medium">{usage.outputTokens.toLocaleString()}</dd></div></dl>
           <p className="text-xs text-muted-foreground">{usage.estimated ? t('estimatedUsage') : t('actualUsage')}</p>
-          {visibleJobs.length ? <ItemGroup>{visibleJobs.map(job => <Item key={job.id} variant="outline"><ItemContent><ItemTitle>{data.pages.find(page => page.id === job.id)?.title || data.sources.find(source => source.sourceKey === job.sourceKey)?.source.title || t(job.kind === 'topic' ? 'topicTask' : 'sourceTask')}</ItemTitle><ItemDescription>{job.error ? errorMessage(job.error) : t(`statuses.${job.status}`)}</ItemDescription></ItemContent>{job.status === 'failed' && job.error !== 'WIKI_FILE_DELETED' ? <ItemActions><Button variant="outline" size="sm" disabled={busy} onClick={() => void run(() => retryWikiJob(job.id, { overwriteEdited: job.error === 'WIKI_FILE_EDITED', expectedContextId: context.id }))}><RefreshCw data-icon="inline-start" />{t(job.error === 'WIKI_FILE_EDITED' ? 'rebuild' : 'retry')}</Button></ItemActions> : null}</Item>)}</ItemGroup> : <p className="text-sm text-muted-foreground">{t('noTasks')}</p>}
+          {activeJobs.length ? <WikiTaskList jobs={activeJobs} data={data} busy={busy} onRetry={retry} />
+            : !failedJobs.length && <p className="text-sm text-muted-foreground">{t('noTasks')}</p>}
           <p className="text-xs text-muted-foreground">{t('syncNotice')}</p>
           <WikiSyncNotice status={data.syncStatus} />
         </CollapsibleContent>

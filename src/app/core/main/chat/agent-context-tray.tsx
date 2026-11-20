@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { useLocale, useTranslations } from "next-intl"
-import { usePathname, useRouter } from "next/navigation"
 import {
   ChevronRight,
   Database,
@@ -12,58 +11,31 @@ import {
   PanelsTopLeft,
   Sparkles,
 } from "lucide-react"
-import { createCanvasTab } from "@/app/core/main/canvas/canvas-tab"
-import useArticleStore from "@/stores/article"
-import useCanvasStore from "@/stores/canvas"
-import useMarkStore from "@/stores/mark"
-import { useSidebarStore } from "@/stores/sidebar"
-import useTagStore from "@/stores/tag"
 import type { AgentSkillSummary } from "@/lib/agent/types"
 import { cn } from "@/lib/utils"
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker"
-import { Badge } from '@/components/ui/badge'
-import { useWikiNavigation } from '@/components/wiki/use-wiki-navigation'
-
-export interface RagSourceDetail {
-  filepath: string
-  filename: string
-  content: string
-  sourceKey?: string
-  sourceType?: 'article' | 'record' | 'canvas'
-  sourceId?: string
-  locator?: {
-    filePath?: string
-    markId?: number
-    tagId?: number
-    canvasId?: string
-    nodeIds?: string[]
-  }
-  updatedAt?: number
-  evidenceKind?: 'wiki' | 'source'
-  wikiPageId?: string
-}
+import { KnowledgeSourceLink } from '@/components/chat-ui/knowledge-source-link'
+import { KnowledgeSourceEvidence } from './knowledge-source-evidence'
+import type { RagSourceDetail } from '@/types/knowledge'
 
 interface AgentContextTrayProps {
+  workspaceFingerprint?: string | null
   ragSources?: string[]
   ragSourceDetails?: RagSourceDetail[]
   loadedSkills?: AgentSkillSummary[]
 }
 
 export function AgentContextTray({
+  workspaceFingerprint,
   ragSources = [],
   ragSourceDetails = [],
   loadedSkills = [],
 }: AgentContextTrayProps) {
   const t = useTranslations('record.chat.ragSources')
-  const wiki = useTranslations('wiki')
   const locale = useLocale()
   const [showRag, setShowRag] = React.useState(false)
   const [showSkills, setShowSkills] = React.useState(false)
   const [expandedSkillDescriptions, setExpandedSkillDescriptions] = React.useState<string[]>([])
-  const { setActiveFilePath } = useArticleStore()
-  const router = useRouter()
-  const pathname = usePathname()
-  const { openPage: openWikiPage } = useWikiNavigation()
 
   const detailMap = React.useMemo(
     () => new Map(ragSourceDetails.map((detail) => [detail.filename, detail])),
@@ -88,45 +60,6 @@ export function AgentContextTray({
     return new Intl.ListFormat(locale, { style: 'short', type: 'conjunction' }).format(parts)
   }, [detailMap, locale, ragSources, ragSourceDetails, t])
 
-  const openRagSource = async (detail: RagSourceDetail) => {
-    if (detail.sourceType === 'record' && detail.locator?.markId) {
-      if (detail.locator.tagId) {
-        await useTagStore.getState().setCurrentTagId(detail.locator.tagId)
-      }
-      await useSidebarStore.getState().setLeftSidebarTab('notes')
-      await useMarkStore.getState().fetchMarks()
-      useMarkStore.getState().setPendingScrollMarkId(detail.locator.markId)
-      useMarkStore.getState().setHighlightedMarkId(detail.locator.markId)
-      if (pathname.startsWith('/mobile')) router.push('/mobile/record')
-      return
-    }
-
-    if (detail.sourceType === 'canvas' && detail.locator?.canvasId) {
-      const canvasId = detail.locator.canvasId
-      useCanvasStore.getState().setPendingFocus({
-        canvasId,
-        nodeIds: detail.locator.nodeIds || [],
-      })
-      const project = await useCanvasStore.getState().openProject(canvasId)
-      if (!project) return
-      if (pathname.startsWith('/mobile')) {
-        router.push(`/mobile/canvas/editor?id=${encodeURIComponent(canvasId)}`)
-        return
-      }
-      await useArticleStore.getState().addTab(createCanvasTab(project))
-      await useSidebarStore.getState().setLeftSidebarTab('canvases')
-      return
-    }
-
-    const filepath = detail.locator?.filePath || detail.filepath
-    if (!filepath) return
-    await setActiveFilePath(
-      filepath,
-      true,
-      pathname.startsWith('/mobile') ? undefined : { tabOpenMode: 'preview' },
-    )
-  }
-
   const sourceIcon = (sourceType?: RagSourceDetail['sourceType']) => {
     if (sourceType === 'record') return <NotebookPen />
     if (sourceType === 'canvas') return <PanelsTopLeft />
@@ -140,12 +73,6 @@ export function AgentContextTray({
     return t('typeSource')
   }
 
-  const openSourceLabel = (sourceType?: RagSourceDetail['sourceType']) => {
-    if (sourceType === 'record') return t('openRecord')
-    if (sourceType === 'canvas') return t('openCanvas')
-    if (sourceType === 'article') return t('openArticle')
-    return t('openSource')
-  }
 
   const toggleSkillDescription = (skillId: string) => {
     setExpandedSkillDescriptions((current) =>
@@ -167,6 +94,7 @@ export function AgentContextTray({
             <button
               type="button"
               className="group py-1.5 transition-colors hover:text-foreground"
+              aria-expanded={showRag}
               onClick={() => setShowRag((value) => !value)}
             >
               <MarkerIcon><Database /></MarkerIcon>
@@ -188,35 +116,19 @@ export function AgentContextTray({
                     <Marker>
                       <MarkerIcon>{sourceIcon(detail?.sourceType)}</MarkerIcon>
                       <MarkerContent className="flex-1 truncate">{source}</MarkerContent>
-                      {detail && (
-                        <button
-                          type="button"
-                          className="shrink-0 text-primary hover:underline"
-                          onClick={() => void openRagSource(detail)}
-                        >
-                          {openSourceLabel(detail.sourceType)}
-                        </button>
-                      )}
+                      {detail && <KnowledgeSourceLink source={detail} articleWorkspace={workspaceFingerprint} />}
                     </Marker>
-                    {detail?.evidenceKind === 'wiki' ? <div className="flex flex-wrap items-center gap-2 pl-6">
-                      <Badge variant="secondary">{wiki('evidence')}</Badge>
-                      {detail.wikiPageId ? <button type="button" className="text-primary hover:underline" onClick={() => void openWikiPage(detail.wikiPageId)}>{wiki('viewPage')}</button> : null}
-                    </div> : null}
+
                     {detail && (
                       <div className="truncate pl-6 text-[11px] text-muted-foreground">
                         {[
                           sourceTypeLabel(detail.sourceType),
                           detail.sourceType === 'article' ? (detail.locator?.filePath || detail.filepath) : undefined,
                           detail.sourceType === 'record' && detail.locator?.tagId ? t('tagLabel', { id: detail.locator.tagId }) : undefined,
-                          detail.updatedAt ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(detail.updatedAt) : undefined,
                         ].filter(Boolean).join(' · ')}
                       </div>
                     )}
-                    {detail?.content && (
-                      <div className="truncate pl-6 text-muted-foreground">
-                        {detail.content}
-                      </div>
-                    )}
+                    {detail && <div className="pl-6"><KnowledgeSourceEvidence detail={detail} /></div>}
                   </div>
                 )
               })}

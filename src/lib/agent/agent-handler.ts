@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { isKnowledgeSourceType, type KnowledgeLocator, type RagSourceDetail } from '@/types/knowledge'
 import { AgentRuntime, isRequestAbortError } from './runtime'
 import type { AgentApprovalDecision, AgentEditPreview, AgentChange, AgentPermissionMode, AgentQuoteSnapshot, AgentRuntimeResult, AgentSteeringPayload, AgentStep, AgentTraceEvent, ToolCall } from './types'
 import type { RuntimeChatAttachment } from '@/lib/chat-attachments'
@@ -50,24 +51,7 @@ export class AgentHandler {
   private readonly config: AgentHandlerConfig
   private acceptingSteering = true
   private pendingSteering: AgentSteeringPayload[] = []
-  private retrievedKnowledgeSources = new Map<string, {
-    filepath: string
-    filename: string
-    content: string
-    sourceKey: string
-    sourceType: 'article' | 'record' | 'canvas'
-    sourceId: string
-    locator?: {
-      filePath?: string
-      markId?: number
-      tagId?: number
-      canvasId?: string
-      nodeIds?: string[]
-    }
-    updatedAt?: number
-    evidenceKind?: 'wiki' | 'source'
-    wikiPageId?: string
-  }>()
+  private retrievedKnowledgeSources = new Map<string, RagSourceDetail>()
 
   constructor(config: AgentHandlerConfig) {
     this.config = config
@@ -368,102 +352,79 @@ export class AgentHandler {
     }
   }
 
+  private rememberKnowledgeSource(value: Record<string, unknown>): RagSourceDetail | undefined {
+    const { sourceKey, sourceType, title } = value
+    if (typeof sourceKey !== 'string' || !isKnowledgeSourceType(sourceType)) return
+    const locator = value.locator && typeof value.locator === 'object' ? value.locator as KnowledgeLocator : undefined
+    const saved = this.retrievedKnowledgeSources.get(sourceKey)
+    const stableId = typeof value.stableId === 'string' ? value.stableId : undefined
+    const current = stableId && saved?.stableId && saved.stableId !== stableId ? undefined : saved
+    const source: RagSourceDetail = {
+      ...current, sourceKey, sourceType, stableId: stableId ?? current?.stableId, sourceId: sourceKey.slice(sourceKey.indexOf(':') + 1),
+      filename: typeof title === 'string' ? title : current?.filename ?? sourceKey,
+      filepath: locator?.filePath ?? current?.filepath ?? sourceKey,
+      locator: locator ?? current?.locator,
+      updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : current?.updatedAt,
+      content: current?.content ?? '',
+    }
+    this.retrievedKnowledgeSources.set(sourceKey, source)
+    return source
+  }
+
   private captureKnowledgeSearchCandidates(toolCall: ToolCall) {
     const data = toolCall.result?.data
     if (!Array.isArray(data)) return
-    for (const value of data) {
-      if (!value || typeof value !== 'object') continue
-      const candidate = value as {
-        sourceKey?: unknown
-        sourceType?: unknown
-        sourceId?: unknown
-        title?: unknown
-        fragments?: unknown
-        locator?: unknown
-        updatedAt?: unknown
-      }
-      if (
-        typeof candidate.sourceKey !== 'string'
-        || (candidate.sourceType !== 'article' && candidate.sourceType !== 'record' && candidate.sourceType !== 'canvas')
-      ) continue
-      const locator = candidate.locator && typeof candidate.locator === 'object'
-        ? candidate.locator as {
-            filePath?: string
-            markId?: number
-            tagId?: number
-            canvasId?: string
-            nodeIds?: string[]
-          }
-        : undefined
-      const fragments = Array.isArray(candidate.fragments)
-        ? candidate.fragments.flatMap(fragment => (
-            fragment && typeof fragment === 'object' && typeof (fragment as { content?: unknown }).content === 'string'
-              ? [(fragment as { content: string }).content]
-              : []
-          ))
-        : []
-      const title = typeof candidate.title === 'string' ? candidate.title : candidate.sourceKey
-      this.retrievedKnowledgeSources.set(candidate.sourceKey, {
-        sourceKey: candidate.sourceKey,
-        sourceType: candidate.sourceType,
-        sourceId: typeof candidate.sourceId === 'string' ? candidate.sourceId : candidate.sourceKey,
-        filepath: locator?.filePath || candidate.sourceKey,
-        filename: title,
-        content: fragments.join('\n\n'),
-        locator,
-        updatedAt: typeof candidate.updatedAt === 'number' ? candidate.updatedAt : undefined,
-      })
+    for (const candidate of data) {
+      if (!candidate || typeof candidate.sourceKey !== 'string' || this.retrievedKnowledgeSources.has(candidate.sourceKey)) continue
+      this.rememberKnowledgeSource(candidate)
     }
   }
 
   private captureKnowledgeReadPages(toolCall: ToolCall) {
     const data = toolCall.result?.data
     if (!Array.isArray(data)) return
-    for (const value of data) {
-      if (!value || typeof value !== 'object') continue
-      const page = value as { sourceKey?: unknown; content?: unknown }
-      if (typeof page.sourceKey !== 'string' || typeof page.content !== 'string') continue
-      const current = this.retrievedKnowledgeSources.get(page.sourceKey)
-      if (!current) continue
-      this.retrievedKnowledgeSources.set(page.sourceKey, {
-        ...current,
-        evidenceKind: 'source',
-        wikiPageId: undefined,
-        content: current.content.includes(page.content)
-          ? current.content
-          : [current.content, page.content].filter(Boolean).join('\n\n'),
-      })
+    for (const page of data) {
+      if (!page || typeof page !== 'object' || typeof page.content !== 'string') continue
+      const source = this.rememberKnowledgeSource(page)
+      if (!source) continue
+      source.evidenceKind = 'source'
+      if (typeof page.contentHash === 'string' && source.originalContentHash !== page.contentHash) {
+        source.originalContentHash = page.contentHash
+        source.content = ''
+      }
+      if (!source.content.includes(page.content)) source.content = [source.content, page.content].filter(Boolean).join('\n\n')
     }
   }
 
   private captureWikiReadPages(toolCall: ToolCall) {
     const data = toolCall.result?.data
     if (!Array.isArray(data)) return
-    for (const value of data) {
-      if (!value || typeof value !== 'object') continue
-      const page = value as { pageId?: unknown; content?: unknown; sourceRefs?: unknown }
+    for (const item of data) {
+      if (!item || typeof item !== 'object') continue
+      const page = item as { pageId?: unknown; pageVersion?: unknown; viewHash?: unknown; content?: unknown; sourceRefs?: unknown; title?: unknown; updatedAt?: unknown }
       if (typeof page.pageId !== 'string' || typeof page.content !== 'string' || !Array.isArray(page.sourceRefs)) continue
-      for (const source of page.sourceRefs) {
-        if (!source || typeof source !== 'object') continue
-        const reference = source as { sourceKey?: unknown; sourceType?: unknown; title?: unknown; locator?: unknown }
-        const sourceKey = reference.sourceKey
-        if (typeof sourceKey !== 'string' || (reference.sourceType !== 'article'
-          && reference.sourceType !== 'record' && reference.sourceType !== 'canvas')) continue
-        const current = this.retrievedKnowledgeSources.get(sourceKey)
-        if (current?.evidenceKind === 'source') continue
-        const locator = reference.locator && typeof reference.locator === 'object'
-          ? reference.locator as { filePath?: string; markId?: number; tagId?: number; canvasId?: string; nodeIds?: string[] }
-          : undefined
-        this.retrievedKnowledgeSources.set(sourceKey, {
-          ...(current ?? { sourceKey, sourceType: reference.sourceType,
-            sourceId: sourceKey.slice(sourceKey.indexOf(':') + 1),
-            filepath: locator?.filePath || sourceKey,
-            filename: typeof reference.title === 'string' ? reference.title : sourceKey, locator }),
-          content: current?.wikiPageId === page.pageId
-            ? current.content.includes(page.content) ? current.content : `${current.content}\n\n${page.content}`
-            : page.content,
-          evidenceKind: 'wiki', wikiPageId: page.pageId,
-        })
+      const { content, pageId } = page
+      for (const reference of page.sourceRefs) {
+        if (!reference || typeof reference !== 'object') continue
+        const source = this.rememberKnowledgeSource(reference)
+        if (!source) continue
+        // The ranges are relative to this returned chunk. Unnumbered pages carry page-level provenance.
+        const excerpt = Array.isArray(reference.ranges) ? reference.ranges.flatMap((range: unknown) => {
+          if (!Array.isArray(range) || !Number.isInteger(range[0]) || !Number.isInteger(range[1])) return []
+          return [content.slice(range[0], range[1]).trim()]
+        }).filter(Boolean).join('\n\n') : content
+        if (!excerpt) continue
+        const pages = source.wikiEvidence ?? []
+        const existing = pages.find(entry => entry.pageId === pageId && entry.viewHash === page.viewHash)
+        if (existing) {
+          if (!existing.content.includes(excerpt)) source.wikiEvidence = pages.map(entry => entry === existing
+            ? { ...entry, content: `${entry.content}\n\n${excerpt}` } : entry)
+        } else {
+          source.wikiEvidence = [...pages, { pageId, viewHash: typeof page.viewHash === 'string' ? page.viewHash : undefined,
+            title: typeof page.title === 'string' ? page.title : pageId,
+            pageVersion: typeof page.pageVersion === 'string' ? page.pageVersion : undefined,
+            updatedAt: typeof page.updatedAt === 'number' ? page.updatedAt : undefined, content: excerpt }]
+        }
       }
     }
   }
@@ -471,13 +432,23 @@ export class AgentHandler {
   private captureCitedKnowledgeSources(toolCall: ToolCall) {
     const data = toolCall.result?.data
     if (!data || typeof data !== 'object') return
-    const sourceKeys = (data as { sourceKeys?: unknown }).sourceKeys
+    const { sourceKeys, originals: originalKeys, wikiEvidence: citedWikiPages } = data as {
+      sourceKeys?: unknown
+      originals?: unknown
+      wikiEvidence?: Array<{ sourceKey: string; pageId: string; viewHash: string }>
+    }
     if (!Array.isArray(sourceKeys)) return
-    const ragSourceDetails = sourceKeys.flatMap(sourceKey => (
-      typeof sourceKey === 'string' && this.retrievedKnowledgeSources.has(sourceKey)
-        ? [this.retrievedKnowledgeSources.get(sourceKey)!]
-        : []
-    ))
+    const originals = Array.isArray(originalKeys) ? new Set(originalKeys) : undefined
+    const wikiEvidence = Array.isArray(citedWikiPages) ? citedWikiPages : undefined
+    const ragSourceDetails = sourceKeys.flatMap(key => {
+      const detail = this.retrievedKnowledgeSources.get(key)
+      if (!detail) return []
+      if (!originals || !wikiEvidence) return [detail]
+      return [{ ...detail, content: originals.has(key) ? detail.content : '',
+        evidenceKind: originals.has(key) ? detail.evidenceKind : undefined,
+        wikiEvidence: detail.wikiEvidence?.filter(page => wikiEvidence.some(read =>
+          read?.sourceKey === key && read.pageId === page.pageId && read.viewHash === page.viewHash)) }]
+    })
     this.config.stateAdapter.setState({
       ragSources: ragSourceDetails.map(detail => detail.filename),
       ragSourceDetails,

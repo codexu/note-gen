@@ -11,6 +11,8 @@ use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
+use crate::backup::{is_sync_credential_path, PRIVATE_SYNC_CREDENTIALS_DIRECTORY};
+
 const BACKUP_FORMAT: &str = "notegen-backup";
 const BACKUP_VERSION: u32 = 1;
 const BACKUP_EXTENSION: &str = "ngbackup";
@@ -92,8 +94,6 @@ fn should_skip_app_data_entry(path: &Path) -> bool {
                 | "note.db-wal"
                 | "note.db-shm"
                 | "temp_import.zip"
-                | "self-hosted-secrets.json"
-                | ".self-hosted-secrets.json.tmp"
                 | crate::initial_setup::INITIAL_SETUP_FILE
         )
     ) || path
@@ -157,6 +157,7 @@ fn add_directory_to_zip<W: Write + Seek>(
         let metadata = fs::symlink_metadata(&path)
             .map_err(|error| format!("Failed to inspect {}: {error}", path.display()))?;
         if metadata.file_type().is_symlink()
+            || is_sync_credential_path(&path)
             || excluded_roots
                 .iter()
                 .any(|root| path_is_within(&path, root))
@@ -369,11 +370,19 @@ pub async fn create_managed_backup(
     retention: usize,
     reason: Option<String>,
 ) -> Result<ManagedBackupInfo, String> {
-    let backup_directory = ensure_absolute_directory(&backup_dir)?;
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
         .map_err(|error| format!("Failed to locate NoteGen data directory: {error}"))?;
+    let backup_path = Path::new(&backup_dir);
+    let credential_root = app_data_dir.join(PRIVATE_SYNC_CREDENTIALS_DIRECTORY);
+    if is_sync_credential_path(backup_path)
+        || path_is_within(backup_path, &credential_root)
+        || backup_path.parent().is_some_and(|path| path_is_within(path, &credential_root))
+    {
+        return Err("Cannot write a backup in the private credential store".to_string());
+    }
+    let backup_directory = ensure_absolute_directory(&backup_dir)?;
     fs::create_dir_all(&app_data_dir)
         .map_err(|error| format!("Failed to prepare NoteGen data directory: {error}"))?;
 
@@ -477,6 +486,9 @@ fn extract_archive(path: &Path, destination: &Path) -> Result<(), String> {
         let relative = entry
             .enclosed_name()
             .ok_or_else(|| "Backup contains an unsafe path".to_string())?;
+        if is_sync_credential_path(&relative) {
+            continue;
+        }
         let output = destination.join(relative);
         if entry.is_dir() {
             fs::create_dir_all(&output)
@@ -521,6 +533,11 @@ fn copy_directory(
             continue;
         }
         let destination_path = destination.join(entry.file_name());
+        if is_sync_credential_path(&destination_path)
+            || is_sync_credential_path(&canonical_if_exists(&destination_path))
+        {
+            continue;
+        }
         if metadata.is_dir() {
             copy_directory(&source_path, &destination_path, false)?;
         } else if metadata.is_file() {

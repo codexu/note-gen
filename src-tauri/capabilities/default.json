@@ -34,6 +34,11 @@
         {
           "path": "**"
         }
+      ],
+      "deny": [
+        { "path": "$APPDATA/.notegen-sync-credentials" },
+        { "path": "$APPDATA/.notegen-sync-credentials/**" },
+        { "path": "$APPDATA/.notegen-sync-credentials/.*" }
       ]
     },
     {

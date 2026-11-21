@@ -136,7 +136,10 @@ export function InitialSetupScreen({ ready }: { ready: boolean }) {
               {step === 'workspace' && <SetupWorkspaceStep {...props} />}
               {step === 'model' && <SetupModelStep {...props} />}
               {step === 'knowledge' && <SetupKnowledgeStep {...props} />}
-              {step === 'sync' && <SetupSyncStep {...props} />}
+              {step === 'sync' && <SetupSyncStep {...props} onDefer={() => {
+                if (focusedStep) leaveConfiguration()
+                else leaveWelcome(false)
+              }} />}
             </section>
           )}
         </main>

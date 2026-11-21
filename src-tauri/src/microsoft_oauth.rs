@@ -3,6 +3,24 @@ use std::collections::HashMap;
 
 const MICROSOFT_OAUTH_BASE_URL: &str = "https://login.microsoftonline.com/common/oauth2/v2.0";
 
+#[cfg(target_os = "ios")]
+const IOS_ONEDRIVE_SESSION_KEY: &str = "one-drive-session";
+
+#[cfg(target_os = "ios")]
+#[tauri::command]
+pub async fn get_ios_one_drive_session(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    crate::apple_sync_credentials::get(&app, IOS_ONEDRIVE_SESSION_KEY).await
+}
+
+#[cfg(target_os = "ios")]
+#[tauri::command]
+pub async fn set_ios_one_drive_session(
+    app: tauri::AppHandle,
+    value: Option<String>,
+) -> Result<(), String> {
+    crate::apple_sync_credentials::set(&app, IOS_ONEDRIVE_SESSION_KEY, value).await
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MicrosoftOAuthResponse {

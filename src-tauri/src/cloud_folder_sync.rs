@@ -9,6 +9,8 @@ use sha2::{Digest, Sha256};
 use tauri::Manager;
 use uuid::Uuid;
 
+use crate::backup::is_sync_credential_path;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CloudFolderFile {
@@ -223,7 +225,9 @@ fn collect_workspace_copy_plan(
         let relative = source_path
             .strip_prefix(source_root)
             .map_err(|error| format!("Failed to resolve workspace entry: {error}"))?;
-        if relative.components().count() == 1 && entry.file_name() == ".notegen" {
+        if is_sync_credential_path(relative)
+            || (relative.components().count() == 1 && entry.file_name() == ".notegen")
+        {
             continue;
         }
 
@@ -568,6 +572,9 @@ pub fn migrate_workspace_to_cloud_folder(
         .canonicalize()
         .map_err(|error| format!("Failed to resolve current workspace: {error}"))?;
 
+    if is_sync_credential_path(&source) || is_sync_credential_path(&target) {
+        return Err("The private credential store cannot be used as a cloud workspace".to_string());
+    }
     let (copied_files, skipped_files) = migrate_workspace(&source, &target)?;
 
     Ok(WorkspaceMigrationResult {

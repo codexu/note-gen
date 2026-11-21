@@ -20,6 +20,14 @@ export class SelfHostedApiError extends Error {
 }
 
 function formatApiErrorMessage(body: ApiErrorBody) {
+  switch (body.code) {
+    case 'rate_limited': return 'SELF_HOSTED_RATE_LIMITED'
+    case 'server_maintenance': return 'SELF_HOSTED_SERVER_MAINTENANCE'
+    case 'quota_exceeded': return body.details?.scope === 'account' ? 'SELF_HOSTED_ACCOUNT_QUOTA' : 'SELF_HOSTED_SERVER_QUOTA'
+    case 'storage_space_low': return 'SELF_HOSTED_SERVER_QUOTA'
+    case 'blob_too_large': return 'SELF_HOSTED_ATTACHMENT_TOO_LARGE'
+    case 'sync_epoch_changed': return 'SELF_HOSTED_SYNC_EPOCH_REVIEW_REQUIRED'
+  }
   const fieldErrors = body.details?.fieldErrors
   if (!fieldErrors || typeof fieldErrors !== 'object' || Array.isArray(fieldErrors)) return body.message
   const first = Object.entries(fieldErrors)[0]
@@ -122,15 +130,23 @@ export class SelfHostedClient {
   constructor(
     serverUrl: string,
     private readonly accessToken?: string,
-    private readonly onAuthenticationRejected?: () => Promise<void>,
+    private readonly onAuthenticationRejected?: (code: string) => Promise<void>,
   ) {
     this.baseUrl = normalizeServerUrl(serverUrl).url
   }
 
-  async capabilities() {
-    const capabilities = await this.request<ServerCapabilities>('/v1/capabilities')
+  async capabilities(signal?: AbortSignal) {
+    const capabilities = await this.request<ServerCapabilities>('/v1/capabilities', { signal })
     this.bootstrapReleaseSupported = capabilities.features.bootstrapRelease === true
     return capabilities
+  }
+
+  readiness(signal?: AbortSignal) {
+    return this.request<{ status: 'ok'; version: string }>('/health/ready', { signal })
+  }
+
+  account() {
+    return this.request<{ id: string; login: string }>('/v1/account')
   }
 
   login(input: { login: string; password: string; totpCode?: string; deviceId: string; deviceName: string; platform: string; encryptionPublicKey?: string }) {
@@ -166,17 +182,17 @@ export class SelfHostedClient {
   }
 
   createDeviceAuthorization(input: {
-    deviceId: string; deviceName: string; platform: string; encryptionPublicKey: string
-  }) {
+    deviceId: string; deviceName: string; platform: string; encryptionPublicKey?: string
+  }, signal?: AbortSignal) {
     return this.request<{
       deviceCode: string; userCode: string; expiresIn: number; interval: number
       verificationUri: string; verificationUriComplete: string
-    }>('/v1/device-authorizations', { method: 'POST', body: input })
+    }>('/v1/device-authorizations', { method: 'POST', body: input, signal })
   }
 
-  exchangeDeviceAuthorization(deviceCode: string) {
+  exchangeDeviceAuthorization(deviceCode: string, signal?: AbortSignal) {
     return this.request<ClientSession>('/v1/device-authorizations/token', {
-      method: 'POST', body: { deviceCode },
+      method: 'POST', body: { deviceCode }, signal,
     })
   }
 
@@ -504,7 +520,6 @@ export class SelfHostedClient {
         ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       })
       signal.throwIfAborted()
-      if (response.status === 401) await this.onAuthenticationRejected?.()
       let value: unknown = null
       if (response.status !== 204) {
         const content = await response.text()
@@ -518,12 +533,18 @@ export class SelfHostedClient {
       }
       if (!response.ok) {
         const body = (value && typeof value === 'object' && !Array.isArray(value) ? value : {}) as Partial<ApiErrorBody>
+        if (response.status === 401 && typeof body.code === 'string') await this.onAuthenticationRejected?.(body.code)
+        const retryAfter = response.headers.get('retry-after')
+        const seconds = retryAfter === null ? NaN : Number(retryAfter)
+        const details = Number.isFinite(seconds) && seconds >= 0
+          ? { ...body.details, retryAfterSeconds: seconds }
+          : body.details
         throw new SelfHostedApiError({
           code: body.code ?? 'request_failed',
           message: body.message ?? `服务器请求失败 (${response.status})`,
-          requestId: body.requestId ?? '',
+          requestId: body.requestId ?? response.headers.get('x-request-id') ?? '',
           retryable: body.retryable ?? response.status >= 500,
-          ...(body.details === undefined ? {} : { details: body.details }),
+          ...(details === undefined ? {} : { details }),
         }, response.status)
       }
       return value as T

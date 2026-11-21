@@ -5,6 +5,8 @@ import { recordTagIds } from '@/lib/record-tags'
 import { normalizeTagBoolean } from '@/lib/tag-sync'
 import type { SyncObjectKind } from './protocol'
 import { assertMarkIdentityUnambiguous, localizeCanvasRecords } from './references'
+import { filterOfficialSyncSettings } from './official-settings'
+import { isOfficialSyncOrigin } from './service-source'
 
 const DOMAIN_CONFIG = {
   tag: {
@@ -97,13 +99,16 @@ export async function applyStructuredPayload(
 ) {
   const domain = String(payload.domain ?? '')
   if (domain === 'setting') {
-    await applySettings(payload.value)
-    const profiles = await (await getDb()).select<Array<{ toggles: string }>>(
-      `select p.domain_toggles as toggles from self_hosted_workspace_bindings b
+    const profiles = await (await getDb()).select<Array<{ toggles: string; serverUrl: string }>>(
+      `select p.domain_toggles as toggles, p.server_url as serverUrl from self_hosted_workspace_bindings b
        join self_hosted_sync_profiles p on p.id = b.profile_id where b.workspace_id = $1 limit 1`, [workspaceId],
     )
-    const toggles = JSON.parse(profiles[0]?.toggles ?? '{}') as Record<string, boolean>
-    if (toggles.memories !== false && isRecord(payload.memoryPolicy)
+    const profile = profiles[0]
+    if (!profile) throw new Error('SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED')
+    const official = isOfficialSyncOrigin(profile.serverUrl)
+    await applySettings(payload.value, official)
+    const toggles = JSON.parse(profile.toggles) as Record<string, boolean>
+    if (!official && toggles.memories !== false && isRecord(payload.memoryPolicy)
       && typeof payload.memoryPolicy.generateMemories === 'boolean'
       && typeof payload.memoryPolicy.generationStartedAt === 'number'
       && typeof payload.memoryPolicy.updatedAt === 'number') {
@@ -290,14 +295,15 @@ export async function deleteStructuredObject(workspaceId: string, objectId: stri
   return true
 }
 
-async function applySettings(value: unknown) {
+async function applySettings(value: unknown, official: boolean) {
   if (!isRecord(value)) return
   const store = await Store.load('store.json')
   const local = Object.fromEntries(await store.entries()) as Record<string, unknown>
-  const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
-  const merged = mergeSyncData(local, value, { excludeSensitiveConfig })
+  const excludeSensitiveConfig = official || await store.get<boolean>('excludeSensitiveConfig') !== false
+  const merged = official ? filterOfficialSyncSettings(value) : mergeSyncData(local, value, { excludeSensitiveConfig })
+  if (official && Object.keys(merged).length === 0) return
   for (const [key, nextValue] of Object.entries(merged)) {
-    if (shouldExcludeFromSync(key, { excludeSensitiveConfig })) continue
+    if (!official && shouldExcludeFromSync(key, { excludeSensitiveConfig })) continue
     if (local[key] !== nextValue) await store.set(key, nextValue)
   }
   await store.save()

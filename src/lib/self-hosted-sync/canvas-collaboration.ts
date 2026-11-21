@@ -1,10 +1,12 @@
 import * as Y from 'yjs'
 import { getDb } from '@/db'
+import useSyncStore from '@/stores/sync'
 import type { CanvasDocument } from '@/types/canvas'
 import { enqueueCanvasSnapshot } from './outbox'
 import { captureSelfHostedCollaboration, openCollaborativeObject } from './collaboration'
 import { addCanvasRecordObjectIds, localizeCanvasRecords } from './references'
 import { getSelfHostedSyncRuntime } from './runtime'
+import { getActiveProfileId, isSelfHostedSecureStorageError, selfHostedSessionNeedsLogin, usesLocalSelfHostedCredentials } from './profile'
 
 const LOCAL_ORIGIN = Symbol('notegen-canvas-local')
 const REMOTE_ORIGIN = Symbol('notegen-canvas-remote')
@@ -60,6 +62,17 @@ export async function syncCanvasDocument(
   value: CanvasDocument,
   options: { flush?: boolean } = {},
 ) {
+  if (usesLocalSelfHostedCredentials() && !useSyncStore.getState().selfHostedConnected) {
+    const profileId = await getActiveProfileId()
+    if (profileId && await selfHostedSessionNeedsLogin(profileId).catch(error => {
+      if (!isSelfHostedSecureStorageError(error)) throw error
+      return true
+    })) {
+      // The save path has persisted the document before requesting a flush.
+      if (options.flush !== false) await enqueueCanvasSnapshot(canvasId)
+      return
+    }
+  }
   const session = await getCanvasSession(canvasId, value)
   if (!session || session.closed || session.closing || !session.transport.isActive()) return
   await syncCanvasIntoSession(session, value)

@@ -31,9 +31,9 @@ import { S3Sync } from './s3-sync'
 import { WebDAVSync } from './webdav-sync'
 import { CloudFolderSync } from './cloud-folder-sync'
 import { SelfHostedSync } from './self-hosted-sync'
-import { SelfHostedPersonalDataOptions } from './self-hosted-personal-data-options'
+import { PendingSelfHostedSetup } from './components/pending-self-hosted-setup'
 import { UsePlatformButton } from './components/use-platform-button'
-import { restorePlatformSwitchRecovery, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
+import { restorePlatformSwitchRecovery, usePlatformSwitchStore, useSelfHostedSetupReturnStore } from '@/stores/sync-platform-switch'
 import { WorkspaceRepoMapping } from './components/workspace-repo-mapping'
 import { DataSyncOverview } from './components/data-sync-overview'
 import { Badge } from '@/components/ui/badge'
@@ -69,7 +69,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { RepoNames, SyncStateEnum } from '@/lib/sync/github.types'
 import { checkSyncProviderStatus } from '@/lib/sync/provider-status'
-import { hasConfiguredSelfHostedSync } from '@/lib/diagnostics/self-hosted'
+import { usePendingSelfHostedSetup } from '@/hooks/use-pending-self-hosted-setup'
 import type { SyncRepoPlatform, WorkspaceSyncRepos } from '@/lib/sync/workspace-repos'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
@@ -96,9 +96,10 @@ const PLATFORM_LOGOS: Partial<Record<SyncPlatform, string>> = {
   selfHosted: '/app-icon.png',
 }
 
-export function SyncSettings({ selectedPlatform, onActivate }: {
+export function SyncSettings({ selectedPlatform, onActivate, onSetupLater }: {
   selectedPlatform?: SyncPlatform
   onActivate?: () => void
+  onSetupLater?: () => void
 } = {}) {
   const t = useTranslations()
   const pathname = usePathname()
@@ -106,6 +107,8 @@ export function SyncSettings({ selectedPlatform, onActivate }: {
   const embedded = selectedPlatform !== undefined
   const active = embedded || syncSettingsOpen || pathname === '/core/setting/sync'
   const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const pendingSetupProfileId = usePendingSelfHostedSetup(active && settingsReady)
+  const setupReturnRequest = useSelfHostedSetupReturnStore(state => state.request)
   const {
     primaryBackupMethod,
     autoSync,
@@ -126,7 +129,6 @@ export function SyncSettings({ selectedPlatform, onActivate }: {
     setGiteeCustomSyncRepo,
     setGitlabCustomSyncRepo,
     setGiteaCustomSyncRepo,
-    developerMode,
   } = useSettingStore()
   const {
     syncRepoState,
@@ -147,25 +149,14 @@ export function SyncSettings({ selectedPlatform, onActivate }: {
   const checkingPlatformsRef = useRef(new Map<SyncPlatform, number>())
   const checkRequestRef = useRef(0)
   const [workspaceRepos, setWorkspaceRepos] = useState<Record<string, WorkspaceSyncRepos>>({})
-  const [hasSelfHostedConfiguration, setHasSelfHostedConfiguration] = useState(false)
-
-  const visiblePlatforms = useMemo(
-    () => SYNC_PLATFORMS.filter(itemPlatform => itemPlatform !== 'selfHosted'
-      || developerMode
-      || primaryBackupMethod === 'selfHosted'
-      || hasSelfHostedConfiguration),
-    [developerMode, hasSelfHostedConfiguration, primaryBackupMethod],
-  )
 
   useEffect(() => {
-    let cancelled = false
-    void hasConfiguredSelfHostedSync().then(configured => {
-      if (!cancelled) setHasSelfHostedConfiguration(configured)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [selfHostedConnected])
+    if (!active || isLoading || !setupReturnRequest || embedded && selectedPlatform !== 'selfHosted') return
+    if (!embedded) setPlatform('selfHosted')
+    setActiveTab('connection')
+  }, [active, embedded, isLoading, selectedPlatform, setupReturnRequest])
+
+
 
   const workspaceOptions = useMemo(
     () => Array.from(new Set([workspacePath, '', ...workspaceHistory])),
@@ -337,7 +328,7 @@ export function SyncSettings({ selectedPlatform, onActivate }: {
       case 'cloudFolder':
         return <CloudFolderSync />
       case 'selfHosted':
-        return <SelfHostedSync active={active} />
+        return <SelfHostedSync active={active && activeTab === 'connection'} onSetupLater={onSetupLater} />
     }
   }
 
@@ -395,13 +386,14 @@ export function SyncSettings({ selectedPlatform, onActivate }: {
 
   return (
     <div className={cn("grid min-w-0 items-start gap-4", !embedded && "lg:grid-cols-[260px_minmax(0,1fr)]")}>
+        {!embedded && pendingSetupProfileId && <PendingSelfHostedSetup profileId={pendingSetupProfileId} className="lg:col-span-2" />}
         {!embedded && <Card size="sm" className="lg:sticky lg:top-2">
           <CardHeader>
             <CardTitle>{t('settings.sync.platformSettings')}</CardTitle>
           </CardHeader>
           <CardContent>
             <ItemGroup className="gap-1">
-              {visiblePlatforms.map((itemPlatform) => {
+              {SYNC_PLATFORMS.map((itemPlatform) => {
                 const isCurrentPlatform = primaryBackupMethod === itemPlatform
                 const isSelectedPlatform = platform === itemPlatform
                 return (
@@ -456,10 +448,10 @@ export function SyncSettings({ selectedPlatform, onActivate }: {
                       </Badge>
                     ) : null}
                   </CardTitle>
-                  {!embedded && platform !== 'local' ? <CardDescription>{t(platform === 'selfHosted' ? 'settings.sync.selfHosted.connectionDescription' : 'settings.sync.platformDesc')}</CardDescription> : null}
+                  {!embedded && platform !== 'local' && platform !== 'selfHosted' ? <CardDescription>{t('settings.sync.platformDesc')}</CardDescription> : null}
                 </div>
               </div>
-              <CardAction className="max-sm:col-start-1 max-sm:row-start-auto max-sm:row-span-1 max-sm:justify-self-start">
+              {!(platform === 'selfHosted' && pendingSetupProfileId) && <CardAction className="max-sm:col-start-1 max-sm:row-start-auto max-sm:row-span-1 max-sm:justify-self-start">
                 <div className="flex flex-wrap items-center gap-2">
                   {platform !== 'local' ? renderStatusBadge(currentSyncState) : null}
                   <UsePlatformButton
@@ -468,7 +460,7 @@ export function SyncSettings({ selectedPlatform, onActivate }: {
                     disabled={currentSyncState !== SyncStateEnum.success}
                   />
                 </div>
-              </CardAction>
+              </CardAction>}
             </CardHeader>
           </Card>
 
@@ -565,9 +557,7 @@ export function SyncSettings({ selectedPlatform, onActivate }: {
                 </CardContent>
               </Card>}
 
-              {platform === 'selfHosted' ? (
-                <SelfHostedPersonalDataOptions />
-              ) : (
+              {platform !== 'selfHosted' && (
                 <DataSyncOverview
                   autoRecordSyncEnabled={autoRecordSyncEnabled}
                   autoSettingsSyncEnabled={autoSettingsSyncEnabled}

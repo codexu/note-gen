@@ -8,6 +8,8 @@ import { pendingPersonalChangesForEvent } from './pending-personal'
 import { hydratePersonalAssets, personalAssetPaths, preparePersonalAssetsUpload } from './personal-assets'
 import { isPersonalSyncKindEnabled } from './domains'
 import type { SyncBootstrapPage, SyncEvent, SyncSession } from './protocol'
+import { sanitizeOfficialSettingsPayload } from './official-settings'
+import { isOfficialSyncOrigin } from './service-source'
 
 interface Context { workspaceId: string; profileId: string; workspaceType: 'account-data' | 'library' }
 interface CommandRow { commandId: string; payload: string; sourceIds: string; state: string }
@@ -94,10 +96,12 @@ export async function recoverPersonalRevisionConflicts(context: Context, session
       const kind = String(command.kind)
       if (!isPersonalSyncKindEnabled(kind, profile.domainToggles, command.type === 'delete-object')) continue
       if (typeof command.keyVersion !== 'number' || typeof command.ciphertext !== 'string') continue
+      const officialSettings = kind === 'setting' && isOfficialSyncOrigin(profile.serverUrl)
       const aad = objectAssociatedData(context.workspaceId, objectId, kind)
-      const frozen = await decryptPackedJson<Record<string, unknown>>(
+      let frozen = await decryptPackedJson<Record<string, unknown>>(
         await loadWorkspaceKey(context.workspaceId, command.keyVersion), command.ciphertext, aad,
       )
+      if (officialSettings) frozen = sanitizeOfficialSettingsPayload(frozen)
       if (typeof frozen.domain !== 'string') continue
       const remote = remoteObjects.get(objectId)
       if (remote && remote.kind !== kind) throw new Error('object_kind_mismatch')
@@ -121,12 +125,17 @@ export async function recoverPersonalRevisionConflicts(context: Context, session
       const bases = await database.select<Array<{ revision: string; payload: string }>>(
         'select revision,payload from self_hosted_remote_objects where workspace_id=$1 and object_id=$2', [context.workspaceId, objectId],
       )
-      const base = bases[0]?.revision === command.baseRevision ? object(JSON.parse(bases[0].payload)) : {}
-      const remotePayload = remote && remote.deletedAt === null
+      let base = bases[0]?.revision === command.baseRevision ? object(JSON.parse(bases[0].payload)) : {}
+      let remotePayload = remote && remote.deletedAt === null
         ? await decryptPackedJson<Record<string, unknown>>(await loadWorkspaceKey(context.workspaceId, remote.keyVersion), remote.ciphertext, aad) : null
+      if (officialSettings) {
+        if (base.domain === 'setting') base = sanitizeOfficialSettingsPayload(base)
+        if (remotePayload) remotePayload = sanitizeOfficialSettingsPayload(remotePayload)
+      }
       const deleted = deleting || !!remote?.deletedAt
       let payload: Record<string, unknown> = deleted ? { version: 1, domain: frozen.domain, localKey, relativePath: localKey, deleted: true }
         : remotePayload ? mergePayload(base, local, remotePayload) : local
+      if (officialSettings) payload = sanitizeOfficialSettingsPayload(payload)
       const keyVersion = Math.max(1, ...session.keyVersions.map(key => key.keyVersion))
       let blobRefs: string[] = [], stagingIds: string[] = []
       if (!deleted && (frozen.domain === 'mark' || frozen.domain === 'message')) {

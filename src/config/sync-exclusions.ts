@@ -18,6 +18,13 @@ export const DEFAULT_SYNC_EXCLUDE_PATTERNS: SyncExcludePattern[] = [
   { pattern: '*.lock', description: '锁定文件' },
 ]
 
+const PRIVATE_SYNC_CREDENTIALS_DIRECTORY = '.notegen-sync-credentials'
+
+export function shouldExcludeSelfHostedWorkspaceEntry(name: string): boolean {
+  return name === '.notegen' || name === '.DS_Store' || name.endsWith('.tmp')
+    || name.toLowerCase() === PRIVATE_SYNC_CREDENTIALS_DIRECTORY
+}
+
 // 检查路径是否应该排除在同步之外
 export function shouldExclude(path: string): boolean {
   const excludePatterns = getExcludePatterns()
@@ -197,7 +204,9 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'selfHostedDeferredWorkspacePaths',
   'selfHostedServerUrlDraft',
   'selfHostedConnectionReviewProfileId',
+  'selfHostedInitialLibraryChoice',
   'selfHostedExperimentalAcknowledged',
+  'selfHostedExperimentalNoticeDismissed',
   'assetsPath',
   'workspaceSyncRepos',
   'githubCustomSyncRepo',

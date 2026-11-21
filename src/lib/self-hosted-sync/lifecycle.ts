@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { getDb, initAllDatabases } from '@/db'
 import useSyncStore from '@/stores/sync'
 import { getSelfHostedSyncRuntime } from './runtime'
+import { isSelfHostedSecureStorageError, selfHostedSessionNeedsLogin } from './profile'
 import emitter from '@/lib/emitter'
 import type { SyncPlatform } from '@/types/sync'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
@@ -63,14 +64,35 @@ export async function refreshSelfHostedSyncRuntime(
   const profiles = await (await getDb()).select<Array<{ id: string }>>(
     "select id from self_hosted_sync_profiles where state = 'connected' limit 1"
   )
+  const profileId = profiles[0]?.id
   const pendingConnectionReview = await store.get<string>('selfHostedConnectionReviewProfileId')
-  if (pendingConnectionReview && target !== 'selfHosted') {
+  let sessionError: unknown
+  try {
+    if (profileId && await selfHostedSessionNeedsLogin(profileId)) {
+      sessionError = new Error('SELF_HOSTED_SESSION_REQUIRED')
+    }
+  } catch (error) {
+    if (!isSelfHostedSecureStorageError(error)) throw error
+    sessionError = error
+    console.warn('[self-hosted-sync] Unable to read local credentials', error)
+  }
+  if (sessionError) {
     activeLibraryWorkspaceId = null
     runtime.stop()
-    useSyncStore.getState().setSelfHostedConnected(profiles.length > 0)
+    useSyncStore.getState().setSelfHostedConnected(false)
+    if (selected && (pendingConnectionReview !== profileId || target === 'selfHosted')) {
+      await invoke<number>('self_hosted_recover_file_journal')
+    }
+    if (target === 'selfHosted' || reason === 'manual-retry') throw sessionError
     return
   }
-  if (!selected || profiles.length === 0) {
+  if (pendingConnectionReview === profileId && target !== 'selfHosted') {
+    activeLibraryWorkspaceId = null
+    runtime.stop()
+    useSyncStore.getState().setSelfHostedConnected(Boolean(profileId))
+    return
+  }
+  if (!selected || !profileId) {
     activeLibraryWorkspaceId = null
     console.info('[self-hosted-sync] runtime.stopped', {
       reason: selected ? 'no-connected-profile' : 'not-primary-provider',
@@ -79,20 +101,20 @@ export async function refreshSelfHostedSyncRuntime(
     // Connection state and runtime state are independent: a profile remains
     // connected while another provider is selected, even though its runtime
     // must stay stopped until self-hosted sync becomes the primary provider.
-    useSyncStore.getState().setSelfHostedConnected(profiles.length > 0)
+    useSyncStore.getState().setSelfHostedConnected(Boolean(profileId))
     return
   }
-  console.info('[self-hosted-sync] runtime.preparing', { profileId: profiles[0]!.id })
+  console.info('[self-hosted-sync] runtime.preparing', { profileId })
   const { ensureDefaultLibraryForCurrentWorkspace } = await import('./workspaces')
   const libraryWorkspaceId = await ensureDefaultLibraryForCurrentWorkspace(
-    profiles[0]!.id,
+    profileId,
     '我的工作区',
   )
   if (!libraryWorkspaceId) {
     activeLibraryWorkspaceId = null
     console.warn('[self-hosted-sync] runtime.not-ready', {
       reason: 'library-selection-required',
-      profileId: profiles[0]!.id,
+      profileId,
     })
     useSyncStore.getState().setSelfHostedConnected(true)
     return
@@ -107,11 +129,11 @@ export async function refreshSelfHostedSyncRuntime(
   if (!await runtime.bindingIsReady(libraryWorkspaceId)) {
     console.warn('[self-hosted-sync] runtime.not-ready', {
       reason: 'library-recovery-pending',
-      profileId: profiles[0]!.id,
+      profileId,
       workspaceId: libraryWorkspaceId,
     })
     return
   }
   useSyncStore.getState().setSelfHostedRuntimeReady(true)
-  console.info('[self-hosted-sync] runtime.started', { profileId: profiles[0]!.id })
+  console.info('[self-hosted-sync] runtime.started', { profileId })
 }

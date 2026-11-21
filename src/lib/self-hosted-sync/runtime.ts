@@ -1,12 +1,12 @@
 import { invoke } from '@tauri-apps/api/core'
-import { BaseDirectory, exists, mkdir, readFile, readTextFile, writeFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, exists, lstat, mkdir, readFile, readTextFile, writeFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb } from '@/db'
 import { SelfHostedApiError } from './client'
 import {
   authenticatedClient, isSelfHostedAuthenticationError, isSelfHostedSecureStorageError, reconcilePersonalWorkspaceObjects,
-  markProfileReauthenticationRequired, secureDelete, getProfile,
+  markProfileReauthenticationRequired, secureDelete, getProfile, selfHostedSessionNeedsLogin, usesLocalSelfHostedCredentials,
 } from './profile'
 import { decryptPackedJson, encodeUtf8Base64Url, loadWorkspaceKey, objectAssociatedData } from './crypto'
 import {
@@ -14,12 +14,15 @@ import {
   enqueueFileSnapshot,
   enqueueFolderSnapshot,
   materializeOutbox,
+  replaceUnsafeOfficialSettingsCommand,
 } from './outbox'
 import { applyStructuredPayload, deleteStructuredObject } from './structured'
 import { enabledPersonalSyncKinds, isPersonalSyncKindEnabled } from './domains'
 import { hydratePersonalAssets } from './personal-assets'
 import { hasPendingPersonalMutation, pendingPersonalChangesForEvent } from './pending-personal'
 import { recoverPersonalRevisionConflicts } from './personal-recovery'
+import { sanitizeOfficialSettingsPayload } from './official-settings'
+import { isOfficialSyncOrigin, isOfficialSyncWebSocketUrl } from './service-source'
 import { discoverLibraryWorkspaces, ensureManagedWorkspaceKeys, getCurrentWorkspaceRoot, reconcileLibraryFiles } from './workspaces'
 import { bytesToBase64Url, downloadAsset, hashBytes } from './blob'
 import type { SyncBootstrapPage, SyncEvent, SyncObjectKind, SyncSession } from './protocol'
@@ -59,6 +62,7 @@ interface Binding {
 
 interface OutboxRow {
   commandId: string
+  effectiveKind: string | null
   sourceChangeIds: string
   payload: string
   attemptCount: number
@@ -149,6 +153,7 @@ export class SelfHostedSyncRuntime {
     this.#socketWorkspaceSignature = ''
     this.#presence = null
     this.#presenceOwner = null
+    useSyncStore.getState().setSelfHostedRealtimeFallback(false)
     if (this.#timer) clearTimeout(this.#timer)
     this.#timer = null
   }
@@ -279,27 +284,7 @@ export class SelfHostedSyncRuntime {
         for (const binding of bindings) {
           if (this.#stopped) break
           try {
-            if (manualRetry) {
-              const database = await getDb()
-              const acknowledged = await releaseAcknowledgedRevisionConflicts(binding)
-              if (acknowledged && binding.workspaceType === 'library') {
-                // Refresh the accepted base before scanning the kept local
-                // file again, otherwise its old bytes would create the same
-                // rejected command on every retry.
-                binding.bindingState = 'epoch-changed'
-                await setBindingState(binding.workspaceId, 'epoch-changed')
-              }
-              await database.execute(
-                "update self_hosted_outbox set next_attempt_at = 0 where workspace_id = $1 and state = 'retry'",
-                [binding.workspaceId],
-              )
-              await database.execute(
-                `update self_hosted_local_changes set next_attempt_at = 0
-                 where state = 'pending' and (workspace_id = $1 or (workspace_id is null and $2 = 'account-data'))`,
-                [binding.workspaceId, binding.workspaceType],
-              )
-            }
-            const session = await this.#syncBinding(binding, errors)
+            const session = await this.#syncBinding(binding, errors, manualRetry)
             if (session) sessions.push({ profileId: binding.profileId, session })
           } catch (error) {
             if (error instanceof SelfHostedApiError && (error.status === 0 || error.status >= 500)) {
@@ -323,11 +308,18 @@ export class SelfHostedSyncRuntime {
         this.#pauseForSecureStorage()
       } else if (isSelfHostedAuthenticationError(error)) {
         const bindings = await listBindings()
-        await Promise.all(bindings.map(binding => markProfileReauthenticationRequired(binding.profileId)))
-        this.#stopped = true
-        this.#socket?.close()
-        this.#socket = null
-        this.#socketWorkspaceSignature = ''
+        const profileIds = [...new Set(bindings.map(binding => binding.profileId))]
+        // The request already invalidated the rejected local token atomically.
+        // An older request must not clear a session established in the meantime.
+        const localCredentials = usesLocalSelfHostedCredentials()
+        if (!localCredentials) await Promise.all(profileIds.map(id => markProfileReauthenticationRequired(id)))
+        const shouldStop = !localCredentials || (await Promise.all(profileIds.map(selfHostedSessionNeedsLogin))).some(Boolean)
+        if (shouldStop) {
+          this.#stopped = true
+          this.#socket?.close()
+          this.#socket = null
+          this.#socketWorkspaceSignature = ''
+        }
       } else {
         console.warn('[self-hosted-sync] Synchronization paused until the next retry', { reason, error })
       }
@@ -365,7 +357,7 @@ export class SelfHostedSyncRuntime {
     }
   }
 
-  async #syncBinding(binding: Binding, errors: Set<string>) {
+  async #syncBinding(binding: Binding, errors: Set<string>, manualRetry: boolean) {
     if (binding.workspaceType === 'library' && binding.localRoot) {
       await ensureWorkspaceDirectory(binding.localRoot)
     }
@@ -374,15 +366,16 @@ export class SelfHostedSyncRuntime {
       value: Partial<Omit<SwitchOperationProgress, 'phase' | 'kind' | 'startupTask'>> = {},
     ) => this.#reportProgress({ startupTask, source: 'remote', path: binding.localRoot ?? undefined, current: 0, total: 0, ...value })
     report('connect')
-    if (binding.workspaceType !== 'account-data') await assertNoUnresolvedRevisionCommands(binding.workspaceId)
     const { profile, client } = await authenticatedClient(binding.profileId)
     if (this.#stopped) return null
+    const official = isOfficialSyncOrigin(profile.serverUrl)
+    if (!official) await prepareBindingRetry(binding, manualRetry)
     let session: SyncSession
     try {
       session = await client.syncSession(
         binding.workspaceId,
         binding.appliedSequence,
-        binding.bindingState === 'epoch-changed' ? undefined : binding.syncEpoch ?? undefined,
+        official || binding.bindingState !== 'epoch-changed' ? binding.syncEpoch ?? undefined : undefined,
       )
     } catch (error) {
       if (!(error instanceof SelfHostedApiError)
@@ -391,6 +384,7 @@ export class SelfHostedSyncRuntime {
         useSyncStore.getState().setSelfHostedServiceAvailable(false)
       }
       if (error instanceof SelfHostedApiError && error.body.code === 'sync_epoch_changed') {
+        if (official) await this.#requireOfficialEpochReview(binding)
         await setBindingState(binding.workspaceId, 'epoch-changed')
         this.#rerun = true
         return null
@@ -402,8 +396,12 @@ export class SelfHostedSyncRuntime {
       throw error
     }
     if (this.#stopped) return null
+    if (official && binding.syncEpoch && session.syncEpoch !== binding.syncEpoch) {
+      await this.#requireOfficialEpochReview(binding)
+    }
+    if (official) await prepareBindingRetry(binding, manualRetry)
     if (!session.protocol.compatible) {
-      useSyncStore.getState().setSelfHostedServiceAvailable(false)
+      useSyncStore.getState().setSelfHostedServiceAvailable(false, 'protocol-mismatch')
       await setBindingState(binding.workspaceId, 'protocol-incompatible')
       return null
     }
@@ -549,6 +547,18 @@ export class SelfHostedSyncRuntime {
     return session
   }
 
+  async #requireOfficialEpochReview(binding: Binding): Promise<never> {
+    // A server restore can reuse an older revision number for different data.
+    // Keep the old epoch and queued work until that state is reviewed.
+    if (binding.bindingState !== 'epoch-changed') await setBindingState(binding.workspaceId, 'epoch-changed')
+    this.#socketGeneration++
+    const socket = this.#socket
+    this.#socket = null
+    this.#socketWorkspaceSignature = ''
+    socket?.close()
+    throw new Error('SELF_HOSTED_SYNC_EPOCH_REVIEW_REQUIRED')
+  }
+
   #connectSocket(profileId: string, sessions: SyncSession[]) {
     const first = sessions[0]
     if (!first) return
@@ -561,8 +571,14 @@ export class SelfHostedSyncRuntime {
     this.#socket = null
     previousSocket?.close()
     this.#socketWorkspaceSignature = workspaceSignature
-    void authenticatedClient(profileId).then(async ({ accessToken }) => {
+    void authenticatedClient(profileId).then(async ({ accessToken, profile }) => {
       if (this.#stopped || generation !== this.#socketGeneration || this.#socketWorkspaceSignature !== workspaceSignature) return
+      const untrustedRealtime = isOfficialSyncOrigin(profile.serverUrl) && !isOfficialSyncWebSocketUrl(first.websocketUrl)
+      useSyncStore.getState().setSelfHostedRealtimeFallback(untrustedRealtime)
+      if (untrustedRealtime) {
+        console.warn('[self-hosted-sync] Ignoring an unexpected official WebSocket origin; using HTTP polling')
+        return
+      }
       const socket = new WebSocket(first.websocketUrl)
       this.#socket = socket
       const authTimeout = setTimeout(() => {
@@ -635,6 +651,28 @@ export class SelfHostedSyncRuntime {
     }, this.#socketRetryDelay)
     this.#socketRetryDelay = Math.min(this.#socketRetryDelay * 2, 15_000)
   }
+}
+
+async function prepareBindingRetry(binding: Binding, manualRetry: boolean) {
+  if (manualRetry) {
+    const database = await getDb()
+    const acknowledged = await releaseAcknowledgedRevisionConflicts(binding)
+    if (acknowledged && binding.workspaceType === 'library') {
+      // Refresh the accepted base before scanning the kept local file again.
+      binding.bindingState = 'epoch-changed'
+      await setBindingState(binding.workspaceId, 'epoch-changed')
+    }
+    await database.execute(
+      "update self_hosted_outbox set next_attempt_at = 0 where workspace_id = $1 and state = 'retry'",
+      [binding.workspaceId],
+    )
+    await database.execute(
+      `update self_hosted_local_changes set next_attempt_at = 0
+       where state = 'pending' and (workspace_id = $1 or (workspace_id is null and $2 = 'account-data'))`,
+      [binding.workspaceId, binding.workspaceType],
+    )
+  }
+  if (binding.workspaceType !== 'account-data') await assertNoUnresolvedRevisionCommands(binding.workspaceId)
 }
 
 async function hasCoveredFailedInbox(binding: Binding) {
@@ -837,7 +875,7 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
        union select c.command_id, refs.value from candidates c join json_each(c.payload, '$.objectResolution.blobRefs') refs
        union select c.command_id, refs.value from candidates c join json_each(c.payload, '$.resolution.blobRefs') refs
      )
-     select command_id as commandId, source_change_ids as sourceChangeIds,
+     select command_id as commandId, source_change_ids as sourceChangeIds, effectiveKind,
        payload, attempt_count as attemptCount, restore_local_snapshot as restoreLocalSnapshot
      from candidates o
      where ($5 = 'library' or (
@@ -871,8 +909,19 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
   let activatedCollaborativeObject = false
   let restoredPersonalSnapshot = false
   const commands: Record<string, unknown>[] = []
+  const official = profile !== null && isOfficialSyncOrigin(profile.serverUrl)
   for (const row of rows) {
     const { command, changed } = parseOutboxCommand(row.payload)
+    if (official && row.effectiveKind === 'setting') {
+      const replacement = await replaceUnsafeOfficialSettingsCommand(binding.workspaceId, row, command)
+      if (replacement) {
+        row.commandId = replacement.commandId
+        row.payload = JSON.stringify(replacement)
+        row.attemptCount = 0
+        commands.push(replacement)
+        continue
+      }
+    }
     commands.push(command)
     if (changed) {
       row.payload = JSON.stringify(command)
@@ -1519,9 +1568,14 @@ async function applyRemoteEventRaw(binding: Binding, event: SyncEvent, beforeStr
   if (!event.ciphertext || !event.keyVersion) throw new Error('remote_ciphertext_missing')
   const kind = String(event.metadata.kind ?? 'note')
   const key = await loadWorkspaceKey(binding.workspaceId, event.keyVersion)
-  const payload = await decryptPackedJson<Record<string, unknown>>(
+  let payload = await decryptPackedJson<Record<string, unknown>>(
     key, event.ciphertext, objectAssociatedData(binding.workspaceId, event.objectId, kind),
   )
+  if (payload.domain === 'setting') {
+    const profile = await getProfile(binding.profileId)
+    if (!profile) throw new Error('SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED')
+    if (isOfficialSyncOrigin(profile.serverUrl)) payload = sanitizeOfficialSettingsPayload(payload)
+  }
   if (!beforeStructuredApply) await assertPersonalRemoteApplyAllowed(binding, event, payload)
   if (binding.workspaceType === 'account-data' && payload.domain === 'message') {
     const references = payload.references
@@ -1808,7 +1862,8 @@ async function convergeRemotePortableMapping(
 async function applyRemoteAsset(binding: Binding, event: SyncEvent, payload: Record<string, unknown>) {
   const relativePath = String(payload.relativePath ?? '')
   const blobId = String(payload.blobId ?? '')
-  if (!relativePath || !blobId) throw new Error('remote_asset_invalid')
+  const objectId = event.objectId
+  if (!objectId || !relativePath || !blobId) throw new Error('remote_asset_invalid')
   const portable = await invoke<PortableMappingPath>('self_hosted_portable_path', { relativePath })
   const downloaded = await downloadAsset({
     profileId: binding.profileId,
@@ -1818,29 +1873,30 @@ async function applyRemoteAsset(binding: Binding, event: SyncEvent, payload: Rec
     keyVersion: event.keyVersion ?? 1,
     associatedData: typeof payload.associatedData === 'string' ? payload.associatedData : undefined,
   })
-  await assertNoPendingPathMove(binding, relativePath)
-  await convergeRemotePortableMapping(binding, event, 'asset', 'asset', portable)
-  const database = await getDb()
-  const mappings = await database.select<Array<{ contentHash: string | null }>>(
-    `select content_hash as contentHash from self_hosted_object_mappings
-     where workspace_id = $1 and object_id = $2 limit 1`,
-    [binding.workspaceId, event.objectId]
-  )
-  const absolutePath = await join(binding.localRoot!, portable.normalized)
-  if (await exists(absolutePath) && mappings[0]?.contentHash) {
-    const current = await readFile(absolutePath)
-    if (await hashBytes(current) !== mappings[0].contentHash) {
-      const conflictPath = conflictCopyPath(portable.normalized)
-      await writeBytesJournaled(binding, event.objectId!, conflictPath, current)
-      await database.execute(
-        `insert into self_hosted_conflicts(
-           id, workspace_id, object_id, conflict_type, local_copy_path, state, created_at
-         ) values ($1, $2, $3, 'snapshot-diverged', $4, 'unresolved', $5)`,
-        [crypto.randomUUID(), binding.workspaceId, event.objectId, conflictPath, Date.now()]
-      )
-    }
+  if (typeof payload.plaintextHash === 'string' && downloaded.hash !== payload.plaintextHash) {
+    throw new Error('blob_plaintext_hash_mismatch')
   }
-  await writeBytesJournaled(binding, event.objectId!, portable.normalized, downloaded.bytes)
+  await assertNoPendingPathMove(binding, portable.normalized)
+  const database = await getDb()
+  const [baseline] = await database.select<Array<{ contentHash: string | null; writable: number }>>(
+    `select m.content_hash as contentHash, b.access_mode = 'read-write' as writable
+     from self_hosted_workspace_bindings b
+     left join self_hosted_object_mappings m on m.workspace_id = b.workspace_id
+       and m.object_id = $2 and m.path_casefold = $3 and m.deleted_at is null
+     where b.workspace_id = $1 limit 1`,
+    [binding.workspaceId, objectId, portable.caseFolded]
+  )
+  const current = await readLibraryAsset(binding.localRoot!, portable.normalized)
+  if (current?.hash !== downloaded.hash) {
+    if (current && current.hash !== baseline?.contentHash) {
+      // A missing accepted hash is also a conflict when the two files differ.
+      const conflictPath = await preserveLocalAsset(binding, objectId, portable.normalized, current, downloaded.hash)
+      if (baseline?.writable) await enqueueAssetSnapshot(conflictPath, 'upsert', binding.workspaceId)
+    }
+    // Keep the canonical path for references to the incoming attachment.
+    await writeBytesJournaled(binding, objectId, portable.normalized, downloaded, current?.hash ?? null)
+  }
+  await convergeRemotePortableMapping(binding, event, 'asset', 'asset', portable)
   await database.execute(
     `insert into self_hosted_object_mappings(
        workspace_id, object_id, kind, local_identity, relative_path, path_casefold,
@@ -1852,10 +1908,72 @@ async function applyRemoteAsset(binding: Binding, event: SyncEvent, payload: Rec
        content_hash = excluded.content_hash, blob_refs = excluded.blob_refs,
        deleted_at = null, updated_at = excluded.updated_at`,
     [
-      binding.workspaceId, event.objectId, `asset:${portable.normalized}`, portable.normalized,
+      binding.workspaceId, objectId, `asset:${portable.normalized}`, portable.normalized,
       portable.caseFolded, downloaded.hash, JSON.stringify([blobId]), Date.now(),
     ]
   )
+}
+
+interface BinarySnapshot {
+  bytes: Uint8Array
+  hash: string
+}
+
+async function readLibraryAsset(localRoot: string, relativePath: string): Promise<BinarySnapshot | null> {
+  let absolutePath = localRoot
+  const segments = relativePath.split('/')
+  for (const [index, segment] of segments.entries()) {
+    absolutePath = await join(absolutePath, segment)
+    if (!await exists(absolutePath)) return null
+    const info = await lstat(absolutePath)
+    if (info.isSymlink || (index + 1 === segments.length ? !info.isFile : !info.isDirectory)) {
+      throw new Error('remote_asset_path_unavailable')
+    }
+  }
+  const bytes = await readFile(absolutePath)
+  return { bytes, hash: await hashBytes(bytes) }
+}
+
+async function preserveLocalAsset(
+  binding: Binding,
+  objectId: string,
+  relativePath: string,
+  local: BinarySnapshot,
+  remoteHash: string,
+) {
+  const encoder = new TextEncoder()
+  const identity = await hashBytes(encoder.encode(JSON.stringify([
+    binding.workspaceId, objectId, relativePath, local.hash, remoteHash,
+  ])))
+  const parentEnd = relativePath.lastIndexOf('/') + 1
+  const extensionStart = relativePath.lastIndexOf('.')
+  const parent = relativePath.slice(0, parentEnd)
+  const stem = relativePath.slice(parentEnd, extensionStart > parentEnd ? extensionStart : undefined)
+  const extension = extensionStart > parentEnd ? relativePath.slice(extensionStart) : ''
+  const shortExtension = encoder.encode(extension).byteLength <= 100 ? extension : ''
+  let conflictPath: string
+  for (let attempt = 0; ; attempt++) {
+    const suffix = `.conflict-${identity.slice(0, 20)}${attempt ? `-${attempt}` : ''}`
+    const filename = `${stem}${suffix}${extension}`
+    // Keep room for the journal's temporary filename on filesystems with a 255-byte limit.
+    conflictPath = parent + (encoder.encode(filename).byteLength > 190
+      ? `attachment${suffix}${shortExtension}`
+      : filename)
+    const absolutePath = await join(binding.localRoot!, conflictPath)
+    if (!await exists(absolutePath)) {
+      await writeBytesJournaled(binding, objectId, conflictPath, local, null)
+      break
+    }
+    const existing = await lstat(absolutePath)
+    if (existing.isFile && !existing.isSymlink && await hashBytes(await readFile(absolutePath)) === local.hash) break
+  }
+  await (await getDb()).execute(
+    `insert into self_hosted_conflicts(id, workspace_id, object_id, conflict_type, local_copy_path, state, created_at)
+     values ($1, $2, $3, 'snapshot-diverged', $4, 'unresolved', $5)
+     on conflict(id) do update set local_copy_path = excluded.local_copy_path`,
+    [`asset-conflict:${identity}`, binding.workspaceId, objectId, conflictPath, Date.now()]
+  )
+  return conflictPath
 }
 
 async function applyRemoteFolder(binding: Binding, event: SyncEvent, payload: Record<string, unknown>) {
@@ -2679,15 +2797,25 @@ async function deleteRemoteEditorFile(
   if (!accepted) throw new Error('remote_delete_local_activity')
 }
 
-async function writeBytesJournaled(binding: Binding, objectId: string, relativePath: string, content: Uint8Array) {
+async function writeBytesJournaled(
+  binding: Binding,
+  objectId: string,
+  relativePath: string,
+  snapshot: BinarySnapshot,
+  targetHash: string | null,
+) {
   await assertNoPendingPathMove(binding, relativePath)
   await invoke('self_hosted_atomic_write', {
     workspaceId: binding.workspaceId,
     objectId,
     workspaceRoot: binding.localRoot,
     relativePath,
-    contents: bytesToBase64Url(content),
-    expectedHash: await hashBytes(content),
+    contents: bytesToBase64Url(snapshot.bytes),
+    expectedHash: snapshot.hash,
+    targetSnapshot: { hash: targetHash },
+  }).catch(error => {
+    if (error === 'remote_asset_local_activity') throw new PendingLocalChange()
+    throw error
   })
 }
 

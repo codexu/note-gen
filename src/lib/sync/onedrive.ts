@@ -68,6 +68,7 @@ function graphOperation(pathOrUrl: string, method: string): string {
 
 export const ONE_DRIVE_APP_ROOT_PATH = 'onedrive://approot'
 export const ONE_DRIVE_APP_ROOT_LABEL = 'OneDrive / Apps / NoteGen'
+export const ONE_DRIVE_CREDENTIAL_STORAGE_UNAVAILABLE = 'OneDrive credentials are unavailable on this device'
 export const ONE_DRIVE_CLIENT_ID = (
   process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID || '212aa08f-dd2e-417d-ae34-adae14af9b61'
 ).trim()
@@ -77,12 +78,16 @@ interface OneDriveAuthTokens {
   refreshToken: string
   expiresAt: number
   scope: string
+  rootId?: string
+  clientId?: string
 }
 
 let cachedTokens: OneDriveAuthTokens | null | undefined
 let tokenReadPromise: Promise<OneDriveAuthTokens | null> | null = null
 let tokenRefreshPromise: Promise<string> | null = null
 let tokenCacheVersion = 0
+let iosConnectionAttempt = 0
+let iosSessionWrites: Promise<void> = Promise.resolve()
 
 interface OneDriveTokenResponse {
   access_token: string
@@ -416,19 +421,66 @@ async function oauthRequest<T>(path: string, body: URLSearchParams): Promise<{ r
   return { response, data: await parseJson<T>(response) }
 }
 
-async function saveTokens(response: OneDriveTokenResponse, fallbackRefreshToken = ''): Promise<void> {
+async function invokeIOSSession<T>(
+  command: 'get_ios_one_drive_session' | 'set_ios_one_drive_session',
+  args?: { value: string | null },
+): Promise<T> {
+  try {
+    return await invoke<T>(command, args)
+  } catch (cause) {
+    throw new Error(ONE_DRIVE_CREDENTIAL_STORAGE_UNAVAILABLE, { cause })
+  }
+}
+
+function writeIOSSession(
+  tokens: OneDriveAuthTokens | null,
+  canPublish: () => boolean = () => true,
+): Promise<void> {
+  const write = iosSessionWrites.catch(() => undefined).then(async () => {
+    if (!canPublish()) throw new DOMException('OneDrive session changed', 'AbortError')
+    if (tokens && cachedTokens === undefined) {
+      await getStoredTokens()
+      if (!canPublish()) throw new DOMException('OneDrive session changed', 'AbortError')
+    }
+    await invokeIOSSession<void>('set_ios_one_drive_session', { value: tokens ? JSON.stringify(tokens) : null })
+    if (!tokens) return
+    if (!canPublish()) {
+      // A cancelled sign-in can finish writing after its panel closes. Restore
+      // the last published session before starting any other credential write.
+      await invokeIOSSession<void>('set_ios_one_drive_session', { value: cachedTokens ? JSON.stringify(cachedTokens) : null })
+      throw new DOMException('OneDrive session changed', 'AbortError')
+    }
+    tokenCacheVersion += 1
+    cachedTokens = tokens
+  })
+  iosSessionWrites = write
+  return write
+}
+
+async function saveTokens(
+  response: OneDriveTokenResponse, fallbackRefreshToken = '',
+  iosSession?: { rootId: string; clientId: string; canPublish: () => boolean },
+): Promise<void> {
   const refreshToken = response.refresh_token || fallbackRefreshToken
   if (!refreshToken) throw new Error('Microsoft did not return a refresh token')
-  const tokens = {
+  const tokens: OneDriveAuthTokens = {
     accessToken: response.access_token,
     refreshToken,
     expiresAt: Date.now() + Math.max(0, response.expires_in - 60) * 1000,
     scope: response.scope || ONE_DRIVE_SCOPE,
-  } satisfies OneDriveAuthTokens
-  const store = await Store.load('store.json')
+    ...(iosSession && { rootId: iosSession.rootId, clientId: iosSession.clientId }),
+  }
   const currentPlatform = platform()
-  if (currentPlatform === 'android' || currentPlatform === 'ios') {
-    await invoke(`set_${currentPlatform}_secure_value`, {
+  if (currentPlatform === 'ios') {
+    if (!iosSession) throw new Error('OneDrive session is missing its application folder')
+    await writeIOSSession(tokens, iosSession.canPublish)
+    if (cachedTokens !== tokens) throw new DOMException('OneDrive session changed', 'AbortError')
+    return
+  }
+
+  const store = await Store.load('store.json')
+  if (currentPlatform === 'android') {
+    await invoke('set_android_secure_value', {
       key: ONE_DRIVE_TOKEN_KEY,
       value: JSON.stringify(tokens),
     })
@@ -442,26 +494,32 @@ async function saveTokens(response: OneDriveTokenResponse, fallbackRefreshToken 
 }
 
 async function readStoredTokens(): Promise<OneDriveAuthTokens | null> {
+  const currentPlatform = platform()
+  if (currentPlatform === 'ios') {
+    const value = await invokeIOSSession<string | null>('get_ios_one_drive_session')
+    const tokens = value ? parseStoredTokens(value) : null
+    return typeof tokens?.rootId === 'string' && tokens.rootId && typeof tokens.clientId === 'string' && tokens.clientId ? tokens : null
+  }
+
   const store = await Store.load('store.json')
   const legacyTokens = await store.get<OneDriveAuthTokens>(ONE_DRIVE_TOKEN_KEY) ?? null
-  const currentPlatform = platform()
-  if (currentPlatform !== 'android' && currentPlatform !== 'ios') return legacyTokens
+  if (currentPlatform !== 'android') return legacyTokens
 
   try {
     const startedAt = Date.now()
-    const value = await invoke<string | null>(`get_${currentPlatform}_secure_value`, { key: ONE_DRIVE_TOKEN_KEY })
+    const value = await invoke<string | null>('get_android_secure_value', { key: ONE_DRIVE_TOKEN_KEY })
     logOneDriveTiming('secureTokenRead', startedAt, { found: Boolean(value) })
     if (value) {
       const tokens = parseStoredTokens(value)
       if (tokens) return tokens
-      await invoke(`delete_${currentPlatform}_secure_value`, { key: ONE_DRIVE_TOKEN_KEY })
+      await invoke('delete_android_secure_value', { key: ONE_DRIVE_TOKEN_KEY })
     }
   } catch (error) {
     console.warn(`Failed to read OneDrive tokens from ${currentPlatform} secure storage:`, error)
   }
 
   if (!legacyTokens) return null
-  await invoke(`set_${currentPlatform}_secure_value`, {
+  await invoke('set_android_secure_value', {
     key: ONE_DRIVE_TOKEN_KEY,
     value: JSON.stringify(legacyTokens),
   })
@@ -475,18 +533,20 @@ async function getStoredTokens(): Promise<OneDriveAuthTokens | null> {
   if (tokenReadPromise) return tokenReadPromise
 
   const readVersion = tokenCacheVersion
-  tokenReadPromise = readStoredTokens()
+  const read = readStoredTokens()
     .then(tokens => {
       if (tokenCacheVersion === readVersion) cachedTokens = tokens
       return tokenCacheVersion === readVersion ? tokens : cachedTokens ?? null
     })
     .finally(() => {
-      tokenReadPromise = null
+      if (tokenReadPromise === read) tokenReadPromise = null
     })
-  return tokenReadPromise
+  tokenReadPromise = read
+  return read
 }
 
 async function refreshAccessToken(config: CloudFolderConfig, tokens: OneDriveAuthTokens): Promise<string> {
+  const version = tokenCacheVersion
   const clientId = configuredClientId(config)
   if (!clientId) throw new Error('Microsoft Client ID is not configured')
   const { response, data } = await oauthRequest<OneDriveTokenResponse & OneDriveOAuthError>('token', new URLSearchParams({
@@ -500,7 +560,11 @@ async function refreshAccessToken(config: CloudFolderConfig, tokens: OneDriveAut
   if (!response.ok || !data.access_token) {
     throw new Error(data.error_description || data.error || 'OneDrive authorization expired')
   }
-  await saveTokens(data, tokens.refreshToken)
+  await saveTokens(data, tokens.refreshToken, tokens.rootId ? {
+    rootId: tokens.rootId,
+    clientId,
+    canPublish: () => tokenCacheVersion === version && cachedTokens === tokens,
+  } : undefined)
   return data.access_token
 }
 
@@ -509,15 +573,27 @@ async function refreshAccessTokenOnce(
   tokens: OneDriveAuthTokens,
 ): Promise<string> {
   if (tokenRefreshPromise) return tokenRefreshPromise
-  tokenRefreshPromise = refreshAccessToken(config, tokens).finally(() => {
-    tokenRefreshPromise = null
+  const refresh = refreshAccessToken(config, tokens).finally(() => {
+    if (tokenRefreshPromise === refresh) tokenRefreshPromise = null
   })
-  return tokenRefreshPromise
+  tokenRefreshPromise = refresh
+  return refresh
+}
+
+function tokensMatchConfig(tokens: OneDriveAuthTokens, config: CloudFolderConfig) {
+  return platform() !== 'ios' || Boolean(tokens.rootId && tokens.rootId === config.oneDriveRootId
+    && tokens.clientId === configuredClientId(config))
+}
+
+async function requireOneDriveTokens(config: CloudFolderConfig) {
+  const tokens = await getStoredTokens()
+  if (!tokens) throw new Error('OneDrive is not connected')
+  if (!tokensMatchConfig(tokens, config)) throw new Error('OneDrive is signed in to a different workspace')
+  return tokens
 }
 
 async function getAccessToken(config: CloudFolderConfig): Promise<string> {
-  const tokens = await getStoredTokens()
-  if (!tokens) throw new Error('OneDrive is not connected')
+  const tokens = await requireOneDriveTokens(config)
   if (tokens.expiresAt > Date.now()) return tokens.accessToken
   return refreshAccessTokenOnce(config, tokens)
 }
@@ -585,8 +661,7 @@ async function graphRequest(
     status: response.status,
   })
   if (response.status === 401) {
-    const tokens = await getStoredTokens()
-    if (!tokens) throw new Error('OneDrive is not connected')
+    const tokens = await requireOneDriveTokens(config)
     const retryToken = tokens.accessToken !== accessToken && tokens.expiresAt > Date.now()
       ? tokens.accessToken
       : await refreshAccessTokenOnce(config, tokens)
@@ -633,8 +708,7 @@ async function oneDriveContentRequest(
   })
 
   if (response.status === 401) {
-    const tokens = await getStoredTokens()
-    if (!tokens) throw new Error('OneDrive is not connected')
+    const tokens = await requireOneDriveTokens(config)
     const retryToken = tokens.accessToken !== accessToken && tokens.expiresAt > Date.now()
       ? tokens.accessToken
       : await refreshAccessTokenOnce(config, tokens)
@@ -680,6 +754,7 @@ async function oneDriveContentRequest(
 }
 
 async function getAppRoot(config: CloudFolderConfig): Promise<OneDriveDriveItem> {
+  if (platform() === 'ios') await requireOneDriveTokens(config)
   const cached = getCachedFolder(config, '')
   if (cached) return cached
   const cacheKey = folderCacheKey(config, '')
@@ -693,10 +768,23 @@ async function getAppRoot(config: CloudFolderConfig): Promise<OneDriveDriveItem>
     cacheFolder(config, '', root)
     return root
   })().finally(() => {
-    rootRequestCache.delete(cacheKey)
+    if (rootRequestCache.get(cacheKey) === request) rootRequestCache.delete(cacheKey)
   })
   rootRequestCache.set(cacheKey, request)
   return request
+}
+
+async function resolveNewIOSSessionRoot(accessToken: string): Promise<OneDriveDriveItem> {
+  const response = await scheduleOneDriveNetworkRequest('getAppRoot', () => fetchWithTransientRetry(
+    () => fetch(`${GRAPH_BASE_URL}/me/drive/special/approot`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }),
+    'graph:getAppRoot',
+  ))
+  if (!response.ok) throw new Error(`OneDrive application folder is unavailable (${response.status})`)
+  const root = await parseJson<OneDriveDriveItem>(response)
+  if (typeof root.id !== 'string' || !root.id) throw new Error('OneDrive application folder has no identity')
+  return root
 }
 
 async function getItem(config: CloudFolderConfig, key: string, fresh = false): Promise<OneDriveDriveItem | null> {
@@ -862,6 +950,7 @@ async function closePendingOneDriveUpload(config: CloudFolderConfig, key: string
   if (!pending) return
   // Never start another write while a previous session could still publish.
   // Session URLs are preauthenticated: do not add a Graph bearer token or log them.
+  if (platform() === 'ios') await requireOneDriveTokens(config)
   const response = await oneDriveSessionRequest(pending.uploadUrl, { method: 'DELETE' }, 'cancelUploadSession')
   if (!response.ok && ![404, 410].includes(response.status)) {
     throw new Error('SYNC_ONEDRIVE_UPLOAD_PENDING')
@@ -1001,6 +1090,8 @@ export async function connectOneDrive(
   onCode: (code: OneDriveLoginCode) => void | Promise<void>,
   signal?: AbortSignal,
 ): Promise<CloudFolderConfig> {
+  const isIOS = platform() === 'ios'
+  const attempt = isIOS ? ++iosConnectionAttempt : 0
   const normalizedClientId = clientId.trim()
   if (!normalizedClientId) throw new Error('Microsoft Client ID is required')
   const { response, data } = await oauthRequest<OneDriveDeviceCodeResponse & OneDriveOAuthError>('devicecode', new URLSearchParams({
@@ -1030,14 +1121,29 @@ export async function connectOneDrive(
       device_code: data.device_code,
     }))
     if (tokenResult.response.ok && tokenResult.data.access_token) {
-      await saveTokens(tokenResult.data)
       const draft: CloudFolderConfig = {
         path: ONE_DRIVE_APP_ROOT_PATH,
         provider: 'oneDrive',
         displayName: ONE_DRIVE_APP_ROOT_LABEL,
         oneDriveClientId: normalizedClientId,
       }
-      const root = await getAppRoot(draft)
+      let root: OneDriveDriveItem
+      if (isIOS) {
+        // Keep the new token private until its account is known. A saved
+        // binding may still be active for a different Microsoft account.
+        signal?.throwIfAborted()
+        root = await resolveNewIOSSessionRoot(tokenResult.data.access_token)
+        signal?.throwIfAborted()
+        await saveTokens(tokenResult.data, '', {
+          rootId: root.id,
+          clientId: normalizedClientId,
+          canPublish: () => iosConnectionAttempt === attempt && !signal?.aborted,
+        })
+        tokenRefreshPromise = null
+      } else {
+        await saveTokens(tokenResult.data)
+        root = await getAppRoot(draft)
+      }
       const connectedConfig: CloudFolderConfig = {
         ...draft,
         oneDriveRootId: root.id,
@@ -1070,23 +1176,40 @@ export async function disconnectOneDrive(): Promise<void> {
   transferItemCache.clear()
   rootRequestCache.clear()
   itemRequestCache.clear()
-  tokenCacheVersion += 1
+  const retiredVersion = ++tokenCacheVersion
   cachedTokens = null
   tokenReadPromise = null
   tokenRefreshPromise = null
+  const currentPlatform = platform()
+  if (currentPlatform === 'ios') {
+    iosConnectionAttempt += 1
+    try {
+      await writeIOSSession(null)
+    } catch (error) {
+      if (tokenCacheVersion === retiredVersion) cachedTokens = undefined
+      throw error
+    }
+    await clearCloudFolderTreeCache()
+    return
+  }
   await clearCloudFolderTreeCache()
   const store = await Store.load('store.json')
-  const currentPlatform = platform()
-  if (currentPlatform === 'android' || currentPlatform === 'ios') {
-    await invoke(`delete_${currentPlatform}_secure_value`, { key: ONE_DRIVE_TOKEN_KEY })
+  if (currentPlatform === 'android') {
+    await invoke('delete_android_secure_value', { key: ONE_DRIVE_TOKEN_KEY })
   }
   await store.delete(ONE_DRIVE_TOKEN_KEY)
   await store.save()
 }
 
+export async function needsIOSOneDriveSignIn(): Promise<boolean> {
+  return platform() === 'ios' && !(await getStoredTokens())
+}
+
 export async function testOneDriveConnection(config: CloudFolderConfig): Promise<boolean> {
   const startedAt = Date.now()
-  if (!configuredClientId(config) || !await getStoredTokens()) return false
+  if (!configuredClientId(config)) return false
+  const tokens = await getStoredTokens()
+  if (!tokens || !tokensMatchConfig(tokens, config)) return false
   const connected = Boolean(await getAppRoot(config))
   logOneDriveTiming('connectionTest', startedAt, { connected })
   return connected

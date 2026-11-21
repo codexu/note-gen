@@ -65,9 +65,12 @@ interface SyncState {
   selfHostedConnected: boolean
   setSelfHostedConnected: (connected: boolean) => void
   selfHostedServiceAvailable: boolean | null
-  setSelfHostedServiceAvailable: (available: boolean) => void
+  selfHostedServiceIssue: 'instance-changed' | 'protocol-mismatch' | 'unreachable' | null
+  setSelfHostedServiceAvailable: (available: boolean, issue?: Exclude<SyncState['selfHostedServiceIssue'], null>) => void
   selfHostedRuntimeReady: boolean
   setSelfHostedRuntimeReady: (ready: boolean) => void
+  selfHostedRealtimeFallback: boolean
+  setSelfHostedRealtimeFallback: (fallback: boolean) => void
 
   webdavFileEtags: Record<string, string>
   setWebDAVFileEtags: (etags: Record<string, string>) => void
@@ -193,18 +196,22 @@ const useSyncStore = create<SyncState>((set) => ({
   selfHostedConnected: false,
   setSelfHostedConnected: (connected) => {
     set(state => ({ selfHostedConnected: connected,
-      ...(!connected ? { selfHostedServiceAvailable: null } : {}),
+      ...(!connected ? { selfHostedServiceAvailable: null, selfHostedServiceIssue: null } : {}),
       providerChecks: { ...state.providerChecks, selfHosted: 'settled' } }))
   },
   selfHostedServiceAvailable: null,
-  setSelfHostedServiceAvailable: available => {
+  selfHostedServiceIssue: null,
+  setSelfHostedServiceAvailable: (available, issue) => {
     set(state => ({ selfHostedServiceAvailable: available,
+      selfHostedServiceIssue: available ? null : issue ?? state.selfHostedServiceIssue ?? 'unreachable',
       providerChecks: { ...state.providerChecks, selfHosted: 'settled' } }))
   },
   selfHostedRuntimeReady: false,
   setSelfHostedRuntimeReady: (ready) => {
     set({ selfHostedRuntimeReady: ready })
   },
+  selfHostedRealtimeFallback: false,
+  setSelfHostedRealtimeFallback: selfHostedRealtimeFallback => set({ selfHostedRealtimeFallback }),
 
   webdavFileEtags: {},
   setWebDAVFileEtags: (etags) => {

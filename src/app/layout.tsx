@@ -2,7 +2,7 @@
 import { Toaster } from "@/components/ui/sonner"
 import "./globals.css";
 import 'react-photo-view/dist/react-photo-view.css';
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import emitter from "@/lib/emitter";
 import type { WikiRelatedFilesRequest } from "@/components/wiki/wiki-related-files";
@@ -28,7 +28,12 @@ function AppRuntime({ children }: { children: React.ReactNode }) {
     emitter.on('wiki-show-related-files', setRelatedFiles)
     return () => { emitter.off('wiki-show-related-files', setRelatedFiles) }
   }, [])
-  return <>{children}{relatedFiles && <WikiRelatedFiles key={relatedFiles.key} request={relatedFiles} dismiss={dismiss} />}</>
+  return (
+    <>
+      <Fragment key="route">{children}</Fragment>
+      {relatedFiles && <WikiRelatedFiles key={relatedFiles.key} request={relatedFiles} dismiss={dismiss} />}
+    </>
+  )
 }
 
 export default function RootLayout({

@@ -4,11 +4,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { motion, useReducedMotion, type Variants } from 'framer-motion'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import { Store } from '@tauri-apps/plugin-store'
 import { platform } from '@tauri-apps/plugin-os'
 
 import { ActivityHeatmap } from '@/components/activity/activity-heatmap'
+import { PendingSelfHostedSetup } from '@/app/core/setting/sync/components/pending-self-hosted-setup'
 import { Button } from '@/components/ui/button'
+import { usePendingSelfHostedSetup } from '@/hooks/use-pending-self-hosted-setup'
 import { loadActivityCalendarData } from '@/lib/activity'
 import type { ActivityCalendarData, ActivityDaySummary } from '@/lib/activity/types'
 import { SyncStateEnum, type UserInfo } from '@/lib/sync/github.types'
@@ -77,6 +80,7 @@ export function MobileMePage({
   const tActivity = useTranslations('activity')
   const tMe = useTranslations('mobile.me')
   const tSync = useTranslations('settings.sync')
+  const router = useRouter()
   const reduceMotion = useReducedMotion()
 
   const [activityData, setActivityData] = useState<ActivityCalendarData | null>(
@@ -92,6 +96,7 @@ export function MobileMePage({
   const restoredScrollRef = useRef(false)
   const refreshOnMountRef = useRef(refreshOnMount)
   const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const pendingSetupProfileId = usePendingSelfHostedSetup(!embedded && settingsReady)
 
   const {
     primaryBackupMethod,
@@ -508,6 +513,8 @@ export function MobileMePage({
         initial={embedded && animateEntrance && !reduceMotion ? "hidden" : false}
         animate="visible"
       >
+        {pendingSetupProfileId && <PendingSelfHostedSetup profileId={pendingSetupProfileId}
+          onContinue={() => router.push('/mobile/setting/pages/sync')} />}
         <motion.div variants={embeddedItemVariants}>
           <MobileUpdateSettings />
         </motion.div>

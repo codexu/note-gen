@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import {
   AlertTriangle, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight,
-  CircleX, CloudDownload, FileText, FolderOpen, GitMerge, HardDrive, ListChecks, Minimize2, RefreshCcw, SkipForward, X,
+  CircleX, CloudDownload, FileText, FolderOpen, GitMerge, HardDrive, ListChecks, LogIn, Minimize2, RefreshCcw, Search, Settings2, SkipForward, X,
 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
@@ -16,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from '@/components/ui/field'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
@@ -30,13 +32,15 @@ import {
   type SwitchOperationProgress, type SwitchResolution, type SwitchStrategy,
 } from '@/lib/sync/platform-switch-plan'
 import { cn } from '@/lib/utils'
+import { isOfficialSyncOrigin } from '@/lib/self-hosted-sync/service-source'
 import type { SelfHostedSwitchPreview } from '@/lib/self-hosted-sync/switch-preview'
 import useSettingStore from '@/stores/setting'
+import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import {
   cancelPlatformSwitch, choosePlatformSwitchStrategy, confirmPlatformSwitch, dismissPlatformSwitch,
   editPlatformSwitchChoice, holdPlatformSwitchCompletion, resolvePlatformSwitchConflict,
   restorePlatformSwitchRecovery, retryPlatformSwitch, selectPlatformSwitchModule, setPlatformSwitchRecoveryVisible, skipPlatformSwitchError, usePlatformSwitchStore,
-  continueSelfHostedSwitchWithoutSettings, recoverSelfHostedSwitchBackup,
+  continueSelfHostedSwitchWithoutSettings, recoverSelfHostedSwitchBackup, returnToSelfHostedSetup, useSelfHostedSetupReturnStore,
 } from '@/stores/sync-platform-switch'
 import { SYNC_PLATFORM_INFO, type SyncPlatform } from '@/types/sync'
 
@@ -50,6 +54,15 @@ const differenceTypes = [
   { key: 'conflicts', label: 'conflictCount', variant: 'destructive', color: 'bg-destructive' },
 ] as const
 type DifferenceCounts = Pick<PlatformSwitchPlan['modules'][number], typeof differenceTypes[number]['key']>
+
+function officialFirstSyncAction({ local, remote }: SelfHostedSwitchPreview['contentPresence']) {
+  if (local && remote) return 'merge'
+  if (local) return 'upload'
+  return remote ? 'download' : 'enable'
+}
+
+type OfficialFirstSyncAction = ReturnType<typeof officialFirstSyncAction>
+const DIFFERENCE_PAGE_SIZE = 30
 
 function formatBytes(value: number) {
   return value < 1024 ? `${value} B` : value < 1048576 ? `${(value / 1024).toFixed(1)} KB` : `${(value / 1048576).toFixed(1)} MB`
@@ -258,8 +271,26 @@ function selfHostedSwitchImpact(preview: SelfHostedSwitchPreview, strategy: Swit
   }
 }
 
-function SelfHostedSwitchOverview({ preview, strategy }: { preview: SelfHostedSwitchPreview; strategy: SwitchStrategy | null }) {
+function SelfHostedSwitchOverview({ preview, strategy, officialAction, service, showDifferences }: {
+  preview: SelfHostedSwitchPreview
+  strategy: SwitchStrategy | null
+  officialAction: OfficialFirstSyncAction | null
+  service: string
+  showDifferences: boolean
+}) {
   const p = useTranslations('settings.sync.switchPlan')
+  const [query, setQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(DIFFERENCE_PAGE_SIZE)
+  const search = query.trim().toLocaleLowerCase()
+  const matchingDetails = useMemo(() => {
+    if (!search) return preview.details
+    const modules = new Set(preview.modules.filter(row => p(`modules.${row.id}`).toLocaleLowerCase().includes(search)).map(row => row.id))
+    const types = ['localOnly', 'remoteOnly', 'changed', 'deleted'] as const
+    const differences = new Set(types.filter(type => p(`nativeDifferences.${type}`).toLocaleLowerCase().includes(search)))
+    return preview.details.filter(item => modules.has(item.module) || differences.has(item.difference)
+      || (item.module !== 'settings' && item.label.toLocaleLowerCase().includes(search)))
+  }, [p, preview.details, preview.modules, search])
+  const visibleDetails = matchingDetails.slice(0, visibleCount)
   const differences = (row: SelfHostedSwitchPreview['modules'][number]) => <div className="flex min-w-0 flex-wrap gap-1.5 [&>[data-slot=badge]]:h-auto [&>[data-slot=badge]]:max-w-full [&>[data-slot=badge]]:whitespace-normal [&>[data-slot=badge]]:[overflow-wrap:anywhere]">
     <Badge variant="secondary">{p('sameCount', { count: row.same })}</Badge>
     <Badge variant={row.localOnly ? 'warning' : 'secondary'}>{p('localOnlyCount', { count: row.localOnly })}</Badge>
@@ -268,40 +299,83 @@ function SelfHostedSwitchOverview({ preview, strategy }: { preview: SelfHostedSw
     <Badge variant={row.deleted ? 'destructive' : 'secondary'}>{p('nativeDeletedCount', { count: row.deleted })}</Badge>
   </div>
   return <section className="flex min-w-0 flex-col gap-4" aria-label={p('comparison')}>
-    <Alert><ListChecks /><AlertTitle>{p('nativeReviewAction')}</AlertTitle><AlertDescription className="flex flex-col gap-2">
-      <p className="break-all">{preview.serverUrl}</p>
-      <p>{p('nativePreviewHint')}</p>
-      <p>{p('nativeEngine')}</p>
-    </AlertDescription></Alert>
+    <dl className="grid min-w-0 gap-3 rounded-lg border p-3 sm:grid-cols-2">
+      <div className="min-w-0">
+        <dt className="text-xs text-muted-foreground">{p('targetService')}</dt>
+        <dd className="break-words text-sm [overflow-wrap:anywhere]">{service}</dd>
+        <dd className="break-all text-xs text-muted-foreground">{preview.serverUrl}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-xs text-muted-foreground">{p('targetAccount')}</dt>
+        <dd className="break-all text-sm">{preview.accountLogin || p('staleDetails.unknown')}</dd>
+      </div>
+    </dl>
+    {preview.libraries.map(library => <dl key={library.localRoot} className="grid min-w-0 gap-3 rounded-lg border p-3 sm:grid-cols-2">
+      <div className="min-w-0">
+        <dt className="text-xs text-muted-foreground">{p('localLibraryFolder')}</dt>
+        <dd className="break-all text-sm">{library.localRoot}</dd>
+      </div>
+      <div className="min-w-0">
+        <dt className="text-xs text-muted-foreground">{p('remoteLibrary')}</dt>
+        <dd className="break-all text-sm" title={library.workspaceId ?? undefined}>{library.workspaceName || library.workspaceId || p('newRemoteLibrary')}</dd>
+      </div>
+    </dl>)}
     {preview.settingsPaused && <Alert variant="warning"><AlertTriangle /><AlertDescription>{p('nativeSettingsPaused')}</AlertDescription></Alert>}
-    <div className="flex min-w-0 flex-col gap-3 md:hidden">
-      {preview.modules.map(row => <Card key={row.id} size="sm" className="min-w-0">
-        <CardHeader><CardTitle>{p(`modules.${row.id}`)}</CardTitle></CardHeader>
-        <CardContent className="flex min-w-0 flex-col gap-3">
-          <dl className="grid grid-cols-2 gap-3">
-            <div className="min-w-0"><dt className="text-xs text-muted-foreground">{p('localSide')}</dt><dd className="tabular-nums">{row.local}</dd></div>
-            <div className="min-w-0"><dt className="text-xs text-muted-foreground">{p('sources.remote')}</dt><dd className="tabular-nums">{row.remote}</dd></div>
-          </dl>
-          {differences(row)}
-        </CardContent>
-      </Card>)}
-    </div>
-    <div className="hidden min-w-0 md:block"><Table aria-label={p('moduleDetails')}>
-      <TableHeader><TableRow><TableHead>{p('module')}</TableHead><TableHead>{p('localSide')}</TableHead><TableHead>{p('sources.remote')}</TableHead><TableHead>{p('differences')}</TableHead></TableRow></TableHeader>
-      <TableBody>{preview.modules.map(row => <TableRow key={row.id}>
-        <TableCell>{p(`modules.${row.id}`)}</TableCell>
-        <TableCell className="tabular-nums">{row.local}</TableCell><TableCell className="tabular-nums">{row.remote}</TableCell>
-        <TableCell className="min-w-48 whitespace-normal">{differences(row)}</TableCell>
-      </TableRow>)}</TableBody>
-    </Table></div>
-    {preview.details.length > 0 && <section className="flex flex-col gap-2" aria-label={p('viewDifference')}>
-      <h3 className="text-sm font-medium">{p('viewDifference')}</h3>
-      <p className="text-xs text-muted-foreground">{p('nativeDetailLimit', { shown: preview.details.length, total: preview.differenceCount })}</p>
-      <ItemGroup className="gap-1">{preview.details.map((item, index) => <Item key={`${item.module}:${index}`} variant="muted" size="sm">
-        <ItemContent className="min-w-0"><ItemTitle className="block truncate" title={item.label}>{item.module === 'settings' ? p('modules.settings') : item.label}</ItemTitle><ItemDescription>{p(`modules.${item.module}`)}</ItemDescription></ItemContent>
-        <ItemActions><Badge variant={item.difference === 'deleted' ? 'destructive' : 'secondary'}>{p(`nativeDifferences.${item.difference}`)}</Badge></ItemActions>
-      </Item>)}</ItemGroup>
-    </section>}
+    {(showDifferences || officialAction) && <Alert><ListChecks /><AlertTitle>{p('nativeReviewAction')}</AlertTitle>
+      <AlertDescription className="flex flex-col gap-2">
+        {showDifferences && <p>{p('nativePreviewHint')}</p>}
+        <p>{p(officialAction ? `officialFirstSync.${officialAction}.description` : 'nativeEngine')}</p>
+      </AlertDescription>
+    </Alert>}
+    {showDifferences && <>
+      <div className="flex min-w-0 flex-col gap-3 md:hidden">
+        {preview.modules.map(row => <Card key={row.id} size="sm" className="min-w-0">
+          <CardHeader><CardTitle>{p(`modules.${row.id}`)}</CardTitle></CardHeader>
+          <CardContent className="flex min-w-0 flex-col gap-3">
+            <dl className="grid grid-cols-2 gap-3">
+              <div className="min-w-0"><dt className="text-xs text-muted-foreground">{p('localSide')}</dt><dd className="tabular-nums">{row.local}</dd></div>
+              <div className="min-w-0"><dt className="text-xs text-muted-foreground">{p('sources.remote')}</dt><dd className="tabular-nums">{row.remote}</dd></div>
+            </dl>
+            {differences(row)}
+          </CardContent>
+        </Card>)}
+      </div>
+      <div className="hidden min-w-0 md:block"><Table aria-label={p('moduleDetails')}>
+        <TableHeader><TableRow><TableHead>{p('module')}</TableHead><TableHead>{p('localSide')}</TableHead><TableHead>{p('sources.remote')}</TableHead><TableHead>{p('differences')}</TableHead></TableRow></TableHeader>
+        <TableBody>{preview.modules.map(row => <TableRow key={row.id}>
+          <TableCell>{p(`modules.${row.id}`)}</TableCell>
+          <TableCell className="tabular-nums">{row.local}</TableCell><TableCell className="tabular-nums">{row.remote}</TableCell>
+          <TableCell className="min-w-48 whitespace-normal">{differences(row)}</TableCell>
+        </TableRow>)}</TableBody>
+      </Table></div>
+      {preview.details.length > 0 && <section className="flex flex-col gap-2" aria-label={p('viewDifference')}>
+        <h3 className="text-sm font-medium">{p('viewDifference')}</h3>
+        <InputGroup>
+          <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
+          <InputGroupInput
+            type="search"
+            aria-label={p('searchDifferences')}
+            placeholder={p('searchDifferences')}
+            value={query}
+            onChange={event => {
+              setQuery(event.target.value)
+              setVisibleCount(DIFFERENCE_PAGE_SIZE)
+            }}
+          />
+        </InputGroup>
+        <p className="text-xs text-muted-foreground" role="status">{search
+          ? p('differenceSearchCount', { shown: visibleDetails.length, matched: matchingDetails.length, total: preview.differenceCount })
+          : p('nativeDetailLimit', { shown: visibleDetails.length, total: preview.differenceCount })}</p>
+        {!matchingDetails.length && <p className="py-2 text-sm text-muted-foreground">{p('noMatchingDifferences')}</p>}
+        <ItemGroup className="gap-1">{visibleDetails.map((item, index) => <Item key={`${item.module}:${index}`} variant="muted" size="sm" className="flex-wrap">
+          <ItemContent className="min-w-0"><ItemTitle className="block break-words [overflow-wrap:anywhere]">{item.module === 'settings' ? p('modules.settings') : item.label}</ItemTitle><ItemDescription>{p(`modules.${item.module}`)}</ItemDescription></ItemContent>
+          <ItemActions><Badge variant={item.difference === 'deleted' ? 'destructive' : 'secondary'}>{p(`nativeDifferences.${item.difference}`)}</Badge></ItemActions>
+        </Item>)}</ItemGroup>
+        {visibleDetails.length < matchingDetails.length && <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => setVisibleCount(count => count + DIFFERENCE_PAGE_SIZE)}>
+          {p('showMoreDifferences')}
+        </Button>}
+      </section>}
+    </>}
     <Alert variant="warning"><AlertTriangle /><AlertTitle>{p('nativeHandlingTitle')}</AlertTitle><AlertDescription className="flex flex-col gap-2">
       {strategy === 'merge' && <><p>{p('nativeHandlingFiles')}</p><p>{p('nativeHandlingPersonal')}</p><p>{p('nativeHandlingDeletions')}</p></>}
       {strategy && strategy !== 'merge' && <p>{p(`nativeDescriptions.${strategy}`)}</p>}
@@ -313,7 +387,9 @@ function SelfHostedSwitchOverview({ preview, strategy }: { preview: SelfHostedSw
 export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean }) {
   const t = useTranslations()
   const p = useTranslations('settings.sync.switchPlan')
+  const router = useRouter()
   const state = usePlatformSwitchStore()
+  const returnRequest = useSelfHostedSetupReturnStore(value => value.request)
   const stage = useSwitchStage(state)
   const primary = useSettingStore(value => value.primaryBackupMethod)
   const { platform, step, plan, progress, error, strategy, selected, resolutions, mutated } = state
@@ -332,6 +408,12 @@ export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean
   const launcher = useRef<HTMLButtonElement>(null)
   const failureToast = useRef<ReturnType<typeof toast> | null>(null)
   useEffect(() => { void restorePlatformSwitchRecovery() }, [])
+  useEffect(() => {
+    const pathname = window.location.pathname.replace(/\/$/, '')
+    if (!returnRequest || autoOpen || pathname.endsWith('/sync')) return
+    if (pathname.startsWith('/mobile')) router.push('/mobile/setting/pages/sync')
+    else useSettingsDialogStore.getState().openSettings('sync')
+  }, [autoOpen, returnRequest, router])
   useEffect(() => {
     setOpen(autoOpen && Boolean(platform) && !hideCancelled)
     if (platform) setOrigin(useSettingStore.getState().primaryBackupMethod)
@@ -376,6 +458,8 @@ export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean
     SELF_HOSTED_SWITCH_RESULT_MISMATCH: 'nativeResultMismatch',
     SELF_HOSTED_SWITCH_COMMAND_REJECTED: 'nativeResultMismatch',
     SELF_HOSTED_SWITCH_PATH_MOVES_PENDING: 'nativePathMovesPending',
+    SELF_HOSTED_OFFICIAL_MERGE_REQUIRED: 'officialMergeRequired',
+    SELF_HOSTED_INITIAL_LIBRARY_INVALID: 'initialLibraryInvalid',
     SELF_HOSTED_BACKUP_INVALID: 'nativeBackupInvalid',
     SELF_HOSTED_BACKUP_LEGACY: 'nativeBackupLegacy',
     SELF_HOSTED_BACKUP_FILE_JOURNAL_PENDING: 'nativeBackupFileJournalPending',
@@ -402,25 +486,39 @@ export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean
   const platformName = (value: SyncPlatform) => value === 'local' ? t('settings.sync.local.title')
     : value === 'cloudFolder' ? t('settings.sync.cloudFolder.title')
       : value === 'selfHosted' ? t('settings.sync.selfHosted.title') : SYNC_PLATFORM_INFO[value].name
-  const name = platformName(state.recovered ? primary : platform)
-  const originName = platformName(origin)
   const nativeEngine = platform === 'selfHosted'
+  const selfHostedPreview = state.review?.selfHostedPreview
+  const officialAction = nativeEngine && selfHostedPreview && isOfficialSyncOrigin(selfHostedPreview.serverUrl)
+    ? officialFirstSyncAction(selfHostedPreview.contentPresence) : null
+  const name = officialAction && !state.recovered ? t('settings.sync.selfHosted.officialSource') : platformName(state.recovered ? primary : platform)
+  const originName = platformName(origin)
   const choosing = step === 'review' || step === 'confirm'
   const stopped = step === 'error' || step === 'cancelled'
+  const canReturnToSetup = nativeEngine && !mutated && (choosing || stopped) && !state.selfHostedSafetyBackupPath
+  const requiresLogin = Boolean(error && (error === 'SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED'
+    || error.includes('SELF_HOSTED_SESSION_REQUIRED') || error.includes('SELF_HOSTED_API_AUTH_REQUIRED')))
+  const requiresConnectionChange = error === 'SELF_HOSTED_PREVIEW_INSTANCE_CHANGED'
+  const requiresScopeChange = error === 'SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED' || error === 'SELF_HOSTED_INITIAL_LIBRARY_INVALID'
+    || error === 'SELF_HOSTED_WORKSPACE_PROFILE_MISMATCH'
+  const returnIntent = requiresLogin ? 'login' : requiresConnectionChange ? 'connection' : 'setup'
+  const canRetry = (stopped || state.skipped)
+    && !(canReturnToSetup && (requiresLogin || requiresConnectionChange || requiresScopeChange))
   const busy = !choosing && !stopped && step !== 'completed'
   const skipped = step === 'completed' && state.skipped
   const conflicts = plan?.conflicts.filter(item => selected.includes(item.module)) || []
   const unresolved = strategy === 'merge' ? conflicts.filter(item => !resolutions[item.id]).length : 0
   const unavailableRemote = plan?.unavailableModules.some(module => selected.includes(module)) || false
-  const canChoose = draftStrategy !== null && selected.length > 0 && !(draftStrategy === 'remote' && unavailableRemote)
-  const canConfirm = strategy !== null && acknowledged && selected.length > 0 && !unresolved && !(strategy === 'remote' && unavailableRemote)
+  const reviewStrategy = officialAction ? 'merge' : draftStrategy
+  const canChoose = reviewStrategy !== null && selected.length > 0 && !(reviewStrategy === 'remote' && unavailableRemote)
+  const canConfirm = strategy !== null && acknowledged && selected.length > 0 && !unresolved
+    && !(strategy === 'remote' && unavailableRemote) && (!officialAction || strategy === 'merge')
   const activity = choosing ? p(step === 'review' ? 'reviewTitle' : 'confirmTitle')
     : state.cancelRequested ? p('cancelling') : skipped ? p('skipped') : step === 'completed' ? p('completed') : step === 'cancelled' ? p('cancelled') : step === 'error' ? p('failed')
       : progress?.startupTask ? p(`startupTasks.${progress.startupTask}`) : progress ? p(`phases.${progress.phase}`) : t(`settings.sync.switchProgress.${step}`)
   const title = choosing ? p(step === 'review' ? 'reviewTitle' : 'confirmTitle')
     : skipped ? p('skipped') : step === 'cancelled' ? p('cancelled') : step === 'error' ? p('failed') : step === 'completed' ? p(state.recovered ? 'recoveryCompleted' : 'completed') : p(stage === 0 ? 'inspectTitle' : 'executeTitle')
-  const impact = strategy ? nativeEngine && state.review?.selfHostedPreview
-    ? selfHostedSwitchImpact(state.review.selfHostedPreview, strategy, selected)
+  const impact = strategy && !officialAction ? nativeEngine && selfHostedPreview
+    ? selfHostedSwitchImpact(selfHostedPreview, strategy, selected)
     : plan ? platformSwitchImpact(plan, strategy, selected, resolutions) : null : null
   const closeDetails = () => {
     if (state.recoveringSelfHostedBackup) return
@@ -428,6 +526,19 @@ export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean
     else if (step === 'cancelled') setPlatformSwitchRecoveryVisible(false)
     else setOpen(false)
   }
+  const acknowledge = step === 'confirm' && <FieldGroup>
+    <FieldLabel htmlFor={acknowledgeId} tone={canConfirm ? 'success' : 'warning'} className={cn('has-focus-visible:ring-2 has-focus-visible:ring-ring', unresolved > 0 ? 'cursor-not-allowed' : 'cursor-pointer')}>
+      <Field orientation="horizontal" data-disabled={unresolved > 0} className="min-h-12 gap-3">
+        <Checkbox id={acknowledgeId} className="size-5" checked={acknowledged} disabled={unresolved > 0}
+          aria-labelledby={`${acknowledgeId}-label`} aria-describedby={unresolved > 0 ? `${acknowledgeId}-hint` : undefined}
+          onCheckedChange={value => setAcknowledged(value === true)} />
+        <FieldContent>
+          <FieldTitle id={`${acknowledgeId}-label`}>{p('acknowledge')}</FieldTitle>
+          {unresolved > 0 && <FieldDescription id={`${acknowledgeId}-hint`}>{p('unresolved', { count: unresolved })}</FieldDescription>}
+        </FieldContent>
+      </Field>
+    </FieldLabel>
+  </FieldGroup>
 
   return <Dialog open={open} onOpenChange={next => { if (next) setOpen(true); else closeDetails() }}>
     <Item variant="outline" size="sm" className="mb-4 min-w-0 flex-wrap" role="region" aria-label={p('panelTitle', { platform: name })}>
@@ -458,7 +569,7 @@ export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean
         <div className="flex min-w-0 flex-col gap-5 px-4 py-4 sm:gap-6 sm:px-6 sm:py-5">
           {busy && <SwitchCurrentOperation progress={progress} listing={['local', 'currentRemote', 'nextRemote'].includes(step) || progress?.phase === 'list' ? state.listing : null} activity={activity} />}
           {choosing && unavailableRemote && <Alert variant="warning"><AlertTriangle /><AlertTitle>{p('unreadableSnapshot')}</AlertTitle><AlertDescription>{p('emptyLegacyFiles', { paths: plan?.emptyRemoteFiles.join('、') || '' })}</AlertDescription></Alert>}
-          {step === 'review' && (plan || state.review?.selfHostedPreview) && <>
+          {step === 'review' && !officialAction && (plan || selfHostedPreview) && <>
             <FieldSet><FieldLegend variant="label">{p('choose')}</FieldLegend>
               {draftStrategy === null && <Alert variant="warning" id={strategyHintId}><AlertTriangle /><AlertDescription>{p('strategyRequired')}</AlertDescription></Alert>}
               <ToggleGroup type="single" variant="outline" value={draftStrategy || ''} onValueChange={value => setDraftStrategy(strategies.find(strategy => strategy === value) || null)} className="grid w-full grid-cols-1 items-stretch gap-3 sm:grid-cols-3" aria-label={p('choose')} aria-describedby={draftStrategy === null ? strategyHintId : undefined}>
@@ -473,10 +584,12 @@ export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean
             </FieldSet>
             {plan && !nativeEngine && <SwitchDataOverview plan={plan} selected={selected} remoteName={name} />}
           </>}
-          {choosing && nativeEngine && state.review?.selfHostedPreview && <SelfHostedSwitchOverview preview={state.review.selfHostedPreview} strategy={step === 'review' ? draftStrategy : strategy} />}
+          {choosing && nativeEngine && selfHostedPreview && <SelfHostedSwitchOverview preview={selfHostedPreview}
+            strategy={officialAction ? 'merge' : step === 'review' ? reviewStrategy : strategy} officialAction={officialAction}
+            service={t(officialAction ? 'settings.sync.selfHosted.officialSource' : 'settings.sync.selfHosted.customSource')} showDifferences={step === 'review'} />}
           {step === 'confirm' && <>
             <section className="flex flex-col gap-3" aria-label={p('operationSummary')}>
-              <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-medium">{p('operationSummary')}</h3><Badge variant="secondary">{p(`strategies.${strategy || 'merge'}`)}</Badge></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-medium">{p('operationSummary')}</h3>{!officialAction && <Badge variant="secondary">{p(`strategies.${strategy || 'merge'}`)}</Badge>}</div>
               {impact && <div className="grid gap-3 sm:grid-cols-2">
                 <Card size="sm"><CardHeader><CardTitle>{p('localSide')}</CardTitle></CardHeader><CardContent><CardDescription>{p('impact', { added: impact.localAdd, replaced: impact.localReplace, removed: impact.localRemove })}</CardDescription></CardContent></Card>
                 <Card size="sm"><CardHeader><CardTitle>{name}</CardTitle></CardHeader><CardContent><CardDescription>{p('impact', { added: impact.remoteAdd, replaced: impact.remoteReplace, removed: impact.remoteRemove })}</CardDescription></CardContent></Card>
@@ -505,38 +618,32 @@ export function PlatformSwitchProgress({ autoOpen = true }: { autoOpen?: boolean
               await openPath(await join(await appDataDir(), state.selfHostedBackupPath!))
             })().catch(failure => toast({ title: p('failed'), description: String(failure), variant: 'destructive' }))}><FolderOpen data-icon="inline-start" />{p('nativeOpenBackup')}</Button>
           </AlertDescription></Alert>}
-        {step === 'confirm' && <FieldGroup>
-          <FieldLabel htmlFor={acknowledgeId} tone={canConfirm ? 'success' : 'warning'} className={cn('has-focus-visible:ring-2 has-focus-visible:ring-ring', unresolved > 0 ? 'cursor-not-allowed' : 'cursor-pointer')}>
-            <Field orientation="horizontal" data-disabled={unresolved > 0} className="min-h-14 gap-3">
-              <Checkbox id={acknowledgeId} className="size-5" checked={acknowledged} disabled={unresolved > 0}
-                aria-labelledby={`${acknowledgeId}-label`} aria-describedby={unresolved > 0 ? `${acknowledgeId}-hint` : undefined}
-                onCheckedChange={value => setAcknowledged(value === true)} />
-              <FieldContent>
-                <FieldTitle id={`${acknowledgeId}-label`}>{p('acknowledge')}</FieldTitle>
-                {unresolved > 0 && <FieldDescription id={`${acknowledgeId}-hint`}>{p('unresolved', { count: unresolved })}</FieldDescription>}
-              </FieldContent>
-            </Field>
-          </FieldLabel>
-        </FieldGroup>}
+          {!nativeEngine && acknowledge}
         </div>
       </div>
       <Separator />
       <footer className="flex max-h-[45dvh] shrink-0 flex-col gap-3 overflow-y-auto overscroll-contain bg-muted/30 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
+        {nativeEngine && acknowledge}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="min-w-0 text-xs text-muted-foreground" role="status">{p('currentPrimary', { platform: platformName(primary) })}</p>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end [&>button]:h-auto [&>button]:min-h-9 [&>button]:min-w-0 [&>button]:whitespace-normal [&>button]:[overflow-wrap:anywhere]">
             {step !== 'completed' && step !== 'cancelled' && !state.selfHostedSafetyBackupPath && <Button type="button" variant="outline" disabled={state.cancelRequested} onClick={() => { if (mutated) setConfirmation('cancel'); else void cancelPlatformSwitch() }}>{state.cancelRequested ? <Spinner data-icon="inline-start" /> : <X data-icon="inline-start" />}{p(state.cancelRequested ? 'cancelling' : 'cancelSwitch')}</Button>}
             {step === 'confirm' && <Button type="button" variant="outline" onClick={editPlatformSwitchChoice}><ChevronLeft data-icon="inline-start" />{p('back')}</Button>}
-            {step === 'review' && <Button type="button" disabled={!(plan || state.review?.selfHostedPreview) || !canChoose} aria-describedby={draftStrategy === null ? strategyHintId : undefined} onClick={() => {
-              if (draftStrategy) choosePlatformSwitchStrategy(draftStrategy)
+            {canReturnToSetup && <Button type="button" variant={stopped && !canRetry ? 'default' : 'outline'} disabled={state.cancelRequested}
+              onClick={() => void returnToSelfHostedSetup(returnIntent)}>
+              {requiresLogin ? <LogIn data-icon="inline-start" /> : <Settings2 data-icon="inline-start" />}
+              {p(choosing ? 'editSyncScope' : requiresLogin ? 'signInToContinue' : requiresConnectionChange ? 'returnToConnection' : 'returnToSetup')}
+            </Button>}
+            {step === 'review' && <Button type="button" disabled={!(plan || selfHostedPreview) || !canChoose} aria-describedby={reviewStrategy === null ? strategyHintId : undefined} onClick={() => {
+              if (reviewStrategy) choosePlatformSwitchStrategy(reviewStrategy)
             }}>{p('continue')}<ArrowRight data-icon="inline-end" /></Button>}
-            {step === 'confirm' && <Button type="button" disabled={!canConfirm} aria-describedby={unresolved > 0 ? `${acknowledgeId}-hint` : undefined} onClick={confirmPlatformSwitch}>{p('confirmExecute')}<ArrowRight data-icon="inline-end" /></Button>}
-            {stopped && !state.selfHostedSafetyBackupPath && <Button type="button" variant="outline" onClick={() => setConfirmation('skip')}><SkipForward data-icon="inline-start" />{p(step === 'cancelled' ? 'confirmSkip' : 'skipError')}</Button>}
+            {step === 'confirm' && <Button type="button" disabled={!canConfirm} aria-describedby={unresolved > 0 ? `${acknowledgeId}-hint` : undefined} onClick={confirmPlatformSwitch}>{p(officialAction ? `officialFirstSync.${officialAction}.action` : 'confirmExecute')}<ArrowRight data-icon="inline-end" /></Button>}
+            {stopped && !state.selfHostedSafetyBackupPath && (!nativeEngine || mutated) && <Button type="button" variant="outline" onClick={() => setConfirmation('skip')}><SkipForward data-icon="inline-start" />{p(step === 'cancelled' ? 'confirmSkip' : 'skipError')}</Button>}
             {(stopped || skipped) && state.selfHostedBackupPath && <Button type="button" variant="outline" onClick={() => setConfirmation('restore')}><HardDrive data-icon="inline-start" />{p('nativeRestoreBackup')}</Button>}
             {step === 'error' && error === 'SELF_HOSTED_PREVIEW_SETTING_DECRYPTION_FAILED' && !mutated && <Button type="button" variant="outline" onClick={() => {
               void continueSelfHostedSwitchWithoutSettings().catch(failure => toast({ title: p('failed'), description: failure instanceof Error ? failure.message : String(failure), variant: 'destructive' }))
             }}>{p('nativeContinueWithoutSettings')}<ArrowRight data-icon="inline-end" /></Button>}
-            {(stopped || skipped) && <Button type="button" onClick={() => void retryPlatformSwitch()}><RefreshCcw data-icon="inline-start" />{p(skipped ? 'verifySkipped' : 'rescanRetry')}</Button>}
+            {canRetry && <Button type="button" onClick={() => void retryPlatformSwitch()}><RefreshCcw data-icon="inline-start" />{p(skipped ? 'verifySkipped' : 'rescanRetry')}</Button>}
             {step === 'cancelled' && !mutated && <Button type="button" variant="outline" onClick={() => void dismissPlatformSwitch()}>{p('done')}</Button>}
             {step === 'completed' && <Button type="button" onClick={() => void dismissPlatformSwitch()}><Check data-icon="inline-start" />{p('done')}</Button>}
           </div>

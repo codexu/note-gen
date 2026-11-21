@@ -113,12 +113,15 @@ export async function getSyncConfiguration(): Promise<{
     const database = await getDb()
     const profiles = await database.select<Array<{
       id: string
-      state: 'connected' | 'disconnected' | 'reauthentication-required'
+      state: 'connected' | 'reauthentication-required'
     }>>(
-      "select id, state from self_hosted_sync_profiles order by updated_at desc limit 1"
+      `select id, state from self_hosted_sync_profiles
+       where state in ('connected', 'reauthentication-required')
+       order by state = 'connected' desc, updated_at desc, id limit 1`
     )
     const profile = profiles[0]
-    if (profile?.state === 'reauthentication-required') {
+    const { selfHostedSessionNeedsLogin } = await import('@/lib/self-hosted-sync/profile')
+    if (profile && (profile.state === 'reauthentication-required' || await selfHostedSessionNeedsLogin(profile.id))) {
       console.info('[self-hosted-sync] availability.reauthentication-required', { profileId: profile.id })
       return { platform, configured: false, reason: 'reauthentication-required' }
     }
@@ -138,9 +141,10 @@ export async function getSyncConfiguration(): Promise<{
     const { getCurrentWorkspaceRoot } = await import('@/lib/self-hosted-sync/workspaces')
     const localRoot = await getCurrentWorkspaceRoot()
     const rows = await database.select<Array<{ total: number }>>(
-      `select count(*) as total from self_hosted_workspace_bindings
-       where workspace_type = 'library' and local_root = $1 and binding_state = 'bound'`,
-      [localRoot]
+      `select count(*) as total from self_hosted_workspace_bindings b
+       join self_hosted_sync_profiles p on p.id = b.profile_id and p.state = 'connected'
+       where b.workspace_type = 'library' and b.local_root = $1 and b.binding_state = 'bound' and b.profile_id = $2`,
+      [localRoot, profileId]
     )
     const configured = (rows[0]?.total ?? 0) > 0
     console.info('[self-hosted-sync] availability.result', { profileId, configured })

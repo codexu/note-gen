@@ -6,6 +6,8 @@ mod analytics;
 #[cfg(target_os = "android")]
 mod android_ocr;
 mod app_setup;
+#[cfg(target_os = "macos")]
+mod apple_sync_credentials;
 mod backup;
 mod backup_manager;
 mod browser;
@@ -342,6 +344,10 @@ fn main() {
             self_hosted_security::self_hosted_secure_set,
             self_hosted_security::self_hosted_secure_get,
             self_hosted_security::self_hosted_secure_delete,
+            #[cfg(target_os = "macos")]
+            self_hosted_security::self_hosted_secure_store_session,
+            #[cfg(target_os = "macos")]
+            self_hosted_security::self_hosted_secure_clear_session,
             self_hosted_security::self_hosted_secure_retry_access,
             self_hosted_files::self_hosted_portable_path,
             self_hosted_files::self_hosted_move_source_path,

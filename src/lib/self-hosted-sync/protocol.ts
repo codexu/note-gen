@@ -22,6 +22,12 @@ export interface ServerCapabilities {
   publicBaseUrl: string
   protocol: { minimum: number; maximum: number }
   features: Record<string, boolean>
+  registrationMode?: 'open' | 'closed'
+  registration?: {
+    policy: 'bootstrap' | 'disabled' | 'invitation' | 'public'
+    methods: string[]
+    emailVerificationRequired: boolean
+  }
   web: { accountUrl: string; deviceAuthorizationUrl: string }
 }
 

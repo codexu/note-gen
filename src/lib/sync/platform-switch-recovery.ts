@@ -9,6 +9,7 @@ export interface PlatformSwitchRecovery {
   backupPath?: string
   backupPaths?: string[]
   selfHostedBackupPath?: string
+  selfHostedActivation?: { profileId: string; previousId: string | null }
   selfHostedSafetyBackupPath?: string
   selfHostedSafetyBackupPaths?: string[]
   startedAt?: number

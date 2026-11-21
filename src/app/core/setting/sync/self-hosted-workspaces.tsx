@@ -316,7 +316,7 @@ export function SelfHostedWorkspaces({ profileId }: { profileId: string }) {
       if (!await prepareWorkspaceSwitch()) return
       const { client } = await authenticatedClient(profileId)
       await client.deleteWorkspace(workspace.id)
-      await markLibraryRemoteDeleted(workspace.id)
+      await markLibraryRemoteDeleted(profileId, workspace.id)
       setLibraries(current => current.filter(item => item.id !== workspace.id))
       setSelectedId(defaultWorkspace.id)
       setDeleteOpen(false)

@@ -13,9 +13,9 @@ import { GiteaSync } from '@/app/core/setting/sync/gitea-sync'
 import { S3Sync } from '@/app/core/setting/sync/s3-sync'
 import { WebDAVSync } from '@/app/core/setting/sync/webdav-sync'
 import { SelfHostedSync } from '@/app/core/setting/sync/self-hosted-sync'
-import { SelfHostedPersonalDataOptions } from '@/app/core/setting/sync/self-hosted-personal-data-options'
+import { PendingSelfHostedSetup } from '@/app/core/setting/sync/components/pending-self-hosted-setup'
 import { UsePlatformButton } from '@/app/core/setting/sync/components/use-platform-button'
-import { restorePlatformSwitchRecovery, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
+import { restorePlatformSwitchRecovery, usePlatformSwitchStore, useSelfHostedSetupReturnStore } from '@/stores/sync-platform-switch'
 import { WorkspaceRepoMapping } from '@/app/core/setting/sync/components/workspace-repo-mapping'
 import { DataSyncOverview } from '@/app/core/setting/sync/components/data-sync-overview'
 import { MobileSelectDrawer } from '@/app/mobile/components/mobile-select-drawer'
@@ -26,8 +26,8 @@ import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle }
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useSyncProviderOptions } from '@/hooks/use-sync-provider-options'
+import { usePendingSelfHostedSetup } from '@/hooks/use-pending-self-hosted-setup'
 import { RepoNames, SyncStateEnum } from '@/lib/sync/github.types'
-import { hasConfiguredSelfHostedSync } from '@/lib/diagnostics/self-hosted'
 import { checkSyncProviderStatus } from '@/lib/sync/provider-status'
 import type { SyncRepoPlatform, WorkspaceSyncRepos } from '@/lib/sync/workspace-repos'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
@@ -45,12 +45,15 @@ function isRepoSyncPlatform(platformName: SyncProvider): platformName is SyncRep
     || platformName === 'gitea'
 }
 
-export function MobileSyncSettings({ selectedPlatform, onActivate }: {
+export function MobileSyncSettings({ selectedPlatform, onActivate, onSetupLater }: {
   selectedPlatform?: SyncProvider
   onActivate?: () => void
+  onSetupLater?: () => void
 } = {}) {
   const t = useTranslations()
   const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const pendingSetupProfileId = usePendingSelfHostedSetup(settingsReady)
+  const setupReturnRequest = useSelfHostedSetupReturnStore(state => state.request)
   const currentPlatform = platform()
   const embedded = selectedPlatform !== undefined
   const isIOS = currentPlatform === 'ios'
@@ -75,7 +78,6 @@ export function MobileSyncSettings({ selectedPlatform, onActivate }: {
     setGiteeCustomSyncRepo,
     setGitlabCustomSyncRepo,
     setGiteaCustomSyncRepo,
-    developerMode,
   } = useSettingStore()
   const {
     syncRepoState,
@@ -94,24 +96,15 @@ export function MobileSyncSettings({ selectedPlatform, onActivate }: {
   const [isLoading, setIsLoading] = useState(!embedded)
   const [activeCloudFolderProvider, setActiveCloudFolderProvider] = useState<'folder' | 'oneDrive' | null>(null)
   const [workspaceRepos, setWorkspaceRepos] = useState<Record<string, WorkspaceSyncRepos>>({})
-  const [hasSelfHostedConfiguration, setHasSelfHostedConfiguration] = useState(false)
   const selectedTabRef = useRef(tab)
   selectedTabRef.current = tab
 
-  const providerOptions = useSyncProviderOptions(
-    developerMode || primaryBackupMethod === 'selfHosted' || hasSelfHostedConfiguration,
-    currentPlatform,
-  )
-
   useEffect(() => {
-    let cancelled = false
-    void hasConfiguredSelfHostedSync().then(configured => {
-      if (!cancelled) setHasSelfHostedConfiguration(configured)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [selfHostedConnected])
+    if (!embedded && !isLoading && setupReturnRequest) setTab('selfHosted')
+  }, [embedded, isLoading, setupReturnRequest])
+
+  const providerOptions = useSyncProviderOptions(currentPlatform)
+
 
   const workspaceOptions = useMemo(
     () => Array.from(new Set([workspacePath, '', ...workspaceHistory])),
@@ -280,7 +273,7 @@ export function MobileSyncSettings({ selectedPlatform, onActivate }: {
       case 'webdav':
         return <WebDAVSync />
       case 'selfHosted':
-        return <SelfHostedSync />
+        return <SelfHostedSync onSetupLater={onSetupLater} />
       case 'iCloud':
         return isIOS
           ? <ICloudFolderSync onActiveProviderChange={setActiveCloudFolderProvider} />
@@ -305,6 +298,7 @@ export function MobileSyncSettings({ selectedPlatform, onActivate }: {
 
   return (
     <div className="flex flex-col gap-6">
+      {!embedded && pendingSetupProfileId && <PendingSelfHostedSetup profileId={pendingSetupProfileId} />}
       {!embedded && <p className="text-sm leading-relaxed text-muted-foreground">
         {selectedSyncPlatform === 'local' ? t('settings.sync.local.description') : t('settings.sync.desc')}
       </p>}
@@ -322,7 +316,7 @@ export function MobileSyncSettings({ selectedPlatform, onActivate }: {
               options={providerOptions}
             />
           </div>}
-          {(!embedded || tab !== 'oneDrive') && <div className="shrink-0 [&>button]:h-auto [&>button]:min-h-11 [&>button]:w-full [&>button]:whitespace-normal sm:[&>button]:w-auto">
+          {(!embedded || tab !== 'oneDrive') && !(tab === 'selfHosted' && pendingSetupProfileId) && <div className="shrink-0 [&>button]:h-auto [&>button]:min-h-11 [&>button]:w-full [&>button]:whitespace-normal sm:[&>button]:w-auto">
             <UsePlatformButton
               platform={selectedSyncPlatform}
               onActivate={onActivate}
@@ -398,7 +392,7 @@ export function MobileSyncSettings({ selectedPlatform, onActivate }: {
 
       </section> : null}
 
-      {tab === 'selfHosted' ? <SelfHostedPersonalDataOptions /> : tab !== 'local' ? <DataSyncOverview
+      {tab !== 'selfHosted' && tab !== 'local' && <DataSyncOverview
         mobile
         autoRecordSyncEnabled={autoRecordSyncEnabled}
         autoSettingsSyncEnabled={autoSettingsSyncEnabled}
@@ -408,7 +402,7 @@ export function MobileSyncSettings({ selectedPlatform, onActivate }: {
         onSettingsSyncChange={setAutoSettingsSyncEnabled}
         onConversationSyncChange={setAutoConversationSyncEnabled}
         onSensitiveConfigChange={handleExcludeSensitiveConfigChange}
-      /> : null}
+      />}
       {tab !== 'local' && tab !== 'selfHosted' && autoRecordSyncEnabled ? <RecordSyncStatusBanner showWaitingProvider /> : null}
     </div>
   )

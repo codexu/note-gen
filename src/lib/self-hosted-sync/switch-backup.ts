@@ -4,10 +4,12 @@ import { appDataDir, dirname, join } from '@tauri-apps/api/path'
 import { BaseDirectory, exists, mkdir, readDir, readFile, writeFile } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb, type RecordStatement } from '@/db'
-import { shouldExcludeFromSync } from '@/config/sync-exclusions'
+import { shouldExcludeFromSync, shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import { bytesToBase64Url, hashBytes } from './blob'
 import { isManagedPersonalAssetPath, readPersonalAsset } from './personal-assets'
+import { filterOfficialSyncSettings } from './official-settings'
+import { isOfficialSyncOrigin } from './service-source'
 
 type Scalar = string | number | boolean | null
 type Row = Record<string, Scalar>
@@ -38,7 +40,6 @@ const tables = [
 ] as const
 const options = { baseDir: BaseDirectory.AppData }
 const encoder = new TextEncoder()
-const excluded = (name: string) => name === '.notegen' || name === '.DS_Store' || name.endsWith('.tmp')
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 async function localPersonalAssets(assertActive: () => void) {
@@ -47,7 +48,7 @@ async function localPersonalAssets(assertActive: () => void) {
     if (!await exists(path, options)) return
     for (const entry of await readDir(path, options)) {
       assertActive()
-      if (entry.isSymlink || excluded(entry.name)) continue
+      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name)) continue
       const relative = `${path}/${entry.name}`
       if (entry.isDirectory) await scan(relative)
       else if (entry.isFile) {
@@ -88,7 +89,7 @@ export async function captureSelfHostedSwitchBackup(input: {
     if (!prefix) await ensureWorkspaceDirectory(root)
     for (const entry of await readDir(root)) {
       input.assertActive()
-      if (entry.isSymlink || excluded(entry.name)) continue
+      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name)) continue
       const relative = await portable(prefix ? `${prefix}/${entry.name}` : entry.name)
       const source = await join(root, entry.name)
       const destination = `${path}/files/${library}/${relative}`
@@ -120,8 +121,13 @@ export async function captureSelfHostedSwitchBackup(input: {
   }
   const settingsStore = await Store.load('store.json')
   const excludeSensitiveConfig = await settingsStore.get<boolean>('excludeSensitiveConfig') !== false
-  for (const [key, value] of await settingsStore.entries()) {
-    if (!shouldExcludeFromSync(key, { excludeSensitiveConfig })) personal.settings[key] = value
+  const settings = await settingsStore.entries()
+  if (isOfficialSyncOrigin(input.serverUrl)) {
+    personal.settings = filterOfficialSyncSettings(Object.fromEntries(settings))
+  } else {
+    for (const [key, value] of settings) {
+      if (!shouldExcludeFromSync(key, { excludeSensitiveConfig })) personal.settings[key] = value
+    }
   }
   const bytes = encoder.encode(JSON.stringify(personal))
   await writeFile(`${path}/personal-data.json`, bytes, options)
@@ -309,13 +315,22 @@ export async function restoreSelfHostedSwitchBackup(
     throw error
   }
   const store = await Store.load('store.json')
-  const excludeSensitiveConfig = manifest.excludeSensitiveConfig !== false
-    || (await store.get<boolean>('excludeSensitiveConfig')) !== false
-  for (const [key] of await store.entries()) {
-    if (!shouldExcludeFromSync(key, { excludeSensitiveConfig }) && !(key in personal.settings)) await store.delete(key)
-  }
-  for (const [key, value] of Object.entries(personal.settings)) {
-    if (!shouldExcludeFromSync(key, { excludeSensitiveConfig })) await store.set(key, value)
+  if (isOfficialSyncOrigin(manifest.serverUrl)) {
+    const settings = filterOfficialSyncSettings(personal.settings)
+    const current = filterOfficialSyncSettings(Object.fromEntries(await store.entries()))
+    for (const key of Object.keys(current)) {
+      if (!Object.hasOwn(settings, key)) await store.delete(key)
+    }
+    for (const [key, value] of Object.entries(settings)) await store.set(key, value)
+  } else {
+    const excludeSensitiveConfig = manifest.excludeSensitiveConfig !== false
+      || (await store.get<boolean>('excludeSensitiveConfig')) !== false
+    for (const [key] of await store.entries()) {
+      if (!shouldExcludeFromSync(key, { excludeSensitiveConfig }) && !(key in personal.settings)) await store.delete(key)
+    }
+    for (const [key, value] of Object.entries(personal.settings)) {
+      if (!shouldExcludeFromSync(key, { excludeSensitiveConfig })) await store.set(key, value)
+    }
   }
   await store.set('selfHostedConnectionReviewProfileId', manifest.profileId)
   await store.save()

@@ -31,9 +31,10 @@ import {
   type AutoDataSyncState,
 } from '@/lib/sync/auto-data-sync-queue'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
+import useSyncStore from '@/stores/sync'
 import { useDocumentSyncStore } from '@/stores/document-sync'
 import { useSyncAvailability } from './file/use-sync-availability'
-import { usePlatformSwitchStore, retryPlatformSwitch, restorePlatformSwitchRecovery } from '@/stores/sync-platform-switch'
+import { usePlatformSwitchStore, useSelfHostedSetupReturnStore, retryPlatformSwitch, restorePlatformSwitchRecovery } from '@/stores/sync-platform-switch'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { useInitialSetupStore } from '@/stores/initial-setup'
 import { SYNC_PLATFORM_INFO } from '@/types/sync'
@@ -77,9 +78,12 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
   const tSync = useTranslations('settings.sync')
   const p = useTranslations('settings.sync.switchPlan')
   const tConflict = useTranslations('syncOverview.selfHostedConflict')
-  const switchStep = usePlatformSwitchStore(state => state.platform ? state.step : null)
+  const switchPlatform = usePlatformSwitchStore(state => state.platform)
+  const platformSwitchStep = usePlatformSwitchStore(state => state.step)
+  const switchStep = switchPlatform ? platformSwitchStep : null
   const switchError = usePlatformSwitchStore(state => state.error)
   const switchSkipped = usePlatformSwitchStore(state => state.skipped)
+  const switchHasMutations = usePlatformSwitchStore(state => state.mutated)
   const cancelledSwitchHidden = usePlatformSwitchStore(state => state.cancelledHidden)
   const recoveryNeedsReview = switchStep === 'cancelled' && cancelledSwitchHidden
   const locale = useLocale()
@@ -112,6 +116,8 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
   const [errorMessages, setErrorMessages] = useState<string[]>([])
   const [engineFailed, setEngineFailed] = useState(false)
   const selfHostedStatus = useSelfHostedSyncStatus()
+  const selfHostedServiceIssue = useSyncStore(state => state.selfHostedServiceIssue)
+  const realtimeFallback = useSyncStore(state => state.selfHostedRealtimeFallback)
   const engineProgress = selfHostedStatus.progress
   const [retrying, setRetrying] = useState(false)
   const [openingConflict, setOpeningConflict] = useState(false)
@@ -364,13 +370,21 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
   const needsConfirmation = method === 'selfHosted' && selfHostedStatus.loaded
     && (selfHostedStatus.reviewRequired || selfHostedStatus.bindingRequired)
   const selfHostedBlocked = method === 'selfHosted' && (selfHostedStatus.blockedCount > 0 || selfHostedStatus.conflictCount > 0)
-  const selfHostedOffline = method === 'selfHosted' && (selfHostedStatus.offline || selfHostedStatus.serviceAvailable === false)
+  const selfHostedOffline = method === 'selfHosted' && selfHostedStatus.offline
+  const selfHostedUnavailable = method === 'selfHosted' && selfHostedStatus.serviceAvailable === false
+  const serverInstanceChanged = selfHostedUnavailable && selfHostedServiceIssue === 'instance-changed'
+  const protocolMismatch = selfHostedUnavailable && selfHostedServiceIssue === 'protocol-mismatch'
   const selfHostedPending = method === 'selfHosted' && (selfHostedStatus.pendingCount > 0 || selfHostedStatus.incomingCount > 0)
   const hasFailure = switchStep === 'error' || (method !== 'selfHosted' && fileStatus === 'failed') || dataFailed || Boolean(directoryError) || engineFailed
     || currentDocument?.phase === 'error'
   const selfHostedPreparing = method === 'selfHosted' && selfHostedStatus.loaded && !selfHostedStatus.runtimeReady
     && availability.configured && !needsConfirmation && !selfHostedStatus.error && !selfHostedBlocked && !hasFailure
   const switchBusy = switchStep !== null && !['error', 'cancelled', 'review', 'confirm', 'completed'].includes(switchStep)
+  const switchNeedsReview = switchStep === 'review' || switchStep === 'confirm'
+  const pendingSetupProfileId = selfHostedStatus.pendingSetupProfileId
+  const canContinuePendingSetup = settingsReady && Boolean(pendingSetupProfileId)
+    && (switchPlatform === null || switchPlatform === 'selfHosted')
+    && !switchBusy && !switchNeedsReview && !switchHasMutations && !recoveryNeedsReview && !switchSkipped
   useEffect(() => {
     if (hasFailure && !switchSkipped) return
     notifiedErrors.current.clear()
@@ -379,10 +393,14 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
     failureToast.current = null
   }, [hasFailure, switchSkipped])
 
-  const currentStatus = availability.configurationFailed ? t('configurationFailed') : !settingsReady ? t('checking') : switchSkipped ? p('skipped') : switchStep === 'cancelled' ? cancelledSwitchHidden ? t('selfHostedStatus.attentionRequired') : p('cancelled') : switchStep === 'error' ? t('failed') : switchBusy ? t('syncing') : switchStep === 'review' || switchStep === 'confirm' ? p('choose') : method === 'local' ? t('localOnly')
+  const currentStatus = availability.configurationFailed ? t('configurationFailed') : !settingsReady ? t('checking') : switchSkipped ? p('skipped') : switchStep === 'cancelled' ? cancelledSwitchHidden ? t('selfHostedStatus.attentionRequired') : p('cancelled') : switchStep === 'error' ? t('failed') : switchBusy ? t('syncing') : switchNeedsReview ? p('choose')
+    : canContinuePendingSetup ? t('selfHostedStatus.confirmationRequired') : method === 'local' ? t('localOnly')
     : needsReauthentication ? t('selfHostedStatus.sessionExpired')
     : needsConfirmation ? t('selfHostedStatus.confirmationRequired')
     : selfHostedOffline ? t('selfHostedStatus.offline')
+    : serverInstanceChanged ? t('selfHostedStatus.serverInstanceChanged')
+    : protocolMismatch ? t('selfHostedStatus.protocolMismatch')
+    : selfHostedUnavailable ? t('unavailable')
     : retrying ? t('syncing')
     : selfHostedPreparing ? t('selfHostedStatus.preparing')
     : availability.status === 'checking' ? t('checking')
@@ -401,14 +419,13 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
                     : method === 'selfHosted' && !selfHostedStatus.loaded ? t('checking')
                       : method === 'selfHosted' ? t(selfHostedStatus.lastSuccessAt ? 'synced' : 'ready')
                         : lastSuccess ? t('synced') : t('ready')
-  const switchNeedsReview = switchStep === 'review' || switchStep === 'confirm'
-  const statusTone = availability.configurationFailed ? 'error' : !settingsReady ? 'busy' : switchSkipped || switchStep === 'cancelled' || switchNeedsReview ? 'warning' : switchStep === 'error' ? 'error' : switchBusy ? 'busy' : method === 'local' ? 'neutral'
+  const statusTone = availability.configurationFailed ? 'error' : !settingsReady ? 'busy' : switchSkipped || switchStep === 'cancelled' || switchNeedsReview ? 'warning' : switchStep === 'error' ? 'error' : switchBusy ? 'busy' : canContinuePendingSetup ? 'warning' : method === 'local' ? 'neutral'
     : needsReauthentication || selfHostedStatus.error && method === 'selfHosted' ? 'error'
     : needsConfirmation || selfHostedBlocked || selfHostedOffline ? 'warning'
     : availability.status === 'checking' ? 'busy'
     : missingRepository || availability.status === 'not-configured' ? 'warning'
     : retrying || selfHostedPreparing ? 'busy'
-    : availability.status === 'unavailable' || hasFailure ? 'error'
+    : selfHostedUnavailable || availability.status === 'unavailable' || hasFailure ? 'error'
       : currentDocument?.phase === 'conflict' || currentDocument?.phase === 'update-available' || hasNoteConflicts ? 'warning'
         : fileSyncing || dataSyncing || engineSyncing || currentDocument?.phase === 'syncing' || currentDocument?.phase === 'checking' ? 'busy'
           : selfHostedPending || method === 'selfHosted' && selfHostedStatus.pausedCount > 0 ? 'warning'
@@ -418,23 +435,26 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
   const providerLabel = method === 'local' || method === 'cloudFolder' || method === 'selfHosted'
     ? tSync(`${method}.title`)
     : SYNC_PLATFORM_INFO[method].name
-  const opensConfiguration = settingsReady && availability.status !== 'checking' && (!switchStep || switchStep === 'completed') && !switchSkipped
+  const opensConfiguration = canContinuePendingSetup || (settingsReady && availability.status !== 'checking'
+    && (!switchStep || switchStep === 'completed') && !switchSkipped
     && (method === 'local' || missingRepository || availability.status === 'not-configured'
-      || needsReauthentication || needsConfirmation)
+      || needsReauthentication || needsConfirmation || (!selfHostedOffline && (serverInstanceChanged || protocolMismatch))))
   const canRetry = settingsReady && (availability.status !== 'checking' || retrying) && !opensConfiguration && !switchBusy && !switchNeedsReview
     && (hasFailure || switchSkipped || switchStep === 'cancelled' || availability.status === 'unavailable' || retrying
       || method === 'selfHosted' && availability.configured)
   const selfHostedHint = recoveryNeedsReview ? p('cancelledPartialHint')
     : needsReauthentication ? t('selfHostedStatus.sessionExpiredHint')
     : needsConfirmation ? t('selfHostedStatus.confirmationHint')
-      : selfHostedOffline ? t('selfHostedStatus.offlineHint')
-        : selfHostedStatus.error ? t('selfHostedStatus.statusUnavailableHint')
-          : selfHostedBlocked ? t('selfHostedStatus.attentionHint')
-            : hasFailure ? t('selfHostedStatus.failedHint')
-              : selfHostedStatus.pausedCount > 0 ? t('selfHostedStatus.attachmentsPausedHint')
-                : selfHostedPending ? t('selfHostedStatus.pendingHint')
-                  : selfHostedPreparing || engineSyncing ? t('selfHostedConnection')
-                    : selfHostedStatus.lastSuccessAt ? t('selfHostedStatus.syncedHint') : t('selfHostedConnection')
+    : selfHostedOffline ? t('selfHostedStatus.offlineHint')
+    : serverInstanceChanged ? t('selfHostedStatus.serverInstanceChangedHint')
+    : protocolMismatch ? t('selfHostedStatus.protocolMismatchHint')
+    : selfHostedUnavailable || selfHostedStatus.error ? t('selfHostedStatus.statusUnavailableHint')
+    : selfHostedBlocked ? t('selfHostedStatus.attentionHint')
+    : hasFailure ? t('selfHostedStatus.failedHint')
+    : selfHostedStatus.pausedCount > 0 ? t('selfHostedStatus.attachmentsPausedHint')
+    : selfHostedPending ? t('selfHostedStatus.pendingHint')
+    : selfHostedPreparing || engineSyncing ? t('selfHostedConnection')
+    : selfHostedStatus.lastSuccessAt ? t('selfHostedStatus.syncedHint') : t('selfHostedConnection')
 
   function openSyncSettings() {
     setOpen(false)
@@ -443,6 +463,14 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
   }
 
   function configureSync() {
+    if (canContinuePendingSetup && pendingSetupProfileId) {
+      useSelfHostedSetupReturnStore.setState({ request: { profileId: pendingSetupProfileId, intent: 'setup' } })
+      openSyncSettings()
+      return
+    }
+    if (method === 'selfHosted' && (needsReauthentication || serverInstanceChanged)) {
+      useSelfHostedSetupReturnStore.setState({ request: { intent: needsReauthentication ? 'login' : 'connection' } })
+    }
     if (method !== 'local' || (switchStep && switchStep !== 'completed') || switchSkipped) {
       openSyncSettings()
       return
@@ -517,7 +545,8 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
           </div>
           <PopoverHeader className="min-w-0 flex-1 gap-1">
             <PopoverTitle id={popoverTitleId} role="status">{currentStatus}</PopoverTitle>
-            {settingsReady && method !== 'local' && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            {canContinuePendingSetup && <p className="text-xs text-muted-foreground">{tSync('selfHosted.title')}</p>}
+            {settingsReady && !canContinuePendingSetup && method !== 'local' && <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <span title={repository ? `${providerLabel} · ${repository}` : providerLabel}>{providerLabel}</span>
               {availability.configured && method !== 'selfHosted' && <>
                 <span aria-hidden="true">·</span>
@@ -531,9 +560,11 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
           </Button>}
         </div>
 
-        {settingsReady && method === 'local' && <PopoverDescription>{t('localOnlyDescription')}</PopoverDescription>}
-        {settingsReady && method === 'selfHosted' && <PopoverDescription>{selfHostedHint}</PopoverDescription>}
-        {settingsReady && method === 'selfHosted' && <div className="flex flex-col gap-2 text-xs text-muted-foreground" role="status">
+        {canContinuePendingSetup && <PopoverDescription>{t('selfHostedStatus.confirmationHint')}</PopoverDescription>}
+        {settingsReady && !canContinuePendingSetup && method === 'local' && <PopoverDescription>{t('localOnlyDescription')}</PopoverDescription>}
+        {settingsReady && !canContinuePendingSetup && method === 'selfHosted' && <PopoverDescription>{selfHostedHint}</PopoverDescription>}
+        {settingsReady && !canContinuePendingSetup && method === 'selfHosted' && <div className="flex flex-col gap-2 text-xs text-muted-foreground" role="status">
+          {realtimeFallback && <p className="text-warning-foreground">{t('selfHostedStatus.realtimeFallback')}</p>}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="flex items-center gap-2"><Clock3 aria-hidden="true" className="size-3.5" />{t('lastSuccess')}</span>
             {selfHostedStatus.lastSuccessAt ? <time dateTime={new Date(selfHostedStatus.lastSuccessAt).toISOString()} className="tabular-nums">
@@ -616,14 +647,15 @@ export function UnifiedSyncStatus({ mobile = false, onNavigate, onOpenSetup }: {
             {(opensConfiguration || switchNeedsReview || canRetry) && <div className="flex flex-wrap items-center gap-2 [&>button]:h-auto [&>button]:min-h-9 [&>button]:min-w-0 [&>button]:whitespace-normal [&>button]:[overflow-wrap:anywhere]">
               {(opensConfiguration || switchNeedsReview) && <Button type="button" size="sm" className="flex-1" onClick={configureSync}>
                 <Settings2 data-icon="inline-start" aria-hidden="true" />
-                {needsReauthentication ? t('selfHostedStatus.signInAgain')
+                {canContinuePendingSetup ? tSync('selfHosted.continueSetup')
+                  : needsReauthentication ? t('selfHostedStatus.signInAgain')
                   : needsConfirmation || switchNeedsReview ? t('continueSetup')
                     : method === 'local' ? t('enableSync') : configureLabel}
               </Button>}
               {canRetry && <Button type="button" variant="outline" size="sm" className="flex-1"
                 disabled={retrying} aria-busy={retrying} onClick={() => void retrySync()}>
                 <RefreshCw data-icon="inline-start" aria-hidden="true" className={cn(retrying && 'animate-spin')} />
-                {retrying ? t('syncing') : recoveryNeedsReview ? p('resumeReview') : method === 'selfHosted' && !hasFailure && !selfHostedOffline ? t('selfHostedStatus.syncNow') : t('retry')}
+                {retrying ? t('syncing') : recoveryNeedsReview ? p('resumeReview') : method === 'selfHosted' && !hasFailure && !selfHostedOffline && !selfHostedUnavailable ? t('selfHostedStatus.syncNow') : t('retry')}
               </Button>}
             </div>}
           </div>

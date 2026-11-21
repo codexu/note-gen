@@ -196,6 +196,13 @@ const platformSwitchErrorKeys: Record<string, string> = {
   SYNC_SWITCH_CANCELLED: 'cancelledError',
   SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED: 'nativeConnectionRequired',
   SELF_HOSTED_PREVIEW_INSTANCE_CHANGED: 'nativeInstanceChanged',
+  SELF_HOSTED_WORKSPACE_PROFILE_MISMATCH: 'nativeWorkspaceProfileMismatch',
+  SELF_HOSTED_RATE_LIMITED: 'nativeRateLimited',
+  SELF_HOSTED_SERVER_MAINTENANCE: 'nativeMaintenance',
+  SELF_HOSTED_ACCOUNT_QUOTA: 'nativeAccountQuota',
+  SELF_HOSTED_SERVER_QUOTA: 'nativeServerQuota',
+  SELF_HOSTED_ATTACHMENT_TOO_LARGE: 'nativeAttachmentTooLarge',
+  SELF_HOSTED_SYNC_EPOCH_REVIEW_REQUIRED: 'nativeEpochReviewRequired',
   SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED: 'nativeLibraryRequired',
   SELF_HOSTED_PREVIEW_KEY_REQUIRED: 'nativeKeyRequired',
   SELF_HOSTED_PREVIEW_DECRYPTION_FAILED: 'nativeDecryptionFailed',
@@ -230,6 +237,7 @@ export function formatSyncDataError(message: string, translate: (key: string, va
   if (incompleteBootstrap) return translate('nativeBootstrapIncomplete', { path: incompleteBootstrap[1] })
   if (message.includes('SELF_HOSTED_API_REQUEST_TIMEOUT')) return translate('selfHostedRequestTimeout', { path: '' })
   if (message.includes('SELF_HOSTED_API_REQUEST_CANCELLED')) return translate('selfHostedRequestCancelled', { path: '' })
+  if (message === 'SELF_HOSTED_SESSION_REQUIRED') return translate('selfHostedSessionRequired', { path: '' })
   if (message.includes('self-hosted-secure-storage-unavailable')) return translate('selfHostedSecureStorageUnavailable', { path: '' })
   const selfHostedResponse = /^SELF_HOSTED_API_(INVALID_RESPONSE|AUTH_REQUIRED): ([^\n]+)$/.exec(message)
   if (selfHostedResponse) return translate(selfHostedResponse[1] === 'AUTH_REQUIRED' ? 'selfHostedAuthenticationRequired' : 'selfHostedInvalidResponse', { path: selfHostedResponse[2] })

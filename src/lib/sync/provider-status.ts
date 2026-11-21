@@ -285,24 +285,37 @@ async function checkSelfHostedStatus(isActive: () => boolean) {
     if (await current()) useSyncStore.getState().setSelfHostedConnected(false)
     return
   }
-  let available = false
+  const { authenticatedClient, selfHostedSessionNeedsLogin } = await import('@/lib/self-hosted-sync/profile')
+  if (!isActive()) return
+  if (await selfHostedSessionNeedsLogin(profile.id)) {
+    if (await current() && await selfHostedSessionNeedsLogin(profile.id) && isActive()) {
+      useSyncStore.getState().setSelfHostedConnected(false)
+    }
+    return
+  }
+  let issue: 'instance-changed' | 'protocol-mismatch' | 'unreachable' | undefined = 'unreachable'
   try {
-    const { authenticatedClient } = await import('@/lib/self-hosted-sync/profile')
     if (!isActive()) return
     const { client } = await authenticatedClient(profile.id)
     if (!isActive()) return
     const capabilities = await client.capabilities()
     if (!isActive()) return
-    if (capabilities.instanceId === profile.instanceId
-      && capabilities.protocol.minimum <= SELF_HOSTED_PROTOCOL_VERSION && capabilities.protocol.maximum >= SELF_HOSTED_PROTOCOL_VERSION) {
+    if (capabilities.instanceId !== profile.instanceId) {
+      issue = 'instance-changed'
+    } else if (capabilities.protocol.minimum > SELF_HOSTED_PROTOCOL_VERSION || capabilities.protocol.maximum < SELF_HOSTED_PROTOCOL_VERSION) {
+      issue = 'protocol-mismatch'
+    } else {
       // An open health endpoint alone does not establish usable sync access.
       await client.workspaces()
-      available = true
+      issue = undefined
     }
   } finally {
     if (await current()) {
-      useSyncStore.getState().setSelfHostedConnected(true)
-      useSyncStore.getState().setSelfHostedServiceAvailable(available)
+      const needsLogin = await selfHostedSessionNeedsLogin(profile.id)
+      if (isActive()) {
+        useSyncStore.getState().setSelfHostedConnected(!needsLogin)
+        if (!needsLogin) useSyncStore.getState().setSelfHostedServiceAvailable(!issue, issue)
+      }
     }
   }
 }

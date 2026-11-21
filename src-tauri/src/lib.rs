@@ -30,6 +30,8 @@ mod remote_skills;
 mod self_hosted_crypto;
 mod self_hosted_files;
 mod self_hosted_security;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+mod apple_sync_credentials;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod skill_runtime;
 mod skills;
@@ -250,11 +252,9 @@ pub fn run() {
             #[cfg(target_os = "ios")]
             ios_ocr::release_ios_sync_folder,
             #[cfg(target_os = "ios")]
-            ios_ocr::set_ios_secure_value,
+            microsoft_oauth::set_ios_one_drive_session,
             #[cfg(target_os = "ios")]
-            ios_ocr::get_ios_secure_value,
-            #[cfg(target_os = "ios")]
-            ios_ocr::delete_ios_secure_value,
+            microsoft_oauth::get_ios_one_drive_session,
             #[cfg(target_os = "android")]
             android_cloud_folder::set_android_secure_value,
             #[cfg(target_os = "android")]
@@ -305,6 +305,10 @@ pub fn run() {
             self_hosted_security::self_hosted_secure_set,
             self_hosted_security::self_hosted_secure_get,
             self_hosted_security::self_hosted_secure_delete,
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            self_hosted_security::self_hosted_secure_store_session,
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            self_hosted_security::self_hosted_secure_clear_session,
             self_hosted_security::self_hosted_secure_retry_access,
             self_hosted_files::self_hosted_portable_path,
             self_hosted_files::self_hosted_move_source_path,

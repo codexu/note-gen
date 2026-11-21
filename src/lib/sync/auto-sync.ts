@@ -1027,7 +1027,9 @@ export async function hasNetworkConnection(): Promise<boolean> {
           authenticatedClient,
           getProfile,
           isSelfHostedAuthenticationError,
+          selfHostedSessionNeedsLogin,
         } = await import('@/lib/self-hosted-sync/profile')
+        if (await selfHostedSessionNeedsLogin(profileId)) return false
         try {
           const { client } = await authenticatedClient(profileId)
           await client.capabilities()

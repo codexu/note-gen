@@ -1,14 +1,15 @@
 import { invoke } from '@tauri-apps/api/core'
 import { readDir, readFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
+import { shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
 import { getDb } from '@/db'
-import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
 import { ensureWorkspaceDirectory } from '@/lib/managed-workspace'
+import { normalizeTagBoolean } from '@/lib/tag-sync'
 import { stableSyncValue, type SwitchModule, type SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import { syncStaleError } from '@/lib/sync/sync-stale-error'
-import { authenticatedClient, secureGet } from './profile'
+import { authenticatedClient, getConnectionReviewProfile, getSelfHostedAccountLogin, secureGet } from './profile'
 import { SelfHostedApiError } from './client'
-import { decryptPackedJson, objectAssociatedData } from './crypto'
+import { decryptPackedJson, decryptText, objectAssociatedData } from './crypto'
 import { hashBytes } from './blob'
 import { isDomainEnabled, resolveStructuredObjectId, STRUCTURED_DOMAINS, structuredPayload } from './outbox'
 import type { SyncBootstrapPage, WorkspaceSummary } from './protocol'
@@ -17,6 +18,12 @@ import { applyConversationTombstones } from './snapshot'
 import { getComparableStructuredValue } from './structured'
 import { normalizeStructuredReferences } from './references'
 import { personalAssetIdentity, personalAssetManifest, personalAssetPaths, readPersonalAsset } from './personal-assets'
+import { sanitizeOfficialSettingsPayload } from './official-settings'
+import { isOfficialSyncOrigin } from './service-source'
+import {
+  automaticInitialLibrary, DEFAULT_LIBRARY_IDEMPOTENCY_KEY, findInitialLibraryBinding, getInitialLibraryLocation,
+  isActiveLibraryBinding, isInitialLibraryCandidate, readInitialLibraryChoice, readLibraryBindings, sameLibraryRoot,
+} from './initial-library-choice'
 
 type Difference = 'same' | 'localOnly' | 'remoteOnly' | 'changed' | 'deleted'
 export interface SelfHostedPreviewModule {
@@ -32,10 +39,15 @@ export interface SelfHostedPreviewModule {
 export interface SelfHostedSwitchPreview {
   profileId: string
   serverUrl: string
-  libraries: Array<{ workspaceId: string | null; localRoot: string }>
+  accountLogin?: string
+  chosenLibraryId: string | null
+  libraryIdToBind?: string
+  newLibraryUsesDefaultKey: boolean
+  libraries: Array<{ workspaceId: string | null; localRoot: string; workspaceName?: string }>
   modules: SelfHostedPreviewModule[]
   details: Array<{ module: SwitchModule; label: string; difference: Exclude<Difference, 'same'> }>
   differenceCount: number
+  contentPresence: { local: boolean; remote: boolean }
   settingsPaused: boolean
   fingerprint: string
 }
@@ -125,46 +137,44 @@ export async function inspectSelfHostedSwitch(
   }
   report({ source: 'remote', current: 0, total: 0 })
   const database = await getDb()
-  const profiles = await database.select<Array<{ id: string }>>(
-    "select id from self_hosted_sync_profiles where state = 'connected' order by updated_at desc limit 1",
-  )
-  if (!profiles[0]) throw new Error('SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED')
-  const { profile, client } = await authenticatedClient(profiles[0].id)
+  const candidate = await getConnectionReviewProfile()
+  if (!candidate) throw new Error('SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED')
+  const { profile, client } = await authenticatedClient(candidate.id)
+  const official = isOfficialSyncOrigin(profile.serverUrl)
   const capabilities = await client.capabilities()
   if (profile.instanceId !== capabilities.instanceId) throw new Error('SELF_HOSTED_PREVIEW_INSTANCE_CHANGED')
-  const workspaces = await client.workspaces()
-  const location = await getWorkspacePath()
-  const defaultRoot = await getDefaultArticleAbsolutePath('')
-  const normalize = (path: string) => path.trim().replaceAll('\\', '/').replace(/\/+$/, '')
-  const isDefault = !location.isCustom || normalize(location.path) === normalize(defaultRoot) || normalize(location.path) === 'article'
-  const root = isDefault ? defaultRoot : location.path
-  const bindings = await database.select<Array<{ workspaceId: string; localRoot: string | null }>>(
-    `select workspace_id as workspaceId, local_root as localRoot from self_hosted_workspace_bindings
-     where profile_id = $1 and workspace_type = 'library'
-       and binding_state in ('bound', 'bootstrapping', 'epoch-changed') order by workspace_id`,
-    [profile.id],
-  )
-  let libraryId: string | undefined
-  if (isDefault) {
-    try { libraryId = (await client.workspaceCreationRequest('notegen.default-library.v1')).id }
-    catch (error) {
-      if (!(error instanceof SelfHostedApiError && error.status === 404)) throw error
+  const [workspaces, { localRoot: root, isDefault }, bindings, accountLogin] = await Promise.all([
+    client.workspaces(), getInitialLibraryLocation(), readLibraryBindings(), getSelfHostedAccountLogin(profile),
+  ])
+  const chosenLibraryId = await readInitialLibraryChoice(profile.id, root)
+  const currentBinding = findInitialLibraryBinding(bindings, profile.id, root)
+  const hasOwnedLibrary = workspaces.some(workspace => workspace.type === 'library' && workspace.deletedAt === null && workspace.owner)
+  let defaultWorkspaceId: string | undefined
+  let libraryId: string | null | undefined = chosenLibraryId
+  if (chosenLibraryId) {
+    const selected = workspaces.find(workspace => workspace.id === chosenLibraryId)
+    const binding = bindings.get(chosenLibraryId)
+    if (binding && binding.profileId !== profile.id) throw new Error('SELF_HOSTED_WORKSPACE_PROFILE_MISMATCH')
+    if (!selected || !isInitialLibraryCandidate(selected, profile.id, root, binding)) {
+      throw new Error('SELF_HOSTED_INITIAL_LIBRARY_INVALID')
     }
   } else {
-    libraryId = bindings.find(binding => binding.localRoot === root)?.workspaceId
-    if (!libraryId) {
-      const unbound = workspaces.filter(workspace => workspace.type === 'library' && workspace.owner
-        && !bindings.some(binding => binding.workspaceId === workspace.id && binding.localRoot))
-      if (unbound.length > 1) throw new Error('SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED')
-      libraryId = unbound[0]?.id
-    }
+    defaultWorkspaceId = !currentBinding && (isDefault || !hasOwnedLibrary)
+      ? await client.workspaceCreationRequest(DEFAULT_LIBRARY_IDEMPOTENCY_KEY).then(result => result.id).catch(error => {
+        if (!(error instanceof SelfHostedApiError && error.status === 404)) throw error
+        return undefined
+      }) : undefined
+    libraryId = automaticInitialLibrary(workspaces, bindings, profile.id, root, isDefault, defaultWorkspaceId)
   }
-  const library = workspaces.find(workspace => workspace.id === libraryId)
-  if (libraryId && !library) throw new Error('SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED')
+  if (libraryId === undefined || (libraryId && !workspaces.some(workspace => workspace.id === libraryId && workspace.deletedAt === null))) {
+    throw new Error('SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED')
+  }
+  const libraryIdToBind = libraryId && libraryId !== currentBinding?.workspaceId ? libraryId : undefined
+  const newLibraryUsesDefaultKey = libraryId === null && !defaultWorkspaceId && (isDefault || !hasOwnedLibrary)
   const personal = workspaces.find(workspace => workspace.type === 'account-data' && workspace.owner)
-  const libraries: SelfHostedSwitchPreview['libraries'] = [{ workspaceId: libraryId ?? null, localRoot: root }]
-  for (const binding of bindings) {
-    if (!binding.localRoot || binding.localRoot === root) continue
+  const libraries: SelfHostedSwitchPreview['libraries'] = [{ workspaceId: libraryId, localRoot: root }]
+  for (const binding of bindings.values()) {
+    if (binding.profileId !== profile.id || !isActiveLibraryBinding(binding) || !binding.localRoot || sameLibraryRoot(binding.localRoot, root)) continue
     if (!workspaces.some(workspace => workspace.id === binding.workspaceId)) throw new Error('SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED')
     libraries.push({ workspaceId: binding.workspaceId, localRoot: binding.localRoot })
   }
@@ -185,7 +195,7 @@ export async function inspectSelfHostedSwitch(
     if (!prefix) await ensureWorkspaceDirectory(directory)
     for (const entry of await readDir(directory)) {
       assertActive()
-      if (entry.isSymlink || entry.name === '.notegen' || entry.name === '.DS_Store' || entry.name.endsWith('.tmp')) continue
+      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name)) continue
       const path = prefix ? `${prefix}/${entry.name}` : entry.name
       const absolute = await join(directory, entry.name)
       if (!entry.isDirectory && !entry.isFile) continue
@@ -251,8 +261,9 @@ export async function inspectSelfHostedSwitch(
   }
   if (profile.domainToggles.settings !== false) {
     report({ source: 'local', module: 'settings', current: 0, total: 1 })
-    const payload = await structuredPayload(personalId, 'setting', 'all', true)
-    if (payload) {
+    const settings = await structuredPayload(personalId, 'setting', 'all', true)
+    if (settings) {
+      const payload = official ? sanitizeOfficialSettingsPayload(settings) : settings
       const id = await objectId('setting', 'all')
       const hash = await fingerprint(comparableSelfHostedPayload(payload))
       local.push({ id: `personal:${id}`, module: 'settings', label: 'settings', hash })
@@ -281,7 +292,8 @@ export async function inspectSelfHostedSwitch(
     }
   }
   async function inspectRemote(workspace: WorkspaceSummary) {
-    const workspacePath = libraries.find(item => item.workspaceId === workspace.id)?.localRoot
+    const library = libraries.find(item => item.workspaceId === workspace.id)
+    const workspacePath = library?.localRoot
     let processed = 0
     report({ source: 'remote', path: workspacePath, current: 0, total: 0 })
     const keys = await client.workspaceKeys(workspace.id)
@@ -293,8 +305,17 @@ export async function inspectSelfHostedSwitch(
       decryptedKeys.set(version, key)
       return key
     }
+    if (library) {
+      try {
+        const encrypted = JSON.parse(workspace.nameCiphertext) as { nonce: string; ciphertext: string }
+        library.workspaceName = await decryptText(await keyForVersion(workspace.latestKeyVersion),
+          encrypted.nonce, encrypted.ciphertext, 'workspace-name:v1')
+      } catch {
+        // Still show the selected workspace ID if its label cannot be decrypted.
+      }
+    }
     const state: SelfHostedSwitchWorkspace = { workspace, workspaceId: workspace.id, workspaceType: workspace.type,
-      localRoot: libraries.find(item => item.workspaceId === workspace.id)?.localRoot ?? null, sequence: '0', objects: [] }
+      localRoot: workspacePath ?? null, sequence: '0', objects: [] }
     const remotePaths = new Map<string, string>()
     remoteWorkspaces.push(state)
     await client.withBootstrapSnapshot(workspace.id, capabilities.syncEpoch, async readPage => {
@@ -334,6 +355,9 @@ export async function inspectSelfHostedSwitch(
             throw error
           }
           const domain = String(payload.domain)
+          if (official && workspace.type === 'account-data' && domain === 'setting') {
+            payload = sanitizeOfficialSettingsPayload(payload)
+          }
           const path = typeof payload.relativePath === 'string' ? payload.relativePath : labelFor(payload, object.objectId)
           report({ source: 'remote', module: moduleId, path, current: processed, total })
           // Older clients placed canvases in libraries; those objects are outside
@@ -478,9 +502,14 @@ export async function inspectSelfHostedSwitch(
      where b.profile_id = $1 and o.state in ('pending', 'retry', 'blocked') order by o.command_id`,
     [profile.id],
   )
-  const preview: SelfHostedSwitchPreview = { profileId: profile.id, serverUrl: profile.serverUrl, libraries, modules, details: details.slice(0, 100), differenceCount, settingsPaused: profile.domainToggles.settings === false,
+  const contentPresence = {
+    local: localObjects.some(({ payload }) => hasSyncContent(payload)),
+    remote: remoteWorkspaces.some(({ objects }) => objects.some(({ object, payload }) => !object.deletedAt && hasSyncContent(payload))),
+  }
+  const preview: SelfHostedSwitchPreview = { profileId: profile.id, serverUrl: profile.serverUrl, libraries, modules, details, differenceCount, contentPresence, settingsPaused: profile.domainToggles.settings === false,
+    ...(accountLogin ? { accountLogin } : {}), chosenLibraryId, libraryIdToBind, newLibraryUsesDefaultKey,
     fingerprint: await fingerprint({ profileId: profile.id, accountId: profile.accountId, instanceId: capabilities.instanceId,
-      epoch: capabilities.syncEpoch, libraries, toggles: profile.domainToggles, sequences, pendingChanges, pendingCommands,
+      epoch: capabilities.syncEpoch, chosenLibraryId, libraryIdToBind, newLibraryUsesDefaultKey, libraries, toggles: profile.domainToggles, sequences, pendingChanges, pendingCommands,
       local: [...localMap.values()].sort((a, b) => a.id.localeCompare(b.id)),
       folders: localObjects.filter(item => item.domain === 'folder').map(item => [item.workspaceId, item.localRoot, item.localKey]),
       remote: [...remoteMap.values()].sort((a, b) => a.id.localeCompare(b.id)) }) }
@@ -491,6 +520,12 @@ export async function inspectSelfHostedSwitch(
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function hasSyncContent(payload: Record<string, unknown>) {
+  // A new installation already has default settings and a protected tag.
+  if (payload.domain === 'setting') return false
+  return payload.domain !== 'tag' || normalizeTagBoolean(record(payload.value).isLocked) !== true
 }
 
 function uniqueEntries(entries: Entry[]) {

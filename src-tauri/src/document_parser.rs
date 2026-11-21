@@ -6,6 +6,8 @@ use std::str::FromStr;
 use tauri::AppHandle;
 use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
 
+use crate::backup::resolves_to_sync_credentials;
+
 const MAX_DOCUMENT_BYTES: u64 = 100 * 1024 * 1024;
 
 #[derive(Serialize)]
@@ -70,6 +72,9 @@ fn map_convert_error(error: ConvertError, format: Format) -> DocumentParseError 
 fn read_document_bytes(app: &AppHandle, source: &str) -> Result<Vec<u8>, DocumentParseError> {
     let file_path = FilePath::from_str(source)
         .map_err(|error| DocumentParseError::new("READ_FAILED", error.to_string()))?;
+    if file_path.clone().into_path().is_ok_and(|path| resolves_to_sync_credentials(&path)) {
+        return Err(DocumentParseError::new("READ_FAILED", "This file cannot be imported"));
+    }
     let mut options = OpenOptions::new();
     options.read(true);
     let file = app

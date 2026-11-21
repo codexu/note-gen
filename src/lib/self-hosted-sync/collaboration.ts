@@ -650,6 +650,7 @@ async function resolveDocument(localRoot: string, relativePath: string, assertAc
     `select b.workspace_id as workspaceId, m.object_id as objectId
      from self_hosted_workspace_bindings b join self_hosted_object_mappings m
        on m.workspace_id = b.workspace_id
+     join self_hosted_sync_profiles p on p.id = b.profile_id and p.state = 'connected'
      where b.local_root = $1 and m.relative_path = $2 and m.kind = 'note' and m.deleted_at is null
        and b.binding_state = 'bound' limit 1`,
     [localRoot, portable.normalized]
@@ -668,8 +669,9 @@ async function resolveDocument(localRoot: string, relativePath: string, assertAc
     }
   }
   const bindings = await database.select<Array<{ workspaceId: string }>>(
-    `select workspace_id as workspaceId from self_hosted_workspace_bindings
-     where local_root = $1 and binding_state = 'bound' limit 1`,
+    `select b.workspace_id as workspaceId from self_hosted_workspace_bindings b
+     join self_hosted_sync_profiles p on p.id = b.profile_id and p.state = 'connected'
+     where b.workspace_type = 'library' and b.local_root = $1 and b.binding_state = 'bound' limit 1`,
     [localRoot]
   )
   const workspaceId = bindings[0]?.workspaceId

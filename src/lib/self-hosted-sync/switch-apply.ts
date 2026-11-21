@@ -12,12 +12,14 @@ import { normalizeTagBoolean } from '@/lib/tag-sync'
 import { ensureWorkspaceDirectory } from '@/lib/managed-workspace'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import { bytesToBase64Url, downloadAsset, hashBytes } from './blob'
-import { authenticatedClient } from './profile'
+import { authenticatedClient, getProfile } from './profile'
 import type { SyncBootstrapPage } from './protocol'
 import { applyStructuredPayload } from './structured'
 import { applyConversationTombstones } from './snapshot'
 import { normalizeStructuredReferences } from './references'
 import { applyPersonalAssetDownloads, preparePersonalAssetDownloads, type PreparedPersonalAsset } from './personal-assets'
+import { filterOfficialSyncSettings, sanitizeOfficialSettingsPayload } from './official-settings'
+import { isOfficialSyncOrigin } from './service-source'
 
 export interface SelfHostedReplacementObject {
   object: SyncBootstrapPage['objects'][number]
@@ -54,6 +56,9 @@ const structuredTables: Record<string, string> = {
 
 /** Apply an already reviewed server snapshot without sending any local data. */
 export async function replaceSelfHostedLocalSnapshot(input: ReplacementInput) {
+  const profile = await getProfile(input.profileId)
+  if (!profile) throw new Error('SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED')
+  const official = isOfficialSyncOrigin(profile.serverUrl)
   const enabled = new Set(input.enabledDomains.map(domain => aliases[domain] ?? domain))
   if ((enabled.has('mark') || enabled.has('message')) && !enabled.has('tag')
     || enabled.has('message') && !enabled.has('conversation')) {
@@ -68,6 +73,7 @@ export async function replaceSelfHostedLocalSnapshot(input: ReplacementInput) {
     const livePaths = new Map<string, string>()
     for (const entry of workspace.objects) {
       input.assertActive()
+      if (official && entry.payload.domain === 'setting') entry.payload = sanitizeOfficialSettingsPayload(entry.payload)
       if (workspace.workspaceType === 'account-data' && entry.object.deletedAt === null) {
         personalAssets.push(...await preparePersonalAssetDownloads({ profileId: input.profileId, workspaceId: workspace.workspaceId,
           payload: entry.payload, enabled: input.attachmentsEnabled, overwrite: true }))
@@ -105,7 +111,7 @@ export async function replaceSelfHostedLocalSnapshot(input: ReplacementInput) {
     for (const workspace of input.workspaces.filter(workspace => workspace.workspaceType === 'account-data')) {
       const settings = workspace.objects.filter(entry => entry.object.deletedAt === null && entry.payload.domain === 'setting')
       if (settings.length > 1) throw new Error('SELF_HOSTED_PREVIEW_DUPLICATE_IDENTITY')
-      settingsSnapshots.set(workspace.workspaceId, await normalizedSettings(settings[0]?.payload.value))
+      settingsSnapshots.set(workspace.workspaceId, await normalizedSettings(settings[0]?.payload.value, official))
     }
   }
   for (const workspace of input.workspaces) {
@@ -141,7 +147,7 @@ export async function replaceSelfHostedLocalSnapshot(input: ReplacementInput) {
         values: [...values, workspace.workspaceType, baselineIds] },
     ])
     if (workspace.workspaceType === 'library' && workspace.localRoot) await replaceLibrary(input, workspace)
-    else if (workspace.workspaceType === 'account-data') await replacePersonal(input, workspace, enabled, settingsSnapshots.get(workspace.workspaceId))
+    else if (workspace.workspaceType === 'account-data') await replacePersonal(input, workspace, enabled, official, settingsSnapshots.get(workspace.workspaceId))
     input.assertActive()
     // No older event, rejected command or collaborative cache may replay over the chosen snapshot.
     await executeRecordTransaction([
@@ -311,7 +317,7 @@ async function replaceLibrary(input: ReplacementInput, workspace: SelfHostedRepl
   }
 }
 
-async function replacePersonal(input: ReplacementInput, workspace: SelfHostedReplacementWorkspace, enabled: Set<string>, settings?: Record<string, unknown>) {
+async function replacePersonal(input: ReplacementInput, workspace: SelfHostedReplacementWorkspace, enabled: Set<string>, official: boolean, settings?: Record<string, unknown>) {
   const database = await getDb()
   const live = workspace.objects.filter(entry => entry.object.deletedAt === null && enabled.has(String(entry.payload.domain)))
   const defaults = await database.select<Array<{ id: number; name: string }>>(
@@ -373,7 +379,7 @@ async function replacePersonal(input: ReplacementInput, workspace: SelfHostedRep
   const priority: Record<string, number> = { tag: 0, conversation: 1, mark: 2, message: 3, canvas: 4, memory: 5, setting: 6 }
   live.sort((left, right) => (priority[String(left.payload.domain)] ?? 7) - (priority[String(right.payload.domain)] ?? 7))
   if (settings) {
-    await replaceSettings(settings)
+    await replaceSettings(settings, official)
     const setting = live.find(entry => entry.payload.domain === 'setting')
     if (setting) setting.payload = { ...setting.payload, value: settings }
   }
@@ -395,17 +401,23 @@ async function replacePersonal(input: ReplacementInput, workspace: SelfHostedRep
   }
 }
 
-async function normalizedSettings(value: unknown) {
+async function normalizedSettings(value: unknown, official: boolean) {
   const { default: useSettingStore } = await import('@/stores/setting')
   const defaults = Object.fromEntries(Object.entries(useSettingStore.getInitialState())
     .filter(([, item]) => typeof item !== 'function' && item !== undefined))
+  if (official) return { ...filterOfficialSyncSettings(defaults), ...filterOfficialSyncSettings(value) }
   const remote = record(value)
   const excludeSensitiveConfig = await (await Store.load('store.json')).get<boolean>('excludeSensitiveConfig') ?? true
   return { ...defaults, ...remote, ...normalizeSettingsSnapshot(remote, defaults, { excludeSensitiveConfig }) }
 }
 
-async function replaceSettings(remote: Record<string, unknown>) {
+async function replaceSettings(remote: Record<string, unknown>, official: boolean) {
   const store = await Store.load('store.json')
+  if (official) {
+    for (const [key, value] of Object.entries(filterOfficialSyncSettings(remote))) await store.set(key, value)
+    await store.save()
+    return
+  }
   const options = { excludeSensitiveConfig: await store.get<boolean>('excludeSensitiveConfig') !== false }
   for (const [key] of await store.entries()) {
     if (!shouldExcludeFromSync(key, options) && !(key in remote)) await store.delete(key)

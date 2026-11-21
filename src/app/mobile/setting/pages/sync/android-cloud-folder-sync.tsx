@@ -23,7 +23,9 @@ import {
   connectOneDrive,
   disconnectOneDrive,
   logOneDriveTiming,
+  needsIOSOneDriveSignIn,
   ONE_DRIVE_CLIENT_ID,
+  ONE_DRIVE_CREDENTIAL_STORAGE_UNAVAILABLE,
   type OneDriveLoginCode,
 } from '@/lib/sync/onedrive'
 import {
@@ -36,11 +38,12 @@ import { useSkillsStore } from '@/stores/skills'
 import useSyncStore from '@/stores/sync'
 import { toast } from '@/hooks/use-toast'
 import type { CloudFolderConfig } from '@/types/sync'
-import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
+import { prepareActiveEditorDeactivationDurably, workspaceRootsReferToSameLocation } from '@/lib/editor-deactivation'
 import { switchSyncPlatform, usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 
 type OneDrivePanelStatus =
   | 'disconnected'
+  | 'signInRequired'
   | 'requestingCode'
   | 'codeCopied'
   | 'openingBrowser'
@@ -147,6 +150,15 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange, isActive: isCa
         initializingActiveOneDrive = mode === 'active'
         setConfig(candidate)
         setClientId(candidate.oneDriveClientId || ONE_DRIVE_CLIENT_ID)
+        const signInRequired = await needsIOSOneDriveSignIn()
+        if (cancelled) return
+        if (signInRequired) {
+          setAccountConnected(false)
+          setConnectionMode('none')
+          if (mode === 'active') setCloudFolderConnected(false)
+          updatePanelStatus('signInRequired')
+          return
+        }
         const connected = await testCloudFolderConnection(candidate)
         if (cancelled) return
         setAccountConnected(connected)
@@ -310,6 +322,23 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange, isActive: isCa
       if (!isActive() || controller.signal.aborted) return
       const store = await Store.load('store.json')
       if (!isActive() || controller.signal.aborted) return
+      if (platform() === 'ios') {
+        const saved = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
+        if (!isActive() || controller.signal.aborted) return
+        if (saved?.provider === 'oneDrive' && saved.oneDriveRootId === next.oneDriveRootId
+          && (saved.oneDriveClientId || ONE_DRIVE_CLIENT_ID).trim() === next.oneDriveClientId) {
+          setConfig(saved)
+          setAccountConnected(true)
+          setConnectionMode('active')
+          setCloudFolderConnected(true)
+          onActiveProviderChange?.('oneDrive')
+          updatePanelStatus(saved.oneDriveWorkspacePath
+            && workspaceRootsReferToSameLocation(saved.oneDriveWorkspacePath, useSettingStore.getState().workspacePath)
+            ? 'connected' : 'workspaceRequired')
+          return
+        }
+        if (saved?.provider === 'oneDrive') setCloudFolderConnected(false)
+      }
       await store.set(PENDING_ONE_DRIVE_CONFIG_KEY, next)
       await store.save()
       if (!isActive()) return
@@ -324,7 +353,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange, isActive: isCa
         return
       }
       console.error('Failed to connect OneDrive:', cause)
-      await disconnectOneDrive().catch(() => undefined)
+      if (platform() !== 'ios') await disconnectOneDrive().catch(() => undefined)
       setError(cause instanceof Error ? cause.message : oneDriveT('connectFailed'))
       updatePanelStatus('error')
     } finally {
@@ -427,6 +456,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange, isActive: isCa
   function renderStatusIcon() {
     switch (panelStatus) {
       case 'disconnected':
+      case 'signInRequired':
         return <Cloud />
       case 'codeCopied':
         return <CopyCheck />
@@ -447,6 +477,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange, isActive: isCa
   function getStatusTitle() {
     switch (panelStatus) {
       case 'disconnected': return oneDriveT('statusDisconnectedTitle')
+      case 'signInRequired': return oneDriveT('statusSignInRequiredTitle')
       case 'requestingCode': return oneDriveT('statusRequestingCodeTitle')
       case 'codeCopied': return oneDriveT(loginCode?.copied ? 'statusCodeCopiedTitle' : 'statusCodeReadyTitle')
       case 'openingBrowser': return oneDriveT('statusOpeningBrowserTitle')
@@ -463,6 +494,7 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange, isActive: isCa
   function getStatusDescription() {
     switch (panelStatus) {
       case 'disconnected': return oneDriveT('statusDisconnectedDescription')
+      case 'signInRequired': return oneDriveT('statusSignInRequiredDescription')
       case 'requestingCode': return oneDriveT('statusRequestingCodeDescription')
       case 'codeCopied':
         return oneDriveT(
@@ -484,7 +516,9 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange, isActive: isCa
         return oneDriveT(connectionMode === 'pending' ? 'workspaceChoiceDescription' : 'workspaceSwitchDescription')
       case 'connected': return oneDriveT('statusConnectedDescription')
       case 'disconnecting': return oneDriveT('statusDisconnectingDescription')
-      case 'error': return error || oneDriveT('connectFailed')
+      case 'error': return error === ONE_DRIVE_CREDENTIAL_STORAGE_UNAVAILABLE
+        ? oneDriveT('credentialStorageUnavailable')
+        : error || oneDriveT('connectFailed')
     }
   }
 
@@ -601,7 +635,8 @@ export function OneDriveCloudFolderSync({ onActiveProviderChange, isActive: isCa
                 ) : (
                   <Button disabled={Boolean(pendingAction) || switchPending || !clientId.trim()} onClick={() => void connect()}>
                     {pendingAction === 'oneDrive' ? <Spinner data-icon="inline-start" /> : <LogIn data-icon="inline-start" />}
-                    {pendingAction === 'oneDrive' ? oneDriveT('connecting') : oneDriveT('connect')}
+                    {pendingAction === 'oneDrive' ? oneDriveT('connecting')
+                      : panelStatus === 'signInRequired' ? oneDriveT('signInAgain') : oneDriveT('connect')}
                   </Button>
                 )}
               </div>

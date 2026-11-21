@@ -12,7 +12,7 @@ import { ResponsiveSelect } from '@/components/responsive-select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ToggleGroup } from '@/components/ui/toggle-group'
 import { useSyncProviderOptions } from '@/hooks/use-sync-provider-options'
-import { hasConfiguredSelfHostedSync } from '@/lib/diagnostics/self-hosted'
+import { usePendingSelfHostedSetup } from '@/hooks/use-pending-self-hosted-setup'
 import { normalizeManagedWorkspacePath } from '@/lib/managed-workspace'
 import { SyncStateEnum } from '@/lib/sync/github.types'
 import { checkSyncProviderStatus } from '@/lib/sync/provider-status'
@@ -53,20 +53,18 @@ function isConnected(platform: SyncPlatform, state = useSyncStore.getState()) {
   }
 }
 
-export function SetupSyncStep({ onNext, onBack, mobile, focused }: SetupStepProps) {
+export function SetupSyncStep({ onNext, onBack, onDefer, mobile, focused }: SetupStepProps & { onDefer: () => void }) {
   const t = useTranslations('initialSetup')
   const syncText = useTranslations('settings.sync')
   const primary = useSettingStore(state => state.primaryBackupMethod)
-  const developerMode = useSettingStore(state => state.developerMode)
-  const selfHostedConnected = useSyncStore(state => state.selfHostedConnected)
   const switchingPlatform = usePlatformSwitchStore(state => state.platform)
   const switchStep = usePlatformSwitchStore(state => state.step)
   const switchSkipped = usePlatformSwitchStore(state => state.skipped)
   const cancelledHidden = usePlatformSwitchStore(state => state.cancelledHidden)
+  const pendingSetupProfileId = usePendingSelfHostedSetup()
   const [device] = useState(getPlatform)
   const [mode, setMode] = useState<'local' | 'remote'>(focused || primary !== 'local' ? 'remote' : 'local')
   const [providerChoice, setProvider] = useState<SyncProvider | ''>(primary === 'local' ? '' : primary)
-  const [configuredSelfHosted, setConfiguredSelfHosted] = useState(false)
   const [cloudConfig, setCloudConfig] = useState<CloudFolderConfig | null>()
   const [defaultWorkspace, setDefaultWorkspace] = useState('')
   const workspacePath = useSettingStore(state => state.workspacePath)
@@ -86,8 +84,8 @@ export function SetupSyncStep({ onNext, onBack, mobile, focused }: SetupStepProp
   const pending = Boolean(switchingPlatform && (switchStep !== 'completed' || switchSkipped))
   const canResume = Boolean(switchingPlatform && switchStep === 'cancelled' && cancelledHidden)
   const locked = busy || pending
-  const showSelfHosted = developerMode || primary === 'selfHosted' || configuredSelfHosted
-  const providerOptions = useSyncProviderOptions(showSelfHosted, mobile ? device : undefined)
+  const canDeferSelfHostedSetup = selected === 'selfHosted' && Boolean(pendingSetupProfileId) && !locked
+  const providerOptions = useSyncProviderOptions(mobile ? device : undefined)
     .filter(option => option.value !== 'local')
   const usesCloudFolder = providerChoice === 'cloudFolder' || providerChoice === 'iCloud' || providerChoice === 'oneDrive'
   const cloudReady = matchesCloudWorkspace(provider, cloudConfig ?? undefined, workspacePath || defaultWorkspace, device === 'windows')
@@ -98,13 +96,6 @@ export function SetupSyncStep({ onNext, onBack, mobile, focused }: SetupStepProp
     return () => { mounted.current = false }
   }, [])
 
-  useEffect(() => {
-    let active = true
-    void hasConfiguredSelfHostedSync().then(configured => {
-      if (active) setConfiguredSelfHosted(configured)
-    })
-    return () => { active = false }
-  }, [selfHostedConnected])
 
   useEffect(() => {
     if (!usesCloudFolder) return
@@ -216,19 +207,25 @@ export function SetupSyncStep({ onNext, onBack, mobile, focused }: SetupStepProp
           <fieldset key={provider} disabled={locked} className="flex min-w-0 flex-col gap-4">
             <p className="px-1 text-sm text-muted-foreground">{t('sync.settingsSavedHint')}</p>
             {mobile
-              ? <MobileSyncSettings selectedPlatform={provider} onActivate={() => void activate()} />
-              : <SyncSettings selectedPlatform={selected} onActivate={() => void activate()} />}
+              ? <MobileSyncSettings selectedPlatform={provider} onActivate={() => void activate()} onSetupLater={onDefer} />
+              : <SyncSettings selectedPlatform={selected} onActivate={() => void activate()} onSetupLater={onDefer} />}
           </fieldset>
         )}
         {pending && <Alert>
           {canResume ? <TriangleAlert /> : <Loader2 />}
           <AlertDescription>{canResume ? syncText('switchPlan.cancelledPartialHint') : t('sync.taskHint')}</AlertDescription>
         </Alert>}
+        {canDeferSelfHostedSetup && <Alert variant="warning" role="status">
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>{t('sync.selfHostedSetupLaterHint')}</AlertDescription>
+        </Alert>}
         {error && <Alert variant="destructive"><TriangleAlert /><AlertDescription>{error}</AlertDescription></Alert>}
       </div>
-      <SetupStepActions onBack={onBack} onNext={canResume ? () => setPlatformSwitchRecoveryVisible(true) : finish}
-        nextLabel={canResume ? syncText('switchPlan.resumeReview') : t(selected === 'local' && primary !== 'local' ? 'sync.useLocal' : 'sync.done')}
-        busy={busy && !canResume} disableNext={!canResume && (locked || !selected || (selected !== 'local' && !current))} />
+      <SetupStepActions onBack={onBack}
+        onNext={canResume ? () => setPlatformSwitchRecoveryVisible(true) : canDeferSelfHostedSetup ? onDefer : finish}
+        nextLabel={canResume ? syncText('switchPlan.resumeReview') : canDeferSelfHostedSetup ? syncText('selfHosted.setupLater')
+          : t(selected === 'local' && primary !== 'local' ? 'sync.useLocal' : 'sync.done')}
+        busy={busy && !canResume} disableNext={!canResume && !canDeferSelfHostedSetup && (locked || !selected || (selected !== 'local' && !current))} />
     </div>
   )
 }

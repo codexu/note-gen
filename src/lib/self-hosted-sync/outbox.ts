@@ -5,7 +5,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb, type RecordStatement } from '@/db'
 import { filterSyncData } from '@/config/sync-exclusions'
 import { normalizeTagBoolean } from '@/lib/tag-sync'
-import { encryptJson, loadWorkspaceKey, objectAssociatedData, structuredObjectId } from './crypto'
+import { decryptPackedJson, encryptJson, loadWorkspaceKey, objectAssociatedData, structuredObjectId } from './crypto'
 import type { SyncObjectKind, WorkspaceType } from './protocol'
 import { base64UrlByteLength, uploadAsset, removeAssetUploadStaging } from './blob'
 import { SelfHostedApiError } from './client'
@@ -15,6 +15,8 @@ import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace
 import { withSelfHostedPrepareLock } from './prepare-lock'
 import { preparePersonalAssetsUpload } from './personal-assets'
 import { hasMarkdownCollaboration, persistedMarkdownMatches } from './markdown-state'
+import { sanitizeOfficialSettingsPayload } from './official-settings'
+import { isOfficialSyncOrigin } from './service-source'
 
 interface PendingChange {
   id: number
@@ -220,8 +222,9 @@ async function activeLibraryWorkspaceId() {
   const localRoot = workspace.isCustom ? workspace.path : await getDefaultArticleAbsolutePath('')
   const database = await getDb()
   const bindings = await database.select<Array<{ workspaceId: string }>>(
-    `select workspace_id as workspaceId from self_hosted_workspace_bindings
-     where workspace_type = 'library' and local_root = $1 and binding_state = 'bound' limit 1`,
+    `select b.workspace_id as workspaceId from self_hosted_workspace_bindings b
+     join self_hosted_sync_profiles p on p.id = b.profile_id and p.state = 'connected'
+     where b.workspace_type = 'library' and b.local_root = $1 and b.binding_state = 'bound' limit 1`,
     [localRoot]
   )
   return bindings[0]?.workspaceId ?? null
@@ -812,13 +815,16 @@ export async function structuredPayload(
   if (domain === 'setting') {
     const store = await Store.load('store.json')
     const entries = Object.fromEntries(await store.entries()) as Record<string, unknown>
-    const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
-    const { getMemoryPolicy } = await import('@/db/memory-policy')
-    const profiles = await (await getDb()).select<Array<{ toggles: string }>>(
-      `select p.domain_toggles as toggles from self_hosted_workspace_bindings b
+    const profiles = await (await getDb()).select<Array<{ toggles: string; serverUrl: string }>>(
+      `select p.domain_toggles as toggles, p.server_url as serverUrl from self_hosted_workspace_bindings b
        join self_hosted_sync_profiles p on p.id = b.profile_id where b.workspace_id = $1 limit 1`,
       [workspaceId],
     )
+    if (profiles[0] && isOfficialSyncOrigin(profiles[0].serverUrl)) {
+      return sanitizeOfficialSettingsPayload({ value: entries })
+    }
+    const excludeSensitiveConfig = await store.get<boolean>('excludeSensitiveConfig') !== false
+    const { getMemoryPolicy } = await import('@/db/memory-policy')
     const toggles = JSON.parse(profiles[0]?.toggles ?? '{}') as Record<string, boolean>
     return {
       version: 1,
@@ -897,6 +903,53 @@ export async function structuredPayload(
     value: sanitizeStructuredRow(domain, row),
     references,
   }
+}
+
+export async function replaceUnsafeOfficialSettingsCommand(
+  workspaceId: string,
+  row: { commandId: string; payload: string },
+  command: Record<string, unknown>,
+) {
+  const { type, objectId, keyVersion, ciphertext } = command
+  if ((type !== 'upsert-object' && type !== 'delete-object') || command.kind !== 'setting'
+    || typeof objectId !== 'string' || typeof keyVersion !== 'number' || typeof ciphertext !== 'string') {
+    throw new Error('invalid_setting_command')
+  }
+  const key = await loadWorkspaceKey(workspaceId, keyVersion)
+  const aad = objectAssociatedData(workspaceId, objectId, 'setting')
+  const payload = await decryptPackedJson<Record<string, unknown>>(key, ciphertext, aad)
+  const deleted = type === 'delete-object'
+  const sanitized = sanitizeOfficialSettingsPayload({ ...payload, deleted })
+  if (JSON.stringify(payload) === JSON.stringify(sanitized)
+    && command.nameCiphertext == null && command.nameBlindIndex == null
+    && Array.isArray(command.blobRefs) && command.blobRefs.length === 0
+    && (deleted ? command.conflictCiphertext === ciphertext : command.conflictCiphertext === undefined)) return null
+
+  // The server may have accepted an earlier version before its response was
+  // lost. A changed payload needs a new command ID and the usual CAS handling.
+  const commandId = crypto.randomUUID()
+  const encrypted = await encryptJson(key, sanitized, aad)
+  const replacement = {
+    commandId, type, objectId, keyVersion, kind: 'setting', parentObjectId: null, nameCiphertext: null,
+    baseRevision: command.baseRevision, blobRefs: [],
+    ciphertext: encrypted.packedCiphertext, ciphertextHash: encrypted.packedCiphertextHash,
+    ...(deleted ? {
+      expectedDocumentSequence: command.expectedDocumentSequence,
+      conflictId: crypto.randomUUID(), conflictCiphertext: encrypted.packedCiphertext, conflictCiphertextHash: encrypted.packedCiphertextHash,
+    } : {}),
+  }
+  const now = Date.now()
+  await executeRecordTransaction([
+    { sql: `update self_hosted_outbox set state = 'superseded', last_error_code = 'official-settings-filtered', updated_at = $1
+         where workspace_id = $2 and command_id = $3 and payload = $4 and state in ('pending', 'retry')`,
+      values: [now, workspaceId, row.commandId, row.payload], expectedRows: 1 },
+    { sql: `insert into self_hosted_outbox(command_id, workspace_id, source_change_ids, command_type, payload, state,
+         restore_local_snapshot, created_at, updated_at)
+         select $1, workspace_id, source_change_ids, command_type, $2, 'pending', restore_local_snapshot, created_at, $3
+         from self_hosted_outbox where workspace_id = $4 and command_id = $5`,
+      values: [commandId, JSON.stringify(replacement), now, workspaceId, row.commandId] },
+  ])
+  return replacement
 }
 
 function sanitizeStructuredRow(domain: string, row: Record<string, unknown>) {

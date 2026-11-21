@@ -7,9 +7,11 @@ import emitter from '@/lib/emitter'
 import { workspaceRootsReferToSameLocation } from '@/lib/editor-deactivation'
 import { getCurrentWorkspaceRoot } from '@/lib/self-hosted-sync/workspaces'
 import { enabledPersonalSyncKinds } from '@/lib/self-hosted-sync/domains'
+import { selfHostedSessionNeedsLogin } from '@/lib/self-hosted-sync/profile'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import useSyncStore from '@/stores/sync'
+import { usePendingSelfHostedSetup } from './use-pending-self-hosted-setup'
 
 interface SyncSummary {
   pendingCount: number
@@ -35,19 +37,23 @@ async function readSummary(workspacePath: string, completedAt?: number): Promise
   const existing = summaryReads.get(readKey)
   if (existing) return existing
   const read = (async () => {
-    const database = await getDb()
-    const root = await getCurrentWorkspaceRoot()
-    const bindings = await database.select<Array<{
-      workspaceId: string; profileId: string; type: string; localRoot: string | null; state: string; profileState: string; domainToggles: string
-    }>>(`select b.workspace_id as workspaceId, b.profile_id as profileId, b.workspace_type as type,
-      b.local_root as localRoot, b.binding_state as state, p.state as profileState, p.domain_toggles as domainToggles
-      from self_hosted_workspace_bindings b join self_hosted_sync_profiles p on p.id = b.profile_id
-      where p.state in ('connected', 'reauthentication-required') order by p.updated_at desc`)
+    const [database, root, store, settings] = await Promise.all([
+      getDb(), getCurrentWorkspaceRoot(), Store.load('self-hosted-sync-ui.json'), Store.load('store.json'),
+    ])
+    const reviewProfileId = await settings.get<string>('selfHostedConnectionReviewProfileId') ?? null
+    const [profile] = await database.select<Array<{
+      id: string; state: 'connected' | 'reauthentication-required' | 'pending-review'; domainToggles: string
+    }>>(`select id, state, domain_toggles as domainToggles from self_hosted_sync_profiles
+      where state in ('connected', 'reauthentication-required') or (id = $1 and state = 'pending-review')
+      order by state = 'connected' desc, state = 'reauthentication-required' desc, updated_at desc, id limit 1`,
+    [reviewProfileId])
+    const bindings = profile ? await database.select<Array<{
+      workspaceId: string; type: string; localRoot: string | null; state: string
+    }>>(`select workspace_id as workspaceId, workspace_type as type, local_root as localRoot, binding_state as state
+      from self_hosted_workspace_bindings where profile_id = $1`, [profile.id]) : []
     const library = bindings.find(item => item.type === 'library' && item.localRoot
       && workspaceRootsReferToSameLocation(item.localRoot, root))
-    const profile = library ?? bindings[0]
-    const scoped = bindings.filter(item => item.profileId === profile?.profileId
-      && (item.type === 'account-data' || item.workspaceId === library?.workspaceId))
+    const scoped = bindings.filter(item => item.type === 'account-data' || item.workspaceId === library?.workspaceId)
     const ids = JSON.stringify(scoped.map(item => item.workspaceId))
     const hasPersonal = scoped.some(item => item.type === 'account-data') ? 1 : 0
     const toggles = JSON.parse(profile?.domainToggles ?? '{}') as Record<string, boolean>
@@ -112,12 +118,11 @@ async function readSummary(workspacePath: string, completedAt?: number): Promise
         (select count(*) from self_hosted_inbox where state = 'pending' and error_code is null
           and workspace_id in (select value from json_each($1))) as incomingCount`,
       [ids, hasPersonal, enabledKinds, enabledDeleteKinds, library?.workspaceId ?? '', toggles.attachments === false ? 0 : 1])
-    const [store, settings] = await Promise.all([Store.load('self-hosted-sync-ui.json'), Store.load('store.json')])
-    const successKey = JSON.stringify([profile?.profileId ?? '', root])
+    const successKey = JSON.stringify([profile?.id ?? '', root])
     let lastSuccessAt = await store.get<number>(successKey) ?? null
-    const reviewProfileId = await settings.get<string>('selfHostedConnectionReviewProfileId')
-    const reviewRequired = Boolean(profile?.profileId && reviewProfileId === profile.profileId)
-    const reauthenticationRequired = profile?.profileState === 'reauthentication-required'
+    const reviewRequired = profile?.id === reviewProfileId
+    const reauthenticationRequired = profile?.state === 'reauthentication-required'
+      || (profile ? await selfHostedSessionNeedsLogin(profile.id) : false)
     const bindingRequired = !library || !['bound', 'bootstrapping', 'epoch-changed'].includes(library.state)
     const current = useSettingStore.getState()
     if (completedAt && current.primaryBackupMethod === 'selfHosted' && current.workspacePath === workspacePath
@@ -138,6 +143,7 @@ export function useSelfHostedSyncStatus() {
   const method = useSettingStore(state => state.primaryBackupMethod)
   const workspacePath = useSettingStore(state => state.workspacePath)
   const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const pendingSetupProfileId = usePendingSelfHostedSetup(settingsReady)
   const connected = useSyncStore(state => state.selfHostedConnected)
   const serviceAvailable = useSyncStore(state => state.selfHostedServiceAvailable)
   const runtimeReady = useSyncStore(state => state.selfHostedRuntimeReady)
@@ -218,5 +224,5 @@ export function useSelfHostedSyncStatus() {
     }
   }, [method, settingsReady, workspacePath, connected])
 
-  return { ...summary, loaded, error, offline, progress, engineErrors, serviceAvailable, runtimeReady, refresh }
+  return { ...summary, pendingSetupProfileId, loaded, error, offline, progress, engineErrors, serviceAvailable, runtimeReady, refresh }
 }

@@ -79,7 +79,7 @@ async function activeBinding(): Promise<Binding | null> {
     `select b.workspace_id as workspaceId, b.profile_id as profileId, b.local_root as localRoot,
        b.sync_epoch as syncEpoch, b.access_mode as accessMode, p.server_url as serverUrl,
        p.instance_id as instanceId, p.account_id as accountId
-     from self_hosted_workspace_bindings b join self_hosted_sync_profiles p on p.id = b.profile_id
+     from self_hosted_workspace_bindings b join self_hosted_sync_profiles p on p.id = b.profile_id and p.state = 'connected'
      where b.workspace_type = 'library' and b.local_root = $1
        and b.binding_state = 'bound' limit 1`,
     [localRoot],

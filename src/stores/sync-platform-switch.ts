@@ -48,8 +48,17 @@ const initialState: PlatformSwitchState = {
   listing: null, strategy: null, selected: [], resolutions: {}, automatic: false, mutated: false, backupPath: null, selfHostedBackupPath: null, selfHostedSafetyBackupPath: null, recoveringSelfHostedBackup: false, recovered: false, cancelRequested: false, cancelledHidden: false, skipped: false,
 }
 export const usePlatformSwitchStore = create<PlatformSwitchState>(() => initialState)
+
+interface SelfHostedSetupReturn {
+  profileId?: string
+  intent: 'setup' | 'login' | 'connection'
+}
+
+export const useSelfHostedSetupReturnStore = create<{ request: SelfHostedSetupReturn | null }>(() => ({ request: null }))
+
 interface Decision { strategy: SwitchStrategy; selected: SwitchModule[]; resolutions: Record<string, SwitchResolution> }
 let reviewDecision: ((decision: Decision | null) => void) | null = null
+let returnAfterCancellation: SelfHostedSetupReturn | null = null
 let running = false
 let cancelling = false
 let dismissing = false
@@ -143,6 +152,11 @@ export async function restorePlatformSwitchRecovery() {
     if (running || cancelling || dismissing || usePlatformSwitchStore.getState().platform) return
     if (primary && SYNC_PLATFORMS.includes(primary)) useSettingStore.setState({ primaryBackupMethod: primary })
     pauseSyncEngine('selfHosted')
+    if (saved.selfHostedActivation) {
+      const { profileId, previousId } = saved.selfHostedActivation
+      const { restoreReviewedProfile } = await import('@/lib/self-hosted-sync/profile')
+      await restoreReviewedProfile(profileId, previousId)
+    }
     usePlatformSwitchStore.setState({ ...initialState, platform: saved.platform,
       step: saved.resolution === 'skipped' ? 'completed' : saved.resolution === 'cancelled' ? 'cancelled' : 'error',
       mutated: saved.mutated ?? (Boolean(saved.backupPath) || !saved.workspaceSetup), backupPath: saved.backupPath || null, selfHostedBackupPath: saved.selfHostedBackupPath || null,
@@ -344,6 +358,31 @@ export async function cancelPlatformSwitch() {
     usePlatformSwitchStore.setState({ cancelRequested: false })
   }
 }
+
+export async function returnToSelfHostedSetup(intent: SelfHostedSetupReturn['intent']) {
+  const state = usePlatformSwitchStore.getState()
+  if (state.platform !== 'selfHosted' || state.mutated || state.cancelRequested || state.selfHostedSafetyBackupPath
+    || !['review', 'confirm', 'error', 'cancelled'].includes(state.step) || returnAfterCancellation) return
+  const request = { intent, profileId: state.review?.selfHostedPreview?.profileId }
+  try {
+    if (!request.profileId) request.profileId = await (await Store.load('store.json')).get<string>('selfHostedConnectionReviewProfileId') ?? undefined
+    const current = usePlatformSwitchStore.getState()
+    if (current.platform !== state.platform || current.step !== state.step || current.review !== state.review
+      || current.mutated || current.cancelRequested || current.selfHostedSafetyBackupPath
+      || cancelling || dismissing || returnAfterCancellation) return
+    if (running) {
+      returnAfterCancellation = request
+      await cancelPlatformSwitch()
+      return
+    }
+    await cancelPlatformSwitch()
+    if (!usePlatformSwitchStore.getState().platform) useSelfHostedSetupReturnStore.setState({ request })
+  } catch (error) {
+    if (returnAfterCancellation === request) returnAfterCancellation = null
+    usePlatformSwitchStore.setState({ step: 'error', error: sanitizeSyncErrorMessage(error) })
+  }
+}
+
 export function cancelPlatformSwitchInspection() { void cancelPlatformSwitch() }
 async function reconcileSelfHosted() {
   const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
@@ -426,13 +465,11 @@ export async function reviewSelfHostedConnection(options: PlatformSwitchStartOpt
   const { retrySecureStorageAccess } = await import('@/lib/self-hosted-sync/profile')
   await retrySecureStorageAccess()
   if (options.isActive?.() === false) return false
-  const database = await import('@/db').then(module => module.getDb())
-  const profiles = await database.select<Array<{ id: string }>>("select id from self_hosted_sync_profiles where state = 'connected' order by updated_at desc limit 1")
+  const { getConnectionReviewProfile, requireConnectionReview } = await import('@/lib/self-hosted-sync/profile')
+  const profile = await getConnectionReviewProfile()
   if (options.isActive?.() === false) return false
-  if (!profiles[0]) throw new Error('SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED')
-  const { requireConnectionReview } = await import('@/lib/self-hosted-sync/profile')
-  if (options.isActive?.() === false) return false
-  await requireConnectionReview(profiles[0].id)
+  if (!profile) throw new Error('SELF_HOSTED_PREVIEW_CONNECTION_REQUIRED')
+  await requireConnectionReview(profile.id)
   if (options.isActive?.() === false) return false
   pauseSyncEngine('selfHosted')
   const state = usePlatformSwitchStore.getState()
@@ -464,6 +501,7 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
   let releaseBackup: BackupLease | null = null
   let verified = false
   let cleanCancellation = false
+  let selfHostedActivation: PlatformSwitchRecovery['selfHostedActivation']
   const recoveryBackup = usePlatformSwitchStore.getState().backupPath
   let attemptBackupPaths = recoveryBackupPaths({ backupPath: recoveryBackup || undefined })
   usePlatformSwitchStore.setState({ ...initialState, platform, backupPath: recoveryBackup })
@@ -540,19 +578,22 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
     } else if (platform === 'selfHosted') {
       const review = await inspectSyncEngineSwitch(current, platform, (step, listing) => { assertSwitchActive(); usePlatformSwitchStore.setState({ step, listing: listing || null }) }, assertSwitchActive)
       assertSwitchActive()
+      const preview = review.selfHostedPreview
+      const library = preview?.libraries[0]
+      if (!preview || !library) throw new Error('SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED')
       const decision = await new Promise<Decision | null>(resolve => {
         reviewDecision = resolve
-        usePlatformSwitchStore.setState({ step: 'review', review, selected: review.selfHostedPreview!.modules.map(module => module.id) })
+        usePlatformSwitchStore.setState({ step: 'review', review, selected: preview.modules.map(module => module.id) })
       })
       if (!decision) { assertSwitchActive(); return false }
       const { validateSelfHostedSwitchStrategy, executeSelfHostedSwitch } = await import('@/lib/self-hosted-sync/switch-execute')
-      validateSelfHostedSwitchStrategy(review.selfHostedPreview!, decision.strategy)
+      validateSelfHostedSwitchStrategy(preview, decision.strategy)
       assertSwitchConfiguration(current, workspace, 'validate')
       assertSwitchActive()
       usePlatformSwitchStore.setState({ step: 'preparing' })
-      const { revalidateSelfHostedSwitch, backupSelfHostedSwitch } = await import('@/lib/self-hosted-sync/switch-preview')
-      await revalidateSelfHostedSwitch(review.selfHostedPreview!, assertSwitchActive)
-      const selfHostedBackupPath = await backupSelfHostedSwitch(review.selfHostedPreview!, assertSwitchActive, progress)
+      const { revalidateSelfHostedSwitch, backupSelfHostedSwitch, getSelfHostedSwitchSnapshot } = await import('@/lib/self-hosted-sync/switch-preview')
+      await revalidateSelfHostedSwitch(preview, assertSwitchActive)
+      const selfHostedBackupPath = await backupSelfHostedSwitch(preview, assertSwitchActive, progress)
       usePlatformSwitchStore.setState({ selfHostedBackupPath })
       assertSwitchConfiguration(current, workspace, 'validate')
       if (await targetFingerprint(platform) !== fingerprint) throw syncStaleError({ stage: 'validate', path: 'syncTarget', check: 'configuration' })
@@ -561,20 +602,43 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
       pauseSyncEngine(current)
       const store = await Store.load('store.json')
       const previousRecovery = await store.get<PlatformSwitchRecovery>('platformSwitchRecovery')
+      const { getActiveProfileId, getConnectionReviewProfile, activateReviewedProfile } = await import('@/lib/self-hosted-sync/profile')
+      const { profileId, chosenLibraryId } = preview
+      const previousId = await getActiveProfileId()
+      selfHostedActivation = profileId === previousId ? undefined : { profileId, previousId }
       assertSwitchActive()
-      await store.set('platformSwitchRecovery', { ...previousRecovery, platform, originalPlatform: current, commitPlatform: undefined, workspace, targetFingerprint: fingerprint, workspaceSetup: activeWorkspaceSetup, selfHostedBackupPath, mutated: true, resolution: undefined, startedAt: Date.now() })
+      await store.set('platformSwitchRecovery', { ...previousRecovery, platform, originalPlatform: current, commitPlatform: undefined, workspace, targetFingerprint: fingerprint, workspaceSetup: activeWorkspaceSetup, selfHostedBackupPath, selfHostedActivation, mutated: true, resolution: undefined, startedAt: Date.now() })
       await store.save()
       await useSettingStore.getState().commitVerifiedPrimaryBackupMethod(platform, commitProgress, 'deferred', async () => {
+        if ((await getConnectionReviewProfile())?.id !== profileId) throw syncStaleError({ stage: 'validate', path: 'syncTarget', check: 'configuration' })
+        const { bindLibrary, createReviewedLibrary } = await import('@/lib/self-hosted-sync/workspaces')
+        assertSwitchActive()
+        await activateReviewedProfile(profileId)
+        assertSwitchActive()
+        const { syncEpoch } = getSelfHostedSwitchSnapshot(preview)
+        let createdLibraryId: string | undefined
+        if (preview.libraryIdToBind) {
+          if (library.workspaceId !== preview.libraryIdToBind) throw new Error('SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED')
+          await bindLibrary(profileId, preview.libraryIdToBind, library.localRoot, false, syncEpoch)
+        } else if (library.workspaceId === null) {
+          createdLibraryId = await createReviewedLibrary(profileId, library.localRoot, preview.newLibraryUsesDefaultKey, syncEpoch)
+        }
+        assertSwitchActive()
         if (decision.strategy !== 'merge') {
-          await executeSelfHostedSwitch(review.selfHostedPreview!, decision.strategy, assertSwitchActive, progress)
+          await executeSelfHostedSwitch(preview, decision.strategy, assertSwitchActive, progress, createdLibraryId)
         }
         progress({ phase: 'start', kind: 'item', startupTask: 'refresh', source: 'local', current: 0, total: 0 })
         if (decision.strategy !== 'merge') {
-          await refreshSelfHostedSwitchStores(decision.strategy === 'remote', review.selfHostedPreview!.modules.some(module => module.id === 'canvases'))
+          await refreshSelfHostedSwitchStores(decision.strategy === 'remote', preview.modules.some(module => module.id === 'canvases'))
         }
         await reconcileSelfHosted()
         return { selfHostedRuntimeReady: true }
       }, assertSwitchActive)
+      if (chosenLibraryId) {
+        void import('@/lib/self-hosted-sync/initial-library-choice')
+          .then(({ clearInitialLibraryChoiceIfMatches }) => clearInitialLibraryChoiceIfMatches(profileId, library.localRoot, chosenLibraryId))
+          .catch(error => console.warn('[self-hosted-sync] Unable to clear the confirmed library choice', error))
+      }
     } else {
       const plan = await inspectPlatformSwitchPlan(platform, progress)
       activePlan = plan
@@ -630,10 +694,23 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
     verified = true
     return true
   } catch (error) {
-    if (platform === 'selfHosted') pauseSyncEngine('selfHosted')
+    let sessionRequired = false
+    if (platform === 'selfHosted') {
+      const { isSelfHostedAuthenticationError } = await import('@/lib/self-hosted-sync/profile')
+      sessionRequired = isSelfHostedAuthenticationError(error)
+      await import('@/lib/self-hosted-sync/runtime').then(module => module.getSelfHostedSyncRuntime().stopAndWait())
+      if (selfHostedActivation) {
+        const { restoreReviewedProfile } = await import('@/lib/self-hosted-sync/profile')
+        await restoreReviewedProfile(selfHostedActivation.profileId, selfHostedActivation.previousId).catch(restoreError => {
+          console.warn('[self-hosted-sync] Could not restore the prior connection. Recovery remains pending.', restoreError)
+        })
+      }
+    }
     const state = usePlatformSwitchStore.getState()
     const cancelled = state.cancelRequested || (error instanceof Error && error.message === 'SYNC_SWITCH_CANCELLED')
-    const message = cancelled ? 'SYNC_SWITCH_CANCELLED' : sanitizeSyncErrorMessage(withSyncStaleContext(error, switchErrorContext(state, 'validate')))
+    const message = cancelled ? 'SYNC_SWITCH_CANCELLED'
+      : sessionRequired ? 'SELF_HOSTED_SESSION_REQUIRED'
+        : sanitizeSyncErrorMessage(withSyncStaleContext(error, switchErrorContext(state, 'validate')))
     usePlatformSwitchStore.setState({ failedStep: state.step, step: cancelled ? 'cancelled' : 'error', error: message, cancelRequested: false })
     try {
       const store = await Store.load('store.json')
@@ -668,6 +745,11 @@ export async function switchSyncPlatform(platform: SyncPlatform, retry = false, 
       await finishBackupRetention(releaseBackup, attemptBackupPaths, verified, cleanCancellation)
       running = false
       usePlatformSwitchStore.setState({ cancelRequested: false })
+      const request = returnAfterCancellation
+      returnAfterCancellation = null
+      if (request && cleanCancellation) useSelfHostedSetupReturnStore.setState({ request })
+      // The dialog may show an error while its recovery marker is still being saved.
+      else if (request && usePlatformSwitchStore.getState().step === 'error') void returnToSelfHostedSetup(request.intent)
     }
   }
 }
@@ -676,6 +758,7 @@ export async function skipPlatformSwitchError() {
   if (state.selfHostedSafetyBackupPath) return false
   const platform = state.platform
   if (!platform || running || cancelling || dismissing || !['error', 'cancelled'].includes(state.step)) return false
+  if (platform === 'selfHosted' && !state.mutated) return false
   const previous = useSettingStore.getState().primaryBackupMethod
   const workspace = useSettingStore.getState().workspacePath
   running = true
@@ -761,11 +844,10 @@ export async function continueSelfHostedSwitchWithoutSettings() {
   const state = usePlatformSwitchStore.getState()
   if (running || cancelling || dismissing || state.platform !== 'selfHosted' || state.step !== 'error'
     || state.mutated || state.error !== 'SELF_HOSTED_PREVIEW_SETTING_DECRYPTION_FAILED') return
-  const database = await import('@/db').then(module => module.getDb())
-  const profiles = await database.select<Array<{ id: string }>>("select id from self_hosted_sync_profiles where state = 'connected' order by updated_at desc limit 1")
-  if (!profiles[0]) return
-  const { updateDomainToggle } = await import('@/lib/self-hosted-sync/profile')
-  await updateDomainToggle(profiles[0].id, 'settings', false)
+  const { getConnectionReviewProfile, updateDomainToggle } = await import('@/lib/self-hosted-sync/profile')
+  const profile = await getConnectionReviewProfile()
+  if (!profile) return
+  await updateDomainToggle(profile.id, 'settings', false)
   await retryPlatformSwitch()
 }
 
@@ -865,8 +947,12 @@ export async function recoverSelfHostedSwitchBackup() {
     if (!recovery || recovery.selfHostedBackupPath !== backupPath) throw new Error('SELF_HOSTED_BACKUP_INVALID')
     const { getDb } = await import('@/db')
     const bindings = await (await getDb()).select<Array<{ workspaceId: string; localRoot: string }>>(
-      `select workspace_id as workspaceId, local_root as localRoot from self_hosted_workspace_bindings
-       where workspace_type = 'library' and local_root is not null`,
+      `select b.workspace_id as workspaceId, b.local_root as localRoot
+       from self_hosted_workspace_bindings b join self_hosted_sync_profiles p on p.id = b.profile_id
+       where b.workspace_type = 'library' and b.local_root is not null
+         and (b.profile_id = $1 or p.state = 'connected')
+       order by p.state = 'connected' desc`,
+      [manifest.profileId],
     )
     const { getCurrentWorkspaceRoot } = await import('@/lib/self-hosted-sync/workspaces')
     const activeRoot = await getCurrentWorkspaceRoot()

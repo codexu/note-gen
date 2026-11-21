@@ -9,6 +9,21 @@ use zip::CompressionMethod;
 use zip::ZipArchive;
 use zip::ZipWriter;
 
+pub(crate) const PRIVATE_SYNC_CREDENTIALS_DIRECTORY: &str = ".notegen-sync-credentials";
+
+pub(crate) fn is_sync_credential_path(path: &Path) -> bool {
+    path.iter().filter_map(|component| component.to_str()).any(|name| {
+        name.eq_ignore_ascii_case(PRIVATE_SYNC_CREDENTIALS_DIRECTORY)
+            || name.eq_ignore_ascii_case("self-hosted-secrets.json")
+            || name.eq_ignore_ascii_case(".self-hosted-secrets.json.tmp")
+    })
+}
+
+pub(crate) fn resolves_to_sync_credentials(path: &Path) -> bool {
+    is_sync_credential_path(path)
+        || fs::canonicalize(path).is_ok_and(|resolved| is_sync_credential_path(&resolved))
+}
+
 #[command]
 pub async fn import_app_data_from_file(
     app_handle: AppHandle,
@@ -63,6 +78,9 @@ pub async fn import_app_data_from_file(
 
         let src_path = entry.path();
         let dest_path = data_dir.join(&file_name);
+        if resolves_to_sync_credentials(&dest_path) {
+            continue;
+        }
 
         if src_path.is_file() {
             fs::copy(&src_path, &dest_path).map_err(|e| {
@@ -173,6 +191,9 @@ pub async fn import_app_data(app_handle: AppHandle, zip_path: String) -> Result<
 
         let src_path = entry.path();
         let dest_path = data_dir.join(&file_name);
+        if resolves_to_sync_credentials(&dest_path) {
+            continue;
+        }
 
         if src_path.is_file() {
             fs::copy(&src_path, &dest_path).map_err(|e| {
@@ -205,6 +226,9 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
         let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
         let src_path = entry.path();
         let dest_path = dest.join(entry.file_name());
+        if resolves_to_sync_credentials(&dest_path) {
+            continue;
+        }
 
         if src_path.is_file() {
             fs::copy(&src_path, &dest_path).map_err(|e| format!("Failed to copy file: {}", e))?;
@@ -218,6 +242,12 @@ fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
 
 // 使用 zip crate 压缩目录
 fn compress_dir(src_dir: &Path, dest_file: &Path) -> Result<(), String> {
+    if resolves_to_sync_credentials(dest_file)
+        || dest_file.parent().is_some_and(resolves_to_sync_credentials)
+    {
+        return Err("Cannot write a backup in the private credential store".to_string());
+    }
+
     // 确保父目录存在
     if let Some(parent) = dest_file.parent() {
         if parent != src_dir {
@@ -260,7 +290,11 @@ fn add_dir_to_zip<W: Write + Seek>(
             .strip_prefix(base_path)
             .map_err(|e| format!("Failed to get relative path: {}", e))?;
 
-        if relative_path == Path::new(crate::initial_setup::INITIAL_SETUP_FILE) {
+        if relative_path == Path::new(crate::initial_setup::INITIAL_SETUP_FILE)
+            || is_sync_credential_path(relative_path)
+            || (entry.file_type().is_ok_and(|kind| kind.is_symlink())
+                && resolves_to_sync_credentials(&path))
+        {
             continue;
         }
 
@@ -299,8 +333,8 @@ fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
             .map_err(|e| format!("Failed to read file from zip: {}", e))?;
 
         let outpath = match file.enclosed_name() {
-            Some(path) => dest_dir.join(path),
-            None => continue,
+            Some(path) if !is_sync_credential_path(&path) => dest_dir.join(path),
+            _ => continue,
         };
 
         if file.name().ends_with('/') {

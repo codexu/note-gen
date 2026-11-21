@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{sqlite::SqliteConnectOptions, Connection, Row, SqliteConnection};
 use std::{
@@ -10,6 +10,8 @@ use std::{
 use tauri::{AppHandle, Manager};
 use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
+
+use crate::backup::is_sync_credential_path;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,6 +63,11 @@ pub fn self_hosted_structured_object_id(
     Ok(Uuid::new_v5(&namespace, normalized.as_bytes()).to_string())
 }
 
+#[derive(Deserialize)]
+pub struct TargetSnapshot {
+    hash: Option<String>,
+}
+
 #[tauri::command]
 pub async fn self_hosted_atomic_write(
     app_handle: AppHandle,
@@ -70,6 +77,7 @@ pub async fn self_hosted_atomic_write(
     relative_path: String,
     contents: String,
     expected_hash: String,
+    target_snapshot: Option<TargetSnapshot>,
 ) -> Result<(), String> {
     let normalized = validate_relative_path(&relative_path)?;
     let bytes = URL_SAFE_NO_PAD
@@ -92,10 +100,11 @@ pub async fn self_hosted_atomic_write(
         Uuid::new_v4()
     ));
     let mut connection = open_database(&database_path).await?;
+    let operation = if target_snapshot.is_some() { "guarded-write" } else { "write" };
     let journal_id = insert_journal(
         &mut connection,
         &workspace_id,
-        "write",
+        operation,
         object_id.as_deref(),
         None,
         Some(&target),
@@ -104,7 +113,7 @@ pub async fn self_hosted_atomic_write(
     )
     .await?;
 
-    let result = (|| -> Result<(), String> {
+    let result = (|| -> Result<bool, String> {
         let parent = target.parent().ok_or_else(|| "File target has no parent".to_string())?;
         fs::create_dir_all(parent).map_err(|error| format!("Failed to create file directory: {error}"))?;
         reject_symlink_path(&root, parent)?;
@@ -116,17 +125,29 @@ pub async fn self_hosted_atomic_write(
         file.write_all(&bytes)
             .and_then(|_| file.sync_all())
             .map_err(|error| format!("Failed to persist temporary file: {error}"))?;
+        drop(file);
+        if let Some(snapshot) = &target_snapshot {
+            if !target_matches_snapshot(&target, snapshot.hash.as_deref())? {
+                fs::remove_file(&temp)
+                    .map_err(|error| format!("Failed to remove interrupted sync temporary file: {error}"))?;
+                return Ok(false);
+            }
+        }
         atomic_replace(&temp, &target)?;
         if let Some(parent) = target.parent() {
             if let Ok(directory) = fs::File::open(parent) {
                 let _ = directory.sync_all();
             }
         }
-        Ok(())
+        Ok(true)
     })();
 
     match result {
-        Ok(()) => update_journal(&mut connection, journal_id, "committed", None).await,
+        Ok(true) => update_journal(&mut connection, journal_id, "committed", None).await,
+        Ok(false) => {
+            update_journal(&mut connection, journal_id, "rolled-back", None).await?;
+            Err("remote_asset_local_activity".to_string())
+        }
         Err(error) => {
             let _ = update_journal(&mut connection, journal_id, "failed", Some("file_write_failed")).await;
             Err(error)
@@ -420,6 +441,7 @@ pub async fn self_hosted_recover_file_journal(app_handle: AppHandle) -> Result<u
         let expected_hash = row.get::<Option<String>, _>(5);
         let completed = match operation.as_str() {
             "write" => recover_write(temp.as_deref(), target.as_deref(), expected_hash.as_deref()),
+            "guarded-write" => recover_guarded_write(temp.as_deref(), target.as_deref(), expected_hash.as_deref()),
             "mkdir" => Ok(target.as_deref().is_some_and(Path::is_dir)),
             "delete" | "rmdir" => Ok(source.as_deref().map_or(true, |path| !path.exists())),
             "move" => Ok(source.as_deref().is_some_and(|path| !path.exists())
@@ -429,6 +451,8 @@ pub async fn self_hosted_recover_file_journal(app_handle: AppHandle) -> Result<u
         if completed {
             update_journal(&mut connection, id, "committed", None).await?;
             recovered += 1;
+        } else if operation == "guarded-write" {
+            update_journal(&mut connection, id, "rolled-back", None).await?;
         } else {
             update_journal(&mut connection, id, "failed", Some("recovery_required")).await?;
         }
@@ -444,6 +468,35 @@ fn recover_write(temp: Option<&Path>, target: Option<&Path>, expected_hash: Opti
     if !temp.is_file() || file_hash(temp)? != expected_hash { return Ok(false); }
     atomic_replace(temp, target)?;
     Ok(true)
+}
+
+fn recover_guarded_write(temp: Option<&Path>, target: Option<&Path>, expected_hash: Option<&str>) -> Result<bool, String> {
+    // Let the persistent inbox retry interrupted writes after inspecting the
+    // current file. Installing a journal temp could overwrite a newer edit.
+    let completed = match (target, expected_hash) {
+        (Some(target), Some(expected_hash)) => target_matches_snapshot(target, Some(expected_hash))?,
+        _ => false,
+    };
+    if let Some(temp) = temp {
+        match fs::remove_file(temp) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("Failed to remove interrupted sync temporary file: {error}")),
+        }
+    }
+    Ok(completed)
+}
+
+fn target_matches_snapshot(path: &Path, hash: Option<&str>) -> Result<bool, String> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() => match hash {
+            Some(expected_hash) => Ok(file_hash(path)? == expected_hash),
+            None => Ok(false),
+        },
+        Ok(_) => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(hash.is_none()),
+        Err(error) => Err(format!("Failed to inspect sync target: {error}")),
+    }
 }
 
 fn file_hash(path: &Path) -> Result<String, String> {
@@ -516,6 +569,9 @@ fn safe_workspace_root(value: &str) -> Result<PathBuf, String> {
     let root = path
         .canonicalize()
         .map_err(|error| format!("Workspace directory is unavailable: {error}"))?;
+    if is_sync_credential_path(&root) {
+        return Err("The private credential store cannot be used as a workspace".to_string());
+    }
     if !root.is_dir() {
         return Err("Workspace root is not a directory".to_string());
     }
@@ -556,6 +612,9 @@ fn safe_target(root: &Path, relative_path: &str) -> Result<PathBuf, String> {
     let target = root.join(relative_path);
     if !target.starts_with(root) {
         return Err("File target escapes the workspace".to_string());
+    }
+    if is_sync_credential_path(&target) {
+        return Err("The private credential store cannot be used as a workspace target".to_string());
     }
     Ok(target)
 }

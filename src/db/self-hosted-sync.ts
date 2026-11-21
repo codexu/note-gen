@@ -19,8 +19,8 @@ const SYNC_TABLES = `
     updated_at integer not null
   );
 
-  create unique index if not exists idx_self_hosted_sync_profiles_server
-    on self_hosted_sync_profiles(server_url);
+  create unique index if not exists idx_self_hosted_sync_profiles_identity
+    on self_hosted_sync_profiles(server_url, instance_id, account_id);
 
   create table if not exists self_hosted_workspace_bindings (
     workspace_id text primary key,
@@ -35,8 +35,8 @@ const SYNC_TABLES = `
     updated_at integer not null
   );
 
-  create unique index if not exists idx_self_hosted_workspace_bindings_root
-    on self_hosted_workspace_bindings(local_root) where local_root is not null;
+  create unique index if not exists idx_self_hosted_workspace_bindings_profile_root
+    on self_hosted_workspace_bindings(profile_id, local_root) where local_root is not null;
 
   create table if not exists self_hosted_workspace_names (
     workspace_id text primary key references self_hosted_workspace_bindings(workspace_id) on delete cascade,
@@ -241,6 +241,12 @@ const TRIGGER_DOMAINS = [
   { table: 'memories', domain: 'memory', key: 'NEW.id', oldKey: 'OLD.id' },
 ] as const
 
+const ACTIVE_ACCOUNT_DATA_WORKSPACE = `(select b.workspace_id
+  from self_hosted_workspace_bindings b
+  join self_hosted_sync_profiles p on p.id = b.profile_id and p.state = 'connected'
+  where b.workspace_type = 'account-data'
+  order by b.updated_at desc, b.workspace_id limit 1)`
+
 async function preservePendingWorkspaceFiles(workspaceId: string, sourceRoot: string, targetRoot: string) {
   const pending = await (await getDb()).select<Array<{ path: string; domain: string }>>(
     `select local_key as path, domain from self_hosted_local_changes
@@ -277,9 +283,9 @@ async function preservePendingWorkspaceFiles(workspaceId: string, sourceRoot: st
 export async function restoreSelfHostedWorkspaceRoots() {
   const database = await getDb()
   const rows = await database.select<Array<{
-    workspaceId: string; localRoot: string; bindingState: string; profileState: string
+    workspaceId: string; profileId: string; localRoot: string; bindingState: string; profileState: string
   }>>(
-    `select b.workspace_id as workspaceId, b.local_root as localRoot,
+    `select b.workspace_id as workspaceId, b.profile_id as profileId, b.local_root as localRoot,
        b.binding_state as bindingState, p.state as profileState
      from self_hosted_workspace_bindings b
      join self_hosted_sync_profiles p on p.id = b.profile_id
@@ -300,12 +306,12 @@ export async function restoreSelfHostedWorkspaceRoots() {
   }))
   const groups = new Map<string, typeof plans>()
   for (const plan of plans) {
-    const key = normalizeManagedWorkspacePath(plan.root!)
+    const key = JSON.stringify([plan.profileId, normalizeManagedWorkspacePath(plan.root!)])
     const group = groups.get(key) ?? []
     group.push(plan)
     groups.set(key, group)
   }
-  const reserved = new Set(groups.keys())
+  const reserved = new Set(plans.map(plan => normalizeManagedWorkspacePath(plan.root!)))
   for (const group of groups.values()) {
     if (group.length < 2 || !group.some(plan => plan.location !== null)) continue
     group.sort((a, b) => b.priority - a.priority)
@@ -350,6 +356,7 @@ export async function initSelfHostedSyncDb() {
   for (const statement of SYNC_TABLES.split(';').map(value => value.trim()).filter(Boolean)) {
     await database.execute(statement)
   }
+  await database.execute('drop index if exists idx_self_hosted_workspace_bindings_root')
   await database.execute(
     `create index if not exists idx_self_hosted_local_changes_pending
      on self_hosted_local_changes(state, workspace_id, domain, local_key, id)`
@@ -364,6 +371,7 @@ export async function initSelfHostedSyncDb() {
   const profileColumns = await database.select<Array<{ name: string }>>(
     'pragma table_info(self_hosted_sync_profiles)'
   )
+  await database.execute('drop index if exists idx_self_hosted_sync_profiles_server')
   const outboxColumns = await database.select<Array<{ name: string }>>('pragma table_info(self_hosted_outbox)')
   if (!outboxColumns.some(column => column.name === 'restore_local_snapshot')) {
     await database.execute('alter table self_hosted_outbox add column restore_local_snapshot integer not null default 0')
@@ -424,39 +432,29 @@ export async function initSelfHostedSyncDb() {
   await restoreSelfHostedWorkspaceRoots()
   await migrateUnsyncedMarkIdentities(database)
 
+  const triggerStatements: RecordStatement[] = []
   for (const trigger of TRIGGER_DOMAINS) {
     const updateOperation = 'updateOperation' in trigger ? trigger.updateOperation : "'upsert'"
-    for (const operation of ['insert', 'update', 'delete']) {
-      await database.execute(`drop trigger if exists self_hosted_${trigger.table}_${operation}`)
+    for (const [event, key, operation] of [
+      ['insert', trigger.key, "'upsert'"],
+      ['update', trigger.key, updateOperation],
+      ['delete', trigger.oldKey, "'delete'"],
+    ] as const) {
+      const name = `self_hosted_${trigger.table}_${event}`
+      triggerStatements.push({ sql: `drop trigger if exists ${name}`, values: [] }, {
+        sql: `create trigger ${name}
+          after ${event} on ${trigger.table}
+          when (select suppress_triggers from self_hosted_sync_context where id = 1) = 0
+          begin
+            insert into self_hosted_local_changes(workspace_id, domain, local_key, operation, reason, created_at, updated_at)
+            values (${ACTIVE_ACCOUNT_DATA_WORKSPACE}, '${trigger.domain}', ${key}, ${operation}, '${trigger.table}:${event}',
+              cast((julianday('now') - 2440587.5) * 86400000 as integer), cast((julianday('now') - 2440587.5) * 86400000 as integer));
+          end`,
+        values: [],
+      })
     }
-    await database.execute(`
-      create trigger if not exists self_hosted_${trigger.table}_insert
-      after insert on ${trigger.table}
-      when (select suppress_triggers from self_hosted_sync_context where id = 1) = 0
-      begin
-        insert into self_hosted_local_changes(domain, local_key, operation, reason, created_at, updated_at)
-        values ('${trigger.domain}', ${trigger.key}, 'upsert', '${trigger.table}:insert', cast((julianday('now') - 2440587.5) * 86400000 as integer), cast((julianday('now') - 2440587.5) * 86400000 as integer));
-      end
-    `)
-    await database.execute(`
-      create trigger if not exists self_hosted_${trigger.table}_update
-      after update on ${trigger.table}
-      when (select suppress_triggers from self_hosted_sync_context where id = 1) = 0
-      begin
-        insert into self_hosted_local_changes(domain, local_key, operation, reason, created_at, updated_at)
-        values ('${trigger.domain}', ${trigger.key}, ${updateOperation}, '${trigger.table}:update', cast((julianday('now') - 2440587.5) * 86400000 as integer), cast((julianday('now') - 2440587.5) * 86400000 as integer));
-      end
-    `)
-    await database.execute(`
-      create trigger if not exists self_hosted_${trigger.table}_delete
-      after delete on ${trigger.table}
-      when (select suppress_triggers from self_hosted_sync_context where id = 1) = 0
-      begin
-        insert into self_hosted_local_changes(domain, local_key, operation, reason, created_at, updated_at)
-        values ('${trigger.domain}', ${trigger.oldKey}, 'delete', '${trigger.table}:delete', cast((julianday('now') - 2440587.5) * 86400000 as integer), cast((julianday('now') - 2440587.5) * 86400000 as integer));
-      end
-    `)
   }
+  await executeRecordTransaction(triggerStatements)
 }
 
 async function migrateUnsyncedMarkIdentities(database: Awaited<ReturnType<typeof getDb>>) {
@@ -496,8 +494,8 @@ export async function enqueueSelfHostedSettingChange(settingKey: string) {
   const database = await getDb()
   const now = Date.now()
   await database.execute(
-    `insert into self_hosted_local_changes(domain, local_key, operation, reason, created_at, updated_at)
-     values ('setting', 'all', 'upsert', $1, $2, $2)`,
+    `insert into self_hosted_local_changes(workspace_id, domain, local_key, operation, reason, created_at, updated_at)
+     values (${ACTIVE_ACCOUNT_DATA_WORKSPACE}, 'setting', 'all', 'upsert', $1, $2, $2)`,
     [`setting:${settingKey}`, now]
   )
 }

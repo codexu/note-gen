@@ -98,7 +98,7 @@ export function MobileMeSheet({ active = true }: { active?: boolean }) {
       || autoDataSyncState.phase === 'downloading')
   ), [autoDataSyncState.phase, primaryBackupMethod, selfHostedStatus.progress, syncingFiles])
   const indicator = useMemo(() => {
-    if (hasMobileUpdate) return true
+    if (hasMobileUpdate || selfHostedStatus.pendingSetupProfileId) return true
     if (primaryBackupMethod === 'local') return false
     if (primaryBackupMethod === 'selfHosted') return selfHostedStatus.error
       || selfHostedStatus.reauthenticationRequired || selfHostedStatus.reviewRequired
@@ -323,7 +323,7 @@ export function MobileMeSheet({ active = true }: { active?: boolean }) {
             <SheetDescription className="sr-only">{tNavigation("me")}</SheetDescription>
 
             <div className="relative flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
-              {(primaryBackupMethod === 'selfHosted' || primaryBackupMethod === 'local') && <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2 px-4 pt-3">
+              {(primaryBackupMethod === 'selfHosted' || primaryBackupMethod === 'local' || selfHostedStatus.pendingSetupProfileId) && <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-2 px-4 pt-3">
                 <span className="text-sm text-muted-foreground">{tSync('title')}</span>
                 <UnifiedSyncStatus mobile onNavigate={closeSheetBeforeNavigation} onOpenSetup={() => {
                   setOpen(false)

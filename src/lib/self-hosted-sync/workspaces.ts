@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { exists, mkdir, readDir, readFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
+import { shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
 import { executeRecordTransaction, getDb, initAllDatabases } from '@/db'
 import { decryptText } from './crypto'
 import { SelfHostedApiError } from './client'
@@ -12,15 +13,17 @@ import type { WorkspaceSummary } from './protocol'
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
 import { ensureWorkspaceDirectory, managedWorkspaceLocation, resolveManagedWorkspacePath } from '@/lib/managed-workspace'
 import { getWorkspaceFolderName } from '@/lib/workspace-name'
+import { syncStaleError } from '@/lib/sync/sync-stale-error'
 import { withSelfHostedPrepareLock } from './prepare-lock'
 import { normalizeWorkspaceNamePath, useWorkspaceNamesStore } from '@/stores/workspace-names'
+import { isOfficialSyncOrigin } from './service-source'
+import { automaticInitialLibrary, DEFAULT_LIBRARY_IDEMPOTENCY_KEY, findInitialLibraryBinding, getInitialLibraryLocation, isInitialLibraryCandidate, readLibraryBindings } from './initial-library-choice'
 
 interface EncryptedName {
   nonce: string
   ciphertext: string
 }
 
-const DEFAULT_LIBRARY_IDEMPOTENCY_KEY = 'notegen.default-library.v1'
 const LEGACY_DEFAULT_LIBRARY_NAME = '我的资料库'
 
 function displayLibraryName(name: string) {
@@ -57,18 +60,20 @@ async function synchronizeLibraryFolderName(
   }
 }
 
-async function decryptLibraryName(profileId: string, workspace: WorkspaceSummary) {
-  const key = await loadManagedWorkspaceKey(profileId, workspace.id, workspace.latestKeyVersion)
+async function decryptLibraryName(profileId: string, workspace: WorkspaceSummary, useLocalBinding = true) {
+  const key = await loadManagedWorkspaceKey(profileId, workspace.id, workspace.latestKeyVersion, useLocalBinding)
   const encrypted = JSON.parse(workspace.nameCiphertext) as EncryptedName
   return displayLibraryName(await decryptText(key, encrypted.nonce, encrypted.ciphertext, 'workspace-name:v1'))
 }
 
-async function cacheLibraryName(workspace: WorkspaceSummary) {
+async function cacheLibraryName(profileId: string, workspace: WorkspaceSummary) {
   await (await getDb()).execute(
     `insert into self_hosted_workspace_names(workspace_id, name_ciphertext, key_version)
-     select $1, $2, $3 where exists (select 1 from self_hosted_workspace_bindings where workspace_id = $1)
+     select $1, $2, $3 where exists (
+       select 1 from self_hosted_workspace_bindings where workspace_id = $1 and profile_id = $4
+     )
      on conflict(workspace_id) do update set name_ciphertext = excluded.name_ciphertext, key_version = excluded.key_version`,
-    [workspace.id, workspace.nameCiphertext, workspace.latestKeyVersion],
+    [workspace.id, workspace.nameCiphertext, workspace.latestKeyVersion, profileId],
   )
 }
 
@@ -83,6 +88,7 @@ export async function refreshCachedWorkspaceNames() {
     `select b.workspace_id as workspaceId, b.local_root as localRoot,
        n.name_ciphertext as nameCiphertext, n.key_version as keyVersion
      from self_hosted_workspace_bindings b join self_hosted_workspace_names n on n.workspace_id = b.workspace_id
+     join self_hosted_sync_profiles p on p.id = b.profile_id and p.state = 'connected'
      where b.workspace_type = 'library' and b.local_root is not null`,
   )
   const defaultRoot = normalizeWorkspaceNamePath(await getDefaultArticleAbsolutePath(''))
@@ -111,9 +117,9 @@ export interface SelfHostedLibrary extends WorkspaceSummary {
   accessMode: 'read-write' | 'read-only'
 }
 
-export async function listLibraries(profileId: string): Promise<SelfHostedLibrary[]> {
+export async function listLibraries(profileId: string, { readOnly = false }: { readOnly?: boolean } = {}): Promise<SelfHostedLibrary[]> {
   await initAllDatabases()
-  const { client } = await authenticatedClient(profileId)
+  const { profile, client } = await authenticatedClient(profileId)
   const [workspaceRows, defaultCreation] = await Promise.all([
     client.workspaces(),
     client.workspaceCreationRequest(DEFAULT_LIBRARY_IDEMPOTENCY_KEY).catch(error => {
@@ -121,27 +127,35 @@ export async function listLibraries(profileId: string): Promise<SelfHostedLibrar
       throw error
     }),
   ])
-  const workspaces = workspaceRows.filter(workspace => workspace.type === 'library')
   const database = await getDb()
   const bindings = await database.select<Array<{
     workspaceId: string
+    profileId: string
     localRoot: string | null
     bindingState: string
     accessMode: 'read-write' | 'read-only'
   }>>(
-    `select workspace_id as workspaceId, local_root as localRoot,
+    `select workspace_id as workspaceId, profile_id as profileId, local_root as localRoot,
        binding_state as bindingState, access_mode as accessMode
-     from self_hosted_workspace_bindings where profile_id = $1`,
-    [profileId]
+     from self_hosted_workspace_bindings where workspace_type = 'library'`,
   )
+  const bindingsById = new Map(bindings.map(binding => [binding.workspaceId, binding]))
+  const workspaces = workspaceRows.filter(workspace => {
+    const binding = bindingsById.get(workspace.id)
+    return workspace.type === 'library' && (readOnly || !binding || binding.profileId === profileId)
+  })
   const libraries = await Promise.all(workspaces.map(async (workspace): Promise<SelfHostedLibrary> => {
-    const binding = bindings.find(item => item.workspaceId === workspace.id)
-    const synchronized = await synchronizeLibraryFolderName(
-      profileId, workspace, binding?.localRoot ?? null, await decryptLibraryName(profileId, workspace),
-    )
+    const assignedBinding = bindingsById.get(workspace.id)
+    const binding = assignedBinding?.profileId === profileId ? assignedBinding : undefined
+    const decryptedName = await (readOnly
+      ? decryptLibraryName(profileId, workspace, Boolean(binding)).catch(() => workspace.id)
+      : decryptLibraryName(profileId, workspace))
+    const synchronized = profile.state === 'connected' && !readOnly
+      ? await synchronizeLibraryFolderName(profileId, workspace, binding?.localRoot ?? null, decryptedName)
+      : { workspace, name: decryptedName }
     workspace = synchronized.workspace
     const name = synchronized.name
-    await cacheLibraryName(workspace)
+    if (!readOnly) await cacheLibraryName(profileId, workspace)
     return {
       ...workspace,
       name,
@@ -151,7 +165,7 @@ export async function listLibraries(profileId: string): Promise<SelfHostedLibrar
       accessMode: binding?.accessMode ?? (workspace.capabilities.includes('content.update') ? 'read-write' : 'read-only'),
     }
   }))
-  await refreshCachedWorkspaceNames()
+  if (!readOnly) await refreshCachedWorkspaceNames()
   return libraries
 }
 
@@ -165,9 +179,17 @@ export async function createLibrary(
   const resolvedName = name.trim() || (localRoot ? await nameFromWorkspaceFolder(localRoot, '我的工作区') : '')
   if (!resolvedName) throw new Error('工作区名称不能为空')
   const workspaceId = await createRemoteLibrary(profileId, resolvedName, idempotencyKey)
-  const resolvedLocalRoot = localRoot ?? await getManagedLibraryWorkspacePath(workspaceId, resolvedName)
+  const resolvedLocalRoot = localRoot ?? await getManagedLibraryWorkspacePath(profileId, workspaceId, resolvedName)
   if (localRoot === null) await mkdir(resolvedLocalRoot, { recursive: true })
   await bindLibrary(profileId, workspaceId, resolvedLocalRoot, localRoot !== null)
+  return workspaceId
+}
+
+export async function createReviewedLibrary(profileId: string, localRoot: string, useDefaultKey: boolean, syncEpoch: string) {
+  const { isDefault } = await getInitialLibraryLocation({ path: localRoot, isCustom: true })
+  const name = isDefault ? '我的工作区' : await nameFromWorkspaceFolder(localRoot, '我的工作区')
+  const workspaceId = await createRemoteLibrary(profileId, name, useDefaultKey ? DEFAULT_LIBRARY_IDEMPOTENCY_KEY : crypto.randomUUID())
+  await bindLibrary(profileId, workspaceId, localRoot, false, syncEpoch, true)
   return workspaceId
 }
 
@@ -184,18 +206,24 @@ async function createRemoteLibrary(profileId: string, name: string, idempotencyK
     key,
     idempotencyKey,
   )
-  if (workspace.created) await secureSet(workspaceSecretKey(workspace.id, 1), key)
+  await libraryBindingForProfile(profileId, workspace.id)
   return workspace.id
 }
 
-export async function getManagedLibraryWorkspacePath(workspaceId: string, name: string) {
-  const bindings = await (await getDb()).select<Array<{ localRoot: string | null }>>(
-    'select local_root as localRoot from self_hosted_workspace_bindings where workspace_id = $1', [workspaceId],
+async function libraryBindingForProfile(profileId: string, workspaceId: string) {
+  const [binding] = await (await getDb()).select<Array<{ profileId: string; localRoot: string | null; syncEpoch: string | null }>>(
+    `select profile_id as profileId, local_root as localRoot, sync_epoch as syncEpoch
+     from self_hosted_workspace_bindings where workspace_id = $1`, [workspaceId],
   )
-  if (bindings[0]?.localRoot) return bindings[0].localRoot
+  if (binding && binding.profileId !== profileId) throw new Error('SELF_HOSTED_WORKSPACE_PROFILE_MISMATCH')
+  return binding
+}
+
+async function getManagedLibraryWorkspacePath(profileId: string, workspaceId: string, name: string) {
+  const binding = await libraryBindingForProfile(profileId, workspaceId)
+  if (binding?.localRoot) return binding.localRoot
   const parent = await join(await appDataDir(), 'workspaces', 'self-hosted')
   const legacy = await join(parent, workspaceId)
-  if (await exists(legacy)) return legacy
   // Keep Unicode names, remove cross-platform forbidden characters, and bound
   // component length even for multi-byte UTF-8 names. Never rename an existing root.
   let label = Array.from(name.normalize('NFC').replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, '-').trim())
@@ -206,6 +234,7 @@ export async function getManagedLibraryWorkspacePath(workspaceId: string, name: 
     'select local_root as localRoot from self_hosted_workspace_bindings where local_root is not null',
   )
   const reserved = new Set(reservedRoots.map(row => normalizeWorkspaceNamePath(row.localRoot).toLowerCase()))
+  if (!reserved.has(normalizeWorkspaceNamePath(legacy).toLowerCase()) && await exists(legacy)) return legacy
   await mkdir(parent, { recursive: true })
   for (let length = 8; length <= identity.length; length += 4) {
     const directory = `${label}--${identity.slice(0, length)}`
@@ -244,18 +273,20 @@ export async function discoverLibraryWorkspaces(
     if (!isActive()) return discovered
     if (workspace.type !== 'library' || workspace.deletedAt !== null) continue
     const existing = known.get(workspace.id)
-    if (existing && (existing.profileId !== profileId
-      || !['bound', 'bootstrapping', 'epoch-changed'].includes(existing.bindingState))) continue
+    // A shared library can be listed for multiple accounts, but its local
+    // objects belong to the account that originally bound it on this device.
+    if (existing && existing.profileId !== profileId) continue
+    if (existing && !['bound', 'bootstrapping', 'epoch-changed'].includes(existing.bindingState)) continue
     try {
       const name = await decryptLibraryName(profileId, workspace)
       if (!isActive()) return discovered
       if (known.has(workspace.id)) {
         const synchronized = await synchronizeLibraryFolderName(profileId, workspace, existing?.localRoot ?? null, name)
         if (!isActive()) return discovered
-        await cacheLibraryName(synchronized.workspace)
+        await cacheLibraryName(profileId, synchronized.workspace)
         continue
       }
-      const root = await getManagedLibraryWorkspacePath(workspace.id, name)
+      const root = await getManagedLibraryWorkspacePath(profileId, workspace.id, name)
       if (!isActive()) return discovered
       await ensureWorkspaceDirectory(root)
       if (!isActive()) return discovered
@@ -274,8 +305,9 @@ export async function discoverLibraryWorkspaces(
           workspace.capabilities.includes('content.update') ? 'read-write' : 'read-only', now],
       )
       discovered += result.rowsAffected
-      await cacheLibraryName(workspace)
+      await cacheLibraryName(profileId, workspace)
     } catch (error) {
+      if (error instanceof Error && error.message === 'SELF_HOSTED_WORKSPACE_PROFILE_MISMATCH') continue
       onError(workspace.id, error)
     }
   }
@@ -301,7 +333,7 @@ export async function ensureLibraryLocalWorkspace(profileId: string, workspaceId
   const { client } = await authenticatedClient(profileId)
   const workspace = (await client.workspaces()).find(item => item.id === workspaceId && item.type === 'library')
   if (!workspace) throw new Error('工作区不存在或当前账号无权访问')
-  const localRoot = await getManagedLibraryWorkspacePath(workspaceId, await decryptLibraryName(profileId, workspace))
+  const localRoot = await getManagedLibraryWorkspacePath(profileId, workspaceId, await decryptLibraryName(profileId, workspace))
   await mkdir(localRoot, { recursive: true })
   await bindLibrary(profileId, workspaceId, localRoot, false)
   return localRoot
@@ -326,85 +358,31 @@ async function ensureDefaultLibrary(
   defaultName: string,
   workspaceLocation: Awaited<ReturnType<typeof getWorkspacePath>>,
 ) {
-  const defaultLocalRoot = await getDefaultArticleAbsolutePath('')
-  // "Default" is a logical workspace identity, not a filesystem path. Every
-  // platform resolves it to its own app-data directory.
-  const isDefaultLocalWorkspace = !workspaceLocation.isCustom
-    || normalizeLocalRoot(workspaceLocation.path) === normalizeLocalRoot(defaultLocalRoot)
-    || normalizeLocalRoot(workspaceLocation.path) === 'article'
-  const localRoot = isDefaultLocalWorkspace
-    ? defaultLocalRoot
-    : workspaceLocation.path
-  const libraryName = await nameFromWorkspaceFolder(localRoot, defaultName)
+  const { isDefault, localRoot } = await getInitialLibraryLocation(workspaceLocation)
   await ensureWorkspaceDirectory(localRoot)
   console.info('[self-hosted-sync] workspace.ensure-started', { profileId, localRoot })
-  const database = await getDb()
-  console.info('[self-hosted-sync] workspace.database-ready', { profileId })
-  const existing = await database.select<Array<{ workspaceId: string }>>(
-    `select workspace_id as workspaceId from self_hosted_workspace_bindings
-     where profile_id = $1 and workspace_type = 'library'
-       and local_root = $2
-       and binding_state in ('bound', 'bootstrapping', 'epoch-changed') limit 1`,
-    [profileId, localRoot]
-  )
-  console.info('[self-hosted-sync] workspace.binding-checked', {
-    profileId, existing: existing.length > 0,
-  })
-  if (isDefaultLocalWorkspace) {
-    const canonicalWorkspaceId = await createRemoteLibrary(
-      profileId,
-      defaultName,
-      DEFAULT_LIBRARY_IDEMPOTENCY_KEY,
-    )
-    if (existing[0]?.workspaceId === canonicalWorkspaceId) {
-      console.info('[self-hosted-sync] workspace.default-binding-reused', {
-        profileId, workspaceId: canonicalWorkspaceId, localRoot,
-      })
-      return canonicalWorkspaceId
-    }
-    console.info('[self-hosted-sync] workspace.default-binding-converging', {
-      profileId,
-      previousWorkspaceId: existing[0]?.workspaceId ?? null,
-      workspaceId: canonicalWorkspaceId,
-      localRoot,
-    })
-    await bindLibrary(profileId, canonicalWorkspaceId, localRoot, true)
-    return canonicalWorkspaceId
-  }
-  if (existing[0]) {
-    console.info('[self-hosted-sync] workspace.binding-reused', {
-      profileId, workspaceId: existing[0].workspaceId, localRoot,
-    })
-    return existing[0].workspaceId
-  }
+  const bindings = await readLibraryBindings()
+  const existing = findInitialLibraryBinding(bindings, profileId, localRoot)
+  if (existing) return existing.workspaceId
 
-  console.info('[self-hosted-sync] workspace.library-list-started', { profileId })
-  const libraries = await listLibraries(profileId)
-  console.info('[self-hosted-sync] workspace.library-list-completed', {
-    profileId, total: libraries.length,
-  })
-  const owned = libraries.filter(library => library.owner)
-  if (owned.length === 0) {
-    console.info('[self-hosted-sync] workspace.default-library-creating', { profileId, localRoot })
-    return createLibrary(profileId, libraryName, localRoot, DEFAULT_LIBRARY_IDEMPOTENCY_KEY)
+  const { client } = await authenticatedClient(profileId)
+  const [libraries, defaultCreation] = await Promise.all([
+    client.workspaces(),
+    client.workspaceCreationRequest(DEFAULT_LIBRARY_IDEMPOTENCY_KEY).catch(error => {
+      if (error instanceof SelfHostedApiError && error.status === 404) return null
+      throw error
+    }),
+  ])
+  const workspaceId = automaticInitialLibrary(libraries, bindings, profileId, localRoot, isDefault, defaultCreation?.id)
+  if (workspaceId === undefined) return null
+  if (workspaceId) {
+    await bindLibrary(profileId, workspaceId, localRoot, true)
+    return workspaceId
   }
-
-  const unboundOwned = owned.filter(library => !library.localRoot)
-  if (unboundOwned.length === 1) {
-    console.info('[self-hosted-sync] workspace.unbound-library-selected', {
-      profileId, workspaceId: unboundOwned[0]!.id, localRoot,
-    })
-    await bindLibrary(profileId, unboundOwned[0]!.id, localRoot, true)
-    return unboundOwned[0]!.id
-  }
-  if (unboundOwned.length === 0) {
-    console.info('[self-hosted-sync] workspace.local-library-creating', { profileId, localRoot })
-    return createLibrary(profileId, libraryName, localRoot)
-  }
-  console.warn('[self-hosted-sync] workspace.selection-required', {
-    profileId, localRoot, candidates: unboundOwned.length,
-  })
-  return null
+  const libraryName = isDefault ? defaultName : await nameFromWorkspaceFolder(localRoot, defaultName)
+  const hasOwnedLibrary = libraries.some(library => library.type === 'library' && library.deletedAt === null && library.owner)
+  const creationKey = !defaultCreation && (isDefault || !hasOwnedLibrary) ? DEFAULT_LIBRARY_IDEMPOTENCY_KEY : undefined
+  return createLibrary(profileId, libraryName, localRoot, creationKey)
 }
 
 function normalizeLocalRoot(value: string) {
@@ -421,14 +399,27 @@ export async function bindLibrary(
   workspaceId: string,
   localRoot: string,
   scanLocal: boolean,
+  expectedSyncEpoch?: string,
+  requireEmpty = false,
 ) {
   localRoot = await resolveManagedWorkspacePath(localRoot)
   console.info('[self-hosted-sync] workspace.bind-started', { profileId, workspaceId, localRoot, scanLocal })
-  await ensureWorkspaceDirectory(localRoot)
-  const { client } = await authenticatedClient(profileId)
+  const currentBinding = await libraryBindingForProfile(profileId, workspaceId)
+  const { profile, client } = await authenticatedClient(profileId)
   const workspace = (await client.workspaces()).find(item => item.id === workspaceId && item.type === 'library')
   if (!workspace) throw new Error('工作区不存在或当前账号无权访问')
-  const session = await client.syncSession(workspaceId, '0')
+  const official = isOfficialSyncOrigin(profile.serverUrl)
+  if (expectedSyncEpoch && !isInitialLibraryCandidate(workspace, profileId, localRoot, currentBinding)) {
+    throw new Error('SELF_HOSTED_INITIAL_LIBRARY_INVALID')
+  }
+  const session = await client.syncSession(workspaceId, '0', expectedSyncEpoch)
+  if (requireEmpty && session.latestSequence !== '0') {
+    throw syncStaleError({ stage: 'validate', source: 'remote', path: localRoot, check: 'inventory' })
+  }
+  if (official && currentBinding?.syncEpoch && currentBinding.syncEpoch !== session.syncEpoch) {
+    throw new Error('SELF_HOSTED_SYNC_EPOCH_REVIEW_REQUIRED')
+  }
+  await ensureWorkspaceDirectory(localRoot)
   const now = Date.now()
   // Releasing the previous owner and claiming the root must use the same
   // SQLite transaction. Discovery and another window can bind concurrently.
@@ -436,8 +427,8 @@ export async function bindLibrary(
     {
       sql: `update self_hosted_workspace_bindings
         set local_root = null, binding_state = 'unbound', updated_at = $1
-        where local_root = $2 and workspace_id <> $3`,
-      values: [now, localRoot, workspaceId],
+        where local_root = $2 and workspace_id <> $3 and profile_id = $4`,
+      values: [now, localRoot, workspaceId, profileId],
     },
     {
       sql: `insert into self_hosted_workspace_bindings(
@@ -445,9 +436,12 @@ export async function bindLibrary(
          access_mode, sync_epoch, created_at, updated_at
        ) values ($1, $2, 'library', $3, 'bound', $4, $5, $6, $6)
        on conflict(workspace_id) do update set
-         profile_id = excluded.profile_id, local_root = excluded.local_root,
+         local_root = excluded.local_root,
          binding_state = 'bound', access_mode = excluded.access_mode,
-         sync_epoch = excluded.sync_epoch, updated_at = excluded.updated_at`,
+         sync_epoch = excluded.sync_epoch, updated_at = excluded.updated_at
+       where self_hosted_workspace_bindings.profile_id = excluded.profile_id
+         and ($7 = 0 or self_hosted_workspace_bindings.sync_epoch is null
+           or self_hosted_workspace_bindings.sync_epoch = excluded.sync_epoch)`,
       values: [
         workspaceId,
         profileId,
@@ -455,11 +449,13 @@ export async function bindLibrary(
         workspace.capabilities.includes('content.update') ? 'read-write' : 'read-only',
         session.syncEpoch,
         now,
+        official ? 1 : 0,
       ],
+      expectedRows: 1,
     },
   ])
   await ensureManagedWorkspaceKey(profileId, workspaceId, workspace.latestKeyVersion)
-  await cacheLibraryName(workspace)
+  await cacheLibraryName(profileId, workspace)
   await refreshCachedWorkspaceNames()
   const store = await Store.load('store.json')
   const deferred = await store.get<string[]>('selfHostedDeferredWorkspacePaths') ?? []
@@ -487,13 +483,13 @@ export async function unbindLibrary(workspaceId: string) {
   await refreshCachedWorkspaceNames()
 }
 
-export async function markLibraryRemoteDeleted(workspaceId: string) {
+export async function markLibraryRemoteDeleted(profileId: string, workspaceId: string) {
   const database = await getDb()
   await database.execute(
     `update self_hosted_workspace_bindings
      set binding_state = 'remote-deleted', access_mode = 'read-only', updated_at = $1
-     where workspace_id = $2`,
-    [Date.now(), workspaceId]
+     where workspace_id = $2 and profile_id = $3`,
+    [Date.now(), workspaceId, profileId]
   )
 }
 
@@ -652,16 +648,17 @@ export async function ensureManagedWorkspaceKey(profileId: string, workspaceId: 
   return managedKey
 }
 
-async function loadManagedWorkspaceKey(profileId: string, workspaceId: string, keyVersion: number) {
+async function loadManagedWorkspaceKey(profileId: string, workspaceId: string, keyVersion: number, useLocalBinding = true) {
+  const binding = useLocalBinding ? await libraryBindingForProfile(profileId, workspaceId) : undefined
   const secureStorageKey = workspaceSecretKey(workspaceId, keyVersion)
-  const existing = await secureGet(secureStorageKey)
+  const existing = binding && await secureGet(secureStorageKey)
   if (existing) return existing
   const { client } = await authenticatedClient(profileId)
   const keys = await client.workspaceKeys(workspaceId)
   const managedKey = keys.find(item => item.keyVersion === keyVersion)?.envelopes
     .find(envelope => envelope.type === 'managed')?.wrappedKey
   if (!managedKey) throw new Error('该工作区没有可用的 managed key')
-  await secureSet(secureStorageKey, managedKey)
+  if (binding) await secureSet(secureStorageKey, managedKey)
   return managedKey
 }
 
@@ -692,7 +689,7 @@ async function scanPortableEntries(root: string, workspaceId: string) {
         await recordIgnoredSymlink(workspaceId, relative)
         continue
       }
-      if (entry.name === '.notegen' || entry.name === '.DS_Store' || entry.name.endsWith('.tmp')) continue
+      if (shouldExcludeSelfHostedWorkspaceEntry(entry.name)) continue
       if (entry.isDirectory) {
         const portable = await portablePath(relative, caseFoldedPaths)
         result.push({ relativePath: portable, kind: 'folder' })

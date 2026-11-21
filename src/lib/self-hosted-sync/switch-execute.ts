@@ -8,8 +8,9 @@ import { base64UrlByteLength, hashBytes, uploadAsset, removeAssetUploadStaging }
 import { personalAssetPaths, preparePersonalAssetsUpload, readPersonalAsset } from './personal-assets'
 import { encryptJson, loadWorkspaceKey, objectAssociatedData } from './crypto'
 import { authenticatedClient } from './profile'
+import { isOfficialSyncOrigin } from './service-source'
 import { STRUCTURED_DOMAINS, structuredPayload } from './outbox'
-import { ensureDefaultLibraryForCurrentWorkspace, bindLibrary, ensureManagedWorkspaceKeys } from './workspaces'
+import { bindLibrary, ensureManagedWorkspaceKeys } from './workspaces'
 import { overwriteSwitchDocument, readSwitchDocument } from './switch-document'
 import { replaceSelfHostedLocalSnapshot } from './switch-apply'
 import {
@@ -24,8 +25,13 @@ const kindFor = (domain: string) => domain === 'file' ? 'note' : domain
 const priority = (domain: string) => domain === 'folder' ? 0 : ['tag', 'conversation'].includes(domain) ? 1
   : ['file', 'mark', 'message', 'canvas'].includes(domain) ? 2 : domain === 'asset' ? 3 : 4
 
+function assertOverwriteAllowed(serverUrl: string) {
+  if (isOfficialSyncOrigin(serverUrl)) throw new Error('SELF_HOSTED_OFFICIAL_MERGE_REQUIRED')
+}
+
 export function validateSelfHostedSwitchStrategy(preview: SelfHostedSwitchPreview, strategy: SwitchStrategy) {
   if (strategy === 'merge') return
+  assertOverwriteAllowed(preview.serverUrl)
   const snapshot = getSelfHostedSwitchSnapshot(preview)
   const enabled = new Set(snapshot.enabledDomains)
   if (((enabled.has('mark') || enabled.has('message')) && !enabled.has('tag'))
@@ -44,9 +50,13 @@ export async function executeSelfHostedSwitch(
   strategy: Exclude<SwitchStrategy, 'merge'>,
   assertActive: () => void,
   onProgress: (progress: SwitchOperationProgress) => void,
+  createdLibraryId?: string,
 ) {
   validateSelfHostedSwitchStrategy(preview, strategy)
   const snapshot = getSelfHostedSwitchSnapshot(preview)
+  const { client, profile } = await authenticatedClient(snapshot.profileId)
+  assertActive()
+  assertOverwriteAllowed(profile.serverUrl)
   if (strategy === 'local') {
     for (const local of snapshot.localObjects.filter(item => item.domain === 'mark' || item.domain === 'message')) {
       assertActive()
@@ -61,16 +71,13 @@ export async function executeSelfHostedSwitch(
       }
     }
   }
-  const { client } = await authenticatedClient(snapshot.profileId)
   assertActive()
   const { getPendingWorkspacePathMoves, hasPendingSelfHostedWorkspacePathMoves } = await import('@/lib/sync/workspace-path-moves')
   if ((await getPendingWorkspacePathMoves()).length
     || await hasPendingSelfHostedWorkspacePathMoves(snapshot.workspaces.map(item => item.workspaceId), snapshot.profileId)) {
     throw new Error('SELF_HOSTED_SWITCH_PATH_MOVES_PENDING')
   }
-  // Bind without starting bootstrap/pull. A first-time library may only be
-  // created after the approved local backup and durable recovery marker exist.
-  const workspaceId = await ensureDefaultLibraryForCurrentWorkspace(snapshot.profileId, '我的工作区')
+  const workspaceId = preview.libraries[0]?.workspaceId ?? createdLibraryId
   if (!workspaceId) throw new Error('SELF_HOSTED_PREVIEW_LIBRARY_REQUIRED')
   const workspaces = await client.workspaces()
   for (const library of preview.libraries) {

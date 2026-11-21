@@ -16,7 +16,14 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/article/**/*", "**"]
+        "scope": {
+          "allow": ["$APPDATA/article/**/*", "**"],
+          "deny": [
+            "$APPDATA/.notegen-sync-credentials",
+            "$APPDATA/.notegen-sync-credentials/**",
+            "$APPDATA/.notegen-sync-credentials/.*"
+          ]
+        }
       }
     },
     "windows": [

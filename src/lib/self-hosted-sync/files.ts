@@ -24,18 +24,9 @@ function workspaceRelativePath(path: string, workspaceRoot: string) {
 }
 
 export async function moveSelfHostedWorkspacePath(sourceRelativePath: string, targetRelativePath: string) {
-  const store = await Store.load('store.json')
-  if (await store.get<string>('primaryBackupMethod') !== 'selfHosted') return false
-  const workspace = await getWorkspacePath()
-  const workspaceRoot = workspace.isCustom ? workspace.path : await getDefaultArticleAbsolutePath('')
-  const database = await getDb()
-  const bindings = await database.select<Array<{ workspaceId: string }>>(
-    `select workspace_id as workspaceId from self_hosted_workspace_bindings
-     where local_root = $1 and binding_state = 'bound' limit 1`,
-    [workspaceRoot]
-  )
-  const workspaceId = bindings[0]?.workspaceId
-  if (!workspaceId) return false
+  const binding = await activeBinding()
+  if (!binding) return false
+  const { workspaceId, workspaceRoot } = binding
   const normalizedSourcePath = workspaceRelativePath(sourceRelativePath, workspaceRoot)
   const normalizedTargetPath = workspaceRelativePath(targetRelativePath, workspaceRoot)
   if (!normalizedSourcePath || !normalizedTargetPath) return false
@@ -138,8 +129,9 @@ async function activeBinding() {
   const workspaceRoot = workspace.isCustom ? workspace.path : await getDefaultArticleAbsolutePath('')
   const database = await getDb()
   const bindings = await database.select<Array<{ workspaceId: string }>>(
-    `select workspace_id as workspaceId from self_hosted_workspace_bindings
-     where local_root = $1 and binding_state = 'bound' limit 1`,
+    `select b.workspace_id as workspaceId from self_hosted_workspace_bindings b
+     join self_hosted_sync_profiles p on p.id = b.profile_id and p.state = 'connected'
+     where b.workspace_type = 'library' and b.local_root = $1 and b.binding_state = 'bound' limit 1`,
     [workspaceRoot]
   )
   return bindings[0] ? { ...bindings[0], workspaceRoot } : null

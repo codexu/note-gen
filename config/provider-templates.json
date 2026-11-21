@@ -223,6 +223,14 @@
       "apiKeyUrl": "https://www.compshare.cn/coding-plan?ytag=GPU_YY_JL_git_note-gen",
       "icon": "https://files.seeusercontent.com/2026/03/26/L5pg/logo-compshare_.png",
       "enabled": true
+    },
+    {
+      "key": "321ai",
+      "title": "321AI",
+      "baseURL": "https://321ai.cc/v1",
+      "apiKeyUrl": "https://321ai.cc",
+      "icon": "https://321ai.cc/ui/new/brand/apple-touch-icon.png",
+      "enabled": true
     }
   ]
 }

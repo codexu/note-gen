@@ -40,18 +40,31 @@ class SystemBarsPlugin(private val activity: Activity) : Plugin(activity) {
                 val types = WindowInsetsCompat.Type.systemBars() or
                     WindowInsetsCompat.Type.displayCutout()
                 val insets = windowInsets.getInsets(types)
+
+                // Apps launched edge to edge keep a full height window when the
+                // keyboard opens, so nothing shrinks the WebView and the page
+                // still believes the keyboard area is usable. Consume the IME
+                // inset as container padding to size the WebView to the visible
+                // area. Pre-R builds still get the keyboard through the window
+                // resize itself, so padding there would shrink twice.
+                val keyboardInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                } else {
+                    0
+                }
                 view.setPadding(
                     initialLeft + insets.left,
                     initialTop + insets.top,
                     initialRight + insets.right,
-                    initialBottom + insets.bottom
+                    initialBottom + maxOf(insets.bottom, keyboardInset)
                 )
 
-                // Forward zero system insets to avoid double spacing on newer
-                // WebViews, while preserving keyboard insets and resize events.
+                // Forward zero system and keyboard insets to avoid double spacing
+                // on newer WebViews, while preserving resize events.
                 WindowInsetsCompat.Builder(windowInsets)
                     .setInsets(types, Insets.NONE)
                     .setInsetsIgnoringVisibility(types, Insets.NONE)
+                    .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
                     .build()
             }
             ViewCompat.requestApplyInsets(content)

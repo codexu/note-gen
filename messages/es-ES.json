@@ -1,0 +1,3217 @@
+{
+  "app": {
+    "title": "Generador de Notas",
+    "description": "Tu asistente de toma de notas impulsado por IA"
+  },
+  "tray": {
+    "quickRecord": "Grabación rápida",
+    "moreRecord": "Más registros",
+    "open": "Abrir",
+    "showMain": "Mostrar ventana principal",
+    "newNote": "Nueva nota",
+    "newFolder": "Nueva carpeta",
+    "settings": "Ajustes",
+    "window": "Ventana",
+    "pinToggle": "Fijar/Desfijar",
+    "hideWindow": "Ocultar en la bandeja",
+    "quit": "Salir de NoteGen"
+  },
+  "settings": {
+    "defaultModels": {
+      "title": "Modelos predeterminados"
+    },
+    "others": "Avanzado",
+    "general": {
+      "title": "Ajustes generales",
+      "desc": "Aquí puedes configurar los ajustes básicos de la aplicación, incluyendo tema de interfaz, idioma y otras opciones.",
+      "interface": {
+        "title": "Ajustes de interfaz",
+        "theme": {
+          "title": "Tema",
+          "desc": "Elige el tema de apariencia de la aplicación",
+          "options": {
+            "light": "Claro",
+            "dark": "Oscuro",
+            "system": "Sistema"
+          }
+        },
+        "language": {
+          "title": "Idioma",
+          "desc": "Elige el idioma de visualización de la aplicación"
+        },
+        "scale": {
+          "title": "Escala de interfaz",
+          "desc": "Ajusta la escala general de la interfaz de la aplicación",
+          "placeholder": "Selecciona la relación de escala"
+        },
+        "contentTextScale": {
+          "title": "Escala de contenido",
+          "desc": "Ajusta el tamaño del texto en el editor y el contenido Markdown del chat"
+        },
+        "fileManagerTextSize": {
+          "title": "Tamaño de texto del gestor de archivos",
+          "desc": "Ajusta el tamaño del texto de las listas de archivos y carpetas en el gestor de archivos"
+        },
+        "recordTextSize": {
+          "title": "Tamaño de texto de registros",
+          "desc": "Ajusta el tamaño del texto de los elementos de registro en la lista de registros"
+        },
+        "fontFamily": {
+          "title": "Fuente de la app",
+          "desc": "En escritorio puedes usar fuentes del sistema instaladas; en móvil se usan familias de fuentes genéricas soportadas.",
+          "placeholder": "Seleccionar fuente",
+          "loading": "Cargando fuentes del sistema...",
+          "noSystemFonts": "Esta plataforma no puede exponer la lista completa de fuentes del sistema",
+          "groups": {
+            "default": "Por defecto",
+            "generic": "Fuentes genéricas",
+            "system": "Fuentes del sistema"
+          },
+          "options": {
+            "system": "Predeterminada del sistema",
+            "sansSerif": "Sans Serif",
+            "serif": "Serif",
+            "monospace": "Monoespaciada"
+          }
+        },
+        "customCss": {
+          "title": "CSS personalizado",
+          "desc": "Añade estilos CSS personalizados para sobrescribir los estilos predeterminados de la aplicación",
+          "button": "Editar CSS",
+          "dialogTitle": "CSS personalizado",
+          "dialogDesc": "Introduce código CSS personalizado abajo para sobrescribir los estilos por defecto. Haz clic en guardar para aplicar los cambios.",
+          "placeholder": "Introduce aquí el código CSS personalizado",
+          "save": "Guardar",
+          "cancel": "Cancelar"
+        },
+        "customTheme": {
+          "title": "Colores de tema personalizados",
+          "desc": "Personaliza los colores del tema de la aplicación incluyendo fondo, primer plano, bordes, etc.",
+          "button": "Editar colores",
+          "dialogTitle": "Colores de tema personalizados",
+          "dialogDesc": "Configura colores de tema personalizados. Los cambios de color se guardan y aplican en tiempo real, sobrescribiendo tanto el tema claro como el oscuro.",
+          "close": "Cerrar",
+          "reset": "Restablecer todo",
+          "tabs": {
+            "custom": "Personalizado",
+            "presets": "Predefinidos",
+            "importExport": "Importar/Exportar"
+          },
+          "export": {
+            "title": "Exportar esquema de color",
+            "button": "Generar código de exportación",
+            "placeholder": "Haz clic en generar para exportar el esquema de color actual como código"
+          },
+          "import": {
+            "title": "Importar esquema de color",
+            "button": "Importar esquema",
+            "placeholder": "Pega el código JSON del esquema de color"
+          },
+          "colors": {
+            "background": "Fondo",
+            "foreground": "Primer plano",
+            "card": "Fondo de tarjeta",
+            "cardForeground": "Primer plano de tarjeta",
+            "primary": "Primario",
+            "primaryForeground": "Primer plano primario",
+            "secondary": "Secundario",
+            "secondaryForeground": "Primer plano secundario",
+            "third": "Terciario",
+            "thirdForeground": "Primer plano terciario",
+            "muted": "Atenuado",
+            "mutedForeground": "Primer plano atenuado",
+            "accent": "Acento",
+            "accentForeground": "Primer plano de acento",
+            "border": "Borde",
+            "shadow": "Sombra"
+          },
+          "presets": {
+            "apply": "Aplicar",
+            "reset": {
+              "name": "Restablecer a predeterminado"
+            },
+            "default": {
+              "name": "Blanco predeterminado"
+            },
+            "ocean": {
+              "name": "Azul océano"
+            },
+            "forest": {
+              "name": "Verde bosque"
+            },
+            "sunset": {
+              "name": "Rojo atardecer"
+            },
+            "lavender": {
+              "name": "Púrpura lavanda"
+            },
+            "midnight": {
+              "name": "Medianoche oscuro"
+            },
+            "deepSea": {
+              "name": "Mar profundo"
+            },
+            "darkForest": {
+              "name": "Bosque oscuro"
+            },
+            "darkViolet": {
+              "name": "Violeta oscuro"
+            },
+            "coralWarm": {
+              "name": "Coral cálido"
+            },
+            "slateGray": {
+              "name": "Gris pizarra"
+            },
+            "darkGold": {
+              "name": "Oro oscuro"
+            },
+            "beigeWarm": {
+              "name": "Beige cálido"
+            },
+            "beigeDark": {
+              "name": "Beige oscuro"
+            }
+          }
+        },
+        "tray": {
+          "enabled": {
+            "title": "Habilitar bandeja",
+            "desc": "Elige si minimizar a la bandeja o cerrar la aplicación al cerrar la ventana"
+          }
+        }
+      },
+      "tools": {
+        "title": "Ajustes de herramientas",
+        "desc": "Configura la visualización y ordenación de varios botones de la barra de herramientas",
+        "chatToolbar": {
+          "title": "Barra de herramientas de chat",
+          "desc": "Personaliza el orden y la visibilidad de los botones de la barra de herramientas del chat",
+          "button": "Configurar",
+          "dialogTitle": "Configurar barra de herramientas de chat",
+          "dialogDesc": "Arrastra las herramientas para ajustar el orden, usa los interruptores para mostrar u ocultar",
+          "groups": {
+            "pc": "PC",
+            "mobile": "Móvil",
+            "bottom": "Barra inferior",
+            "topLeft": "Barra superior - Izquierda",
+            "topRight": "Barra superior - Derecha"
+          }
+        },
+        "recordToolbar": {
+          "title": "Barra de herramientas de registros",
+          "desc": "Personaliza el orden y la visibilidad de los botones de la barra de herramientas de registros",
+          "button": "Configurar",
+          "dialogTitle": "Configurar barra de herramientas de registros",
+          "dialogDesc": "Arrastra las herramientas para ajustar el orden, usa los interruptores para mostrar u ocultar"
+        }
+      }
+    },
+    "rag": {
+      "title": "Base de conocimiento",
+      "desc": "Aquí puedes configurar los ajustes relacionados con la base de conocimiento, basada en tecnología RAG, mediante modelos de embedding para convertir texto en vectores y luego realizar búsqueda vectorial para búsqueda y respuestas inteligentes.",
+      "settingsTitle": "Configuración de parámetros",
+      "settingsDesc": "Ajustando los parámetros, puedes controlar con mayor precisión el efecto de recuperación de la base de conocimiento.",
+      "deleteVectorConfirm": "¿Estás seguro de que deseas limpiar la base de conocimiento?",
+      "deleteVectorSuccess": "Base de conocimiento limpiada con éxito",
+      "enable": "Habilitar búsqueda en la base de conocimiento",
+      "enableDesc": "Al habilitarla, la IA buscará en tus notas al responder preguntas, proporcionando respuestas más precisas.",
+      "chunkSize": "Tamaño de fragmento",
+      "chunkSizeDesc": "Número máximo de caracteres para dividir el texto. Fragmentos más grandes pueden contener más contexto, pero aumentan la complejidad del cálculo vectorial.",
+      "chunkOverlap": "Solapamiento de fragmentos",
+      "chunkOverlapDesc": "Número de caracteres solapados entre fragmentos de texto. Solapamientos mayores pueden mantener la continuidad del contexto.",
+      "resultCount": "Cantidad de resultados",
+      "resultCountDesc": "Número de documentos relacionados devueltos al buscar. Cuantos más documentos, más información proporcionada, pero también puede introducir ruido.",
+      "similarityThreshold": "Umbral de similitud",
+      "similarityThresholdDesc": "Umbral mínimo de similitud entre documentos y consultas. Solo se devolverán los documentos que superen este umbral. El rango de valores es 0.0-1.0, cuanto mayor sea el umbral, más estricto será el requisito.",
+      "resetToDefaults": "Restablecer a valores predeterminados",
+      "deleteVector": "Limpiar base de conocimiento",
+      "topPDesc": "El parámetro Top P controla la diversidad del texto generado por el modelo. Valores más pequeños hacen la salida más determinista, mientras que valores más grandes la hacen más diversa."
+    },
+    "mcp": {
+      "title": "MCP",
+      "desc": "El Protocolo de Contexto de Modelo (Model Context Protocol) permite a la IA llamar herramientas externas y acceder a recursos, ampliando sus capacidades.",
+      "enableTitle": "Habilitar MCP",
+      "enableDesc": "Cuando está habilitado, la IA puede llamar a las herramientas proporcionadas por los servidores MCP configurados.",
+      "servers": "Lista de servidores",
+      "serversDesc": "Gestiona las configuraciones de servidores MCP. Cada servidor puede proporcionar diferentes herramientas y recursos.",
+      "addServer": "Añadir servidor",
+      "addFirstServer": "Añadir primer servidor",
+      "editServer": "Editar servidor",
+      "serverName": "Nombre del servidor",
+      "serverNamePlaceholder": "ej., Servidor de sistema de archivos",
+      "serverEnabled": "Habilitar servidor",
+      "serverEnabledDesc": "Cuando está habilitado, este servidor se conectará automáticamente y proporcionará herramientas.",
+      "serverType": "Tipo de servidor",
+      "stdio": "Comando local",
+      "http": "Servicio HTTP",
+      "command": "Comando",
+      "args": "Argumentos",
+      "argsDesc": "Argumentos de línea de comandos, separados por espacios",
+      "env": "Variables de entorno",
+      "envDesc": "Configuración de variables de entorno en formato JSON",
+      "url": "URL del servicio",
+      "headers": "Encabezados de solicitud",
+      "headersDesc": "Encabezados de solicitud HTTP en formato JSON",
+      "testConnection": "Probar conexión",
+      "test": "Probar",
+      "testSuccess": "Prueba de conexión exitosa",
+      "testFailed": "Prueba de conexión fallida",
+      "connected": "Conectado",
+      "connecting": "Conectando",
+      "disconnected": "Desconectado",
+      "error": "Error",
+      "tools": "Herramientas",
+      "noServers": "Servicio MCP no habilitado",
+      "noServersFound": "No se encontraron servidores coincidentes",
+      "serverAdded": "Servidor añadido con éxito",
+      "serverUpdated": "Servidor actualizado con éxito",
+      "serverDeleted": "Servidor eliminado con éxito",
+      "deleteServerTitle": "Eliminar servidor",
+      "deleteServerDesc": "¿Estás seguro de que deseas eliminar este servidor? Esta acción no se puede deshacer.",
+      "nameRequired": "Por favor introduce el nombre del servidor",
+      "commandRequired": "Por favor introduce el comando",
+      "urlRequired": "Por favor introduce la URL del servicio",
+      "toolBrowser": "Explorador de herramientas",
+      "searchTools": "Buscar herramientas...",
+      "noToolsFound": "No se encontraron herramientas",
+      "parameters": "Parámetros",
+      "testAll": "Probar todas las conexiones",
+      "testAllCompleted": "Todas las pruebas de conexión completadas",
+      "testAllFailed": "Prueba de conexión fallida",
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "delete": "Eliminar",
+      "importJson": "Importar JSON",
+      "jsonImportTitle": "Importar configuración de servidor desde JSON",
+      "jsonImportDesc": "Pega el formato de configuración mcpServers para servidores MCP",
+      "jsonInput": "Configuración JSON",
+      "jsonInputHelp": "Soporta formato mcpServers, usa automáticamente el nombre del servidor como clave",
+      "jsonRequired": "Por favor introduce la configuración JSON",
+      "jsonEmpty": "La configuración JSON no puede estar vacía",
+      "jsonInvalidJson": "Formato JSON no válido",
+      "jsonInvalidFormat": "Formato de configuración no válido, debe contener los campos name y type",
+      "jsonInvalidType": "El tipo de servidor debe ser stdio o http",
+      "jsonMissingCommand": "El servidor de tipo stdio debe especificar un comando",
+      "jsonMissingUrl": "El servidor de tipo http debe especificar una url",
+      "jsonImportSuccess": "Se importaron {count} servidor(es) con éxito",
+      "jsonImportSkipped": "Se omitieron {count} servidor(es) existente(s)",
+      "jsonImportNoServers": "No se importaron servidores",
+      "import": "Importar",
+      "mobileHttpOnlyTitle": "MCP de comando local solo para escritorio",
+      "mobileHttpOnlyDesc": "Los servidores MCP de comando local solo son compatibles en escritorio. En móvil actualmente solo se admite MCP HTTP.",
+      "runtimeEnvironment": "Entorno de ejecución",
+      "runtimeEnvironmentDesc": "Verifica si el tiempo de ejecución local requerido está disponible antes de probar el servidor MCP.",
+      "checkEnvironment": "Verificar entorno",
+      "recheckEnvironment": "Volver a verificar entorno",
+      "runtimeCheckFailed": "La verificación del entorno falló",
+      "detectedLauncher": "Lanzador detectado",
+      "runtimeInstalled": "Instalado",
+      "runtimeMissing": "Faltante",
+      "runtimeVersion": "Versión",
+      "runtimeInstalledSummary": "{installed}/{total} instalado(s)",
+      "showRuntimeDetails": "Mostrar detalles del tiempo de ejecución",
+      "hideRuntimeDetails": "Ocultar detalles del tiempo de ejecución",
+      "runtimeNotChecked": "Este tiempo de ejecución aún no se ha verificado.",
+      "runtimeCurrentUserScope": "Se recomienda que el comando apunte al entorno del usuario actual cuando sea compatible.",
+      "runtimeManualOnly": "La instalación automática no está disponible para este tiempo de ejecución en la plataforma actual. Por favor instálalo manualmente y vuelve a ejecutar la verificación.",
+      "installRuntime": "Instalar tiempo de ejecución",
+      "runtimeInstallTitle": "Instalar tiempo de ejecución",
+      "runtimeInstallDesc": "NoteGen ejecutará el siguiente comando de instalación después de la confirmación.",
+      "runtimeInstallPreparing": "Preparando instalación",
+      "runtimeInstallRunning": "Instalando",
+      "runtimeInstallCompleted": "Instalación completada",
+      "runtimeInstallCancelled": "Cancelado",
+      "runtimeInstallFailedState": "Instalación fallida",
+      "runtimeInstallLogs": "Registros de instalación",
+      "runtimeInstallWaitingLogs": "Esperando salida de instalación...",
+      "runtimeInstallClose": "Cerrar",
+      "runtimeInstallCancel": "Detener instalación",
+      "runtimeInstallCancelledByUser": "Cancelación solicitada por el usuario.",
+      "runtimeInstallCancelFailed": "Error al detener la instalación",
+      "runtimeInstallSuccess": "Instalación del tiempo de ejecución completada",
+      "runtimeInstallFailed": "Instalación del tiempo de ejecución fallida",
+      "runtimeNoGuidedSupport": "Aún no hay asistencia guiada de tiempo de ejecución para este comando."
+    },
+    "skills": {
+      "title": "Habilidades",
+      "desc": "Las habilidades son paquetes de capacidades de IA reutilizables que permiten a los asistentes de IA aplicar automáticamente patrones de comportamiento específicos según las tareas.",
+      "enable": "Habilitar habilidades",
+      "enableDesc": "Cuando está habilitado, la IA puede usar las habilidades configuradas",
+      "autoMatch": "Emparejar habilidades automáticamente",
+      "autoMatchDesc": "Selecciona automáticamente las habilidades adecuadas según la entrada del usuario",
+      "project": "Habilidades del espacio de trabajo",
+      "global": "Habilidades globales",
+      "globalPath": "Ubicación de almacenamiento de habilidades globales",
+      "openInFileManager": "Abrir en el gestor de archivos",
+      "createSkill": "Crear habilidad",
+      "editSkill": "Editar habilidad",
+      "deleteSkill": "Eliminar habilidad",
+      "exportSkill": "Exportar habilidad",
+      "importSkill": "Importar habilidad",
+      "selectSkillZip": "Seleccionar archivo zip de habilidad",
+      "importSuccess": "Importación exitosa",
+      "importError": "Error de importación",
+      "imported": "importado",
+      "importing": "Importando...",
+      "skillName": "Nombre de la habilidad",
+      "skillDescription": "Descripción",
+      "skillVersion": "Versión",
+      "skillAuthor": "Autor",
+      "allowedTools": "Herramientas permitidas",
+      "userInvocable": "Mostrar en menú de barra",
+      "instructions": "Instrucciones",
+      "instructionsPlaceholder": "Introduce instrucciones detalladas para la IA...",
+      "importHelp": "Soporta importar habilidades en formato zip. El archivo zip debe contener un archivo SKILL.md.",
+      "metadata": "Metadatos",
+      "content": "Instrucciones",
+      "noSkills": "Aún no hay habilidades",
+      "noSkillsDesc": "Crea o importa habilidades para comenzar",
+      "noSkillsGlobal": "Aún no hay habilidades globales",
+      "noSkillsGlobalDesc": "Crea o importa habilidades para usar en todos los proyectos",
+      "emptyWorkspace": "No hay habilidades en el espacio de trabajo",
+      "emptyWorkspaceDesc": "Crea archivos SKILL.md en la carpeta de habilidades para añadir habilidades",
+      "basicSettings": "Ajustes básicos",
+      "installedGlobalSkills": "Habilidades globales instaladas",
+      "nameRequired": "Por favor introduce el nombre de la habilidad",
+      "descriptionRequired": "Por favor introduce la descripción",
+      "namePlaceholder": "organizador-de-notas",
+      "versionPlaceholder": "1.0.0",
+      "descriptionPlaceholder": "Organiza y optimiza automáticamente la estructura de las notas...",
+      "authorPlaceholder": "Tu nombre",
+      "descriptionHelp": "Se usa para el emparejamiento de IA, describe la funcionalidad de la habilidad y los casos de uso",
+      "allowedToolsHelp": "Estas herramientas se pueden usar sin confirmación del usuario",
+      "userInvocableHelp": "Los usuarios pueden activar manualmente mediante /nombre-habilidad",
+      "instructionsHelp": "Instrucciones detalladas para la IA, admite formato Markdown",
+      "deleteSkillTitle": "Eliminar habilidad",
+      "deleteSkillDesc": "¿Estás seguro de que deseas eliminar esta habilidad? Esta acción no se puede deshacer.",
+      "skillDeleted": "Habilidad eliminada con éxito"
+    },
+    "editor": {
+      "title": "Ajustes del editor",
+      "interfaceSettings": "Ajustes de interfaz",
+      "desc": "Aquí puedes personalizar el editor, creando una experiencia de escritura adaptada a tus necesidades.",
+      "centeredContent": "Contenido centrado",
+      "centeredContentDesc": "Cuando está habilitado, el contenido del editor se centrará con márgenes a ambos lados.",
+      "outlineEnable": "Esquema habilitado por defecto",
+      "outlineEnableDesc": "Al habilitarlo, el esquema será visible por defecto.",
+      "outlinePosition": "Posición del esquema",
+      "outlinePositionDesc": "Establece la posición del esquema.",
+      "outlinePositionOptions": {
+        "left": "Izquierda",
+        "right": "Derecha"
+      },
+      "showUndoRedo": "Botones Deshacer/Rehacer",
+      "showUndoRedoDesc": "Muestra los botones de deshacer y rehacer en la barra de pestañas del editor.",
+      "completion": {
+        "title": "Autocompletado",
+        "model": {
+          "title": "Modelo de completado rápido",
+          "desc": "Selecciona el modelo para el completado en línea con IA en el editor"
+        }
+      },
+      "commit": {
+        "title": "Mensaje de commit automático",
+        "model": {
+          "title": "Modelo de commit",
+          "desc": "Para generar automáticamente mensajes de commit de Git basados en los cambios de archivos"
+        }
+      },
+      "mermaid": {
+        "title": "Diagrama",
+        "rendering": "Renderizando...",
+        "renderError": "Error de renderizado",
+        "clickToEdit": "Haz clic para editar el código fuente",
+        "clickToAdd": "Haz clic para añadir diagrama",
+        "placeholder": "Introduce el código del diagrama Mermaid...",
+        "preview": "Vista previa",
+        "done": "Hecho",
+        "diagramTypes": {
+          "flowchart": "Diagrama de flujo",
+          "sequence": "Secuencia",
+          "classDiagram": "Diagrama de clases",
+          "stateDiagram": "Diagrama de estados",
+          "er": "Diagrama ER",
+          "gantt": "Gantt",
+          "pie": "Gráfico circular",
+          "journey": "Recorrido"
+        },
+        "templates": {
+          "flowchart": "graph TD\n    A[Inicio] --> B[Proceso]\n    B --> C[Fin]",
+          "sequence": "sequenceDiagram\n    participant Alicia\n    participant Bob\n    Alicia->>Bob: Hola\n    Bob-->>Alicia: Respuesta",
+          "classDiagram": "classDiagram\n    Animal <|-- Pato\n    Animal <|-- Pez\n    Animal : +int edad\n    Animal : +String género",
+          "stateDiagram": "stateDiagram-v2\n    [*] --> Activo\n    Activo --> [*]",
+          "er": "erDiagram\n    CLIENTE ||--o{ PEDIDO : realiza\n    CLIENTE ||--o{ DIRECCIÓN-ENTREGA : usa",
+          "gantt": "gantt\n    title Plan del proyecto\n    dateFormat YYYY-MM-DD\n    section Fase 1\n    Tarea1 :a1, 2024-01-01, 30d\n    section Fase 2\n    Tarea2 :after a1, 20d",
+          "pie": "pie title Asignación de recursos\n    \"CPU\" : 45\n    \"Memoria\" : 30\n    \"Almacenamiento\" : 25",
+          "journey": "journey\n    title Mi trabajo diario\n    section Mañana\n    Desplazamiento : 7:00, 5\n    Trabajo : 9:00, 8"
+        }
+      }
+    },
+    "record": {
+      "title": "Ajustes de registro",
+      "desc": "Configura aquí los ajustes relacionados con los registros, incluyendo la descripción de registros y la configuración de la barra de herramientas.",
+      "model": {
+        "title": "Ajustes de modelo",
+        "markDesc": {
+          "title": "Descripción de registro",
+          "desc": "Para procesar registros reconocidos por OCR y generar descripciones de registro"
+        }
+      },
+      "toolbar": {
+        "title": "Ajustes de barra de herramientas",
+        "recordToolbar": {
+          "title": "Barra de herramientas de registro",
+          "desc": "Personaliza la visibilidad y el orden de los botones de la barra de herramientas de registro",
+          "button": "Configurar",
+          "text": {
+            "desc": "Contenido de texto del registro"
+          },
+          "recording": {
+            "desc": "Función de grabación de voz"
+          },
+          "scan": {
+            "desc": "Escanear y reconocer texto de imágenes"
+          },
+          "image": {
+            "desc": "Subir imágenes a las notas"
+          },
+          "link": {
+            "desc": "Registrar enlaces web"
+          },
+          "file": {
+            "desc": "Subir archivos a las notas"
+          },
+          "todo": {
+            "desc": "Crear elementos de tareas pendientes"
+          }
+        }
+      }
+    },
+    "uploadStore": {
+      "uploadConfirm": "¡Asegúrate de que el repositorio de sincronización sea privado al subir la configuración, de lo contrario los datos se filtrarán!",
+      "downloadConfirm": "¡Descargar la configuración sobrescribirá la configuración local y se reiniciará para que surta efecto!",
+      "uploadSuccess": "Subida exitosa",
+      "downloadSuccess": "Descarga exitosa",
+      "upload": "Subir",
+      "download": "Descargar"
+    },
+    "about": {
+      "title": "Acerca de",
+      "desc": "Captura primero, organiza después.",
+      "resourcesTitle": "Recursos y soporte",
+      "resourcesDesc": "Abre la documentación, notas de lanzamiento o canales de la comunidad para recibir comentarios.",
+      "licenseText": "Código abierto · GitHub · GPL-3.0",
+      "version": "NoteGen v{version}",
+      "checkReleases": "Ver historial de versiones",
+      "language": "Idioma",
+      "checkUpdate": "Buscar actualizaciones",
+      "checkError": "Error al buscar actualizaciones",
+      "releaseLoadError": "Error al cargar el historial de actualizaciones",
+      "updateAvailable": "Actualizar a nueva versión",
+      "updateIgnored": "Esta versión está ignorada",
+      "updateDownloading": "Actualizando {downloaded} / {contentLength}",
+      "updateInstalled": "Reiniciar aplicación",
+      "noUpdate": "La versión actual es la más reciente",
+      "lastCheckedAt": "Última comprobación: {time}",
+      "lastCheckedNever": "Aún no se han buscado actualizaciones",
+      "releasePublishedAt": "Publicado el {date}",
+      "releaseHistoryTitle": "Historial de actualizaciones",
+      "releaseHistoryDesc": "Desde v{currentVersion} hasta v{latestVersion}, {count} versiones en total.",
+      "releaseHistoryEmpty": "No se encontró historial de actualizaciones entre la versión actual y la última.",
+      "releasePrerelease": "Pre-lanzamiento",
+      "releaseNoNotes": "No se proporcionaron notas de la versión para esta versión.",
+      "retryReleaseNotes": "Recargar",
+      "ignoreVersion": "Ignorar esta versión",
+      "ignoreVersionSuccess": "Se ha ignorado la actualización de esta versión",
+      "ignoredVersionTitle": "Ignorada v{version}",
+      "ignoredVersionDesc": "Esta versión no se volverá a sugerir. Puedes restaurar el aviso y continuar instalándola.",
+      "restoreIgnoredVersion": "Restaurar aviso",
+      "restoreIgnoredVersionSuccess": "Se ha restaurado el aviso de actualización de esta versión",
+      "sections": {
+        "appInfo": {
+          "title": "Información de la aplicación",
+          "desc": "Revisa la versión actual, el estado de las actualizaciones y el resumen de la aplicación."
+        },
+        "updates": {
+          "title": "Actualizaciones de versión",
+          "desc": "Abre las últimas notas de versión y el historial de actualizaciones."
+        },
+        "docs": {
+          "title": "Documentación y configuración",
+          "desc": "Aprende sobre sincronización, respaldo y almacenamiento de datos desde el sitio web y la documentación."
+        },
+        "community": {
+          "title": "Comentarios y comunidad",
+          "desc": "Informa de problemas, consulta el código fuente o únete a debates públicos."
+        }
+      },
+      "items": {
+        "home": {
+          "title": "Inicio",
+          "buttonName": "Abrir",
+          "desc": "Abre el sitio web oficial."
+        },
+        "guide": {
+          "title": "Guía de configuración de sincronización",
+          "buttonName": "Abrir",
+          "desc": "Configura la sincronización con Git, S3 y WebDAV."
+        },
+        "github": {
+          "title": "GitHub",
+          "buttonName": "Ver",
+          "desc": "Ver código fuente y contribuir."
+        },
+        "releases": {
+          "title": "Registro de actualizaciones",
+          "buttonName": "Ver",
+          "desc": "Ver actualizaciones de versión."
+        },
+        "issues": {
+          "title": "Informar de problemas",
+          "buttonName": "Informar",
+          "desc": "Informa de problemas y errores."
+        },
+        "discussions": {
+          "title": "Debates",
+          "buttonName": "Debatir",
+          "desc": "Únete a debates de la comunidad."
+        }
+      }
+    },
+    "memories": {
+      "title": "Gestión de memoria",
+      "desc": "Función de memoria a largo plazo de la IA que permite a la IA recordar tus preferencias de escritura, experiencias y hábitos de toma de notas.",
+      "stats": {
+        "total": "Memorias totales",
+        "preferences": "Preferencias",
+        "memories": "Memorias"
+      },
+      "form": {
+        "title": "Añadir nueva memoria",
+        "categoryDescription": "Las memorias se dividen en dos tipos:",
+        "preferenceDescription": "Preferencias: configuraciones como idioma, formato, estilo - siempre cargadas en las conversaciones",
+        "memoryDescription": "Memorias: hechos, experiencias, conocimientos - emparejadas inteligentemente según el contexto de la conversación",
+        "contentLabel": "Contenido de la memoria",
+        "contentPlaceholder": "ej., Prefiero respuestas en español, Soy un experto en React...",
+        "categoryLabel": "Tipo",
+        "preferenceLabel": "Preferencia",
+        "memoryLabel": "Memoria",
+        "preferenceDesc": "Idioma, formato, estilo, etc.",
+        "memoryDesc": "Hechos, experiencia, conocimientos, etc.",
+        "save": "Guardar memoria",
+        "saving": "Guardando..."
+      },
+      "listTitle": "Mis memorias",
+      "addMemory": "Añadir memoria",
+      "empty": "Aún no hay memorias, ¡añade tu primera memoria!",
+      "emptyHint": "Puedes añadir memorias manualmente o usar frases como \"por favor recuerda\" o \"recuerda esto\" en las conversaciones para que la IA cree memorias automáticamente.",
+      "preference": "Preferencia",
+      "memory": "Memoria",
+      "replaced": "Reemplazada",
+      "accessCount": "Accedida {count} veces",
+      "tabs": {
+        "all": "Todas",
+        "preference": "Preferencias",
+        "memory": "Memorias"
+      },
+      "success": "Éxito",
+      "saved": "Memoria guardada",
+      "updated": "Memoria actualizada (memoria similar reemplazada)",
+      "deleted": "Memoria eliminada",
+      "cleared": "Todas las memorias limpiadas",
+      "found": "Encontradas {count} memorias",
+      "error": "Error",
+      "errorEmpty": "Por favor introduce el contenido de la memoria",
+      "errorSave": "Error al guardar",
+      "errorDelete": "Error al eliminar",
+      "errorList": "Error al obtener la lista de memorias",
+      "errorEmbedding": "Error al generar embedding, verifica la configuración del modelo de embedding",
+      "errorClear": "Error al limpiar"
+    },
+    "defaultModel": {
+      "title": "Modelo predeterminado",
+      "desc": "Aquí puedes usar diferentes modelos para diferentes escenarios, para mejorar la eficiencia y reducir costos.",
+      "tooltip": "Usar modelo principal",
+      "noModel": "No usar",
+      "placeholder": "Por favor selecciona o busca modelos",
+      "options": {
+        "primaryModel": {
+          "title": "Modelo principal",
+          "desc": "Como modelo principal para todos los escenarios, este modelo se usa si otros modelos de diálogo no seleccionan un modelo predeterminado."
+        },
+        "markDesc": {
+          "title": "Descripción de registro",
+          "desc": "Se usa para procesar registros después del reconocimiento OCR, generando descripciones de registro."
+        },
+        "placeholder": {
+          "title": "Sugerencia de IA",
+          "desc": "Indicación de sugerencia de IA para generar contenido de marcador de posición en la conversación de IA de la página de registro."
+        },
+        "completion": {
+          "title": "Completado rápido",
+          "desc": "Completado en línea con IA para el editor Markdown, similar a GitHub Copilot, genera rápidamente contenido de continuación."
+        },
+        "commit": {
+          "title": "Generar automáticamente mensaje de commit",
+          "desc": "Se usa para generar automáticamente mensajes de commit de Git, generando inteligentemente mensajes de commit descriptivos basados en los cambios de contenido de los archivos."
+        },
+        "embedding": {
+          "title": "Modelo de embedding",
+          "desc": "Se usa para escenarios de embedding de texto y vectorización."
+        },
+        "reranking": {
+          "title": "Modelo de reordenamiento",
+          "desc": "Se usa para reordenar y optimizar resultados de búsqueda."
+        },
+        "condense": {
+          "title": "Modelo de condensación",
+          "desc": "Se usa para comprimir contenido de conversaciones históricas para ahorrar uso de tokens"
+        }
+      },
+      "mainModel": "Modelo principal"
+    },
+    "audio": {
+      "title": "Ajustes de audio",
+      "desc": "Aquí puedes configurar los ajustes de audio, incluyendo texto a voz (TTS) y voz a texto (STT).",
+      "mode": {
+        "title": "Modo",
+        "auto": "Automático (Recomendado)",
+        "local": "Solo local",
+        "model": "Solo modelo"
+      },
+      "tts": {
+        "title": "Texto a voz (TTS)",
+        "desc": "Configura la funcionalidad de lectura en voz alta para proporcionar reproducción de voz para el contenido del chat.",
+        "modeDesc": "Prefiere las voces del navegador y del sistema por defecto, y solo usa un modelo cuando sea necesario para una mejor experiencia.",
+        "model": {
+          "title": "Modelo TTS",
+          "desc": "Opcional. Configura un modelo para mejorar el modo automático o para potenciar el modo solo modelo."
+        },
+        "speed": {
+          "title": "Velocidad de habla",
+          "desc": "Ajusta la velocidad de reproducción de la voz, que va de 0.5x a 2x, siendo 1x la velocidad normal."
+        }
+      },
+      "stt": {
+        "title": "Voz a texto (STT)",
+        "desc": "Configura el reconocimiento de voz para convertir el habla en registros de texto.",
+        "modeDesc": "Prefiere el reconocimiento nativo del navegador por defecto, y recurre a un modelo cuando el soporte local no está disponible.",
+        "model": {
+          "title": "Modelo STT",
+          "desc": "Opcional. Configura un modelo para respaldo automático o para el modo solo modelo."
+        }
+      }
+    },
+    "readAloud": {
+      "title": "Lectura en voz alta",
+      "desc": "Configura el comportamiento de lectura en voz alta. Por defecto se prefieren las voces del sistema, con voz de modelo como mejora.",
+      "options": {
+        "mode": {
+          "title": "Modo",
+          "desc": "El modo automático prefiere las voces del sistema y solo intenta usar un modelo cuando el habla local no está disponible.",
+          "auto": "Automático (Recomendado)",
+          "local": "Solo local",
+          "model": "Solo modelo"
+        },
+        "audioModel": {
+          "title": "Modelo de lectura en voz alta",
+          "desc": "Opcional. Configura un modelo para mejorar el modo automático o para potenciar el modo solo modelo."
+        },
+        "speed": {
+          "title": "Velocidad",
+          "desc": "Ajusta la velocidad de lectura en voz alta de 0.5x a 2x, con 1x como velocidad predeterminada."
+        }
+      }
+    },
+    "prompt": {
+      "title": "Prompt",
+      "promptTitle": "Título del prompt",
+      "desc": "Aquí puedes añadir y gestionar prompts, ayudando a la IA a entender mejor tus necesidades.",
+      "addPrompt": "Añadir prompt",
+      "selectPrompt": "Seleccionar prompt",
+      "configPrompt": "Configurar prompt",
+      "noContent": "Sin contenido",
+      "addPromptDesc": "Por favor introduce el nombre y el contenido del prompt, ayudando a la IA a entender mejor tus necesidades.",
+      "promptTitlePlaceholder": "Por favor introduce el nombre del prompt",
+      "promptContentPlaceholder": "Por favor introduce el contenido del prompt",
+      "promptContent": "Contenido del prompt",
+      "optimizePrompt": "Optimizar prompt",
+      "optimizing": "Optimizando...",
+      "optimizeSuccess": "Prompt optimizado con éxito",
+      "optimizeFailed": "Error al optimizar el prompt, inténtalo de nuevo más tarde",
+      "noContentToOptimize": "Por favor introduce primero el contenido del prompt",
+      "systemPrompt": {
+        "title": "Prompt del sistema",
+        "desc": "Opción avanzada: edita la sección de reglas estáticas del prompt del sistema del Agente. No se recomiendan cambios frecuentes.",
+        "label": "Contenido del prompt del sistema",
+        "placeholder": "Introduce la identidad del Agente, restricciones de llamada a herramientas y Reglas principales.",
+        "help": "Esta configuración avanzada afecta el límite de comportamiento del Agente. Las listas de herramientas, el archivo actual, la selección, las Habilidades y el contexto MCP aún se añaden dinámicamente por el sistema.",
+        "reset": "Restablecer a predeterminado",
+        "saveSuccess": "Prompt del sistema guardado",
+        "resetSuccess": "Prompt del sistema restablecido a predeterminado"
+      }
+    },
+    "sync": {
+      "title": "Sincronización",
+      "desc": "Aquí puedes configurar el repositorio de sincronización, que te ayuda a sincronizar registros, archivos markdown, configuraciones del sistema y otra información.",
+      "selectPlatform": "Seleccionar plataforma de sincronización",
+      "platformSettings": "Seleccionar plataforma",
+      "settings": "Ajustes de sincronización",
+      "platformDesc": "Configura el Token y la información del repositorio para habilitar la sincronización",
+      "moreSettings": "Más ajustes",
+      "noteSettings": "Ajustes de notas",
+      "recordConfigSettings": "Registros y ajustes",
+      "repoStatus": "Estado del repositorio",
+      "syncRepo": "Repositorio de sincronización",
+      "syncRepoDesc": "Sincroniza archivos markdown en la escritura",
+      "imageRepo": "Repositorio de imágenes",
+      "imageRepoDesc": "Sincroniza tus imágenes en el repositorio, usando jsdelivr para aceleración",
+      "status": {
+        "connected": "Conectado",
+        "disconnected": "Desconectado",
+        "failed": "Conexión fallida",
+        "unconfigured": "No configurado"
+      },
+      "uploadRecords": "Subir registros y configuración",
+      "downloadConfig": "Descargar registros y configuración",
+      "cloudSync": "Sincronización de registros y configuración",
+      "localBackupAll": "Copia de seguridad local (Todo)",
+      "private": "Privado",
+      "public": "Público",
+      "createdAt": "Creado {time}",
+      "updatedAt": "Última actualización {time}",
+      "newToken": "Crear Token de acceso",
+      "newTokenDesc": "Al crear un nuevo token, asegúrate de marcar el permiso del repositorio, y después de la configuración, se creará automáticamente un repositorio de archivos (privado) y un repositorio de imágenes.",
+      "giteeTokenDesc": "El token de acceso personal de Gitee se usa para la sincronización de datos. Necesita permisos de lectura y escritura del repositorio. Después de la configuración, se creará automáticamente un repositorio de archivos (privado) y un repositorio de imágenes.",
+      "imageRepoSetting": "Habilitar alojamiento de imágenes",
+      "imageRepoSettingDesc": "Ya has configurado un repositorio de imágenes, puedes elegir usar el repositorio de imágenes o usar almacenamiento local.",
+      "jsdelivrSetting": "jsDelivr",
+      "autoSyncDesc": "Después de que las ediciones de notas se detengan, sincroniza automáticamente las notas con el proveedor actual usando el retraso seleccionado",
+      "giteeAutoSyncDesc": "Cuando está habilitado, el editor sincronizará automáticamente con Gitee 10 segundos después de que la entrada se detenga",
+      "customSyncRepo": "Nombre personalizado del repositorio de sincronización",
+      "customSyncRepoDesc": "Déjalo vacío para usar el nombre de repositorio predeterminado",
+      "customImageRepo": "Nombre personalizado del repositorio de imágenes",
+      "customImageRepoDesc": "Déjalo vacío para usar el nombre de repositorio predeterminado",
+      "backupMethod": "Método de copia de seguridad",
+      "backupMethodDesc": "Después de establecerlo como método de copia de seguridad principal, todas las funciones relacionadas con la sincronización en la escritura usarán el método de copia de seguridad actual (excepto el alojamiento de imágenes)",
+      "createRepo": "Crear repositorio",
+      "creating": "Creando",
+      "checkRepo": "Verificar repositorio",
+      "checking": "Verificando",
+      "enterToken": "Por favor introduce el Token de acceso",
+      "enterTokenHint": "Por favor introduce primero el Token de acceso para verificar el estado del repositorio",
+      "defaultRepoName": "Predeterminado: {name}",
+      "gitlabInstanceType": "Tipo de instancia de GitLab",
+      "gitlabInstanceTypeDesc": "Selecciona el tipo de instancia de GitLab a la que conectarse",
+      "gitlabInstanceTypePlaceholder": "Seleccionar tipo de instancia de GitLab",
+      "gitlabInstanceTypeOptions": {
+        "selfHosted": "Instancia autogestionada",
+        "selfHostedDesc": "Introduce la dirección de tu servidor GitLab autogestionado (ej., https://gitlab.ejemplo.com)"
+      },
+      "gitlabAccessTokenDesc": "Crea un token de acceso personal en {instanceDisplayName}, requiere permiso api",
+      "giteaInstanceType": "Tipo de instancia de Gitea",
+      "giteaInstanceTypeDesc": "Selecciona el tipo de instancia de Gitea a la que conectarse",
+      "giteaInstanceTypePlaceholder": "Seleccionar tipo de instancia de Gitea",
+      "giteaInstanceTypeOptions": {
+        "selfHosted": "Instancia autogestionada",
+        "selfHostedDesc": "Introduce la dirección de tu servidor Gitea autogestionado (ej., https://gitea.ejemplo.com)"
+      },
+      "giteaAccessTokenDesc": "Crea un token de acceso personal en {instanceDisplayName}, requiere permiso completo del repositorio",
+      "s3": {
+        "title": "Sincronización S3",
+        "description": "Sincroniza tus notas usando almacenamiento compatible con S3",
+        "status": "Estado de conexión",
+        "connected": "Conectado",
+        "connecting": "Conectando",
+        "disconnected": "Desconectado",
+        "accessKeyId": "ID de clave de acceso",
+        "accessKeyIdPlaceholder": "Por favor introduce el ID de clave de acceso",
+        "secretAccessKey": "Clave de acceso secreta",
+        "secretAccessKeyPlaceholder": "Por favor introduce la clave de acceso secreta",
+        "region": "Región",
+        "bucket": "Bucket",
+        "bucketPlaceholder": "Por favor introduce el nombre del bucket",
+        "endpoint": "Endpoint",
+        "pathPrefix": "Prefijo de ruta",
+        "pathPrefixPlaceholder": "Por favor introduce el prefijo de ruta",
+        "pathPrefixDesc": "Se usa para diferenciar archivos entre diferentes usuarios, similar al nombre del repositorio",
+        "customDomain": "Dominio personalizado",
+        "testConnection": "Probar conexión",
+        "testing": "Probando",
+        "saveConfig": "Guardar configuración",
+        "saving": "Guardando"
+      },
+      "webdav": {
+        "title": "Sincronización WebDAV",
+        "description": "Sincroniza tus notas usando el protocolo WebDAV",
+        "status": "Estado de conexión",
+        "connected": "Conectado",
+        "connecting": "Conectando",
+        "disconnected": "Desconectado",
+        "url": "URL del servidor",
+        "urlPlaceholder": "Por favor introduce la URL del servidor WebDAV",
+        "urlDesc": "Soporta servicios WebDAV de Synology, QNAP, Nextcloud y otros",
+        "username": "Nombre de usuario",
+        "usernamePlaceholder": "Por favor introduce el nombre de usuario",
+        "password": "Contraseña",
+        "passwordPlaceholder": "Por favor introduce la contraseña",
+        "pathPrefix": "Prefijo de ruta",
+        "pathPrefixPlaceholder": "Por favor introduce el prefijo de ruta",
+        "pathPrefixDesc": "Se usa para diferenciar archivos entre diferentes usuarios",
+        "testConnection": "Probar conexión",
+        "testing": "Probando",
+        "saveConfig": "Guardar configuración",
+        "saving": "Guardando"
+      },
+      "autoSync": "Sincronizar notas automáticamente",
+      "autoDataSync": "Sincronizar registros y ajustes automáticamente",
+      "autoDataSyncDesc": "Sube automáticamente los cambios de registros y ajustes al proveedor de sincronización actual en orden. No se sube nada hasta que se configure un proveedor",
+      "autoDataSyncStatusOff": "Sincronización automática desactivada",
+      "autoDataSyncStatusWaitingProvider": "Esperando un proveedor de sincronización",
+      "autoDataSyncStatusQueued": "En cola para sincronizar",
+      "autoDataSyncStatusManualSyncing": "Sincronización manual en curso",
+      "autoDataSyncStatusSyncing": "Sincronización automática en curso",
+      "autoDataSyncStatusFailed": "Sincronización fallida",
+      "autoDataSyncStatusConflict": "Conflicto de sincronización",
+      "autoDataSyncStatusIdle": "Sincronizado",
+      "autoDataSyncStatusTitle": "Sincronización de registros y ajustes",
+      "autoDataSyncStatusProvider": "Proveedor",
+      "autoDataSyncStatusPending": "Pendiente",
+      "autoDataSyncStatusLastSuccess": "Último éxito",
+      "autoDataSyncStatusError": "Error",
+      "autoDataSyncRetry": "Reintentar",
+      "autoDataSyncOpenSettings": "Abrir ajustes",
+      "autoDataSyncNever": "Nunca",
+      "autoDataSyncConflictTitle": "Resolver conflicto de sincronización",
+      "autoDataSyncConflictDesc": "El contenido remoto fue actualizado por otro dispositivo mientras este dispositivo aún tiene cambios locales. Elige qué lado conservar.",
+      "autoDataSyncConflictMerge": "Combinar ambos lados",
+      "autoDataSyncConflictMergeDesc": "Combinar conserva los registros añadidos recientemente en cualquiera de los lados. Para el mismo registro, gana la marca de tiempo más reciente; los ajustes se fusionan usando las reglas de privacidad actuales.",
+      "autoDataSyncConflictPullRemote": "Traer remoto sobre local",
+      "autoDataSyncConflictUploadLocal": "Subir local sobre remoto",
+      "autoDataSyncConflictLater": "Manejar más tarde",
+      "autoDataSyncConflictPullConfirm": "Traer datos remotos sobrescribirá los registros y ajustes locales no sincronizados. ¿Continuar?",
+      "autoDataSyncConflictUploadConfirm": "Subir datos locales sobrescribirá los últimos registros y ajustes remotos. Los cambios de otros dispositivos pueden perderse. ¿Continuar?",
+      "autoDataSyncConflictResolved": "Conflicto de sincronización resuelto",
+      "autoDataSyncConflictResolveFailed": "Error al resolver el conflicto de sincronización",
+      "autoDataSyncInitialSuccess": "Inicialización de sincronización automática completada",
+      "autoDataSyncInitialFailed": "Inicialización de sincronización automática fallida",
+      "autoDataSyncInitialTitle": "Elige la primera dirección de sincronización automática",
+      "autoDataSyncInitialDesc": "Al cambiar de dispositivo o habilitar esto por primera vez, sube los datos locales o trae primero los últimos registros y ajustes remotos para evitar sobrescribir el contenido incorrecto.",
+      "autoDataSyncInitialUploadLocal": "Subir datos locales",
+      "autoDataSyncInitialPullRemote": "Traer último remoto",
+      "autoDataSyncInitialLater": "Manejar más tarde",
+      "autoDataSyncPrivacyTitle": "No sincronizar ajustes sensibles",
+      "autoDataSyncPrivacyDesc": "Cuando está habilitado, se excluyen tokens de acceso, contraseñas, secretos, selección de proveedor de sincronización, configuración de alojamiento de imágenes, configuración MCP, rutas del espacio de trabajo y otros ajustes específicos del dispositivo o privados.",
+      "autoDataSyncPrivacyDisableConfirm": "Después de desactivar esto, los tokens de acceso, contraseñas, secretos y otros ajustes sensibles o específicos del dispositivo pueden subirse al proveedor de sincronización remoto y sincronizarse con otros dispositivos. ¿Desactivarlo?",
+      "autoSyncOptions": {
+        "placeholder": "Seleccionar tiempo de sincronización automática",
+        "disabled": "Deshabilitado",
+        "2s": "2 segundos",
+        "3s": "3 segundos",
+        "5s": "5 segundos",
+        "10s": "10 segundos",
+        "20s": "20 segundos",
+        "30s": "30 segundos",
+        "1m": "1 minuto",
+        "2m": "2 minutos"
+      },
+      "autoPullOnOpen": "Traer automáticamente al abrir archivos",
+      "autoPullOnOpenDesc": "Al abrir un archivo, trae automáticamente la versión remota si es más reciente",
+      "autoPullOnSwitch": "Traer automáticamente al cambiar de archivo",
+      "autoPullOnSwitchDesc": "Al cambiar a otro archivo, trae automáticamente la versión remota si es más reciente",
+      "exclusions": {
+        "title": "Configuración de exclusión de sincronización",
+        "desc": "Los siguientes ajustes no se sincronizarán entre dispositivos ya que son específicos del dispositivo",
+        "workspacePath": "Ruta del espacio de trabajo",
+        "workspaceHistory": "Historial del espacio de trabajo",
+        "assetsPath": "Ruta de recursos",
+        "uiScale": "Escala de interfaz",
+        "contentTextScale": "Escala de texto de contenido",
+        "customCss": "CSS personalizado",
+        "reason": "Estos ajustes pueden diferir entre dispositivos, excluirlos de la sincronización evita errores de ruta y otros problemas"
+      },
+      "settingsSync": {
+        "uploadSuccess": "Ajustes subidos con éxito",
+        "uploadFailed": "Error al subir ajustes",
+        "downloadSuccess": "Ajustes descargados con éxito",
+        "downloadFailed": "Error al descargar ajustes",
+        "autoSync": "Los ajustes se sincronizarán automáticamente durante la subida/descarga (excluyendo ajustes específicos del dispositivo como la ruta del espacio de trabajo)"
+      },
+      "jsdelivrSettingDesc": "Usa jsdelivr para acelerar el acceso a las imágenes."
+    },
+    "imageHosting": {
+      "title": "Alojamiento de imágenes",
+      "desc": "Aquí puedes configurar servicios de alojamiento de imágenes para almacenar y gestionar tus imágenes.",
+      "type": "Seleccionar plataforma",
+      "typeDesc": "Seleccionar proveedor de servicio de alojamiento de imágenes",
+      "customRepoName": "Nombre personalizado del repositorio",
+      "customRepoNameDesc": "Déjalo vacío para usar el nombre de repositorio predeterminado",
+      "isPrimaryBackup": "Método principal actual de alojamiento de imágenes {type}",
+      "setPrimaryBackup": "Establecer como alojamiento de imágenes principal",
+      "smms": {
+        "title": "Alojamiento de imágenes S.EE",
+        "description": "Usa S.EE para subir y gestionar imágenes",
+        "status": "Estado de conexión",
+        "connected": "Conectado",
+        "connecting": "Verificando",
+        "disconnected": "Desconectado",
+        "token": {
+          "desc": "Por favor crea e introduce el Token de S.EE.",
+          "createToken": "Abrir página de desarrollador de S.EE",
+          "helper": "Introduce tu Token API de S.EE. La configuración existente puede seguir reutilizándose.",
+          "placeholder": "Introduce el Token API de S.EE"
+        },
+        "disk": "Uso de disco",
+        "error": "Error al obtener, verifica la red o que el Token sea correcto."
+      },
+      "picgo": {
+        "desc": "URL del servidor PicGo",
+        "ok": "El servicio está funcionando, asegúrate de que el alojamiento de imágenes PicGo esté configurado.",
+        "error": "El servicio no está funcionando, asegúrate de que PicGo (v2.2.0+) esté en ejecución, de lo contrario la subida de imágenes fallará."
+      },
+      "github": {
+        "title": "Alojamiento de imágenes GitHub",
+        "description": "Usa un repositorio de GitHub como servicio de almacenamiento de imágenes",
+        "repoStatus": "Estado del repositorio",
+        "repoExists": "El repositorio existe",
+        "repoNotExists": "Repositorio no encontrado",
+        "checking": "Verificando",
+        "creating": "Creando",
+        "manualCreateTitle": "Se requiere creación manual del repositorio",
+        "manualCreateDesc": "Por favor sigue estos pasos para crear el repositorio de alojamiento de imágenes:",
+        "createSteps": {
+          "step1": "Visita GitHub e inicia sesión en tu cuenta",
+          "step2": "Haz clic en el botón \"+\" en la esquina superior derecha, selecciona \"Nuevo repositorio\"",
+          "step3": "Establece el nombre del repositorio a:",
+          "step4": "Opcionalmente, establece como repositorio privado (recomendado)",
+          "step5": "Haz clic en \"Crear repositorio\" para completar la creación",
+          "step6": "Después de la creación, haz clic en el botón \"Volver a verificar\""
+        },
+        "createNewRepo": "Crear nuevo repositorio",
+        "recheckRepo": "Volver a verificar",
+        "recheckingRepo": "Verificando..."
+      },
+      "s3": {
+        "title": "Almacenamiento de objetos S3",
+        "description": "Configura el servicio de almacenamiento de objetos compatible con AWS S3 como alojamiento de imágenes",
+        "status": "Estado de conexión",
+        "connected": "Conectado",
+        "connecting": "Conectando",
+        "disconnected": "Desconectado",
+        "accessKeyId": "ID de clave de acceso",
+        "accessKeyIdPlaceholder": "Introduce el ID de clave de acceso",
+        "secretAccessKey": "Clave de acceso secreta",
+        "secretAccessKeyPlaceholder": "Introduce la clave de acceso secreta",
+        "region": "Región",
+        "bucket": "Bucket",
+        "bucketPlaceholder": "Introduce el nombre del bucket",
+        "advancedSettings": "Ajustes avanzados",
+        "endpoint": "Endpoint personalizado",
+        "endpointDesc": "Déjalo vacío para AWS S3, o introduce el endpoint del servicio compatible con S3",
+        "customDomain": "Dominio personalizado",
+        "customDomainDesc": "Opcional, dominio personalizado para acceder a las imágenes",
+        "pathPrefix": "Prefijo de ruta",
+        "pathPrefixDesc": "Opcional, prefijo de ruta para el almacenamiento de imágenes",
+        "save": "Guardar configuración",
+        "test": "Probar conexión",
+        "setAsPrimary": "Establecer como principal",
+        "error": "Error de configuración",
+        "requiredFields": "Por favor completa los campos obligatorios: ID de clave de acceso, Clave de acceso secreta, Región y Bucket",
+        "saveSuccess": "Configuración guardada",
+        "saveSuccessDesc": "La configuración S3 se ha guardado",
+        "saveError": "Error al guardar la configuración",
+        "testSuccess": "Prueba de conexión exitosa",
+        "testSuccessDesc": "La conexión S3 funciona, listo para subir imágenes",
+        "testFailed": "Prueba de conexión fallida",
+        "testFailedDesc": "Por favor verifica la configuración y la conexión de red",
+        "testFirstDesc": "Por favor prueba la conexión exitosamente antes de establecer como principal",
+        "setPrimarySuccess": "Establecido con éxito",
+        "setPrimarySuccessDesc": "S3 se ha establecido como alojamiento de imágenes principal"
+      }
+    },
+    "imageMethod": {
+      "title": "Reconocimiento de imágenes",
+      "desc": "Las imágenes se reconocen con OCR del sistema por defecto. Si se configura un VLM, se intenta primero y se recurre a OCR en caso de fallo.",
+      "enable": {
+        "title": "Habilitar reconocimiento de imágenes",
+        "desc": "Cuando está habilitado, las imágenes se reconocerán automáticamente durante la captura de pantalla y el registro de imágenes. Cuando está deshabilitado, se omitirá el reconocimiento de imágenes."
+      },
+      "ocr": {
+        "title": "OCR del sistema",
+        "desc": "Usa la capacidad de OCR proporcionada por el sistema actual por defecto.",
+        "noProviders": "No hay motor de OCR integrado para esta plataforma",
+        "unknownVersion": "Versión desconocida",
+        "ready": "Disponible",
+        "unavailable": "No disponible",
+        "provider": "Motor actual"
+      },
+      "vlm": {
+        "title": "Mejora VLM (Opcional)",
+        "desc": "Después de seleccionar un modelo de lenguaje visual, las imágenes se reconocen primero con VLM. Si el modelo no está disponible, falla o no devuelve contenido, la aplicación aún recurre al OCR del sistema.",
+        "noModel": "Sin modelo por defecto",
+        "clearModel": "Limpiar modelo VLM"
+      }
+    },
+    "backupSync": {
+      "title": "Copia de seguridad de datos",
+      "desc": "Aquí puedes usar otros métodos para hacer copias de seguridad de tus datos, puedes programar copias de seguridad periódicas para garantizar la seguridad de los datos.",
+      "localBackup": {
+        "tabTitle": "Copia de seguridad local",
+        "export": {
+          "title": "Exportar copia de seguridad",
+          "desc": "Empaqueta los datos de la aplicación en un archivo .zip y guárdalo en la ubicación especificada.",
+          "button": "Elegir ubicación y exportar",
+          "simpleButton": "Exportar",
+          "exporting": "Exportando..."
+        },
+        "import": {
+          "title": "Importar copia de seguridad",
+          "desc": "Restaura los datos de la aplicación desde un archivo .zip, sobrescribirá todos los datos actuales.",
+          "button": "Elegir archivo e importar",
+          "importing": "Importando...",
+          "warning": "La operación de importación sobrescribirá todos los datos actuales, ¡asegúrate de que el contenido importante esté respaldado!"
+        },
+        "exportDialog": {
+          "title": "Elegir ubicación para guardar el archivo de copia de seguridad"
+        },
+        "importDialog": {
+          "title": "Elegir archivo de copia de seguridad para importar"
+        },
+        "exportSuccess": "¡Copia de seguridad exportada con éxito!",
+        "exportError": "Error al exportar la copia de seguridad",
+        "importSuccess": "¡Copia de seguridad importada con éxito! La aplicación se reiniciará para aplicar los cambios.",
+        "importError": "Error al importar la copia de seguridad",
+        "restartConfirm": "¡Importación completada! ¿Reiniciar la aplicación ahora para aplicar los cambios?"
+      }
+    },
+    "template": {
+      "title": "Plantilla",
+      "desc": "Aquí puedes crear y gestionar plantillas de organización personalizadas para ayudar a la IA a organizar el contenido de los registros según tus necesidades.",
+      "customTemplate": "Plantilla personalizada",
+      "addTemplate": "Añadir plantilla personalizada",
+      "deleteConfirm": "¿Estás seguro de eliminar esta plantilla?",
+      "status": "Estado",
+      "name": "Nombre",
+      "content": "Contenido",
+      "scope": "Alcance",
+      "selectScope": "Seleccionar alcance",
+      "addTemplateDesc": "Por favor introduce el nombre y el contenido de la plantilla personalizada, ayudando a la IA a entender mejor tus necesidades.",
+      "editTemplate": "Editar plantilla personalizada",
+      "noContent": "Sin contenido",
+      "range": {
+        "all": "Todo",
+        "today": "Hoy",
+        "week": "Última semana",
+        "month": "Último mes",
+        "threeMonth": "Últimos 3 meses",
+        "year": "Último año"
+      }
+    },
+    "shortcut": {
+      "title": "Atajos",
+      "screenshot": "Registro de captura de pantalla",
+      "link": "Registro de enlace",
+      "textRecord": "Registro de texto",
+      "windowPin": "Fijar ventana"
+    },
+    "theme": {
+      "title": "Ajustes de tema",
+      "appTheme": "Esquema de color de la app",
+      "previewTheme": "Tema de vista previa del contenido",
+      "codeTheme": "Tema de resaltado de bloques de código",
+      "selectTheme": "Seleccionar tema"
+    },
+    "dev": {
+      "title": "Desarrollador",
+      "desc": "Aquí puedes configurar opciones de desarrollador, incluyendo proxy de red, limpieza de datos y gestión de archivos de configuración.",
+      "clearData": "Limpiar datos",
+      "clearDataConfirm": "¿Estás seguro de limpiar los datos?",
+      "proxy": "Proxy, se usa para resolver problemas de red, después de la configuración se recomienda reiniciar la aplicación.",
+      "proxyPlaceholder": "Introduce la dirección del proxy",
+      "proxyTitle": "Proxy de red",
+      "clearDataTitle": "Limpiar datos",
+      "clearDataDesc": "Limpiar información de datos, incluyendo configuración del sistema y base de datos (incluyendo registros).",
+      "clearFileTitle": "Limpiar archivos",
+      "clearFileDesc": "Limpiar archivos, incluyendo imágenes y artículos.",
+      "clearButton": "Limpiar",
+      "configFileTitle": "Gestión de archivos de configuración",
+      "configFileDesc": "Importar y exportar archivos de configuración. La importación sobrescribirá la configuración actual y surtirá efecto después del reinicio.",
+      "importConfigTitle": "Importar archivo de configuración",
+      "exportConfigTitle": "Exportar archivo de configuración",
+      "importConfigSuccessMobile": "Configuración descargada con éxito, por favor reinicia la app manualmente",
+      "exportConfigSuccess": "Exportación exitosa",
+      "importButton": "Importar",
+      "exportButton": "Exportar"
+    },
+    "chat": {
+      "title": "Ajustes de chat",
+      "desc": "Configura aquí los ajustes relacionados con el chat, incluyendo la generación de resúmenes.",
+      "primaryModel": {
+        "title": "Modelo principal",
+        "model": {
+          "title": "Modelo principal de chat",
+          "desc": "Selecciona el modelo principal de IA para conversaciones diarias"
+        }
+      },
+      "toolbar": {
+        "title": "Ajustes de barra de herramientas",
+        "chatToolbar": {
+          "title": "Barra de herramientas de chat",
+          "desc": "Personaliza la visibilidad y el orden de los botones de la barra de herramientas del chat",
+          "button": "Configurar",
+          "modelSelect": {
+            "desc": "Cambiar el modelo de IA para la conversación"
+          },
+          "promptSelect": {
+            "desc": "Seleccionar el prompt preestablecido para la conversación"
+          },
+          "chatLanguage": {
+            "desc": "Establecer el idioma de la conversación"
+          },
+          "chatLink": {
+            "title": "Etiqueta de enlace",
+            "desc": "Vincular el contenido de la nota de la etiqueta actual al contexto de la conversación"
+          },
+          "fileLink": {
+            "desc": "Vincular archivos o carpetas al contexto de la conversación"
+          },
+          "mcpButton": {
+            "desc": "Seleccionar y conectar servidores MCP para usar herramientas externas"
+          },
+          "ragSwitch": {
+            "title": "Base de conocimiento",
+            "desc": "Habilitar la recuperación de la base de conocimiento vectorial"
+          },
+          "clipboardMonitor": {
+            "title": "Monitor de portapapeles",
+            "desc": "Monitorizar automáticamente los cambios de contenido del portapapeles"
+          },
+          "newChat": {
+            "desc": "Iniciar una nueva conversación"
+          },
+          "clearContext": {
+            "desc": "Limpiar el contexto de la conversación, mantener el historial de chat"
+          },
+          "clearChat": {
+            "desc": "Eliminar todos los registros de chat"
+          }
+        }
+      },
+      "condense": {
+        "title": "Resumen de conversación",
+        "enable": {
+          "title": "Habilitar resumen",
+          "desc": "Comprimir automáticamente conversaciones largas para ahorrar uso de tokens"
+        },
+        "model": {
+          "title": "Modelo de resumen",
+          "desc": "Selecciona el modelo de IA para generar resúmenes",
+          "placeholder": "Usar modelo principal"
+        },
+        "threshold": {
+          "title": "Umbral de activación",
+          "desc": "Verifica la compresión cuando los mensajes de IA excedan esta cantidad"
+        },
+        "minToken": {
+          "title": "Cantidad mínima de tokens",
+          "desc": "Solo comprime mensajes que excedan esta cantidad de tokens"
+        },
+        "keepLatest": {
+          "title": "Conservar últimos",
+          "desc": "Conservar los últimos N mensajes de IA sin comprimir"
+        },
+        "maxLength": {
+          "title": "Longitud máxima del resumen",
+          "desc": "Controla la cantidad máxima de palabras de los resúmenes generados"
+        },
+        "prompt": {
+          "title": "Prompt de resumen personalizado",
+          "desc": "Personaliza la plantilla de prompt para generar resúmenes",
+          "label": "Plantilla de prompt",
+          "placeholder": "Introduce el prompt personalizado...",
+          "help": "Usa {content} como marcador de posición para el contenido original",
+          "save": "Guardar",
+          "reset": "Restablecer a predeterminado"
+        }
+      },
+      "conversationTitle": {
+        "title": "Título de conversación",
+        "model": {
+          "title": "Modelo de generación de títulos",
+          "desc": "Selecciona el modelo de IA para generar títulos de conversación"
+        }
+      },
+      "inspiration": {
+        "title": "Modelo de inspiración",
+        "model": {
+          "title": "Generador rápido de prompts",
+          "desc": "Genera sugerencias rápidas de prompts para ayudar a los usuarios a iniciar conversaciones"
+        }
+      }
+    },
+    "ai": {
+      "title": "Gestión de modelos",
+      "desc": "Aquí puedes añadir y gestionar varios servicios de modelos personalizados. Después de la configuración, desbloquearás funciones relacionadas con IA, como organización y funciones de conversación.",
+      "modelTitle": "Nombre personalizado",
+      "modelConfigTitle": "Configuración del modelo",
+      "modelConfigDesc": "Cada configuración corresponde a un modelo de IA, puedes crear nuevas configuraciones a través de plantillas o personalizadas.",
+      "providerInfo": "Información del proveedor",
+      "providerInfoDesc": "Esta configuración se creó basada en una plantilla de proveedor, con nombre y URL preconfigurados.",
+      "create": "Crear",
+      "createDesc": "Selecciona una configuración vacía o crea una nueva configuración usando la plantilla del proveedor.",
+      "createSection": {
+        "title": "Configuración de modelo personalizado",
+        "descWithoutModels": "Añade configuraciones de modelos de IA personalizados para usar servicios de modelos más potentes."
+      },
+      "config": "Configuración",
+      "custom": "Personalizado",
+      "addCustomModel": "Personalizado",
+      "deleteCustomModel": "Eliminar",
+      "deleteCustomModelConfirm": "¿Estás seguro de eliminar este modelo personalizado?",
+      "copyConfig": "Copiar",
+      "builtin": "Integrado",
+      "modelSupport": "Solo admite modelos de IA con protocolo OpenAI",
+      "apiKeyUrl": "Crear clave API",
+      "modelType": {
+        "title": "Tipo de modelo",
+        "desc": "Selecciona el tipo de modelo de IA según su capacidad",
+        "chat": "Chat",
+        "image": "Imagen",
+        "video": "Video",
+        "tts": "Texto a voz",
+        "stt": "Voz a texto",
+        "embedding": "Embedding",
+        "rerank": "Reordenamiento"
+      },
+      "modelList": {
+        "error": {
+          "title": "Error al obtener la lista de modelos",
+          "description": "Verifica si la clave API o la red son correctas"
+        }
+      },
+      "selectModel": "Por favor selecciona un modelo",
+      "modelProviderDesc": "Los modelos personalizados solo admiten modelos de IA con protocolo OpenAI.",
+      "modelTitleDesc": "Nombre personalizado, usado para identificar modelos de IA, por favor no lo repitas.",
+      "modelBaseUrlDesc": "Solo necesitas configurar el número de versión, por ejemplo: https://api.openai.com/v1, el sufijo se añadirá automáticamente.",
+      "modelDesc": "Algunos modelos admiten obtener la lista de modelos, si no es compatible, por favor configura manualmente.",
+      "temperatureDesc": "Controla la aleatoriedad de la salida. Valores más bajos hacen que el contenido generado sea más determinista.",
+      "topPDesc": "Un método de muestreo de núcleo, donde el modelo considera los resultados de los tokens con masa de probabilidad top_p. Así que 0.1 significa considerar solo el 10% superior de la masa de probabilidad. Generalmente sugerimos cambiar esto o la temperatura, pero no ambos.",
+      "customHeaders": "Encabezados personalizados",
+      "customHeadersDesc": "Añade encabezados HTTP personalizados con pares clave-valor.",
+      "headerKey": "Clave",
+      "headerValue": "Valor",
+      "addHeader": "Añadir encabezado",
+      "connectionSuccess": "Prueba de conexión de IA superada",
+      "voice": "Tipo de voz",
+      "voiceDesc": "Especifica el tipo de voz para modelos de audio, como 'alloy', 'echo', 'fable', etc.",
+      "voicePlaceholder": "Introduce el tipo de voz, ej.: alloy",
+      "defaultModels": {
+        "title": "Modelos gratuitos predeterminados",
+        "desc": "NoteGen proporciona servicios de modelos de IA gratuitos para los usuarios, permitiendo la funcionalidad básica sin configuración.",
+        "chatModel": {
+          "name": "Qwen/Qwen3-8B",
+          "type": "Modelo de chat",
+          "desc": "Adecuado para conversaciones diarias y generación de texto"
+        },
+        "embeddingModel": {
+          "name": "BAAI/bge-m3",
+          "type": "Modelo de embedding",
+          "desc": "Usado para vectorización de texto y búsqueda semántica"
+        },
+        "visionModel": {
+          "name": "OpenGVLab/InternVL2-8B",
+          "type": "Modelo de visión",
+          "desc": "Soporta comprensión de imágenes y preguntas y respuestas visuales"
+        },
+        "completionModel": {
+          "name": "Completado rápido",
+          "type": "Modelo de completado",
+          "desc": "Completado en línea con IA para el editor Markdown, similar a GitHub Copilot, genera rápidamente contenido de continuación"
+        },
+        "poweredBy": "Desarrollado por SiliconFlow"
+      },
+      "connectionFailed": "Conexión fallida",
+      "enableStream": "Respuesta en flujo",
+      "enableStreamDesc": "Habilita la respuesta en flujo para mostrar el contenido generado en tiempo real, pero algunos modelos pueden no admitir esta función.",
+      "selectConfig": "Por favor selecciona una configuración",
+      "models": "Lista de modelos",
+      "modelsDesc": "Gestiona aquí todos los modelos bajo la configuración actual. Cada modelo puede tener diferentes tipos y parámetros.",
+      "addModel": "Añadir modelo",
+      "newModel": "Nuevo modelo",
+      "checkConnection": "Probar conexión",
+      "model": "Modelo"
+    },
+    "file": {
+      "title": "Ajustes de archivos",
+      "desc": "Aquí puedes gestionar los ajustes del espacio de trabajo y otras opciones relacionadas con archivos.",
+      "workspace": {
+        "title": "Ajustes del espacio de trabajo",
+        "desc": "Establece el directorio del espacio de trabajo de la aplicación donde se guardarán los archivos",
+        "current": "Ruta actual del espacio de trabajo",
+        "defaultPath": "Espacio de trabajo predeterminado",
+        "default": "Usando la ruta del espacio de trabajo predeterminada",
+        "custom": "Usando una ruta de espacio de trabajo personalizada",
+        "select": "Seleccionar directorio del espacio de trabajo",
+        "reset": "Restablecer a la ruta predeterminada",
+        "history": "Rutas del historial",
+        "selectFromHistory": "Seleccionar espacio de trabajo del historial",
+        "clearHistory": "Limpiar historial",
+        "actions": "Acciones",
+        "searchPlaceholder": "Buscar rutas de espacio de trabajo...",
+        "noResults": "No se encontraron resultados"
+      },
+      "info": {
+        "title": "Información del espacio de trabajo",
+        "desc": "Después de cambiar el espacio de trabajo, necesitas reiniciar la aplicación para que los cambios surtan efecto completo. Los archivos en el nuevo espacio de trabajo se mostrarán después del reinicio."
+      },
+      "toast": {
+        "updated": "Espacio de trabajo actualizado",
+        "updatedDesc": "Espacio de trabajo establecido en: {path}",
+        "reset": "Espacio de trabajo restablecido",
+        "resetDesc": "Restaurado al espacio de trabajo predeterminado",
+        "error": "Error al seleccionar el espacio de trabajo",
+        "errorDesc": "No se pudo seleccionar el directorio del espacio de trabajo, inténtalo de nuevo",
+        "resetError": "Error al restablecer el espacio de trabajo",
+        "resetErrorDesc": "No se pudo restablecer al espacio de trabajo predeterminado, inténtalo de nuevo"
+      },
+      "assets": {
+        "title": "Ruta de recursos",
+        "desc": "Establece el nombre del directorio de recursos. La inserción de imágenes locales en el editor usará este nombre de directorio, como `assets` o `images`.",
+        "select": "Establece el nombre del directorio de recursos, por ejemplo: assets"
+      }
+    },
+    "shortcuts": {
+      "title": "Atajos",
+      "desc": "Aquí puedes configurar atajos para ayudarte a usar NoteGen de manera más eficiente.",
+      "resetDefaults": "Restablecer",
+      "clear": "Limpiar",
+      "noShortcut": "Sin atajo",
+      "recording": "Presiona un nuevo atajo",
+      "conflictEditor": "Conflicto con el atajo del editor \"{name}\"",
+      "conflictGlobal": "Conflicto con el atajo global \"{name}\"",
+      "globalShortcuts": {
+        "title": "Atajos globales",
+        "desc": "Estos atajos son registrados por el sistema y pueden funcionar cuando NoteGen no está enfocado."
+      },
+      "editorShortcuts": {
+        "title": "Atajos del editor",
+        "desc": "Estos atajos solo funcionan mientras el editor Markdown está enfocado.",
+        "suggested": "Sugerido: {shortcut}",
+        "groups": {
+          "basic": "Edición básica",
+          "format": "Formato",
+          "ai": "IA",
+          "table": "Tabla",
+          "insert": "Insertar"
+        },
+        "commands": {
+          "undo": {
+            "title": "Deshacer",
+            "desc": "Deshacer la edición anterior."
+          },
+          "redo": {
+            "title": "Rehacer",
+            "desc": "Restaurar la última edición deshecha."
+          },
+          "setParagraph": {
+            "title": "Párrafo",
+            "desc": "Establecer el bloque actual como un párrafo."
+          },
+          "toggleHeading1": {
+            "title": "Título 1",
+            "desc": "Alternar nivel de título 1."
+          },
+          "toggleHeading2": {
+            "title": "Título 2",
+            "desc": "Alternar nivel de título 2."
+          },
+          "toggleHeading3": {
+            "title": "Título 3",
+            "desc": "Alternar nivel de título 3."
+          },
+          "toggleHeading4": {
+            "title": "Título 4",
+            "desc": "Alternar nivel de título 4."
+          },
+          "toggleHeading5": {
+            "title": "Título 5",
+            "desc": "Alternar nivel de título 5."
+          },
+          "toggleHeading6": {
+            "title": "Título 6",
+            "desc": "Alternar nivel de título 6."
+          },
+          "openSearch": {
+            "title": "Buscar / Reemplazar",
+            "desc": "Abrir la búsqueda del editor."
+          },
+          "openSlashCommand": {
+            "title": "menú slash",
+            "desc": "Abrir el menú de comandos del editor en el cursor."
+          },
+          "toggleOutline": {
+            "title": "Esquema",
+            "desc": "Mostrar u ocultar el esquema del documento actual."
+          },
+          "toggleBold": {
+            "title": "Negrita",
+            "desc": "Alternar negrita para el texto seleccionado o la entrada futura."
+          },
+          "toggleItalic": {
+            "title": "Cursiva",
+            "desc": "Alternar cursiva."
+          },
+          "toggleStrike": {
+            "title": "Tachado",
+            "desc": "Alternar tachado."
+          },
+          "toggleUnderline": {
+            "title": "Subrayado",
+            "desc": "Alternar subrayado."
+          },
+          "toggleInlineCode": {
+            "title": "Código en línea",
+            "desc": "Alternar código en línea."
+          },
+          "toggleHighlight": {
+            "title": "Resaltado",
+            "desc": "Alternar resaltado."
+          },
+          "openLinkInput": {
+            "title": "Enlace",
+            "desc": "Abrir la entrada de enlace."
+          },
+          "toggleBlockquote": {
+            "title": "Cita en bloque",
+            "desc": "Alternar cita en bloque."
+          },
+          "toggleBulletList": {
+            "title": "Lista con viñetas",
+            "desc": "Alternar lista con viñetas."
+          },
+          "toggleOrderedList": {
+            "title": "Lista numerada",
+            "desc": "Alternar lista numerada."
+          },
+          "toggleTaskList": {
+            "title": "Lista de tareas",
+            "desc": "Alternar lista de tareas."
+          },
+          "toggleCodeBlock": {
+            "title": "Bloque de código",
+            "desc": "Alternar bloque de código."
+          },
+          "quoteToChat": {
+            "title": "Citar en el chat",
+            "desc": "Enviar el contenido seleccionado al área de cita del chat de IA."
+          },
+          "openAiMenu": {
+            "title": "Menú de acciones de IA",
+            "desc": "Abrir acciones de IA para el texto seleccionado."
+          },
+          "aiContinue": {
+            "title": "IA continuar",
+            "desc": "Continuar escribiendo desde el contenido antes del cursor."
+          },
+          "aiPolish": {
+            "title": "IA pulir",
+            "desc": "Pulir el texto seleccionado."
+          },
+          "aiConcise": {
+            "title": "IA conciso",
+            "desc": "Hacer el texto seleccionado más conciso."
+          },
+          "aiExpand": {
+            "title": "IA expandir",
+            "desc": "Expandir el texto seleccionado."
+          },
+          "aiTranslate": {
+            "title": "IA traducir",
+            "desc": "Abrir acciones de traducción para el texto seleccionado."
+          },
+          "acceptAiSuggestion": {
+            "title": "Aceptar sugerencia de IA",
+            "desc": "Aceptar la sugerencia de IA actual cuando el panel de sugerencias está abierto."
+          },
+          "rejectAiSuggestion": {
+            "title": "Rechazar sugerencia de IA",
+            "desc": "Restaurar el texto original cuando el panel de sugerencias de IA está abierto."
+          },
+          "abortAiGeneration": {
+            "title": "Abortar generación de IA",
+            "desc": "Detener la tarea de generación de IA actual."
+          },
+          "insertTable": {
+            "title": "Insertar tabla",
+            "desc": "Insertar una tabla predeterminada de 3 columnas."
+          },
+          "addColumnBefore": {
+            "title": "Insertar columna a la izquierda",
+            "desc": "Insertar una columna antes de la celda actual."
+          },
+          "addColumnAfter": {
+            "title": "Insertar columna a la derecha",
+            "desc": "Insertar una columna después de la celda actual."
+          },
+          "addRowBefore": {
+            "title": "Insertar fila arriba",
+            "desc": "Insertar una fila encima de la celda actual."
+          },
+          "addRowAfter": {
+            "title": "Insertar fila abajo",
+            "desc": "Insertar una fila debajo de la celda actual."
+          },
+          "deleteColumn": {
+            "title": "Eliminar columna",
+            "desc": "Eliminar la columna de la tabla actual."
+          },
+          "deleteRow": {
+            "title": "Eliminar fila",
+            "desc": "Eliminar la fila de la tabla actual."
+          },
+          "deleteTable": {
+            "title": "Eliminar tabla",
+            "desc": "Eliminar la tabla actual."
+          },
+          "alignLeft": {
+            "title": "Alinear a la izquierda",
+            "desc": "Alinear el texto o la celda de la tabla actual a la izquierda."
+          },
+          "alignCenter": {
+            "title": "Centrar",
+            "desc": "Centrar el texto o la celda de la tabla actual."
+          },
+          "alignRight": {
+            "title": "Alinear a la derecha",
+            "desc": "Alinear el texto o la celda de la tabla actual a la derecha."
+          },
+          "insertImage": {
+            "title": "Insertar imagen",
+            "desc": "Elegir e insertar una imagen local."
+          },
+          "insertInlineMath": {
+            "title": "Insertar matemáticas en línea",
+            "desc": "Abrir la entrada de LaTeX en línea."
+          },
+          "insertBlockMath": {
+            "title": "Insertar bloque de matemáticas",
+            "desc": "Abrir la entrada de LaTeX en bloque."
+          },
+          "insertMermaid": {
+            "title": "Insertar diagrama Mermaid",
+            "desc": "Insertar un diagrama de flujo Mermaid predeterminado."
+          },
+          "insertHorizontalRule": {
+            "title": "Insertar divisor",
+            "desc": "Insertar una regla horizontal en el cursor."
+          }
+        }
+      },
+      "shortcuts": {
+        "openWindow": {
+          "title": "Abrir/Ocultar ventana",
+          "desc": "Abrir/Ocultar la ventana principal."
+        },
+        "screenshotRecord": {
+          "title": "Registro de captura de pantalla",
+          "desc": "Abrir la grabación de captura de pantalla y guardar una ventana o pantalla recortada."
+        },
+        "quickRecordText": {
+          "title": "Registro rápido de texto",
+          "desc": "Abrir rápidamente la ventana principal y cambiar al registro de texto."
+        }
+      }
+    },
+    "title": "Ajustes"
+  },
+  "record": {
+    "trash": {
+      "title": "Vaciar papelera",
+      "confirm": "¿Estás seguro de vaciar la papelera?",
+      "records": "{count} registros se pueden restaurar",
+      "syncWarning": "Esta operación se sincronizará con otros dispositivos.",
+      "empty": "Vaciar",
+      "restoreAll": "Restaurar todo",
+      "close": "Cerrar papelera"
+    },
+    "queue": {
+      "ocr": "Reconocimiento OCR",
+      "ai": "Reconocimiento de contenido IA",
+      "upload": "Subir al alojamiento de imágenes",
+      "jsdelivr": "Notificar caché jsdelivr",
+      "save": "Guardar",
+      "recording": "Grabando...",
+      "recorded": "Grabado",
+      "record": "Grabar",
+      "detected": "Detectado"
+    },
+    "capture": {
+      "saveTarget": "Guardar en",
+      "saveTargetPlaceholder": "Seleccionar etiqueta",
+      "saved": "Registro guardado",
+      "savedWithType": "{type} guardado. Puedes seguir editándolo u organizarlo.",
+      "viewRecord": "Ver",
+      "processingInBackground": "Procesando en segundo plano. Aparecerá en la lista de registros cuando termine.",
+      "elapsedSeconds": "{seconds}s",
+      "importAudio": "Importar audio",
+      "smartClipboard": "Portapapeles",
+      "clipboardEmpty": "El portapapeles está vacío",
+      "clipboardEmptyDescription": "Copia texto o un enlace, luego inténtalo de nuevo.",
+      "linkFetchFailed": "Error al obtener el contenido de la página web",
+      "fileUnsupportedSaved": "Archivo guardado",
+      "fileUnsupportedDescription": "No se admite la extracción de texto para este tipo de archivo, por lo que se guardó como un archivo adjunto.",
+      "fileUnsupportedContent": "No se admite la extracción de texto para este tipo de archivo. Se guardó la ruta del archivo original.",
+      "fileReadFailed": "Error al leer el texto del archivo. Se guardó la ruta del archivo original.",
+      "imageUploadFallback": "Imagen guardada localmente",
+      "imageUploadFallbackDescription": "Falló la subida al alojamiento de imágenes, por lo que se conservó la imagen local.",
+      "screenshotRecordTitle": "Registro de captura de pantalla",
+      "screenshotCapturing": "Capturando ventanas disponibles...",
+      "screenshotCaptureFailed": "No se pudo capturar la pantalla",
+      "screenshotPermissionHint": "Verifica el permiso de grabación de pantalla del sistema y vuelve a intentarlo.",
+      "screenshotEmpty": "No se encontraron ventanas capturables",
+      "screenshotSourceCount": "{count} ventanas disponibles",
+      "screenshotNoSource": "Ninguna ventana disponible",
+      "screenshotRefresh": "Actualizar",
+      "retry": "Reintentar",
+      "screenshotSave": "Guardar captura de pantalla",
+      "screenshotSaveAndRecognize": "Guardar y reconocer",
+      "screenshotSaveOnly": "Solo guardar captura",
+      "screenshotSaveFailed": "Error al guardar el registro de captura de pantalla",
+      "screenshotRecognitionPending": "Captura guardada. El reconocimiento de imagen está en curso...",
+      "screenshotRecognitionComplete": "Reconocimiento de imagen completado",
+      "screenshotRecognitionFailed": "Falló el reconocimiento de imagen",
+      "screenshotRecognitionAuto": "Automático",
+      "screenshotRecognitionOff": "Reconocimiento desactivado",
+      "screenshotRecognitionMethod": "Reconocimiento",
+      "screenshotNoText": "No se reconoció texto de esta captura",
+      "screenshotSavedOnly": "Imagen guardada sin reconocimiento",
+      "screenshotRecognizing": "Reconociendo...",
+      "screenshotRecognizeAgain": "Reconocer de nuevo",
+      "screenshotAiDescription": "Descripción IA",
+      "screenshotOcrContent": "Contenido OCR",
+      "screenshotCopyImageLink": "Copiar enlace de imagen",
+      "screenshotShowInFolder": "Mostrar en carpeta",
+      "screenshotKeyboardHint": "Enter para guardar, Esc para cancelar, teclas de flecha para cambiar fuente.",
+      "screenshotModeWindow": "Ventana",
+      "screenshotModeRegion": "Región",
+      "screenshotModeDisplay": "Pantalla"
+    },
+    "syncStatus": {
+      "checking_remote": "Verificando actualizaciones remotas",
+      "queued": "En cola para sincronizar",
+      "uploading": "Subida de sincronización en curso",
+      "uploadingRecords": "Subiendo registros",
+      "uploadingSettings": "Subiendo ajustes",
+      "downloading": "Trayendo contenido remoto",
+      "failed": "Sincronización fallida",
+      "conflict": "Conflicto de sincronización detectado",
+      "waiting_provider": "Esperando un proveedor de sincronización",
+      "synced": "Sincronizado",
+      "queuedDesc": "{count} tareas de sincronización pendientes",
+      "retry": "Reintentar",
+      "settings": "Ajustes"
+    },
+    "mark": {
+      "empty": "Aún no hay registros",
+      "loading": "Cargando...",
+      "createdAt": "Creado el",
+      "type": {
+        "scan": "Escanear",
+        "image": "Imagen",
+        "screenshot": "Captura de pantalla",
+        "text": "Texto",
+        "recording": "Grabación",
+        "file": "Archivo",
+        "link": "Enlace",
+        "todo": "Tarea",
+        "pdf": "PDF",
+        "upload": "Subir registro",
+        "download": "Descargar registro",
+        "uploadTo": "Sincronizar de local a {provider}",
+        "downloadFrom": "Sincronizar de {provider} a local"
+      },
+      "uploadSuccess": "Registro subido con éxito",
+      "downloadSuccess": "Registro descargado con éxito",
+      "desc": "Descripción",
+      "content": "Contenido",
+      "progress": {
+        "cacheImage": "Almacenando imagen en caché",
+        "vlm": "Reconocimiento VLM",
+        "ocr": "Reconocimiento OCR",
+        "description": "Generando descripción",
+        "aiAnalysis": "Análisis de contenido IA",
+        "uploadImage": "Subiendo al alojamiento de imágenes",
+        "jsdelivrCache": "Notificando caché jsdelivr",
+        "cacheFile": "Almacenando archivo en caché",
+        "cacheScreenshot": "Almacenando captura en caché",
+        "textAnalysis": "Análisis de texto",
+        "save": "Guardando",
+        "saveImage": "Guardando imagen"
+      },
+      "imageGallery": {
+        "expand": "Expandir",
+        "collapse": "Colapsar"
+      },
+      "text": {
+        "title": "Registro de texto",
+        "description": "Registra un fragmento de texto, que se insertará en la posición adecuada al organizar las notas.",
+        "characterCount": "{count} caracteres",
+        "save": "Guardar",
+        "autoReadClipboard": "Leer automáticamente el texto del portapapeles"
+      },
+      "link": {
+        "title": "Registrar enlace",
+        "description": "Introduce un enlace de página web y el sistema rastreará automáticamente el contenido de la página y lo guardará",
+        "save": "Guardar",
+        "autoReadClipboard": "Leer automáticamente el enlace del portapapeles"
+      },
+      "todo": {
+        "title": "Registro de tarea",
+        "description": "Crea elementos de tareas para gestionar tus tareas",
+        "titlePlaceholder": "Introduce el título de la tarea...",
+        "descriptionPlaceholder": "Introduce una descripción detallada (opcional)",
+        "priority": "Prioridad",
+        "priorityLow": "Baja",
+        "priorityMedium": "Media",
+        "priorityHigh": "Alta",
+        "dateRange": "Rango de fechas",
+        "dateRangePlaceholder": "Seleccionar rango de fechas",
+        "dueDate": "Fecha de vencimiento",
+        "dueDatePlaceholder": "Seleccionar fecha",
+        "save": "Crear tarea",
+        "saveEdit": "Guardar",
+        "edit": "Editar tarea",
+        "editDescription": "Modifica los detalles del elemento de tarea",
+        "cancel": "Cancelar",
+        "selectTag": "Seleccionar etiqueta",
+        "completed": "Completado",
+        "uncompleted": "No completado"
+      },
+      "clipboard": {
+        "detectedImage": "Imagen detectada en el portapapeles",
+        "detectedText": "Texto detectado en el portapapeles"
+      },
+      "tag": {
+        "searchPlaceholder": "Crear o buscar etiquetas...",
+        "noResults": "No se encontraron etiquetas coincidentes",
+        "quickAdd": "Creación rápida",
+        "pinned": "Fijado",
+        "others": "Otros",
+        "rename": "Renombrar",
+        "delete": "Eliminar",
+        "pin": "Fijar",
+        "unpin": "Desfijar",
+        "newTag": "Nueva etiqueta",
+        "newTagPlaceholder": "Introduce el nombre de la etiqueta...",
+        "add": "Añadir"
+      },
+      "mark": {
+        "empty": "Sin registros",
+        "emptyHint": "¡Usa la barra de herramientas en la parte superior para crear tu primer registro!",
+        "type": {
+          "text": "Texto"
+        },
+        "chat": {
+          "modeSelect": {
+            "chat": "Chat",
+            "agent": "Agente"
+          },
+          "agent": {
+            "running": "Agente en ejecución",
+            "thinking": "Pensando",
+            "acting": "Actuando",
+            "observation": "Observación",
+            "thought": "Pensamiento",
+            "action": "Acción",
+            "toolCalls": "Llamadas a herramientas",
+            "confirmation": {
+              "title": "Confirmar acción",
+              "description": "El agente quiere realizar la siguiente acción. Por favor confirma para continuar.",
+              "tool": "Herramienta",
+              "parameters": "Parámetros",
+              "cancel": "Cancelar",
+              "confirm": "Confirmar",
+              "confirmed": "Confirmado",
+              "cancelled": "Cancelado"
+            }
+          },
+          "placeholder": {
+            "default": "Haz preguntas u organiza tus notas en un artículo...",
+            "noApiKey": "Clave API no configurada, la función de chat IA no está disponible...",
+            "on": "Sugerencia IA activada",
+            "off": "Sugerencia IA desactivada"
+          },
+          "header": {
+            "configApiKey": "Configurar clave API",
+            "clearChat": "Limpiar chat",
+            "configPrompt": "Configurar prompt",
+            "selectPrompt": "Seleccionar prompt"
+          },
+          "clipboard": {
+            "image": {
+              "detected": "Imagen detectada en el portapapeles:",
+              "recording": "Grabando...",
+              "recorded": "Grabado",
+              "record": "Grabar"
+            },
+            "text": {
+              "detected": "Texto detectado en el portapapeles:",
+              "recorded": "Grabado",
+              "record": "Grabar"
+            }
+          },
+          "messageControl": {
+            "words": "palabras",
+            "summary": "Resumen"
+          },
+          "mcp": {
+            "maxIterationsReached": "Número máximo de iteraciones de llamada a herramientas alcanzado",
+            "toolCall": "Servidor MCP",
+            "params": "Parámetros",
+            "result": "Resultado",
+            "copy": "Copiar",
+            "paramsCopied": "Parámetros copiados",
+            "resultCopied": "Resultado copiado",
+            "calling": "Llamando",
+            "success": "Completado",
+            "error": "Fallido"
+          },
+          "empty": {
+            "title": "Iniciar conversación con IA",
+            "subtitle": "Usa el modo Chat o Agente para interactuar con la IA",
+            "currentModel": "Modelo actual",
+            "currentPrompt": "Prompt actual",
+            "noModel": "Sin modelo establecido",
+            "noPrompt": "Sin prompt establecido",
+            "modeHint": "Haz clic en el",
+            "modeHintSuffix": "botón en el lado izquierdo del cuadro de entrada para cambiar el modo de conversación"
+          },
+          "content": {
+            "organize": "Organiza tus registros en un artículo:"
+          },
+          "note": {
+            "writing": "Escribir",
+            "convert": "Convertir artículo",
+            "description": "La nota actual fue generada por IA y no se puede editar. Convierte la nota actual a un artículo (genera un archivo local) para una creación secundaria en la página de escritura.",
+            "filename": "Nombre de archivo",
+            "selectFolder": "Seleccionar carpeta",
+            "rootDirectory": "Directorio raíz",
+            "deleteTag": "Eliminar etiqueta actual, registros y notas (se pueden restaurar de la papelera)",
+            "warning": "Después de la conversión, serás redirigido a la página de escritura.",
+            "convert_button": "Convertir"
+          },
+          "mark": {
+            "recorded": "Grabado",
+            "record": "Grabar"
+          },
+          "send": "Enviar"
+        },
+        "text": {
+          "title": "Registro de texto",
+          "description": "Registra un fragmento de texto, que se insertará en la posición adecuada al organizar las notas.",
+          "characterCount": "{count} caracteres",
+          "save": "Guardar"
+        },
+        "clipboard": {
+          "detectedImage": "Imagen detectada en el portapapeles",
+          "detectedText": "Texto detectado en el portapapeles"
+        },
+        "tag": {
+          "searchPlaceholder": "Crear o buscar etiquetas...",
+          "noResults": "No se encontraron etiquetas coincidentes",
+          "quickAdd": "Creación rápida",
+          "pinned": "Fijado",
+          "others": "Otros",
+          "rename": "Renombrar",
+          "delete": "Eliminar",
+          "pin": "Fijar",
+          "unpin": "Desfijar"
+        },
+        "progress": {
+          "cacheImage": "Almacenando imagen en caché",
+          "ocr": "Reconocimiento OCR",
+          "aiAnalysis": "Análisis de contenido IA",
+          "uploadImage": "Subiendo al alojamiento de imágenes",
+          "jsdelivrCache": "Notificando caché jsdelivr",
+          "cacheFile": "Almacenando archivo en caché",
+          "cacheScreenshot": "Almacenando captura en caché",
+          "textAnalysis": "Análisis de texto",
+          "save": "Guardando",
+          "saveImage": "Guardando imagen"
+        }
+      },
+      "toolbar": {
+        "search": "Buscar",
+        "filter": {
+          "title": "Filtrar",
+          "description": "Reduce instantáneamente los registros por contenido, tiempo y tipo.",
+          "search": "Buscar",
+          "searchPlaceholder": "Buscar texto, descripción o enlace del registro",
+          "type": "Tipo",
+          "time": "Tiempo",
+          "tag": "Etiqueta",
+          "allTags": "Todas las etiquetas",
+          "clear": "Limpiar filtros",
+          "selectAllTypes": "Seleccionar todos los tipos",
+          "clearTypes": "Limpiar selección de tipo",
+          "timeOptions": {
+            "all": "Todo el tiempo",
+            "today": "Hoy",
+            "last7Days": "Últimos 7 días",
+            "last30Days": "Últimos 30 días"
+          }
+        },
+        "trash": "Papelera",
+        "restore": "Restaurar",
+        "delete": "Eliminar",
+        "deleteConfirm": "¿Estás seguro de eliminar?",
+        "moveTag": "Mover etiqueta",
+        "convertTo": "Convertir a {type}",
+        "copyLink": "Copiar enlace",
+        "copied": "¡Copiado al portapapeles!",
+        "regenerateDesc": "Regenerar descripción",
+        "viewFolder": "Ver carpeta",
+        "viewFile": "Ver archivo original",
+        "deleteForever": "Eliminar para siempre",
+        "multiSelect": "Selección múltiple",
+        "multiSelectMode": "Modo de selección múltiple",
+        "exitMultiSelect": "Salir de selección múltiple",
+        "organizeNotes": "Organizar notas",
+        "organizeSuccess": "Notas organizadas con éxito: {title}",
+        "organizeError": "Error al organizar las notas",
+        "currentTag": "Etiqueta actual",
+        "text": "Registro de texto",
+        "recording": "Registro de grabación",
+        "scan": "Escanear imagen",
+        "image": "Subir imagen",
+        "link": "Registrar enlace",
+        "file": "Subir archivo",
+        "todo": "Registro de tarea",
+        "closeTrash": "Cerrar papelera",
+        "selectAll": "Seleccionar todo",
+        "deselectAll": "Deseleccionar todo",
+        "selectedCount": "{count} elementos seleccionados",
+        "visibleCount": "{count} registros",
+        "moveSelectedTags": "Mover {count} elementos seleccionados",
+        "deleteSelected": "Eliminar {count} elementos seleccionados",
+        "deleteSelectedForever": "Eliminar permanentemente {count} elementos seleccionados",
+        "view": {
+          "list": "Vista de lista",
+          "compact": "Vista compacta",
+          "cards": "Vista de tarjetas"
+        }
+      },
+      "list": {
+        "title": "Registros",
+        "emptyFiltered": "No hay registros coincidentes",
+        "emptyFilteredHint": "Intenta ajustar la búsqueda o los filtros",
+        "filteredLabel": "{count} filtrados",
+        "filtered": "Filtrado",
+        "filteredByTag": "etiqueta",
+        "filteredByType": "{count} tipos",
+        "filteredSummary": "Mostrando {count} resultados · {filters}",
+        "searchChip": "Buscar: {value}",
+        "time": {
+          "today": "Hoy",
+          "last7Days": "Últimos 7 días",
+          "last30Days": "Últimos 30 días"
+        }
+      },
+      "note": {
+        "organizeAs": "Organizar como",
+        "template": "Plantilla",
+        "setting": "Ajustes",
+        "confirm": "Confirmar",
+        "cancel": "Cancelar",
+        "removeThinking": "Eliminar proceso de pensamiento",
+        "stop": "Detener"
+      }
+    },
+    "chat": {
+      "condensing": "Condensando contexto...",
+      "condensed": {
+        "message": "Condensados {count} mensajes históricos"
+      },
+      "empty": {
+        "title": "Comienza a chatear con IA",
+        "subtitle": "Interactúa con IA usando el modo Chat o Agente",
+        "currentModel": "Modelo actual",
+        "currentPrompt": "Prompt actual",
+        "currentMode": "Modo de conversación",
+        "noModel": "Sin modelo establecido",
+        "noPrompt": "Sin prompt establecido",
+        "configureModel": "Configurar modelo",
+        "recentConversations": "Conversaciones recientes",
+        "deleteConversation": "Eliminar conversación",
+        "conversationHistory": "Historial",
+        "viewMore": "Ver más",
+        "messages": "mensajes",
+        "searchPlaceholder": "Buscar conversaciones...",
+        "noMatchingConversations": "No se encontraron conversaciones coincidentes",
+        "noConversationHistory": "Aún no hay historial de conversaciones",
+        "quickPrompts": {
+          "title": "Inicio rápido",
+          "writeNote": "Ayúdame a escribir una nota",
+          "summarize": "Ayúdame a resumir este contenido",
+          "brainstorm": "Ayúdame a generar ideas",
+          "explain": "Ayúdame a explicar este concepto"
+        }
+      },
+      "newChat": "Nuevo chat con nueva etiqueta",
+      "removeChat": "Eliminar chat con etiqueta actual",
+      "confirmNew": "Crear nueva etiqueta",
+      "confirmNewDescription": "¿Estás seguro de que quieres crear una nueva etiqueta para iniciar una conversación?",
+      "confirmRemove": "Eliminar etiqueta",
+      "confirmRemoveDescription": "Ten en cuenta que al eliminar esta etiqueta también se eliminarán todos los registros que contiene. Por favor confirma de nuevo.",
+      "content": {
+        "organize": "Organiza tus registros en un artículo:"
+      },
+      "quote": {
+        "lineSingle": "Citado de {fileName} línea {line}",
+        "lineRange": "Citado de {fileName} líneas {startLine}-{endLine}",
+        "noLine": "Citado de {fileName}"
+      },
+      "note": {
+        "organize": "Organizar",
+        "writing": "Escribir",
+        "convert": "Convertir artículo",
+        "description": "La nota actual fue generada por IA y no se puede editar. Convierte la nota actual a un artículo (genera un archivo local) para una creación secundaria en la página de escritura.",
+        "filename": "Nombre de archivo",
+        "selectFolder": "Seleccionar carpeta",
+        "rootDirectory": "Directorio raíz",
+        "deleteTag": "Eliminar etiqueta actual, registros y notas (se pueden restaurar de la papelera)",
+        "warning": "Después de la conversión, serás redirigido a la página de escritura.",
+        "convert_button": "Convertir",
+        "organizeAs": "Organiza tus registros en un artículo:",
+        "templateContent": "Contenido de la plantilla",
+        "recordRange": "Rango de registros",
+        "filterThinkingContent": "Eliminar contenido de pensamiento de los registros",
+        "startOrganize": "Comenzar a organizar",
+        "manageTemplate": "Gestionar plantilla",
+        "quickOrganize": "Organización rápida",
+        "quickOrganizeHelp": "Usa la plantilla actual y la configuración predeterminada, omite la selección de registros y la configuración de generación, y comienza a organizar.",
+        "templateManager": "Gestor de plantillas",
+        "moreTemplates": "Más",
+        "searchTemplates": "Buscar plantillas",
+        "showMore": "Expandir",
+        "showLess": "Colapsar",
+        "recordCount": "{count} registros",
+        "recordPreview": "Vista previa del registro",
+        "previewEmpty": "No hay registros para previsualizar en el rango seleccionado",
+        "previewMore": "Mostrar últimos {count}",
+        "selectTemplate": "Seleccionar plantilla",
+        "stepTemplate": "Plantilla de organización",
+        "templateStepDescription": "Controla cómo la IA estructura la nota, en qué se enfatiza y qué rango de registros usa.",
+        "stepRecords": "Seleccionar registros",
+        "recordsStepDescription": "Elige los registros a usar, cambia el alcance por etiqueta y elimina lo que no sea necesario.",
+        "stepSettings": "Configuración de generación",
+        "settingsStepDescription": "Establece el título de salida, la ubicación de guardado, el manejo de fuentes y requisitos adicionales para esta ejecución.",
+        "nextStep": "Siguiente",
+        "previousStep": "Anterior",
+        "generationSettings": "Configuración de generación",
+        "generationSettingsHelp": "Confirma el idioma de salida, título, ubicación de guardado y contenido incluido.",
+        "outputLanguage": "Idioma de salida",
+        "outputLanguageAuto": "Seguir idioma de la app",
+        "outputLanguageZh": "简体中文",
+        "outputLanguageZhTW": "繁體中文",
+        "outputLanguageEn": "English",
+        "outputLanguageJa": "日本語",
+        "outputLanguagePtBR": "Português",
+        "outputLanguageCustom": "Personalizado",
+        "outputLanguageCustomPlaceholder": "Por ejemplo: usa francés, o usa chino conversacional natural",
+        "outputLanguageHelp": "Elige un idioma común, o selecciona Personalizado para introducir manualmente el requisito de idioma de salida.",
+        "articleTitle": "Título del artículo",
+        "articleTitlePlaceholder": "Déjalo vacío para que la IA genere un título",
+        "saveFolder": "Ubicación de guardado",
+        "saveFolderRoot": "Directorio raíz",
+        "currentSaveFolder": "Ubicación de guardado actual",
+        "noFolderAvailable": "No hay carpetas disponibles",
+        "includeImages": "Incluir imágenes",
+        "includeReferences": "Conservar enlaces de referencia",
+        "additionalRequirement": "Requisitos adicionales",
+        "additionalRequirementPlaceholder": "Añade cualquier requisito específico para esta organización",
+        "selectedRecordCount": "{selected}/{total} seleccionados",
+        "selectAllRecords": "Seleccionar todo",
+        "clearRecordSelection": "Limpiar",
+        "useRecord": "Usar este registro",
+        "recordSelectionHelp": "Desmarca los registros que no quieras que la IA use. Las imágenes y grabaciones se pueden previsualizar aquí.",
+        "noRecordsSelected": "Selecciona al menos un registro",
+        "noRecords": "No hay registros disponibles para organizar",
+        "noRecordsInRange": "No hay registros en el rango seleccionado",
+        "noTemplateAvailable": "No hay plantillas disponibles",
+        "copyTemplate": "Copiar plantilla",
+        "copySuffix": "Copia",
+        "cancel": "Cancelar",
+        "stop": "Detener"
+      },
+      "mark": {
+        "recorded": "Grabado",
+        "record": "Grabar"
+      },
+      "input": {
+        "organize": "Organizar",
+        "chat": "Chat",
+        "placeholder": {
+          "default": "Escribe un mensaje...",
+          "noApiKey": "Sin clave API configurada, no se puede usar el chat IA...",
+          "on": "Sugerencias IA activadas",
+          "off": "Sugerencias IA desactivadas",
+          "noPrimaryModel": "Sin modelo principal configurado, no se puede usar el chat IA..."
+        },
+        "translate": {
+          "tooltip": "Traducir",
+          "translating": "Traduciendo...",
+          "showOriginal": "Mostrar original",
+          "alreadyTranslated": "Traducido a"
+        },
+        "clipboardMonitor": {
+          "enable": "Monitorización del portapapeles (activada)",
+          "disable": "Monitorización del portapapeles (desactivada)"
+        },
+        "send": "Enviar",
+        "stop": "Detener",
+        "stopped": "Conversación detenida",
+        "terminate": "Terminar",
+        "tagLink": {
+          "on": "Vinculado a la etiqueta",
+          "off": "No vinculado a la etiqueta"
+        },
+        "modelSelect": {
+          "tooltip": "Seleccionar modelo IA",
+          "placeholder": "Buscar modelos IA",
+          "noModel": "No se encontró modelo"
+        },
+        "promptSelect": {
+          "tooltip": "Seleccionar prompt",
+          "placeholder": "Buscar prompts"
+        },
+        "newChat": "Nuevo chat",
+        "mcp": {
+          "tooltip": "Servidor MCP"
+        },
+        "chatLanguage": {
+          "tooltip": "Seleccionar idioma del chat",
+          "placeholder": "Buscar idioma"
+        },
+        "rag": {
+          "notSupported": "El modelo vectorial no es compatible",
+          "enabled": "Búsqueda en base de conocimiento (Activada)",
+          "disabled": "Búsqueda en base de conocimiento (Desactivada)"
+        },
+        "modeSelect": {
+          "tooltip": "Seleccionar modo de entrada",
+          "chat": "Modo chat",
+          "gen": "Modo organizar",
+          "translate": "Modo traducir"
+        },
+        "chatModeSelect": {
+          "chatDescription": "Conversación rápida, análisis primero",
+          "agentDescription": "Asistente inteligente, puede ejecutar acciones"
+        },
+        "attachImage": "Adjuntar imágenes",
+        "imageAttachment": {
+          "selectSuccess": "{count, plural, one {Adjuntada # imagen} other {Adjuntadas # imágenes}}",
+          "pasteSuccess": "{count, plural, one {Pegada # imagen} other {Pegadas # imágenes}}",
+          "dropSuccess": "{count, plural, one {Soltada # imagen} other {Soltadas # imágenes}}",
+          "maxCount": "Puedes adjuntar hasta {count} imágenes",
+          "oversized": "{name} es más grande que {size} y se omitió",
+          "oversizedMultiple": "{count} imágenes son más grandes que {size} y se omitieron",
+          "unsupported": "{name} no es un formato de imagen compatible",
+          "unsupportedMultiple": "{count} archivos no son formatos de imagen compatibles",
+          "saveFailed": "Error al guardar la imagen. Inténtalo de nuevo",
+          "saveFailedMultiple": "Error al guardar {count} imágenes. Inténtalo de nuevo",
+          "selectFailed": "Error al seleccionar imágenes. Inténtalo de nuevo",
+          "dropHint": "Suelta imágenes para adjuntar"
+        },
+        "imageSelector": {
+          "title": "Seleccionar imágenes",
+          "local": "Archivos locales",
+          "records": "Desde registros",
+          "selectFiles": "Seleccionar imágenes locales",
+          "noRecords": "No hay registros de imagen disponibles",
+          "cancel": "Cancelar",
+          "confirm": "Confirmar"
+        },
+        "agent": {
+          "running": "Agente en ejecución",
+          "thinking": "Pensando",
+          "analyzingRequest": "El agente está analizando tu solicitud...",
+          "acting": "Actuando",
+          "observation": "Observación",
+          "thought": "Pensamiento",
+          "action": "Acción",
+          "toolCalls": "Llamadas a herramientas",
+          "autoFinal": {
+            "createNote": "Nota creada \"{name}\".",
+            "createFile": "Archivo creado \"{name}\"."
+          },
+          "confirmation": {
+            "title": "Confirmar acción",
+            "description": "El agente quiere realizar la siguiente acción. Por favor confirma para continuar.",
+            "tool": "Herramienta",
+            "parameters": "Parámetros",
+            "cancel": "Cancelar",
+            "confirm": "Confirmar",
+            "confirmed": "Confirmado",
+            "cancelled": "Cancelado",
+            "fallback": {
+              "title": "Revisar acción",
+              "description": "Por favor confirma el destino y el contenido de esta acción."
+            },
+            "params": {
+              "filePath": "Ruta del archivo",
+              "content": "Contenido del archivo",
+              "sourcePath": "Ruta de origen",
+              "targetPath": "Ruta de destino",
+              "files": "Archivos",
+              "newName": "Nuevo nombre",
+              "scriptName": "Nombre del script",
+              "command": "Comando"
+            },
+            "tools": {
+              "create_file": {
+                "title": "Crear archivo",
+                "description": "Se creará un nuevo archivo en el espacio de trabajo."
+              },
+              "create_files_batch": {
+                "title": "Crear archivos",
+                "description": "Se crearán múltiples archivos nuevos en el espacio de trabajo."
+              },
+              "rename_file": {
+                "title": "Renombrar archivo",
+                "description": "El archivo seleccionado será renombrado."
+              },
+              "move_file": {
+                "title": "Mover archivo",
+                "description": "El archivo se moverá a una nueva ubicación."
+              },
+              "copy_file": {
+                "title": "Copiar archivo",
+                "description": "Se creará una copia del archivo en la ubicación de destino."
+              },
+              "replace_editor_content": {
+                "title": "Reemplazar contenido del editor",
+                "description": "Se reemplazará el contenido actual del editor."
+              },
+              "insert_at_cursor": {
+                "title": "Insertar en el cursor",
+                "description": "Se insertará contenido en la posición actual del cursor."
+              },
+              "delete_markdown_file": {
+                "title": "Eliminar archivo",
+                "description": "El archivo seleccionado se eliminará permanentemente."
+              },
+              "execute_skill_script": {
+                "title": "Ejecutar script",
+                "description": "Se ejecutará un script o comando proporcionado por una habilidad."
+              }
+            }
+          }
+        },
+        "fileLink": {
+          "tooltip": "Vincular archivo",
+          "selectFile": "Seleccionar archivo",
+          "linkedFile": "Archivo vinculado",
+          "searchPlaceholder": "Buscar archivos...",
+          "noFiles": "No se encontraron archivos",
+          "loading": "Cargando..."
+        },
+        "clearChat": "Limpiar chat",
+        "clearContext": {
+          "tooltip": "Limpiar contexto"
+        }
+      },
+      "header": {
+        "configApiKey": "Configurar clave API",
+        "clearChat": "Limpiar chat",
+        "selectPrompt": "Seleccionar prompt",
+        "noModel": "Modelo IA no seleccionado",
+        "configPrompt": "Configurar prompt"
+      },
+      "clipboard": {
+        "image": {
+          "detected": "Imagen detectada en el portapapeles:",
+          "recording": "Grabando...",
+          "recorded": "Grabado",
+          "record": "Grabar"
+        },
+        "text": {
+          "detected": "Texto detectado en el portapapeles:",
+          "recorded": "Grabado",
+          "record": "Grabar"
+        }
+      },
+      "messageControl": {
+        "words": "palabras",
+        "summary": "Resumen",
+        "readAloud": "Leer en voz alta",
+        "playing": "Reproduciendo",
+        "loading": "Cargando",
+        "stop": "Detener reproducción",
+        "copy": "Copiar",
+        "copied": "Copiado"
+      },
+      "ragSources": {
+        "label": "Encontradas {count} notas en la base de conocimiento",
+        "openFile": "Abrir archivo"
+      },
+      "preview": {
+        "close": "Cerrar",
+        "copy": "Copiar",
+        "copied": "¡Copiado!"
+      },
+      "control": {
+        "edit": "Editar",
+        "save": "Guardar",
+        "cancel": "Cancelar",
+        "delete": "Eliminar",
+        "deleteConfirm": "¿Estás seguro de eliminar este mensaje?"
+      }
+    },
+    "tag": {
+      "add": "Añadir etiqueta",
+      "edit": "Editar etiqueta",
+      "delete": "Eliminar etiqueta",
+      "deleteConfirm": "¿Estás seguro de eliminar esta etiqueta?",
+      "placeholder": "Introduce el nombre de la etiqueta"
+    }
+  },
+  "search": {
+    "placeholder": "Buscar notas y artículos...",
+    "results": "{count} resultados de búsqueda",
+    "noResults": "Sin resultados de búsqueda",
+    "tryDifferentKeywords": "Intenta usar diferentes palabras clave",
+    "item": {
+      "record": "Registro",
+      "article": "Artículo",
+      "matches": "{count} coincidencias",
+      "scanType": "escanear"
+    }
+  },
+  "image": {
+    "root": "Repositorio de imágenes",
+    "noData": {
+      "title": "Función de sincronización no habilitada",
+      "desc": "Por favor ve a la página de configuración del sistema para configurar la sincronización con Github.",
+      "goToSettings": "Ir a ajustes",
+      "howToUse": "¿Cómo usar la función de sincronización?"
+    }
+  },
+  "navigation": {
+    "chat": "Chat",
+    "record": "Registro",
+    "quickRecord": "Registro rápido",
+    "write": "Escribir",
+    "me": "Yo",
+    "mobileDock": {
+      "chat": "Chat",
+      "record": "Registro",
+      "quickRecord": "Rápido",
+      "write": "Escribir",
+      "me": "Yo"
+    },
+    "search": "Buscar",
+    "githubImageHosting": "Alojamiento de imágenes Github",
+    "login": "Iniciar sesión",
+    "loading": "Cargando",
+    "view": "Ver",
+    "logout": "Cerrar sesión",
+    "setting": "Ajustes",
+    "activity": "Actividad",
+    "files": "Notas",
+    "outline": "Esquema",
+    "showLeftSidebar": "Mostrar barra lateral izquierda",
+    "hideLeftSidebar": "Ocultar barra lateral izquierda",
+    "showCenterPanel": "Mostrar editor",
+    "hideCenterPanel": "Ocultar editor",
+    "showRightSidebar": "Mostrar barra lateral derecha",
+    "hideRightSidebar": "Ocultar barra lateral derecha",
+    "searchPlaceholder": "Buscar notas o registros...",
+    "navigate": "Navegar"
+  },
+  "activity": {
+    "title": "Calendario de actividad",
+    "description": "Revisa tus registros diarios, chats y actividad de escritura en un solo lugar. Esta primera versión se deriva de los registros existentes, chats de usuario y tiempos de modificación de notas.",
+    "drawer": {
+      "title": "Actividad",
+      "description": "Revisa rápidamente el estado de hoy y tu tendencia de actividad reciente.",
+      "today": "Hoy"
+    },
+    "loading": "Cargando datos de actividad...",
+    "empty": "Aún no hay datos de actividad",
+    "refresh": "Actualizar",
+    "summary": {
+      "totalCount": "Actividad total",
+      "activeDays": "Días activos",
+      "records": "Registros",
+      "chats": "Chats",
+      "writing": "Escritura"
+    },
+    "labels": {
+      "record": "Registro",
+      "writing": "Escritura",
+      "chat": "Chat"
+    },
+    "heatmap": {
+      "title": "Últimas 26 semanas",
+      "range": "{startDate} - {endDate}",
+      "less": "Menos",
+      "more": "Más",
+      "dayCount": "actividades",
+      "emptyDay": "Sin actividad"
+    },
+    "detail": {
+      "title": "Detalles del día",
+      "empty": "Selecciona un día para inspeccionar sus detalles de actividad."
+    }
+  },
+  "marks": {
+    "types": {
+      "screenshot": "Captura de pantalla",
+      "text": "Texto",
+      "image": "Imagen"
+    }
+  },
+  "tags": {
+    "inspiration": "Inspiración"
+  },
+  "sync": {
+    "status": "Estado del repositorio de sincronización",
+    "imageRepo": "Repositorio de imágenes",
+    "articleRepo": "Repositorio de artículos"
+  },
+  "ai": {
+    "thinking": "Pensando",
+    "error": {
+      "title": "Error de IA",
+      "noAddress": "Por favor establece primero la dirección de IA"
+    }
+  },
+  "article": {
+    "sync": {
+      "syncingRemote": "Trayendo archivo remoto...",
+      "syncComplete": "Sincronización completa"
+    },
+    "syncConfirm": {
+      "title": "Actualización de archivo remoto detectada",
+      "description": "El archivo {fileName} tiene actualizaciones remotas",
+      "commitInfo": "Información del último commit",
+      "commitMessage": "Mensaje de commit",
+      "author": "Autor",
+      "changes": "Cambios",
+      "confirmMessage": "¿Estás seguro de que quieres traer la versión remota y sobrescribir el archivo local? Esta acción no se puede deshacer.",
+      "cancel": "Cancelar",
+      "confirmPull": "Confirmar traer"
+    },
+    "emptyState": {
+      "title": "Comenzar a crear",
+      "subtitle": "Selecciona un archivo para empezar a editar, o crea una nueva nota",
+      "tip": "💡 Consejo: También puedes seleccionar archivos desde la barra lateral izquierda",
+      "actions": {
+        "newNote": {
+          "title": "Crear nota",
+          "desc": "Crear una nueva nota Markdown"
+        },
+        "newRecord": {
+          "title": "Crear registro",
+          "desc": "Abrir la función de registro de texto"
+        },
+        "globalSearch": {
+          "title": "Búsqueda global",
+          "desc": "Encuentra rápidamente el contenido de tus notas"
+        },
+        "openWorkspace": {
+          "title": "Abrir espacio de trabajo",
+          "desc": "Selecciona o cambia el directorio del espacio de trabajo"
+        }
+      },
+      "onboarding": {
+        "title": "Integración",
+        "subtitle": "Sigue estas tres tareas para aprender el flujo principal de NoteGen.",
+        "dismiss": "Omitir integración",
+        "reopen": "Mostrar integración de nuevo",
+        "start": "Comenzar",
+        "viewHint": "Mostrar pista",
+        "continue": "Continuar",
+        "completed": "Hecho",
+        "allDone": "Todas las tareas de introducción están completas. Ya has probado el flujo de trabajo principal de NoteGen.",
+        "stepLabel": "Tarea ({current}/{total})",
+        "stepCompletedLabel": "Tarea completada ({current}/{total})",
+        "afterOrganizeDialog": {
+          "title": "Tarea completada (2/3)",
+          "description": "Has convertido el registro en una nota. ¿Quieres continuar y usar el Agente IA para convertir esta nota en una versión bilingüe?",
+          "confirm": "Continuar",
+          "cancel": "Ahora no"
+        },
+        "agentPrompt": {
+          "label": "Prompt de ejemplo",
+          "use": "Usar este prompt",
+          "intro": "Por favor, revisa directamente la nota que acabo de organizar y conviértela en una versión bilingüe chino-inglés.",
+          "requirement1": "",
+          "requirement2": "",
+          "requirement3": "",
+          "requirement4": "",
+          "outro": ""
+        },
+        "steps": {
+          "createRecord": {
+            "title": "Crea tu primer registro",
+            "desc": "Guarda un registro de ejemplo y aprende dónde está la captura rápida."
+          },
+          "organizeNote": {
+            "title": "Organízalo en una nota",
+            "desc": "Convierte ese registro en una nota estructurada."
+          },
+          "aiPolish": {
+            "title": "Usa el Agente para traducción bilingüe",
+            "desc": "Usa el Agente IA para convertir la nota que acabas de organizar en una versión bilingüe."
+          }
+        },
+        "completedStates": {
+          "create-record": {
+            "title": "Tu primer registro está guardado",
+            "desc": "Ahora sabes dónde está la captura rápida."
+          },
+          "organize-note": {
+            "title": "Tu registro ahora es una nota",
+            "desc": "A continuación, intenta usar IA para revisar la nota."
+          },
+          "ai-polish": {
+            "title": "Usaste el Agente en la nota",
+            "desc": "Has completado el flujo desde la captura hasta la organización de notas y el procesamiento asistido por Agente."
+          }
+        },
+        "spotlight": {
+          "create-record": {
+            "title": "Esta es la entrada de registro rápido",
+            "desc": "Haz clic aquí para abrir la captura de texto. Precargaremos un registro de ejemplo para que puedas guardarlo de inmediato."
+          },
+          "organize-note": {
+            "title": "Este botón organiza los registros en una nota",
+            "desc": "Úsalo para convertir tu registro capturado en una nota Markdown completa."
+          },
+          "ai-polish": {
+            "title": "Usa el Agente en la nota que acabas de crear aquí",
+            "desc": "Inserta el prompt de ejemplo en el chat y envíalo. El Agente generará una versión bilingüe basada en la nota actual."
+          }
+        }
+      }
+    },
+    "unsupportedFile": {
+      "title": "No se puede previsualizar este archivo",
+      "fileName": "Nombre del archivo",
+      "filePath": "Ruta del archivo",
+      "fileSize": "Tamaño del archivo",
+      "modifiedTime": "Fecha de modificación",
+      "createdTime": "Fecha de creación",
+      "pathCopied": "Ruta copiada",
+      "openExternal": "Abrir con aplicación externa",
+      "openDirectory": "Abrir directorio del archivo"
+    },
+    "file": {
+      "toolbar": {
+        "accessRepo": "Acceder al repositorio",
+        "loadingSync": "Cargando información de sincronización",
+        "configSync": "Configurar sincronización",
+        "newArticle": "Nuevo artículo",
+        "newFolder": "Nueva carpeta",
+        "refresh": "Actualizar",
+        "toggleFolders": "Alternar carpetas",
+        "expandAll": "Expandir todo",
+        "collapseAll": "Colapsar todo",
+        "sortByName": "Ordenar por nombre",
+        "sortByCreated": "Ordenar por creación",
+        "sortByModified": "Ordenar por modificación",
+        "sortAsc": "Orden ascendente",
+        "sortDesc": "Orden descendente",
+        "sort": "Ordenar",
+        "hideCloudFiles": "Ocultar archivos en la nube",
+        "showCloudFiles": "Mostrar archivos en la nube",
+        "processingVectors": "Procesando datos vectoriales",
+        "calculateVectors": "Cálculo de base de conocimiento (Completo)",
+        "importMarkdown": "Importar",
+        "importing": "Importando...",
+        "importSuccess": "Importación exitosa",
+        "importSuccessDesc": "Se importaron {count} archivos con éxito",
+        "importError": "Error al importar"
+      },
+      "sync": {
+        "syncingRemote": "Trayendo archivo remoto...",
+        "syncComplete": "Sincronización completa",
+        "pullingRemote": "Obteniendo el contenido más reciente del servidor remoto...",
+        "pullComplete": "Traída completa"
+      },
+      "context": {
+        "viewDirectory": "Ver directorio",
+        "cut": "Cortar",
+        "copy": "Copiar",
+        "paste": "Pegar",
+        "rename": "Renombrar",
+        "deleteSyncFile": "Eliminar archivo de sincronización",
+        "deleteLocalFile": "Eliminar archivo local",
+        "delete": "Eliminar",
+        "confirmDelete": "¿Estás seguro de que quieres eliminar la carpeta \"{name}\"? Esto eliminará la carpeta y todo su contenido.",
+        "deleteSuccess": "Eliminado con éxito",
+        "deleteFailed": "Error al eliminar",
+        "moveFailed": "Error al mover",
+        "invalidMoveTarget": "No se puede mover dentro de sí mismo o a una subcarpeta",
+        "newFile": "Nuevo archivo",
+        "newFolder": "Nueva carpeta",
+        "syncFolder": "Sincronizar carpeta",
+        "syncFolderDesc": "Sincronizar todos los archivos Markdown en la carpeta actual",
+        "syncFolderSuccess": "Carpeta sincronizada con éxito",
+        "syncFolderError": "Error al sincronizar carpeta",
+        "syncFolderProgress": "Sincronizando carpeta...",
+        "deleteSyncFileSuccess": "Archivo de sincronización eliminado con éxito",
+        "deleteSyncFileError": "Error al eliminar archivo de sincronización",
+        "knowledgeBase": "Base de conocimiento",
+        "calculateVectors": "Calcular vectores",
+        "updateVectors": "Actualizar vectores",
+        "deleteVectors": "Eliminar vectores",
+        "includeInKB": "Incluir en la base de conocimiento",
+        "includeInKBFile": "Incluir en la base de conocimiento",
+        "autoVectorCalc": "Cálculo automático de vectores",
+        "vectorCalculated": "Vector actualizado",
+        "vectorCalcCompleted": "Cálculo de vectores completado",
+        "vectorCalcFailed": "Cálculo de vectores fallido",
+        "vectorDeleted": "Vector eliminado",
+        "vectorDeleteFailed": "Error al eliminar vector",
+        "batchCalcSuccess": "Se calcularon con éxito vectores para {count} archivos",
+        "batchCalcPartial": "Cálculo completado: {success} con éxito, {failed} fallidos",
+        "batchCalcFailed": "Cálculo de vectores por lotes fallido",
+        "batchDeleteSuccess": "Se eliminaron con éxito vectores para {count} archivos",
+        "batchDeletePartial": "Eliminación completada: {success} con éxito, {failed} fallidos",
+        "batchDeleteFailed": "Eliminación de vectores por lotes fallida",
+        "noMarkdownFiles": "No hay archivos Markdown en la carpeta",
+        "includedInKB": "Incluido en la base de conocimiento",
+        "excludedFromKB": "Excluido de la base de conocimiento",
+        "autoCalcEnabled": "Cálculo automático de vectores habilitado",
+        "autoCalcDisabled": "Cálculo automático de vectores deshabilitado",
+        "settingFailed": "Error al configurar",
+        "confirmDeleteVectors": "¿Estás seguro de que quieres eliminar vectores para {count} archivos?"
+      },
+      "folderView": {
+        "vectorDbNotEnabled": "Base de datos vectorial no habilitada",
+        "calculateVectors": "Calcular vectores",
+        "indexed": "Indexado",
+        "vectorCount": "Cantidad de vectores",
+        "databaseSize": "Tamaño de la base de datos",
+        "lastCalculated": "Último cálculo",
+        "never": "Nunca",
+        "calculating": "Calculando...",
+        "failed": "Fallido",
+        "recalculateVectors": "Recalcular vectores",
+        "skills": "Habilidades",
+        "skillNotFound": "Habilidad no encontrada",
+        "skillNotFoundDesc": "No se puede encontrar la habilidad con ID {id}",
+        "loadingSkills": "Cargando habilidades...",
+        "loadingSkill": "Cargando habilidad...",
+        "globalSkills": "Habilidades globales",
+        "workspaceSkills": "Habilidades del espacio de trabajo",
+        "instructions": "Instrucciones",
+        "examples": "Ejemplos",
+        "scripts": "Scripts",
+        "references": "Referencias",
+        "assets": "Recursos"
+      },
+      "error": {
+        "fileExists": "El nombre del archivo ya existe"
+      },
+      "clipboard": {
+        "copied": "Copiado al portapapeles",
+        "cut": "Cortado al portapapeles",
+        "pasted": "Pegado con éxito",
+        "pasteFailed": "Error al pegar",
+        "empty": "El portapapeles está vacío",
+        "confirmOverwrite": "El archivo ya existe, ¿quieres sobrescribirlo?",
+        "notSupported": "Operación no soportada"
+      },
+      "mobile": {
+        "cancel": "Cancelar",
+        "create": "Crear",
+        "save": "Guardar",
+        "emptyDir": "Esta carpeta está vacía",
+        "root": "Raíz",
+        "openFiles": "Abrir archivos",
+        "remote": "Archivo remoto",
+        "remoteFileNotPulled": "Solo en la nube · Toca para traer",
+        "remoteFolderOnly": "Carpeta solo en la nube",
+        "file": "Archivo",
+        "folder": "Carpeta",
+        "folderChildren": "{files} archivos · {folders} carpetas",
+        "filePlaceholder": "ejemplo.md",
+        "folderPlaceholder": "carpeta-ejemplo"
+      },
+      "deleteConfirm": "¿Estás seguro de que quieres eliminar este archivo?"
+    },
+    "editor": {
+      "copySuccess": "Copia exitosa",
+      "copySuccessDescription": "Copiado al portapapeles",
+      "search": {
+        "placeholder": "Buscar en el documento",
+        "replacePlaceholder": "Reemplazar con",
+        "caseSensitive": "Distinguir mayúsculas y minúsculas",
+        "replace": "Reemplazar",
+        "replaceAll": "Reemplazar todo",
+        "findPrev": "Anterior",
+        "findNext": "Siguiente"
+      },
+      "floatbar": {
+        "quote": {
+          "tooltip": "Citar"
+        },
+        "readAloud": {
+          "start": "Leer en voz alta",
+          "stop": "Detener lectura",
+          "loading": "Cargando..."
+        }
+      },
+      "toolbar": {
+        "mark": {
+          "title": "Registros",
+          "tooltip": "Registros",
+          "description": "Convierte registros en contenido para insertar en el artículo.",
+          "noRecords": "Sin registros",
+          "ocrNoContent": "OCR no reconoció ningún contenido"
+        },
+        "question": {
+          "tooltip": "Preguntas y respuestas",
+          "selectContent": "Por favor selecciona contenido primero",
+          "promptTemplate": "Texto de referencia: \n{content}\nBasado en la pregunta: \n{question}\n, proporciona directamente la respuesta."
+        },
+        "continue": {
+          "tooltip": "Continuar",
+          "promptTemplate": "Basado en el texto anterior: \n{content}\n continúa escribiendo y devuelve contenido que no exceda las 100 palabras.\nPuedes hacer referencia al siguiente texto: \n{endContent}\n, pero evita duplicar su contenido."
+        },
+        "polish": {
+          "tooltip": "Pulir",
+          "selectContent": "Por favor selecciona contenido primero",
+          "promptTemplate": "Pule este texto: \n{content}\n, mantén el idioma sin cambios, corrige errores tipográficos y gramaticales, devuelve directamente el resultado pulido."
+        },
+        "eraser": {
+          "tooltip": "Simplificar",
+          "selectContent": "Por favor selecciona contenido primero",
+          "promptTemplate": "Simplifica este texto: \n{content}\n, este texto es demasiado verboso, reduce el número de palabras al menos a la mitad, mantén el idioma sin cambios, devuelve directamente el resultado optimizado."
+        },
+        "expansion": {
+          "tooltip": "Expandir",
+          "selectContent": "Por favor selecciona contenido primero",
+          "promptTemplate": "Expande este texto: \n{content}\n, este texto es demasiado corto, aumenta el número de palabras al menos a la mitad, mantén el idioma sin cambios, devuelve directamente el resultado expandido."
+        },
+        "translation": {
+          "tooltip": "Traducir",
+          "description": "Traducir el texto seleccionado",
+          "selectContent": "Por favor selecciona contenido primero",
+          "promptTemplate": "Traduce este texto: \n{content}\n, al {language}, devuelve directamente el resultado traducido.",
+          "fail": "Traducción fallida",
+          "failNoSelection": "Por favor selecciona texto para traducir",
+          "translating": "Traduciendo",
+          "translatingTo": "Traduciendo a {language}...",
+          "success": "Traducción completa",
+          "successTo": "Traducido a {language}",
+          "customLanguage": "Idioma personalizado...",
+          "customLanguagePlaceholder": "Introduce el idioma de destino, ej., inglés, japonés, etc.",
+          "customLanguageEmpty": "Por favor introduce el idioma de destino",
+          "customLanguageExample": "ej., inglés, japonés, francés, etc."
+        }
+      },
+      "upload": {
+        "error": "Error al subir",
+        "needToken": "Subir imágenes requiere configurar el token de acceso",
+        "uploading": "Subiendo imagen"
+      },
+      "saveDialog": {
+        "title": "Guardar archivo",
+        "emptyContent": "Contenido vacío",
+        "emptyContentDesc": "Por favor introduce contenido antes de guardar",
+        "success": "Guardado exitoso",
+        "successDesc": "Archivo guardado con éxito",
+        "error": "Error al guardar",
+        "errorDesc": "Error al guardar el archivo, inténtalo de nuevo"
+      }
+    },
+    "footer": {
+      "wordCount": "Conteo de palabras",
+      "pull": {
+        "pull": "Traer",
+        "checking": "Verificando actualizaciones...",
+        "noUpdate": "No hay actualizaciones remotas",
+        "clickToPull": "Haz clic para traer actualizaciones remotas",
+        "pullSuccess": "Traída exitosa",
+        "pullFailed": "Error al traer",
+        "ignored": "Ignorado",
+        "ignoreUpdate": "Ignorar esta actualización"
+      },
+      "sync": {
+        "push": "Subir",
+        "pushed": "Subido",
+        "syncing": "Subiendo",
+        "syncFailed": "Error al subir",
+        "checkNetworkOrToken": "Por favor verifica la conexión de red o el token",
+        "quickSync": "Sincronización rápida"
+      },
+      "history": {
+        "loadingHistory": "Cargando historial",
+        "historyRecords": "Registros de historial",
+        "noHistory": "Sin historial",
+        "loading": "Cargando",
+        "recordsCount": "registros",
+        "filterQuickSync": "Filtrar sincronizaciones rápidas",
+        "committedAt": "confirmado el",
+        "pull": "Traer",
+        "quickSync": "Sincronización rápida"
+      },
+      "vectorCalc": {
+        "tooltip": {
+          "default": "Estado del índice vectorial",
+          "none": "Haz clic para iniciar el cálculo vectorial",
+          "indexed": "Indexado",
+          "pending": "Actualización pendiente, haz clic para calcular ahora",
+          "calculating": "Calculando..."
+        },
+        "status": {
+          "calculating": "Calculando"
+        }
+      }
+    }
+  },
+  "mobile": {
+    "me": {
+      "profile": {
+        "deviceName": "Plataforma de sincronización",
+        "deviceSubtitle": "Sincroniza tus registros y ajustes",
+        "syncPlatform": "Plataforma de sincronización",
+        "gitSubtitle": "Conectado a {provider} para sincronizar tus registros y ajustes",
+        "storageSubtitle": "Usando actualmente {provider} para sincronizar tus registros y ajustes",
+        "unconfiguredSubtitle": "La sincronización aún no está configurada. Tus datos se almacenan solo localmente por ahora",
+        "streak": "Activo durante {count} días seguidos"
+      },
+      "activity": {
+        "tip": "Toca cualquier día en el mapa de calor para abrir su línea de tiempo de actividad.",
+        "range": "Últimas {count} semanas",
+        "rangePlaceholder": "Últimas 16 semanas",
+        "drawerEmpty": "Elige un día para inspeccionar sus detalles de actividad.",
+        "drawerSummary": "{total} actividades ese día, incluyendo {record} registros, {writing} eventos de escritura y {chat} chats."
+      },
+      "sync": {
+        "title": "Sincronización",
+        "configured": "Conectado",
+        "unconfigured": "No configurado",
+        "localOnly": "Solo local"
+      },
+      "stats": {
+        "weekly": "Esta semana",
+        "weeklyHint": "Actividades totales de esta semana",
+        "streak": "Racha actual",
+        "streakHint": "Días activos consecutivos"
+      },
+      "status": {
+        "title": "Configuración actual",
+        "sync": "Método de copia de seguridad",
+        "model": "Modelo predeterminado",
+        "configured": "Conectado",
+        "unconfigured": "No configurado",
+        "modelFallback": "Sin modelo predeterminado"
+      },
+      "settings": {
+        "title": "Ajustes",
+        "description": "Abre cada ajuste de función directamente desde aquí."
+      }
+    },
+    "chat": {
+      "drawer": {
+        "settings": {
+          "title": "Ajustes de chat"
+        },
+        "tools": {
+          "title": "Herramientas",
+          "newChat": "Nuevo chat",
+          "start": "Iniciar",
+          "clear": "Limpiar",
+          "clearChat": "Limpiar chat",
+          "clearContext": "Limpiar contexto"
+        },
+        "attachments": {
+          "title": "Adjuntos",
+          "gallery": "Galería",
+          "camera": "Cámara",
+          "file": "Archivo",
+          "linkNote": "Vincular nota"
+        }
+      }
+    }
+  },
+  "mcp": {
+    "selectServers": "Servidores MCP",
+    "searchServers": "Buscar servidores...",
+    "noServers": "Servicio MCP no habilitado",
+    "noServersFound": "No se encontraron servidores coincidentes",
+    "addServer": "Añadir servidor...",
+    "goToSettings": "Ir a ajustes",
+    "close": "Cerrar",
+    "navigate": "Seleccionar",
+    "confirm": "Confirmar",
+    "tools": "herramientas",
+    "connecting": "Conectando",
+    "disconnected": "Desconectado"
+  },
+  "recording": {
+    "title": "Grabación de voz",
+    "description": "Haz clic en el botón del micrófono para comenzar a grabar, el sistema reconocerá automáticamente y convertirá a texto",
+    "recording": "Grabando",
+    "paused": "Pausado",
+    "ready": "Listo",
+    "processing": "Procesando...",
+    "cancel": "Cancelar",
+    "error": "Error",
+    "success": "Éxito",
+    "noModelConfigured": "Modelo de reconocimiento de voz no configurado, por favor configúralo primero en ajustes",
+    "speechUnavailable": "El modo de reconocimiento de voz actual no está disponible. Verifica el soporte de voz local o la configuración del modelo.",
+    "fallbackToModel": "El reconocimiento de voz local no está disponible, por lo que la aplicación cambió automáticamente a la transcripción por modelo.",
+    "startError": "No se pudo iniciar la grabación",
+    "noAudioData": "No se grabaron datos de audio",
+    "transcriptionSuccess": "Reconocimiento de voz completado",
+    "transcriptionEmpty": "El resultado del reconocimiento está vacío",
+    "transcriptionError": "Falló el reconocimiento de voz",
+    "configureModel": "Configurar modelo",
+    "retryTranscription": "Reintentar transcripción",
+    "retrying": "Reintentando...",
+    "retrySuccess": "Transcripción actualizada",
+    "retryError": "Error al reintentar la transcripción",
+    "noContentDetected": "No se detectó contenido",
+    "pendingTranscription": "Audio original guardado. Listo para reintentar la transcripción.",
+    "pendingModelConfiguration": "Audio original guardado. Configura el reconocimiento de voz para transcribirlo.",
+    "doubleClickToSelectFile": "Doble clic para seleccionar archivo de audio",
+    "mode": {
+      "builtin": "Reconocimiento del navegador",
+      "builtinDesc": "Gratuito, reconocimiento en tiempo real",
+      "model": "Reconocimiento por modelo IA",
+      "modelDesc": "Requiere modelo STT, más preciso"
+    }
+  },
+  "quickRecord": {
+    "description": "Haz clic para seleccionar una herramienta de grabación y crear registros rápidamente"
+  },
+  "editor": {
+    "placeholder": "Escribe / para abrir el menú, o comienza a escribir...",
+    "outline": {
+      "title": "Esquema",
+      "open": "Abrir esquema",
+      "close": "Cerrar esquema",
+      "empty": "Sin encabezados",
+      "noResults": "Sin encabezados coincidentes",
+      "searchPlaceholder": "Buscar encabezados",
+      "clearSearch": "Limpiar búsqueda",
+      "expandHeading": "Expandir {title}",
+      "collapseHeading": "Colapsar {title}",
+      "untitledHeading": "Sin título H{level}",
+      "resizeHandle": "Arrastrar para cambiar el tamaño del esquema",
+      "editHeading": "Editar encabezado {title}"
+    },
+    "translation": {
+      "fail": "Traducción fallida",
+      "failNoSelection": "Por favor selecciona texto para traducir",
+      "translating": "Traduciendo...",
+      "translatingTo": "Traduciendo a {language}...",
+      "success": "Traducción completa",
+      "successTo": "Traducido a {language}",
+      "customLanguageEmpty": "Por favor introduce el idioma de destino",
+      "customLanguageExample": "ej., inglés, japonés, francés, etc."
+    },
+    "quoteDisplay": {
+      "fromFile": "Citado de {fileName}",
+      "line": "Citado de {fileName} línea {line}",
+      "lines": "Citado de {fileName} líneas {start}-{end}"
+    },
+    "bubbleMenu": {
+      "ai": "IA",
+      "polish": "Pulir",
+      "concise": "Conciso",
+      "expand": "Expandir",
+      "translate": "Traducir",
+      "translateSubtitle": "Traducir a",
+      "quoteToChat": "Citar en el chat",
+      "link": "Enlace",
+      "linkPlaceholder": "Introduce la URL del enlace",
+      "confirm": "Confirmar",
+      "cancel": "Cancelar",
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "strike": "Tachado",
+      "underline": "Subrayado",
+      "inlineCode": "Código en línea",
+      "highlight": "Resaltado",
+      "blockquote": "Cita",
+      "bulletList": "Lista con viñetas",
+      "orderedList": "Lista numerada",
+      "taskList": "Lista de tareas",
+      "codeBlock": "Bloque de código",
+      "languages": {
+        "English": "Inglés",
+        "Japanese": "Japonés",
+        "Korean": "Coreano",
+        "French": "Francés",
+        "German": "Alemán",
+        "Spanish": "Español",
+        "Portuguese": "Portugués",
+        "Russian": "Ruso",
+        "Arabic": "Árabe"
+      },
+      "customLanguagePlaceholder": "Idioma personalizado..."
+    },
+    "aiSuggestion": {
+      "accept": "Aceptar",
+      "reject": "Rechazar",
+      "undo": "Deshacer",
+      "generating": "Generando...",
+      "abort": "Abortar"
+    },
+    "image": {
+      "insert": "Insertar imagen",
+      "uploading": "Subiendo...",
+      "uploadSuccess": "Imagen subida al alojamiento de imágenes",
+      "saveSuccess": "Imagen guardada localmente",
+      "uploadFailed": "Error al insertar imagen",
+      "sizeSmall": "Pequeña (25%)",
+      "sizeMedium": "Mediana (50%)",
+      "sizeLarge": "Grande (75%)",
+      "sizeOriginal": "Tamaño original",
+      "editAlt": "Editar texto alternativo",
+      "editSrc": "Editar URL",
+      "editSize": "Establecer tamaño",
+      "resetSize": "Restablecer tamaño",
+      "widthPlaceholder": "A",
+      "heightPlaceholder": "Al",
+      "altPlaceholder": "Introduce texto alternativo...",
+      "srcPlaceholder": "Introduce la URL de la imagen...",
+      "delete": "Eliminar imagen",
+      "reset": "Restablecer",
+      "confirm": "Confirmar",
+      "cancel": "Cancelar",
+      "failed": "Error al procesar la imagen"
+    },
+    "mermaid": {
+      "rendering": "Renderizando...",
+      "renderError": "Error de renderizado",
+      "clickToEdit": "Haz clic para editar el código fuente",
+      "clickToAdd": "Haz clic para añadir diagrama",
+      "placeholder": "Introduce el código del diagrama Mermaid...",
+      "preview": "Vista previa",
+      "done": "Hecho",
+      "diagramTypes": {
+        "flowchart": "Diagrama de flujo",
+        "sequence": "Secuencia",
+        "classDiagram": "Diagrama de clases",
+        "stateDiagram": "Diagrama de estados",
+        "er": "Diagrama ER",
+        "gantt": "Gantt",
+        "pie": "Gráfico circular",
+        "journey": "Recorrido"
+      },
+      "templates": {
+        "flowchart": "graph TD\n    A[Inicio] --> B[Proceso]\n    B --> C[Fin]",
+        "sequence": "sequenceDiagram\n    participant Alicia\n    participant Bob\n    Alicia->>Bob: Hola\n    Bob-->>Alicia: Respuesta",
+        "classDiagram": "classDiagram\n    Animal <|-- Pato\n    Animal <|-- Pez\n    Animal : +int edad\n    Animal : +String género",
+        "stateDiagram": "stateDiagram-v2\n    [*] --> Activo\n    Activo --> [*]",
+        "er": "erDiagram\n    CLIENTE ||--o{ PEDIDO : realiza\n    CLIENTE ||--o{ DIRECCIÓN-ENTREGA : usa",
+        "gantt": "gantt\n    title Plan del proyecto\n    dateFormat YYYY-MM-DD\n    section Fase 1\n    Tarea1 :a1, 2024-01-01, 30d\n    section Fase 2\n    Tarea2 :after a1, 20d",
+        "pie": "pie title Asignación de recursos\n    \"CPU\" : 45\n    \"Memoria\" : 30\n    \"Almacenamiento\" : 25",
+        "journey": "journey\n    title Mi trabajo diario\n    section Mañana\n    Desplazamiento : 7:00, 5\n    Trabajo : 9:00, 8"
+      }
+    },
+    "slashCommand": {
+      "groups": {
+        "ai": "IA",
+        "heading": "Encabezado",
+        "list": "Lista",
+        "block": "Bloque",
+        "align": "Alinear",
+        "embed": "Incrustar",
+        "math": "Matemáticas",
+        "chart": "Gráfico"
+      },
+      "items": {
+        "continue": "Continuar",
+        "continueDesc": "IA continuar escribiendo contenido",
+        "generateSection": "Generar sección",
+        "generateSectionDesc": "Generar una nueva sección a partir de la nota actual",
+        "summarize": "Resumir",
+        "summarizeDesc": "Resumir la nota actual",
+        "customInstruction": "Instrucción personalizada",
+        "customInstructionDesc": "Introduce tu propia instrucción para la IA",
+        "heading1": "Título 1",
+        "heading1Desc": "Encabezado grande",
+        "heading2": "Título 2",
+        "heading2Desc": "Encabezado mediano",
+        "heading3": "Título 3",
+        "heading3Desc": "Encabezado pequeño",
+        "heading4": "Título 4",
+        "heading4Desc": "Encabezado nivel 4",
+        "heading5": "Título 5",
+        "heading5Desc": "Encabezado nivel 5",
+        "heading6": "Título 6",
+        "heading6Desc": "Encabezado nivel 6",
+        "bulletList": "Lista con viñetas",
+        "bulletListDesc": "Crear una lista simple con viñetas",
+        "orderedList": "Lista numerada",
+        "orderedListDesc": "Crear una lista numerada",
+        "taskList": "Lista de tareas",
+        "taskListDesc": "Crear una lista de verificación con casillas",
+        "image": "Imagen",
+        "imageDesc": "Insertar imagen local o alojada",
+        "file": "Archivo",
+        "fileDesc": "Elegir un archivo local e insertar un enlace",
+        "table": "Tabla",
+        "tableDesc": "Insertar una tabla",
+        "blockquote": "Cita",
+        "blockquoteDesc": "Capturar contenido citado",
+        "codeBlock": "Bloque de código",
+        "codeBlockDesc": "Capturar fragmentos de código",
+        "divider": "Divisor",
+        "dividerDesc": "Crear un divisor horizontal",
+        "inlineMath": "Matemáticas en línea",
+        "inlineMathDesc": "Insertar fórmula LaTeX en línea",
+        "blockMath": "Bloque de matemáticas",
+        "blockMathDesc": "Insertar fórmula LaTeX en bloque",
+        "flowchart": "Diagrama de flujo",
+        "flowchartDesc": "Insertar un diagrama de flujo",
+        "sequence": "Diagrama de secuencia",
+        "sequenceDesc": "Insertar un diagrama de secuencia",
+        "gantt": "Diagrama de Gantt",
+        "ganttDesc": "Insertar un diagrama de Gantt",
+        "classDiagram": "Diagrama de clases",
+        "classDiagramDesc": "Insertar un diagrama de clases",
+        "stateDiagram": "Diagrama de estados",
+        "stateDiagramDesc": "Insertar un diagrama de estados",
+        "pie": "Gráfico circular",
+        "pieDesc": "Insertar un gráfico circular",
+        "erDiagram": "Diagrama ER",
+        "erDiagramDesc": "Insertar un diagrama entidad-relación",
+        "journey": "Mapa de recorrido",
+        "journeyDesc": "Insertar un mapa de recorrido del usuario"
+      },
+      "imageUpload": {
+        "success": "Subida exitosa",
+        "saveSuccess": "Guardado exitoso",
+        "savePath": "Guardado en: {path}",
+        "failed": "Error al insertar imagen"
+      },
+      "fileInsert": {
+        "failed": "Error al insertar enlace de archivo"
+      },
+      "customPrompt": {
+        "ariaLabel": "Instrucción de IA personalizada",
+        "placeholder": "Introduce la instrucción de IA",
+        "submit": "Ejecutar"
+      }
+    }
+  },
+  "tabContext": {
+    "close": "Cerrar",
+    "closeOthers": "Cerrar otros",
+    "closeAll": "Cerrar todo",
+    "closeLeft": "Cerrar a la izquierda",
+    "closeRight": "Cerrar a la derecha"
+  }
+}

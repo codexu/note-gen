@@ -371,12 +371,12 @@ export class SelfHostedClient {
         }
       )
       requestSignal.throwIfAborted()
-      const value = await response.json() as { partNumber: number; etag: string; receivedSize: string } | ApiErrorBody
       if (!response.ok) {
-        if (response.status === 401) await this.onAuthenticationRejected?.()
-        throw new SelfHostedApiError(value as ApiErrorBody, response.status)
+        const body = await response.json() as ApiErrorBody
+        if (response.status === 401 && typeof body.code === 'string') await this.onAuthenticationRejected?.(body.code)
+        throw new SelfHostedApiError(body, response.status)
       }
-      return value as { partNumber: number; etag: string; receivedSize: string }
+      return await response.json() as { partNumber: number; etag: string; receivedSize: string }
     }, signal, 120_000)
   }
 
@@ -400,9 +400,9 @@ export class SelfHostedClient {
       })
       requestSignal.throwIfAborted()
       if (!response.ok) {
-        const value = await response.json() as ApiErrorBody
-        if (response.status === 401) await this.onAuthenticationRejected?.()
-        throw new SelfHostedApiError(value, response.status)
+        const body = await response.json() as ApiErrorBody
+        if (response.status === 401 && typeof body.code === 'string') await this.onAuthenticationRejected?.(body.code)
+        throw new SelfHostedApiError(body, response.status)
       }
       return new Uint8Array(await response.arrayBuffer())
     }, signal, 120_000)

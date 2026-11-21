@@ -13,9 +13,11 @@
 </p>
 
 <p>
-  <a href="https://notegen.top/cn/">使用文档</a>
+  <a href="https://notegen.top/cn/docs">使用文档</a>
   ·
   <a href="https://notegen.top/cn/download">下载 NoteGen</a>
+  ·
+  <a href="https://notegen.top/cn/self-hosted">同步与自托管</a>
   ·
   <a href="https://notegen.top/business">商业合作</a>
   ·
@@ -123,16 +125,14 @@ NoteGen 可以连接你自己配置的 AI 服务与模型。聊天、写作、�
 
 AI 是写作过程中的工具，不是最终作者。生成结果可以继续修改，不满意的内容也可以直接删掉。
 
-## 让写过的内容重新派上用场
+## 用 LLM Wiki 整理资料
 
-很多笔记完成后，就再也没有被打开过。
+LLM Wiki 使用聊天模型，把选中的笔记、记录和画布整理成可编辑的 Markdown 来源摘要和主题笔记。首次整理后，Wiki 会随资料变化增量更新。点击主题笔记中的引用可以核对原文摘录。 [LLM Wiki 指南](https://notegen.top/cn/docs/guides/llm-wiki)
 
-NoteGen 可以为工作区中的文件建立知识库，把语义检索和本地文本搜索结合起来。发起对话时，可以引用一篇笔记、一组记录或整个知识库，不需要反复复制原文。
+需要按含义查找原始资料时，可以另行启用 RAG。RAG 使用嵌入模型生成向量，结合关键词和模糊检索，并可选配重排模型。Agent 回答问题时可以参考 Wiki 和相关原始资料。 [知识库指南](https://notegen.top/cn/docs/guides/knowledge-base)
 
 如果需要更复杂的工作流，还可以使用：
 
-- 向量索引与混合检索
-- 自定义嵌入和重排序模型
 - 长期记忆与可复用提示词
 - MCP 服务
 - 可安装的 Skills
@@ -155,16 +155,11 @@ AI 生成的画布不会变成一张无法修改的图片，其中的节点、�
 
 ## 按自己的方式同步
 
-笔记默认保存在本地。需要跨设备使用时，可以选择自己信任的服务进行同步。
+笔记默认保存在本地。需要跨设备使用时，可以在「设置 → 同步配置」中选择同步方式。
 
-目前支持：
-
-- GitHub
-- GitLab
-- Gitee
-- Gitea
-- S3 兼容存储
-- WebDAV
+- **NoteGen 官方同步（测试版）** 可用同一个账号在桌面和移动端同步工作区文件、附件和选中的个人数据。 [官方同步配置指南](https://notegen.top/cn/docs/guides/notegen-sync)
+- **自建服务器** 可以在自己管理的服务器上运行同一套开源同步服务。 [自托管部署指南](https://notegen.top/cn/docs/self-hosted)
+- **其他同步方式** 包括 GitHub、GitLab、Gitee、Gitea、S3 兼容存储、WebDAV 和云盘文件夹，具体选项因平台而异。 [同步配置](https://notegen.top/cn/docs/settings/sync)
 
 不使用云同步时，也可以通过本地备份保存数据。
 
@@ -189,6 +184,8 @@ AI 生成的画布不会变成一张无法修改的图片，其中的节点、�
 3. 添加第一条记录，或者直接创建一篇笔记。
 4. 需要使用 AI 功能时，再配置相应的模型服务。
 5. 阅读[使用文档](https://notegen.top/cn/docs)，了解同步、知识库、MCP、Skills 和其他设置。
+
+LLM Wiki 和 NoteGen 同步的可用性以客户端的「知识库」和「同步配置」入口为准。
 
 不需要先完成所有配置，才能开始写第一篇笔记。
 

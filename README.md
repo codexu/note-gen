@@ -13,9 +13,11 @@ A local-first Markdown app that helps you collect scattered information and orga
 </p>
 
 <p>
-  <a href="https://notegen.top/en/">Documentation</a>
+  <a href="https://notegen.top/en/docs">Documentation</a>
   ·
   <a href="https://notegen.top/en/download">Download</a>
+  ·
+  <a href="https://notegen.top/en/self-hosted">Sync &amp; Self-Hosting</a>
   ·
   <a href="https://notegen.top/business">Business</a>
   ·
@@ -119,16 +121,14 @@ AI can help you:
 
 AI is part of the workflow, but the result remains editable. You decide what to keep.
 
-## Search and reuse your own material
+## Organize material with LLM Wiki
 
-A note should remain useful after you finish writing it.
+LLM Wiki uses your chat model to turn selected notes, records, and canvases into editable Markdown summaries and topic notes. After the first run, NoteGen updates the Wiki as source material changes. Open citations in topic notes to check excerpts from the original material. [LLM Wiki guide](https://notegen.top/en/docs/guides/llm-wiki)
 
-NoteGen can build a searchable knowledge base from your files and combine semantic retrieval with local text search. You can use a note, a group of records, or the knowledge base as context in a conversation instead of copying everything into a new prompt.
+Enable RAG separately to search original material by meaning. An embedding model powers vector search alongside keyword and fuzzy search, with an optional reranker. Agent can reference Wiki pages and relevant original material when answering questions. [Knowledge base guide](https://notegen.top/en/docs/guides/knowledge-base)
 
 For advanced workflows, NoteGen also supports:
 
-- Vector indexing and hybrid retrieval
-- Configurable embedding and reranking models
 - Long-term memories and reusable prompts
 - MCP servers
 - Installable Skills
@@ -151,16 +151,11 @@ Canvas elements remain editable after they are created, including content sugges
 
 ## Sync on your terms
 
-Notes are stored locally first. When you need them on another device, you can sync through services you already use.
+Notes are stored locally by default. When you need them on another device, choose a sync provider in Settings → Sync.
 
-Supported options include:
-
-- GitHub
-- GitLab
-- Gitee
-- Gitea
-- S3-compatible storage
-- WebDAV
+- **NoteGen Official Sync (Beta)** lets you sign in with the same account on desktop and mobile to sync workspace files, attachments, and selected personal data. [Official Sync setup guide](https://notegen.top/en/docs/guides/notegen-sync)
+- **Self-hosted server** runs the same open-source sync service on your own infrastructure. [Self-hosting guide](https://notegen.top/en/docs/self-hosted)
+- **Other providers** include GitHub, GitLab, Gitee, Gitea, S3-compatible storage, WebDAV, and cloud folders. Available options vary by platform. [Sync settings](https://notegen.top/en/docs/settings/sync)
 
 You can also keep local backups without enabling cloud sync.
 
@@ -185,6 +180,8 @@ GitHub Releases are also available as a fallback mirror:
 3. Add your first record or create a note directly.
 4. Configure an AI provider when you want to use AI features.
 5. Read the [documentation](https://notegen.top/en/docs) for sync, knowledge base, MCP, Skills, and advanced settings.
+
+LLM Wiki and NoteGen Sync are available in client versions that show these options under Knowledge base and Sync.
 
 You do not need to configure every feature before writing your first note.
 

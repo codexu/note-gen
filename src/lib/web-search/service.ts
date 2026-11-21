@@ -297,6 +297,20 @@ async function searchWithConfiguredProvider(
       const snippet = asString(record.snippet)
       return { ...record, snippet: snippet.length > 1_200 ? snippet.slice(0, 1_200) : snippet }
     })
+  } else if (provider === 'specstream') {
+    payload = await fetchJson(
+      `https://api.specstream.ai/v1/web-search?q=${encodeURIComponent(query)}&num=${MAX_SEARCH_RESULTS}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+      },
+      signal
+    )
+    // SpecStream wraps the reply in `data`.
+    rawSources = asArray(asRecord(asRecord(payload)?.data ?? payload)?.sources)
   } else {
     payload = await fetchJson('https://api.exa.ai/search', {
       method: 'POST',
@@ -318,7 +332,7 @@ async function searchWithConfiguredProvider(
       title: ['title', 'name'],
       url: ['url', 'link'],
       snippet: ['content', 'description', 'snippet', 'text'],
-      publishedAt: ['published_date', 'publishedDate', 'published_at', 'age'],
+      publishedAt: ['published_date', 'publishedDate', 'published_at', 'published', 'age'],
     })
     if (!source) return []
 

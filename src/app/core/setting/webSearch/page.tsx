@@ -99,6 +99,12 @@ const SEARCH_PROVIDERS: Array<{
     avatar: 'K',
     apiKeyUrl: 'https://keenable.ai/',
   },
+  {
+    id: 'specstream',
+    name: 'SpecStream',
+    avatar: 'S',
+    apiKeyUrl: 'https://specstream.ai/search-api',
+  },
 ]
 
 type CheckState = 'idle' | 'checking' | 'ok' | 'error'

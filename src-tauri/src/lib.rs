@@ -8,6 +8,8 @@ mod backup;
 mod backup_manager;
 mod cloud_folder_sync;
 mod database_recovery;
+#[cfg(any(target_os = "android", target_os = "ios"))]
+mod record_file;
 mod record_transaction;
 mod device;
 mod document_parser;
@@ -133,6 +135,8 @@ pub fn run() {
     let builder = builder.plugin(android_ocr::init());
     #[cfg(target_os = "android")]
     let builder = builder.plugin(mobile_system_bars::init());
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(record_file::init());
     #[cfg(target_os = "ios")]
     let builder = builder.plugin(ios_ocr::init());
 
@@ -142,6 +146,10 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             system_permissions::request_screen_capture_permission,
             record_transaction::execute_record_transaction,
+            #[cfg(any(target_os = "android", target_os = "ios"))]
+            record_file::open_record_file,
+            #[cfg(target_os = "android")]
+            record_file::pick_android_record_file,
             start_mcp_stdio_server,
             stop_mcp_server,
             send_mcp_message,

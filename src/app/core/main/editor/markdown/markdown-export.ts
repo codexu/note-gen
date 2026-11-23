@@ -1,7 +1,7 @@
 'use client'
 
 import { save } from '@tauri-apps/plugin-dialog'
-import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, readFile, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import type { JSONContent } from '@tiptap/core'
 import TaskItem from '@tiptap/extension-task-item'
 import TaskList from '@tiptap/extension-task-list'
@@ -11,7 +11,8 @@ import StarterKit from '@tiptap/starter-kit'
 import { renderMarkdownExportFragment } from '@/lib/markdown/export-document'
 import { checkIsTauri } from '@/lib/check'
 import { resolveImagePathFromMarkdown } from '@/lib/markdown-image-path'
-import { convertImageByWorkspace } from '@/lib/utils'
+import { getRecordInlineImagePath, RECORD_INLINE_IMAGE_EXTENSIONS } from '@/lib/record-inline-images'
+import { convertImage, convertImageByWorkspace, isHttpUrl } from '@/lib/utils'
 import { getFilePathOptions } from '@/lib/workspace'
 import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
 import { GitHubAlertBlockquote } from './github-alert-blockquote'
@@ -25,6 +26,7 @@ export interface MarkdownExportSource {
   markdown: string | (() => string | Promise<string>)
   json?: JSONContent | (() => JSONContent | Promise<JSONContent>)
   sourcePath?: string
+  kind?: 'record'
 }
 
 export interface MarkdownExportOptions {
@@ -37,6 +39,14 @@ const PRINT_EXPORT_STORE = 'print-export.json'
 const PRINT_WINDOW_START_TIMEOUT_MS = 15000
 const DIRECT_PDF_EXPORT_TIMEOUT_MS = 75000
 const CSS_URL_PATTERN = /url\(\s*(['"]?)([^'"\)]+)\1\s*\)/g
+const RECORD_IMAGE_DIRECTORIES = new Set(['image', 'screenshot', 'link-assets'])
+const IMAGE_SUBTYPE_ALIASES: Record<string, string> = {
+  ico: 'x-icon',
+  jfif: 'jpeg',
+  jpg: 'jpeg',
+  svg: 'svg+xml',
+  tif: 'tiff',
+}
 
 interface TauriPrintDocument {
   html: string
@@ -194,6 +204,12 @@ export function getMarkdownExportBaseName(filePath?: string) {
   return sanitizeExportFileName(fileName.replace(/\.[^/.\\]+$/, ''))
 }
 
+function getExportDocumentName(source: MarkdownExportSource) {
+  return source.kind === 'record'
+    ? sanitizeExportFileName(source.baseName)
+    : getMarkdownExportBaseName(source.baseName)
+}
+
 function ensureExtension(path: string, extension: string) {
   return path.toLowerCase().endsWith(`.${extension}`) ? path : `${path}.${extension}`
 }
@@ -300,16 +316,75 @@ function sanitizeExportHtml(html: string) {
   return template.innerHTML
 }
 
-async function resolveMarkdownImageSources(html: string, sourcePath?: string) {
+function getRecordImagePath(src: string) {
+  const inlinePath = getRecordInlineImagePath(src)
+  if (inlinePath) return inlinePath
+
+  const path = resolveImagePathFromMarkdown('', src).replace(/\\/g, '/')
+  const segments = path.split('/')
+  return segments.length > 1 && RECORD_IMAGE_DIRECTORIES.has(segments[0])
+    && segments.every(segment => segment && !segment.startsWith('.') && !segment.includes(':'))
+    ? path
+    : undefined
+}
+
+async function inlineRecordImage(path: string) {
+  const extension = path.split('.').pop()?.toLowerCase() ?? ''
+  const type = RECORD_INLINE_IMAGE_EXTENSIONS.some(value => value === extension)
+    ? `image/${IMAGE_SUBTYPE_ALIASES[extension] ?? extension}`
+    : undefined
+
+  try {
+    const response = await fetch(new URL(await convertImage(path), document.baseURI))
+    if (response.ok) {
+      const blob = await response.blob()
+      if (blob.type.startsWith('image/')) return await blobToDataUrl(blob)
+      if (type) return await blobToDataUrl(new Blob([blob], { type }))
+    }
+  } catch {
+    // Some webviews cannot fetch an asset protocol URL even when an image can display it.
+  }
+
+  if (!type || !checkIsTauri()) return undefined
+
+  try {
+    const bytes = await readFile(path, { baseDir: BaseDirectory.AppData })
+    return await blobToDataUrl(new Blob([new Uint8Array(bytes)], { type }))
+  } catch {
+    return undefined
+  }
+}
+
+async function resolveMarkdownImageSources(html: string, sourcePath?: string, isRecord = false) {
   const template = document.createElement('template')
   template.innerHTML = html
   const images = Array.from(template.content.querySelectorAll('img'))
 
   await Promise.all(images.map(async (image) => {
-    const src = image.getAttribute('src')
-    if (!src || /^(?:data:|blob:)/i.test(src)) {
-      return
+    let src = image.getAttribute('src')
+    if (isRecord) {
+      src = image.getAttribute('data-notegen-export-src')
+      image.removeAttribute('data-notegen-export-src')
+      image.removeAttribute('src')
+      if (!src) return
+
+      if (/^data:image\//i.test(src)) {
+        image.setAttribute('src', src)
+        return
+      }
+      if (isHttpUrl(src)) {
+        // The original URL is still usable if the browser cannot fetch the image for embedding.
+        image.setAttribute('src', src)
+      } else if (!/^blob:/i.test(src)) {
+        const path = getRecordImagePath(src)
+        if (!path) return
+        const dataUrl = await inlineRecordImage(path)
+        if (dataUrl) image.setAttribute('src', dataUrl)
+        return
+      }
     }
+
+    if (!src || (!isRecord && /^(?:data:|blob:)/i.test(src))) return
 
     if (sourcePath && shouldTransformImageSrcToWorkspaceAsset(src)) {
       const fullRelativePath = resolveImagePathFromMarkdown(sourcePath, src)
@@ -363,9 +438,10 @@ async function waitForDocumentResources(frameDocument: Document) {
   await frameDocument.fonts?.ready
 }
 
-export async function renderMarkdownToHtml(markdown: string, sourcePath?: string) {
-  const { html } = await renderMarkdownExportFragment(markdown)
-  return await resolveMarkdownImageSources(sanitizeExportHtml(html), sourcePath)
+export async function renderMarkdownToHtml(markdown: string, sourcePath?: string, kind?: MarkdownExportSource['kind']) {
+  const isRecord = kind === 'record'
+  const { html } = await renderMarkdownExportFragment(markdown, { deferImages: isRecord })
+  return await resolveMarkdownImageSources(sanitizeExportHtml(html), sourcePath, isRecord)
 }
 
 function blobToDataUrl(blob: Blob) {
@@ -471,10 +547,10 @@ ${body}
 }
 
 export async function buildMarkdownExportDocument(source: MarkdownExportSource) {
-  const fileName = getMarkdownExportBaseName(source.baseName)
+  const fileName = getExportDocumentName(source)
   const markdown = await getValue(source.markdown)
   const [body, styles] = await Promise.all([
-    renderMarkdownToHtml(markdown, source.sourcePath),
+    renderMarkdownToHtml(markdown, source.sourcePath, source.kind),
     collectExportStyles(),
   ])
 
@@ -591,7 +667,7 @@ async function notifyPdfRenderStart(options?: MarkdownExportOptions) {
 }
 
 async function printExportDocument(source: MarkdownExportSource, options?: MarkdownExportOptions) {
-  const fileName = getMarkdownExportBaseName(source.baseName)
+  const fileName = getExportDocumentName(source)
 
   if (checkIsTauri()) {
     const { platform } = await import('@tauri-apps/plugin-os')
@@ -654,7 +730,7 @@ export async function exportMarkdownSource(
   source: MarkdownExportSource,
   options?: MarkdownExportOptions,
 ) {
-  const fileName = getMarkdownExportBaseName(source.baseName)
+  const fileName = getExportDocumentName(source)
 
   if (format === 'markdown') {
     return await saveTextExport(

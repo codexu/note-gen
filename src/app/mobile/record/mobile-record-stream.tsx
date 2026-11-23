@@ -15,15 +15,19 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from 
 import { MobileActionDrawer } from '@/app/mobile/components/mobile-action-drawer'
 import { MobileMeSheet } from '@/app/mobile/components/mobile-me-sheet'
 import { MobileRecordTagTree } from './mobile-record-tag-tree'
-import { ArrowDown, Trash2, MoveRight, CheckSquare, Filter, Plus, ListChecks, RotateCcw, Search, ChevronDown, XCircle, ImageIcon, MoreVertical } from 'lucide-react'
+import { ArrowDown, Trash2, MoveRight, CheckSquare, Filter, Plus, ListChecks, RotateCcw, Search, ChevronDown, XCircle, ImageIcon, MoreVertical, Pencil } from 'lucide-react'
 import { filterMarks, getTrashRecordFilters } from '@/app/core/main/mark/mark-filters'
+import { canEditRecordDescription } from '@/app/core/main/mark/mark-list-item-content'
 import { getMarkTypeChipClasses, getMarkTypeListBadgeClasses, MARK_TYPE_OPTIONS } from '@/app/core/main/mark/mark-type-meta'
+import { RecordDescriptionDialog } from '@/app/core/main/mark/record-description-dialog'
+import { getRecordImageSrc, isEditedRecordImage } from '@/app/core/main/mark/record-image-asset'
+import { TodoItemContent } from '@/app/core/main/mark/todo-item-content'
 import useMarkStore, { RecordTimePreset } from '@/stores/mark'
 import useTagStore from '@/stores/tag'
 import { clearTrash, delMark, deleteMarks, delMarkForever, Mark, restoreMark, restoreMarks, updateMarkTag } from '@/db/marks'
 import { insertTag, normalizeTagName } from '@/db/tags'
 import type { RecordTagNode } from '@/lib/record-tag-tree'
-import { cn, isHttpUrl } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { Spinner } from '@/components/ui/spinner'
 import { refreshRemoteRecordsNow } from '@/lib/sync/auto-data-sync-queue'
 import { toast } from '@/hooks/use-toast'
@@ -33,6 +37,8 @@ const PULL_REFRESH_THRESHOLD = 72
 const PULL_REFRESH_MAX_DISTANCE = 112
 const INITIAL_RENDER_COUNT = 40
 const RENDER_BATCH_SIZE = 40
+const recordTextClassName = 'text-sm'
+const recordPreviewClassName = cn(recordTextClassName, 'text-muted-foreground')
 let mobileRecordScrollTop = 0
 
 function getMarkPreview(mark: Mark): string {
@@ -40,18 +46,6 @@ function getMarkPreview(mark: Mark): string {
   if (mark.type === 'image' || mark.type === 'scan') return mark.desc?.trim() || mark.content?.trim() || ''
   if (mark.type === 'link') return mark.url || mark.desc || ''
   return mark.desc?.trim() || mark.content?.trim() || mark.url || ''
-}
-
-function getMarkImageSrc(mark: Mark) {
-  if (!mark.url || (mark.type !== 'image' && mark.type !== 'scan')) {
-    return ''
-  }
-
-  if (isHttpUrl(mark.url)) {
-    return mark.url
-  }
-
-  return `/${mark.type === 'scan' ? 'screenshot' : 'image'}/${mark.url}`
 }
 
 interface MobileRecordStreamProps {
@@ -90,9 +84,12 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
   const [newTagParent, setNewTagParent] = useState('')
   const [moveTargetMark, setMoveTargetMark] = useState<Mark | null>(null)
   const [moveSelectedOpen, setMoveSelectedOpen] = useState(false)
+  const [descriptionDialog, setDescriptionDialog] = useState<{ id: number; open: boolean } | null>(null)
   const [pullDistance, setPullDistance] = useState(0)
   const [isPullRefreshing, setIsPullRefreshing] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const descriptionAfterDrawer = useRef<number | null>(null)
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null)
   const pullStartXRef = useRef(0)
   const pullStartYRef = useRef(0)
   const pullDistanceRef = useRef(0)
@@ -684,7 +681,10 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
             <div key={group.day} className="mb-4">
               <div className="mb-2 text-xs font-medium text-muted-foreground">{getDayLabel(group.day)}</div>
               <div className="space-y-2">
-                {group.list.map((mark) => (
+                {group.list.map((mark) => {
+                  const imageSrc = getRecordImageSrc(mark)
+
+                  return (
                     <div
                       key={mark.id}
                       data-mobile-mark-id={mark.id}
@@ -706,36 +706,49 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
                             </div>
                           ) : null}
 
-                          <button
-                            type="button"
-                            className="min-w-0 flex-1 text-left"
-                            onClick={() => router.push(`/mobile/record/detail?id=${mark.id}`)}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className={cn(getMarkTypeListBadgeClasses(mark.type), 'shrink-0 text-[10px]')}>
-                                {t(`record.mark.type.${mark.type}`)}
-                              </span>
-                              <span className="ml-auto text-xs text-muted-foreground">{dayjs(mark.createdAt).format('HH:mm')}</span>
-                            </div>
-                            {(mark.type === 'image' || mark.type === 'scan') && mark.url ? (
-                              <div className="mt-2 flex items-center gap-2">
-                                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground/60">
-                                  <ImageIcon className="size-4" />
-                                  <LocalImage
-                                    src={getMarkImageSrc(mark)}
-                                    alt=""
-                                    useThumbnail
-                                    thumbnailMaxSize={96}
-                                    generateThumbnail={false}
-                                    className="absolute inset-0 h-full w-full object-cover"
-                                  />
-                                </div>
-                                <p className="line-clamp-2 text-sm text-muted-foreground">{getMarkPreview(mark) || '-'}</p>
+                          {mark.type === 'todo' ? (
+                            <TodoItemContent
+                              mark={mark}
+                              variant="mobile"
+                              titleClassName={recordTextClassName}
+                              previewClassName={recordPreviewClassName}
+                              interactive={!trashState}
+                              selectionMode={multiMode}
+                              onOpen={() => router.push(`/mobile/record/detail?id=${mark.id}`)}
+                              timeLabel={dayjs(mark.createdAt).format('HH:mm')}
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              className="min-w-0 flex-1 text-left"
+                              onClick={() => router.push(`/mobile/record/detail?id=${mark.id}`)}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={cn(getMarkTypeListBadgeClasses(mark.type), 'shrink-0 text-[10px]')}>
+                                  {t(`record.mark.type.${mark.type}`)}
+                                </span>
+                                <span className="ml-auto text-xs text-muted-foreground">{dayjs(mark.createdAt).format('HH:mm')}</span>
                               </div>
-                            ) : (
-                              <p className="mt-2 line-clamp-2 text-sm">{getMarkPreview(mark) || '-'}</p>
-                            )}
-                          </button>
+                              {imageSrc ? (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground/60">
+                                    <ImageIcon className="size-4" />
+                                    <LocalImage
+                                      src={imageSrc}
+                                      alt=""
+                                      useThumbnail
+                                      thumbnailMaxSize={96}
+                                      generateThumbnail={isEditedRecordImage(mark)}
+                                      className="absolute inset-0 h-full w-full object-cover"
+                                    />
+                                  </div>
+                                  <p className={cn('line-clamp-2', recordPreviewClassName)}>{getMarkPreview(mark) || '-'}</p>
+                                </div>
+                              ) : (
+                                <p className={cn('mt-2 line-clamp-2', recordTextClassName)}>{getMarkPreview(mark) || '-'}</p>
+                              )}
+                            </button>
+                          )}
                           {!multiMode ? (
                             <MobileActionDrawer
                               title={getMarkPreview(mark) || t(`record.mark.type.${mark.type}`)}
@@ -747,6 +760,7 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
                                   className="size-9 shrink-0"
                                   aria-label={t('record.mark.toolbar.more')}
                                   title={t('record.mark.toolbar.more')}
+                                  onClick={(event) => { moreButtonRef.current = event.currentTarget }}
                                   data-vaul-no-drag
                                 >
                                   <MoreVertical />
@@ -775,6 +789,12 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
                                   onSelect: () => setMoveTargetMark(mark),
                                   disabled: !canMoveBetweenTags,
                                 },
+                                ...(canEditRecordDescription(mark) ? [{
+                                  key: 'edit-description',
+                                  label: t('record.mark.detail.editDescription'),
+                                  icon: <Pencil aria-hidden="true" />,
+                                  onSelect: () => { descriptionAfterDrawer.current = mark.id },
+                                }] : []),
                                 {
                                   key: 'delete',
                                   label: t('record.mark.toolbar.delete'),
@@ -784,12 +804,19 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
                                   separatorBefore: true,
                                 },
                               ]}
+                              onCloseAutoFocus={(event) => {
+                                if (descriptionAfterDrawer.current !== mark.id) return
+                                descriptionAfterDrawer.current = null
+                                event.preventDefault()
+                                setDescriptionDialog({ id: mark.id, open: true })
+                              }}
                             />
                           ) : null}
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )
+                })}
               </div>
             </div>
           ))
@@ -889,6 +916,18 @@ export function MobileRecordStream({ preview = false }: MobileRecordStreamProps 
           <MobileRecordTagTree tags={tags} onSelect={node => moveToTag(node, true)} />
         </SheetContent>
       </Sheet>
+      {descriptionDialog ? (
+        <RecordDescriptionDialog
+          mark={descriptionDialog}
+          open={descriptionDialog.open}
+          onOpenChange={(open) => setDescriptionDialog({ id: descriptionDialog.id, open })}
+          onSaved={() => void refreshRecords().catch(error => console.error('Failed to refresh record previews:', error))}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            moreButtonRef.current?.focus({ preventScroll: true })
+          }}
+        />
+      ) : null}
     </div>
   )
 }

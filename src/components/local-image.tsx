@@ -6,7 +6,6 @@ import { getCachedRecordImageThumbnailPath, getRecordImageThumbnailPath } from "
 import emitter from '@/lib/emitter'
 
 const BLANK_IMAGE_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
-const RESOLVED_IMAGE_SRC_RE = /^(?:https?:|data:|blob:|asset:|tauri:|file:)/i
 
 type LocalImageProps = React.ComponentProps<typeof Image> & {
   onResolvedSrc?: (src: string) => void
@@ -24,6 +23,7 @@ function getImageSrcString(src: LocalImageProps['src']) {
 }
 
 export function LocalImage({
+  onError,
   onLoad,
   onResolvedSrc,
   useThumbnail = false,
@@ -37,7 +37,7 @@ export function LocalImage({
   decoding,
   ...props
 }: LocalImageProps) {
-  const [localSrc, setLocalSrc] = useState<string>('')
+  const [resolvedImage, setResolvedImage] = useState<{ src: string; originalSrc: string } | null>(null)
   const [shouldResolve, setShouldResolve] = useState(loading === 'eager')
   const [resolveVersion, setResolveVersion] = useState(0)
   const imageRef = useRef<HTMLImageElement | null>(null)
@@ -49,7 +49,7 @@ export function LocalImage({
         return
       }
 
-      setLocalSrc('')
+      setResolvedImage(null)
       setResolveVersion(version => version + 1)
     }
 
@@ -125,22 +125,20 @@ export function LocalImage({
     async function resolveSrc() {
       const sourcePath = getImageSrcString(src)
       const originalSrc = await convertImage(sourcePath)
-      const thumbnailPath = useThumbnail
-        ? generateThumbnail
-          ? await getRecordImageThumbnailPath(sourcePath, thumbnailMaxSize)
-          : await getCachedRecordImageThumbnailPath(sourcePath, thumbnailMaxSize)
-        : null
-      const nextSrc = thumbnailPath
-        ? await convertImage(thumbnailPath)
-        : useThumbnail && !generateThumbnail && !RESOLVED_IMAGE_SRC_RE.test(sourcePath)
-          ? BLANK_IMAGE_SRC
-          : originalSrc
+      let nextSrc = originalSrc
+      if (useThumbnail) {
+        const resolveThumbnail = generateThumbnail ? getRecordImageThumbnailPath : getCachedRecordImageThumbnailPath
+        const thumbnailPath = await resolveThumbnail(sourcePath, thumbnailMaxSize).catch(() => null)
+        if (thumbnailPath) {
+          nextSrc = await convertImage(thumbnailPath).catch(() => originalSrc)
+        }
+      }
 
       if (cancelled) {
         return
       }
 
-      setLocalSrc(nextSrc)
+      setResolvedImage({ src: nextSrc, originalSrc })
     }
 
     void resolveSrc()
@@ -150,12 +148,18 @@ export function LocalImage({
     }
   }, [generateThumbnail, onResolvedSrc, resolveVersion, shouldResolve, src, thumbnailMaxSize, useThumbnail])
 
+  const handleThumbnailError = resolvedImage && resolvedImage.src !== resolvedImage.originalSrc ? () => {
+    const originalSrc = resolvedImage.originalSrc
+    setResolvedImage(current => current === resolvedImage ? { src: originalSrc, originalSrc } : current)
+  } : undefined
+
   return (
     <Image
       ref={imageRef}
       {...props}
-      onLoad={localSrc ? onLoad : undefined}
-      src={localSrc || BLANK_IMAGE_SRC}
+      onError={handleThumbnailError ?? onError}
+      onLoad={resolvedImage?.src ? onLoad : undefined}
+      src={resolvedImage?.src || BLANK_IMAGE_SRC}
       alt={alt}
       {...(!props.fill ? { width, height } : {})}
       loading={loading ?? 'lazy'}

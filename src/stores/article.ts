@@ -12,6 +12,7 @@ import { hasNetworkConnection, ensureDirectoryExists } from '@/lib/sync/auto-syn
 import { getSyncManager, isSyncConfigured, syncOnOpen } from '@/lib/sync/sync-manager'
 import { isSyncTextPath } from '@/lib/sync/file-content'
 import { sanitizeFilePath, hasInvalidFileNameChars } from '@/lib/sync/filename-utils'
+import type { EditorViewMode } from '@/lib/editor-layout-styles'
 import { getCurrentFolder, computedParentPath } from '@/lib/path'
 import useVectorStore from './vector'
 import { join, appDataDir } from '@tauri-apps/api/path'
@@ -700,6 +701,7 @@ export interface EditorViewState {
   sourceSelectionTo?: number
   sourceScrollTop?: number
   largeDocumentVisualOverride?: boolean
+  recordEditorMode?: EditorViewMode
 }
 
 export type EditorTabKind = 'file' | 'record' | 'canvas' | 'blank' | 'plugin' | 'browser'

@@ -1,6 +1,7 @@
 import { BaseDirectory, exists, mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
 import emitter from '@/lib/emitter'
+import { getRecordInlineImagePath, getRecordInlineImagePaths } from '@/lib/record-inline-images'
 import { recordSyncTiming } from './sync-timing'
 import {
   deleteRemoteFile,
@@ -52,7 +53,7 @@ export function getMarkLocalAssetPath(mark: RecordAssetMark): string | null {
 }
 
 export function getMarkLocalAssetPaths(mark: RecordAssetMark): string[] {
-  const paths: string[] = []
+  const paths = getRecordInlineImagePaths(mark.type, mark.content)
   const primaryPath = getMarkLocalAssetPath(mark)
   if (primaryPath) paths.push(primaryPath)
 
@@ -87,14 +88,14 @@ export async function queueRecordAssetRemoteDeletions(marks: RecordAssetMark[]) 
   await store.save()
 }
 
-async function flushPendingRecordAssetRemoteDeletions() {
+async function flushPendingRecordAssetRemoteDeletions(retainedPaths: Set<string>) {
   const store = await Store.load('store.json')
   const pending = await store.get<string[]>(PENDING_RECORD_ASSET_DELETIONS_KEY) || []
   if (pending.length === 0) return
 
   const remaining = [...pending]
   for (const path of pending) {
-    await deleteRemoteFile(path, 'data')
+    if (!retainedPaths.has(path)) await deleteRemoteFile(path, 'data')
     remaining.shift()
     await store.set(PENDING_RECORD_ASSET_DELETIONS_KEY, remaining)
     await store.save()
@@ -103,12 +104,12 @@ async function flushPendingRecordAssetRemoteDeletions() {
 
 export async function uploadRecordAssets(marks: RecordAssetMark[]) {
   const startedAt = Date.now()
-  await flushPendingRecordAssetRemoteDeletions()
-  const createCondition = await getOneDriveCreateOnlyCondition()
-
   const localPaths = Array.from(new Set(
     marks.flatMap(getMarkLocalAssetPaths)
   ))
+  const retainedInlinePaths = new Set(localPaths.filter(path => getRecordInlineImagePath(path) !== null).map(getRemoteAssetPath))
+  await flushPendingRecordAssetRemoteDeletions(retainedInlinePaths)
+  const createCondition = await getOneDriveCreateOnlyCondition()
 
   let uploaded = 0
   let skipped = 0

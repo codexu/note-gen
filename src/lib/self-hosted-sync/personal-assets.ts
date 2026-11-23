@@ -3,6 +3,7 @@ import { appDataDir, join } from '@tauri-apps/api/path'
 import { exists, lstat, readFile } from '@tauri-apps/plugin-fs'
 import { getDb } from '@/db'
 import { resolveConversationAssetPath } from '@/lib/conversation-assets'
+import { getRecordInlineImagePath, getRecordInlineImagePaths } from '@/lib/record-inline-images'
 import { assetAssociatedData, bytesToBase64Url, downloadAsset, hashBytes, uploadAssetBytes } from './blob'
 import { isPersonalSyncKindEnabled } from './domains'
 
@@ -27,6 +28,8 @@ const record = (value: unknown): Record<string, unknown> => value && typeof valu
 export const personalAssetIdentity = (path: string) => path.normalize('NFC').toLowerCase()
 
 export function isManagedPersonalAssetPath(path: string) {
+  if (getRecordInlineImagePath(path) === path) return true
+
   return /^(image|screenshot|recordings|link-assets|conversation-assets)\//.test(path)
     && !/[\\:\u0000]/.test(path) && path.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..')
 }
@@ -48,6 +51,7 @@ export function personalAssetPaths(payload: Record<string, unknown>): string[] {
     if (value.type === 'link' && typeof value.content === 'string') {
       paths.push(...(value.content.match(/link-assets\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9._-]+/g) ?? []))
     }
+    paths.push(...getRecordInlineImagePaths(value.type, value.content))
   } else if (payload.domain === 'message') {
     const candidates: unknown[] = [value.image]
     if (typeof value.images === 'string' && value.images) {

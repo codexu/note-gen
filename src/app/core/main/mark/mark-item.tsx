@@ -19,7 +19,7 @@ import useMarkStore from "@/stores/mark";
 import useTagStore from "@/stores/tag";
 import { fetchAiDesc } from "@/lib/ai/description";
 import { appDataDir } from "@tauri-apps/api/path";
-import { AlertCircle, CheckSquare, ImageUp, LoaderCircle, RefreshCw, Settings2, Square } from "lucide-react";
+import { AlertCircle, ImageUp, LoaderCircle, Pencil, RefreshCw, Settings2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { confirm } from "@tauri-apps/plugin-dialog";
@@ -38,16 +38,16 @@ import { useRouter } from "next/navigation";
 import { NO_TRANSCRIPTION_MESSAGE, transcribeRecording } from "@/lib/audio";
 import { cn, isHttpUrl } from "@/lib/utils";
 import { getMarkTypeListBadgeClasses } from "./mark-type-meta";
-import { getMarkListItemContent } from "./mark-list-item-content";
-import { TodoEditTrigger } from "./todo-edit-button";
+import { canEditRecordDescription, getMarkListItemContent } from "./mark-list-item-content";
 import { canOpenMarkSource, getMarkOpenAction } from "./mark-open-path";
 import { useSidebarStore } from "@/stores/sidebar";
 import useArticleStore from "@/stores/article";
 import { createRecordTab } from "./mark-record-tab";
+import { RecordDescriptionDialog } from "./record-description-dialog";
+import { getRecordImageSrc } from "./record-image-asset";
 import { getImageRecordDisplayText, getImageRecordStatus, type ImageRecordStatusLabels, isImageRecord } from "./image-record-status";
 import { useSettingsDialogStore } from "@/stores/settings-dialog";
 import { CANVAS_MARK_DRAG_TYPE } from "@/lib/canvas/drag-data";
-import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 import {
   getDocumentParseMessageKey,
   normalizeDocumentParseError,
@@ -66,17 +66,6 @@ const getLineHeight = (textSize: string): string => {
     'xl': 'leading-7'
   }
   return heightMap[textSize] || 'leading-4'
-}
-
-const getLineHeightRem = (textSize: string): number => {
-  const heightMap: Record<string, number> = {
-    'xs': 0.75,
-    'sm': 1,
-    'md': 1.25,
-    'lg': 1.5,
-    'xl': 1.75
-  }
-  return heightMap[textSize] || 1
 }
 
 const compactRecordText = (value?: string): string => {
@@ -243,7 +232,6 @@ function ImageRecordStatusBadge({
 
 export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = true}: {mark: Mark, variant?: MarkItemVariant, interactive?: boolean}) => {
   const t = useTranslations('record.mark.type');
-  const todoT = useTranslations('record.mark.todo');
   const captureT = useTranslations('record.capture');
   const recordingT = useTranslations('recording');
   const { isMultiSelectMode, selectedMarkIds, toggleMarkSelection } = useMarkStore();
@@ -261,33 +249,17 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
   }), [captureT])
   const imageStatus = useMemo(() => getImageRecordStatus(mark, imageStatusLabels), [imageStatusLabels, mark])
   const imageStatusText = useMemo(() => getImageRecordDisplayText(mark, imageStatusLabels), [imageStatusLabels, mark])
+  const imageSrc = getRecordImageSrc(mark)
 
   const lineHeight = useMemo(() => getLineHeight(recordTextSize), [recordTextSize])
-  const lineHeightRem = useMemo(() => getLineHeightRem(recordTextSize), [recordTextSize])
   const shouldShowRecordingAction = mark.type === 'recording' && mark.content === NO_TRANSCRIPTION_MESSAGE
   const itemContent = useMemo(() => getMarkListItemContent(mark), [mark])
-  const listTitleClassName = `block max-w-full truncate text-${recordTextSize} font-semibold ${interactive ? 'hover:underline' : ''}`
-  const listPreviewClassName = `max-w-full ${lineHeight} text-${recordTextSize} text-muted-foreground break-words [overflow-wrap:anywhere]`
+  const titleTextClassName = `text-${recordTextSize} font-semibold`
+  const compactTitleTextClassName = `text-${recordTextSize} font-medium`
+  const previewTextClassName = `${lineHeight} text-${recordTextSize} text-muted-foreground`
+  const listTitleClassName = cn('block max-w-full truncate', titleTextClassName, interactive && 'hover:underline')
+  const listPreviewClassName = cn('max-w-full break-words [overflow-wrap:anywhere]', previewTextClassName)
   const cardPreviewClampLines = 6
-  const cardPreviewClampStyle: React.CSSProperties = {
-    display: '-webkit-box',
-    WebkitBoxOrient: 'vertical',
-    WebkitLineClamp: cardPreviewClampLines,
-    maxHeight: `${lineHeightRem * cardPreviewClampLines}rem`,
-    overflow: 'hidden',
-  }
-  const cardPreviewClampContainerStyle: React.CSSProperties = {
-    maxHeight: `${lineHeightRem * cardPreviewClampLines}rem`,
-    overflow: 'hidden',
-  }
-
-  const todoPriorityDotClass = itemContent.todo
-    ? itemContent.todo.priority === 'high'
-      ? 'bg-destructive'
-      : itemContent.todo.priority === 'low'
-        ? 'bg-muted-foreground'
-        : 'bg-primary'
-    : ''
 
   const handleCheckboxChange = useCallback(() => {
     toggleMarkSelection(mark.id);
@@ -373,6 +345,36 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
     }
   }, [captureT, fetchMarks, isReparsingFile, mark])
 
+  if (mark.type === 'todo') {
+    const selectionMode = interactive && isMultiSelectMode
+    return (
+      <div className={cn(
+        'flex w-full min-w-0 items-start gap-2',
+        variant === 'list' && 'p-2',
+        interactive && isMobile && 'pr-14',
+      )}>
+        {selectionMode ? (
+          <div className="shrink-0 pt-1">
+            <Checkbox
+              checked={selectedMarkIds.has(mark.id)}
+              onCheckedChange={handleCheckboxChange}
+            />
+          </div>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <TodoItemContent
+            mark={mark}
+            variant={variant}
+            titleClassName={variant === 'compact' ? compactTitleTextClassName : titleTextClassName}
+            previewClassName={previewTextClassName}
+            interactive={interactive}
+            selectionMode={selectionMode}
+          />
+        </div>
+      </div>
+    )
+  }
+
   const renderListTextBlock = (title: string, preview?: string, contentOnly = false) => {
     const displayTitle = compactRecordText(title) || imageStatusText || t(mark.type)
     const displayPreview = compactRecordText(preview)
@@ -430,29 +432,16 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
         {isImageRecord(mark) ? (
           <ImageRecordStatusBadge status={imageStatus} label={imageStatusText} compact />
         ) : null}
-        {mark.type === 'todo' && itemContent.todo ? (
-          <span className={`size-2 shrink-0 rounded-full ${todoPriorityDotClass}`} />
-        ) : null}
         <div className="w-full min-w-0 max-w-full flex-1 overflow-hidden">
-          {mark.type === 'todo' ? interactive ? (
-            <TodoEditTrigger mark={mark} className={`block max-w-full truncate text-${recordTextSize} font-medium hover:underline`}>
-              {itemContent.title || itemContent.preview || t(mark.type)}
-            </TodoEditTrigger>
-          ) : (
-            <span className={`block max-w-full truncate text-${recordTextSize} font-medium`}>
-              {itemContent.title || itemContent.preview || t(mark.type)}
-            </span>
-          ) : (
-            <MarkDetailTrigger
-              mark={mark}
-              content={itemContent.title || itemContent.preview || imageStatusText || t(mark.type)}
-              className={`block max-w-full truncate text-${recordTextSize} font-medium ${interactive ? 'hover:underline' : ''}`}
-              interactive={interactive}
-            />
-          )}
+          <MarkDetailTrigger
+            mark={mark}
+            content={itemContent.title || itemContent.preview || imageStatusText || t(mark.type)}
+            className={cn('block max-w-full truncate', compactTitleTextClassName, interactive && 'hover:underline')}
+            interactive={interactive}
+          />
         </div>
         {mark.type === 'recording' && mark.url ? (
-          <AudioPlayer audioPath={mark.url} compact />
+          <AudioPlayer audioPath={mark.url} variant="compact" />
         ) : null}
         <span className="shrink-0 text-xs text-muted-foreground">{dayjs(mark.createdAt).fromNow()}</span>
       </div>
@@ -489,16 +478,12 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
               <RefreshCw className={isReparsingFile ? 'animate-spin' : undefined} />
             </Button>
           ) : null}
-          {mark.type === 'todo' && itemContent.todo ? (
-            <span className={`size-2 shrink-0 rounded-full ${todoPriorityDotClass}`} />
-          ) : null}
           <span className="ml-auto shrink-0 text-xs">{dayjs(mark.createdAt).fromNow()}</span>
         </div>
-        {isImageCard && mark.url ? (
+        {imageSrc ? (
           <div className="relative w-full min-w-0 max-w-full overflow-hidden rounded-md bg-muted">
             <ImageViewer
-              url={mark.url}
-              path={mark.type === 'scan' ? 'screenshot' : 'image'}
+              url={imageSrc}
               imageClassName="h-auto max-h-56 w-full object-cover"
               interactive={interactive}
             />
@@ -510,17 +495,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
           </div>
         ) : null}
         <div className="flex w-full min-w-0 max-w-full flex-col gap-1.5 overflow-hidden">
-        {mark.type === 'todo' ? (
-          interactive ? (
-            <TodoEditTrigger mark={mark} className={`block max-w-full truncate text-${recordTextSize} font-semibold hover:underline`}>
-              {itemContent.title || itemContent.preview || t(mark.type)}
-            </TodoEditTrigger>
-          ) : (
-            <span className={`block max-w-full truncate text-${recordTextSize} font-semibold`}>
-              {itemContent.title || itemContent.preview || t(mark.type)}
-            </span>
-          )
-        ) : mark.type === 'text' ? (
+        {mark.type === 'text' ? (
           <MarkDetailTrigger
             mark={mark}
             content={itemContent.title || t(mark.type)}
@@ -536,30 +511,7 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
               interactive={interactive}
             />
         )}
-          {!isImageCard && itemContent.preview && mark.type !== 'file' ? mark.type === 'todo' ? (
-            interactive ? (
-              <div
-                className="w-full min-w-0 max-w-full overflow-hidden"
-                style={cardPreviewClampContainerStyle}
-              >
-                <TodoEditTrigger mark={mark} className={`block w-full max-w-full text-left text-${recordTextSize} ${lineHeight} text-muted-foreground hover:underline`}>
-                  <span
-                    className="block w-full min-w-0 max-w-full break-words [overflow-wrap:anywhere]"
-                    style={cardPreviewClampStyle}
-                  >
-                    {itemContent.preview}
-                  </span>
-                </TodoEditTrigger>
-              </div>
-            ) : (
-              <p
-                className={`max-w-full break-words text-${recordTextSize} ${lineHeight} text-muted-foreground [overflow-wrap:anywhere]`}
-                style={cardPreviewClampStyle}
-              >
-                {itemContent.preview}
-              </p>
-            )
-          ) : (
+          {!isImageCard && itemContent.preview && mark.type !== 'file' ? (
             <MarkDetailTrigger
               mark={mark}
               content={itemContent.preview}
@@ -581,14 +533,6 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
             <span className="block max-w-full truncate text-xs text-primary">
               {mark.url}
             </span>
-          ) : null}
-          {!isImageCard && mark.type === 'todo' && itemContent.todo ? (
-            <div className="flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden text-xs text-muted-foreground">
-              <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-                {itemContent.todo.completed ? <CheckSquare className="size-3.5 text-primary" /> : <Square className="size-3.5 text-muted-foreground" />}
-                <span className="min-w-0 truncate">{itemContent.todo.completed ? todoT('completed') : todoT('uncompleted')}</span>
-              </div>
-            </div>
           ) : null}
           {!isImageCard && mark.type === 'recording' && mark.url ? (
             <div className="w-full min-w-0 max-w-full overflow-hidden pt-1">
@@ -730,8 +674,6 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
             {renderListTextBlock(itemContent.title || t(mark.type), itemContent.preview)}
           </div>
       )
-    case 'todo':
-      return <TodoItemContent mark={mark} interactive={interactive} />
     default:
       return null
     }
@@ -750,11 +692,11 @@ export const MarkWrapper = React.memo(({mark, variant = 'list', interactive = tr
       <div className="w-full min-w-0 max-w-full flex-1 overflow-hidden">
         {renderContent()}
       </div>
-      {(mark.type === 'scan' || mark.type === 'image') && (
+      {imageSrc ? (
         <div className="ml-2 flex shrink-0 items-center justify-center overflow-hidden bg-zinc-900">
-          <ImageViewer url={mark.url} path={mark.type === 'scan' ? 'screenshot' : 'image'} interactive={interactive} />
+          <ImageViewer url={imageSrc} interactive={interactive} />
         </div>
-      )}
+      ) : null}
     </div>
   )
 })
@@ -786,6 +728,10 @@ export const MarkItem = React.memo(({
     clearActiveMark,
   } = useMarkStore()
   const { tags, currentTagId, fetchTags, getCurrentTag } = useTagStore()
+  const card = useRef<HTMLDivElement>(null)
+  const openDescriptionOnMenuClose = useRef(false)
+  const [editingDescription, setEditingDescription] = useState(false)
+  const canEditDescription = !isMobile && interactive && !trashState && canEditRecordDescription(mark)
 
   const shouldClearActiveMark = useCallback(() => {
     if (!activeMarkId) {
@@ -988,6 +934,8 @@ export const MarkItem = React.memo(({
 
   const markCard = (
     <div
+      ref={canEditDescription ? card : undefined}
+      tabIndex={canEditDescription ? -1 : undefined}
       data-mark-item="true"
       data-mark-id={mark.id}
       className={cn(
@@ -1059,8 +1007,13 @@ export const MarkItem = React.memo(({
       <ContextMenuTrigger asChild>
         {markCard}
       </ContextMenuTrigger>
-      <ContextMenuContent>
-        {!trashState && <WikiMenuItems kind="record" id={mark.sourceId || String(mark.id)} label={(mark.desc || mark.content || mark.url || `#${mark.id}`).replace(/\s+/g, ' ').slice(0, 120)} sourceKey={`record:${mark.id}`} disabled={isMultiSelectMode} />}
+      <ContextMenuContent onCloseAutoFocus={(event) => {
+        if (openDescriptionOnMenuClose.current) {
+          event.preventDefault()
+          openDescriptionOnMenuClose.current = false
+          setEditingDescription(true)
+        }
+      }}>
         {
           trashState ? null :
           <ContextMenuSub>
@@ -1092,6 +1045,12 @@ export const MarkItem = React.memo(({
         <ContextMenuItem inset disabled={isMultiSelectMode || !mark.url} onClick={handleCopyLink} menuType="record">
           {t('record.mark.toolbar.copyLink')}
         </ContextMenuItem>
+        {canEditDescription ? (
+          <ContextMenuItem disabled={isMultiSelectMode} onSelect={() => { openDescriptionOnMenuClose.current = true }} menuType="record">
+            <Pencil aria-hidden="true" />
+            {t('record.mark.detail.editDescription')}
+          </ContextMenuItem>
+        ) : null}
         <ContextMenuItem inset disabled={isMultiSelectMode || mark.type === 'text'} onClick={regenerateDesc} menuType="record">
           {t('record.mark.toolbar.regenerateDesc')}
         </ContextMenuItem>
@@ -1123,6 +1082,17 @@ export const MarkItem = React.memo(({
           </ContextMenuItem>
         }
       </ContextMenuContent>
+      {canEditDescription ? (
+        <RecordDescriptionDialog
+          mark={mark}
+          open={editingDescription}
+          onOpenChange={setEditingDescription}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            card.current?.focus({ preventScroll: true })
+          }}
+        />
+      ) : null}
     </ContextMenu>
   )
 })

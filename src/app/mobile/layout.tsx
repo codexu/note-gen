@@ -103,9 +103,9 @@ export default function RootLayout({
   const routeCanvasId = searchParams.get('id') || ''
   const activeMarkId = useMarkStore(state => state.activeMarkId)
   const activeCanvasId = useCanvasStore(state => state.activeCanvasId)
-  const cachedMarkId = activeMarkId ?? (
-    isRecordDetailRoute && Number.isFinite(routeMarkId) ? routeMarkId : null
-  )
+  const cachedMarkId = isRecordDetailRoute && Number.isSafeInteger(routeMarkId) && routeMarkId > 0
+    ? routeMarkId
+    : activeMarkId
   const cachedCanvasId = activeCanvasId || (isCanvasEditorRoute ? routeCanvasId : '')
   const [hasWritingCache, setHasWritingCache] = useState(isWritingRoute)
   const { initSettingData, customThemeColors, appFontFamily } = useSettingStore()
@@ -257,7 +257,7 @@ export default function RootLayout({
   }, [appFontFamily])
 
   const hideFootbar =
-    pathname.startsWith('/mobile/setting/pages')
+    pathname.startsWith('/mobile/setting/pages') || isRecordDetailRoute
 
   const usesCachedRoute = isWritingRoute
     || (isRecordDetailRoute && cachedMarkId !== null)

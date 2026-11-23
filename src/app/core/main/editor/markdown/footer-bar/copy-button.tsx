@@ -3,13 +3,19 @@
 import { Editor } from '@tiptap/react'
 import { Copy, FileCode, FileJson, FileText } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { toast } from '@/hooks/use-toast'
 import { markdownToPlainText } from '@/lib/markdown-to-plain-text'
-import { parseMarkdownToJson, renderMarkdownToHtml } from '../markdown-export'
+import { parseMarkdownToJson, renderMarkdownToHtml, type MarkdownExportSource } from '../markdown-export'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
@@ -17,11 +23,15 @@ interface CopyButtonProps {
   editor: Editor
   markdown?: string
   getMarkdown?: () => string
+  kind?: MarkdownExportSource['kind']
+  submenuLabel?: string
 }
 
 type CopyFormat = 'markdown' | 'html' | 'json' | 'text'
 
-export function CopyButton({ editor, markdown, getMarkdown }: CopyButtonProps) {
+export function CopyButton({ editor, markdown, getMarkdown, kind, submenuLabel }: CopyButtonProps) {
+  const t = useTranslations('record.mark.detail')
+  const label = kind === 'record' ? t('copyBody') : '复制'
   const [isOpen, setIsOpen] = useState(false)
   const [copying, setCopying] = useState<CopyFormat | null>(null)
 
@@ -62,12 +72,12 @@ export function CopyButton({ editor, markdown, getMarkdown }: CopyButtonProps) {
 
   const handleCopyHtml = useCallback(() => {
     void copyToClipboard(
-      () => getMarkdown || markdown !== undefined
-        ? renderMarkdownToHtml(getCurrentMarkdown())
+      () => kind === 'record' || getMarkdown || markdown !== undefined
+        ? renderMarkdownToHtml(getCurrentMarkdown(), undefined, kind)
         : editor.getHTML(),
       'html'
     )
-  }, [copyToClipboard, editor, getCurrentMarkdown, getMarkdown, markdown])
+  }, [copyToClipboard, editor, getCurrentMarkdown, getMarkdown, kind, markdown])
 
   const handleCopyJson = useCallback(() => {
     void copyToClipboard(
@@ -89,15 +99,50 @@ export function CopyButton({ editor, markdown, getMarkdown }: CopyButtonProps) {
     )
   }, [copyToClipboard, editor, getCurrentMarkdown, getMarkdown, markdown])
 
+  const formats = (
+    <DropdownMenuGroup>
+      <DropdownMenuItem onClick={handleCopyMarkdown} disabled={copying !== null}>
+        <FileText size={12} />
+        <span>Markdown</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={handleCopyHtml} disabled={copying !== null}>
+        <FileCode size={12} />
+        <span>HTML</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={handleCopyJson} disabled={copying !== null}>
+        <FileJson size={12} />
+        <span>JSON</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={handleCopyText} disabled={copying !== null}>
+        <FileText size={12} />
+        <span>纯文本</span>
+      </DropdownMenuItem>
+    </DropdownMenuGroup>
+  )
+
+  if (submenuLabel !== undefined) {
+    return (
+      <DropdownMenuSub open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuSubTrigger>
+          <Copy />
+          {submenuLabel}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuSubContent>{formats}</DropdownMenuSubContent>
+        </DropdownMenuPortal>
+      </DropdownMenuSub>
+    )
+  }
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
-          title="复制"
+          title={label}
           className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-0"
         >
           <Copy className="size-3" />
-          <span>复制</span>
+          <span>{label}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -105,22 +150,7 @@ export function CopyButton({ editor, markdown, getMarkdown }: CopyButtonProps) {
         side="top"
         sideOffset={4}
       >
-        <DropdownMenuItem onClick={handleCopyMarkdown} disabled={copying !== null}>
-          <FileText size={12} />
-          <span>Markdown</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleCopyHtml} disabled={copying !== null}>
-          <FileCode size={12} />
-          <span>HTML</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleCopyJson} disabled={copying !== null}>
-          <FileJson size={12} />
-          <span>JSON</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleCopyText} disabled={copying !== null}>
-          <FileText size={12} />
-          <span>纯文本</span>
-        </DropdownMenuItem>
+        {formats}
       </DropdownMenuContent>
     </DropdownMenu>
   )

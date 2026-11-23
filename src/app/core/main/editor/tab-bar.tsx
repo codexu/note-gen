@@ -167,6 +167,7 @@ function SortableTabWithMenu({
           {...attributes}
           {...listeners}
         >
+          {currentIndex > 0 && <span aria-hidden="true" className="pointer-events-none absolute inset-y-3 start-0 w-px bg-border" />}
           {tab.kind === 'blank' ? (
             <FilePlus2 className={cn('size-4 shrink-0', isActive && 'text-primary')} />
           ) : tab.kind === 'browser' ? (
@@ -297,6 +298,9 @@ export function TabBar({
     setTabListDropRef(node)
   }, [setTabListDropRef])
   const activeTab = tabs.find(tab => tab.id === activeTabId)
+  const showTabHistory = isActiveGroup && showEditorUndoRedo && !!activeTab
+    && activeTab.kind !== 'blank' && activeTab.kind !== 'plugin' && activeTab.kind !== 'browser'
+    && activeTab.kind !== 'record' && !isRecordTabPath(activeTab.path)
   const canSplit = tabs.length > 1 && Boolean(activeTab)
   const canCloseActiveTab = Boolean(activeTab && (
     tabs.length > 1 || activeTab.kind !== 'blank' || !activeTab.autoCreated || canCloseGroup
@@ -307,22 +311,25 @@ export function TabBar({
   const modKey = currentPlatform === 'macos' ? '⌘' : 'Ctrl+'
 
   const queryCanUndoRedo = useCallback(() => {
-    if (!isActiveGroup) return
+    if (!showTabHistory) return
+    let answered = false
     const resolve = (value: { undo: boolean; redo: boolean }) => {
+      answered = true
       setCanUndo(value.undo)
       setCanRedo(value.redo)
     }
     if (activeCanvasId) emitter.emit('canvas-can-undo-redo', { canvasId: activeCanvasId, resolve })
     else emitter.emit('editor-can-undo-redo', { resolve })
-  }, [activeCanvasId, isActiveGroup])
+    if (!answered) resolve({ undo: false, redo: false })
+  }, [activeCanvasId, showTabHistory])
 
   useEffect(() => {
     try { setCurrentPlatform(platform()) } catch { setCurrentPlatform('') }
   }, [])
 
   useEffect(() => {
+    if (!showTabHistory) return
     queryCanUndoRedo()
-    if (!isActiveGroup) return
     const handleChange = (value: { undo: boolean; redo: boolean }) => {
       setCanUndo(value.undo)
       setCanRedo(value.redo)
@@ -333,7 +340,7 @@ export function TabBar({
     }
     emitter.on('editor-undo-redo-changed', handleChange)
     return () => emitter.off('editor-undo-redo-changed', handleChange)
-  }, [activeCanvasId, isActiveGroup, queryCanUndoRedo])
+  }, [activeCanvasId, activeTabId, showTabHistory, queryCanUndoRedo])
 
   useEffect(() => {
     if (!activeTabId) return
@@ -348,12 +355,14 @@ export function TabBar({
     const target = tabListRef.current
     if (!target) return
     const { clientWidth, scrollLeft, scrollWidth } = target
-    if (scrollWidth <= clientWidth) {
+    const scrollRange = scrollWidth - clientWidth
+    if (scrollRange <= 0 || clientWidth === 0) {
       setScrollIndicator({ left: 0, width: 0, visible: false })
       return
     }
-    const width = Math.max(24, clientWidth * (clientWidth / scrollWidth))
-    const left = (scrollLeft / (scrollWidth - clientWidth)) * (clientWidth - width)
+    const width = Math.min(clientWidth, Math.max(24, clientWidth * (clientWidth / scrollWidth)))
+    const progress = Math.max(0, Math.min(1, scrollLeft / scrollRange))
+    const left = progress * (clientWidth - width)
     setScrollIndicator(current => ({ left, width, visible: show || current.visible }))
     if (!show) return
     if (scrollIndicatorTimerRef.current !== null) window.clearTimeout(scrollIndicatorTimerRef.current)
@@ -370,11 +379,12 @@ export function TabBar({
     observer.observe(target)
     Array.from(target.children).forEach(child => observer.observe(child))
     updateScrollIndicator(false)
-    return () => {
-      observer.disconnect()
-      if (scrollIndicatorTimerRef.current !== null) window.clearTimeout(scrollIndicatorTimerRef.current)
-    }
-  }, [tabs, updateScrollIndicator])
+    return () => observer.disconnect()
+  }, [isActiveGroup, tabs, updateScrollIndicator])
+
+  useEffect(() => () => {
+    if (scrollIndicatorTimerRef.current !== null) window.clearTimeout(scrollIndicatorTimerRef.current)
+  }, [])
 
   useEffect(() => {
     const target = tabListRef.current
@@ -422,7 +432,7 @@ export function TabBar({
 
   return (
     <div className="flex h-12 shrink-0 items-center border-b bg-background">
-      {isActiveGroup && showEditorUndoRedo && activeTab && activeTab.kind !== 'record' && activeTab.kind !== 'blank' && activeTab.kind !== 'plugin' && activeTab.kind !== 'browser' && (
+      {showTabHistory && (
         <div className="flex shrink-0 items-center gap-0.5 border-r px-1">
           <TooltipButton icon={<Undo2 />} tooltipText={`${t('undo')} (${modKey}Z)`} side="bottom" buttonClassName="size-7" disabled={!canUndo} onClick={() => runUndoRedo(false)} />
           <TooltipButton icon={<Redo2 />} tooltipText={`${t('redo')} (${modKey}Shift+Z)`} side="bottom" buttonClassName="size-7" disabled={!canRedo} onClick={() => runUndoRedo(true)} />
@@ -465,7 +475,7 @@ export function TabBar({
           )}
         </div>
         {scrollIndicator.width > 0 && (
-          <div className={cn('tab-scrollbar-track', scrollIndicator.visible && 'is-scrolling')}>
+          <div aria-hidden="true" className={cn('tab-scrollbar-track', scrollIndicator.visible && 'is-scrolling')}>
             <div
               className="tab-scrollbar-thumb"
               style={{ width: scrollIndicator.width, transform: `translateX(${scrollIndicator.left}px)` }}

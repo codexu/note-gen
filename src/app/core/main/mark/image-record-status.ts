@@ -59,3 +59,11 @@ export function getImageRecordDisplayText(
 
   return labels[status]
 }
+
+export function getRecordImageCaption(
+  mark: Pick<Mark, 'type' | 'content' | 'desc'>,
+  labels: ImageRecordStatusLabels,
+): string {
+  if (!isImageRecord(mark) || getImageRecordStatus(mark, labels)) return ''
+  return mark.desc?.trim() ?? ''
+}

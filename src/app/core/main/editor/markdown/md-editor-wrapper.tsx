@@ -4,19 +4,12 @@ import useArticleStore from '@/stores/article'
 import { useEffect, useState, useCallback, useRef, RefObject } from 'react'
 import { TipTapEditor } from './tiptap-editor'
 import { Outline } from './outline'
+import { useDesktopEditorOutline } from './use-desktop-editor-outline'
 import { Loader2, Download } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import emitter, { type Events } from '@/lib/emitter'
-import {
-  DEFAULT_OUTLINE_WIDTH,
-  getFileOutlineOpenStoreKey,
-  normalizeOutlineWidth,
-  OUTLINE_WIDTH_STORE_KEY,
-} from '@/lib/outline-preferences'
-import { Store } from '@tauri-apps/plugin-store'
 import { useShallow } from 'zustand/react/shallow'
-import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
-import { useSidebarStore } from '@/stores/sidebar'
+import useSettingStore from '@/stores/setting'
 import {
   editorPathsReferToSameFile,
   getCurrentEditorWorkspaceRoot,
@@ -50,18 +43,10 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     articleLoading: state.loading,
     setTabDisposition: state.setTabDisposition,
   })))
+  const workspacePath = useSettingStore(state => state.workspacePath)
   const {
-    enableOutline,
-    outlinePosition,
-    outlinePlacement,
-    workspacePath,
-  } = useSettingStore(useShallow((state) => ({
-    enableOutline: state.enableOutline,
-    outlinePosition: state.outlinePosition,
-    outlinePlacement: state.outlinePlacement,
-    workspacePath: state.workspacePath,
-  })))
-  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+    outlineOpen, showPanel, outlinePosition, outlineWidth, toggleOutline, changeOutlineWidth, commitOutlineWidth,
+  } = useDesktopEditorOutline(filePath, isActive)
 
   const t = useTranslations('article.file.sync')
   const tEditor = useTranslations('editor')
@@ -73,9 +58,6 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
   const contentInitializedRef = useRef(false)
   // Bug fix: Track expected content to detect if editor is behind
   const expectedContentRef = useRef<string | null>(null)
-  // Outline panel state
-  const [outlineOpen, setOutlineOpen] = useState(enableOutline)
-  const [outlineWidth, setOutlineWidth] = useState(DEFAULT_OUTLINE_WIDTH)
   // State for editor instance (to trigger re-render when ready)
   const [editorInstance, setEditorInstance] = useState<any>(null)
   // Track if editor has called onEditorReady (meaning it's fully initialized)
@@ -189,63 +171,6 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
       }
     }
   }, [filePath])
-
-  const loadOutlineWidth = useCallback(async () => {
-    const store = await Store.load('store.json')
-    setOutlineWidth(normalizeOutlineWidth(await store.get(OUTLINE_WIDTH_STORE_KEY)))
-  }, [])
-
-  useEffect(() => {
-    loadOutlineWidth()
-  }, [loadOutlineWidth])
-
-  useEffect(() => {
-    if (!isActive) return
-
-    loadOutlineWidth()
-  }, [isActive, loadOutlineWidth])
-
-  useEffect(() => {
-    let disposed = false
-    const loadOutlineOpen = async () => {
-      const store = await Store.load('store.json')
-      const storedValue = await store.get<boolean>(getFileOutlineOpenStoreKey(workspacePath, filePath))
-      if (!disposed) setOutlineOpen(typeof storedValue === 'boolean' ? storedValue : enableOutline)
-    }
-    void loadOutlineOpen()
-    return () => { disposed = true }
-  }, [enableOutline, filePath, workspacePath])
-
-  const sidebarOutlineOpen = useSidebarStore(state => state.leftSidebarVisible && state.leftSidebarTab === 'outline')
-  const handleToggleOutline = useCallback(() => {
-    if (!settingsReady) return
-
-    if (outlinePlacement === 'sidebar') {
-      const sidebar = useSidebarStore.getState()
-      void sidebar.setLeftSidebarTab(sidebarOutlineOpen ? 'files' : 'outline')
-      if (!sidebar.leftSidebarVisible) void sidebar.toggleLeftSidebar()
-      return
-    }
-    setOutlineOpen(current => {
-      const next = !current
-      void Store.load('store.json').then(async store => {
-        await store.set(getFileOutlineOpenStoreKey(workspacePath, filePath), next)
-        await store.save()
-      })
-      return next
-    })
-  }, [filePath, workspacePath, outlinePlacement, settingsReady, sidebarOutlineOpen])
-
-  const handleOutlineWidthChange = useCallback((width: number) => {
-    setOutlineWidth(normalizeOutlineWidth(width))
-  }, [])
-
-  const handleOutlineWidthCommit = useCallback(async (width: number) => {
-    const normalizedWidth = normalizeOutlineWidth(width)
-    setOutlineWidth(normalizedWidth)
-    const store = await Store.load('store.json')
-    await store.set(OUTLINE_WIDTH_STORE_KEY, normalizedWidth)
-  }, [])
 
   // Resolve initial content from the shared tab cache, the store's active file,
   // or the file itself. Split groups can restore several files at once, while
@@ -466,7 +391,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     )
   }
 
-  const showOutline = settingsReady && outlinePlacement === 'editor' && outlineOpen && !isThisEditorPulling && editorReady && editorInstance
+  const showOutline = showPanel && !isThisEditorPulling && editorReady && editorInstance
   const renderOutline = () => editorInstance ? (
     <Outline
       editor={editorInstance}
@@ -474,8 +399,8 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
       position={outlinePosition}
       documentKey={filePath}
       width={outlineWidth}
-      onWidthChange={handleOutlineWidthChange}
-      onWidthCommit={handleOutlineWidthCommit}
+      onWidthChange={changeOutlineWidth}
+      onWidthCommit={commitOutlineWidth}
     />
   ) : null
 
@@ -507,11 +432,11 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
         placeholder={tEditor('placeholder')}
         activeFilePath={filePath}
         onEditorReady={handleEditorReady}
-        outlineOpen={settingsReady && (outlinePlacement === 'sidebar' ? sidebarOutlineOpen : outlineOpen)}
+        outlineOpen={outlineOpen}
         outlinePosition={outlinePosition}
         outlineWidth={outlineWidth}
         outlineInLayout
-        onToggleOutline={handleToggleOutline}
+        onToggleOutline={toggleOutline}
         applyLayoutPreferences
         isActive={isActive}
         editable={!disabled && !isThisEditorPulling && !aiStreaming}

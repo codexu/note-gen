@@ -1,22 +1,12 @@
-.image-editor {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
-  background: var(--background);
+.record-image-workspace .record-image-stage {
+  background: color-mix(in srgb, hsl(var(--background)) 40%, hsl(var(--muted)));
 }
 
-.image-editor-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--background);
+.record-image-workspace .record-image-surface {
+  background: repeating-conic-gradient(hsl(var(--background)) 0% 25%, hsl(var(--border)) 0% 50%) 0 0 / 16px 16px;
+  box-shadow: 0 0 0 1px hsl(var(--border)), 0 8px 24px hsl(var(--shadow) / 12%);
 }
 
-.image-editor-content {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
+.record-image-workspace .advanced-cropper-simple-handler {
+  outline: 1px solid hsl(var(--shadow) / 35%);
 }

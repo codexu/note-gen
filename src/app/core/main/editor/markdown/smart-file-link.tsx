@@ -28,6 +28,7 @@ import useArticleStore from '@/stores/article'
 import useRagSettingsStore from '@/stores/ragSettings'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { isRecordTabPath } from '@/app/core/main/mark/mark-record-tab'
 
 interface SmartFileLinkProps {
   editor: Editor
@@ -86,7 +87,7 @@ export function SmartFileLink({ editor, activeFilePath }: SmartFileLinkProps) {
   const automaticSearchEnabled = useRagSettingsStore(state => state.automaticSearchEnabled)
   const [context, setContext] = useState<MarkdownLinkInputContext | null>(null)
   const [files, setFiles] = useState<MarkdownFile[]>([])
-  const [currentRelativePath, setCurrentRelativePath] = useState('')
+  const [currentRelativePath, setCurrentRelativePath] = useState<string | null>(null)
   const [enhancedSuggestions, setEnhancedSuggestions] = useState<MarkdownFileLinkSuggestion[]>([])
   const [isEnhancing, setIsEnhancing] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -130,7 +131,8 @@ export function SmartFileLink({ editor, activeFilePath }: SmartFileLinkProps) {
     let cancelled = false
     if (!context) return
 
-    void Promise.all([getAllMarkdownFiles(), toWorkspaceRelativePath(activeFilePath)]).then(([nextFiles, relativePath]) => {
+    const basePath = isRecordTabPath(activeFilePath) ? '' : toWorkspaceRelativePath(activeFilePath).then(path => path || null)
+    void Promise.all([getAllMarkdownFiles(), basePath]).then(([nextFiles, relativePath]) => {
       if (cancelled) return
       setFiles(nextFiles)
       setCurrentRelativePath(relativePath)
@@ -145,7 +147,7 @@ export function SmartFileLink({ editor, activeFilePath }: SmartFileLinkProps) {
 
   const pathMode = !!context && isMarkdownPathInput(context.targetText)
   const quickSuggestions = useMemo(() => {
-    if (!context || !currentRelativePath || pathMode) return []
+    if (!context || currentRelativePath === null || pathMode) return []
     const recentPaths = useArticleStore.getState().openTabs
       .filter(tab => tab.kind !== 'blank')
       .map(tab => tab.path)
@@ -159,7 +161,7 @@ export function SmartFileLink({ editor, activeFilePath }: SmartFileLinkProps) {
   }, [context, currentRelativePath, files, pathMode])
 
   const pathSuggestions = useMemo(() => {
-    if (!context || !currentRelativePath || !pathMode) return []
+    if (!context || currentRelativePath === null || !pathMode) return []
     return listMarkdownPathSuggestions({
       files,
       currentFilePath: currentRelativePath,
@@ -229,7 +231,7 @@ export function SmartFileLink({ editor, activeFilePath }: SmartFileLinkProps) {
   }, [context, editor])
 
   const enhanceSearch = useCallback(async () => {
-    if (!context || isEnhancing) return
+    if (!context || currentRelativePath === null || isEnhancing) return
     const requestId = ++requestIdRef.current
     setIsEnhancing(true)
 

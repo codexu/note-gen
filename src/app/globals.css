@@ -722,17 +722,28 @@ ol {
 
 .tab-scrollbar-track {
   position: absolute;
-  inset-inline: 2px;
+  inset-inline: 0;
   bottom: 0;
   height: 4px;
-  background-color: transparent;
-  opacity: 1;
-  transition: background-color 0.15s ease, opacity 0.2s ease;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
   pointer-events: none;
 }
 
 .tab-scrollbar-track.is-scrolling {
   opacity: 1;
+}
+
+@media (hover: hover) {
+  .tab-scrollbar-wrapper:hover > .tab-scrollbar-track {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-scrollbar-track {
+    transition: none;
+  }
 }
 
 .tab-scrollbar-thumb {
@@ -741,8 +752,6 @@ ol {
   height: 100%;
   border-radius: 9999px;
   background: var(--scrollbar-thumb);
-  min-width: 24px;
-  transition: transform 0.08s linear;
 }
 
 @layer base {

@@ -3886,7 +3886,7 @@
   },
   "record": {
     "tagging": {
-      "manage": "管理标签",
+      "manage": "编辑标签",
       "help": "可选择多个标签，用 / 创建层级，例如 灵感/音乐。主标签保留为保存归属，可通过“转移标签”更改。保存后生效。",
       "primary": "主标签",
       "search": "搜索或创建标签",
@@ -4028,9 +4028,39 @@
       "detail": {
         "notFound": "记录不存在或已被删除",
         "moreActions": "更多操作",
+        "bodyTools": "正文工具",
+        "copyBody": "复制正文",
+        "exportBody": "导出正文",
+        "openOriginalPage": "打开原网页",
+        "recognizeText": "识别文字",
+        "recognitionChanged": "识别期间记录已更新，请确认当前内容后重新识别。",
+        "regeneratingDescription": "正在重新生成描述…",
+        "imageBody": "正文",
+        "imageView": "图片",
+        "imageViewMode": "记录视图",
+        "showImageDescription": "显示图片描述",
+        "hideImageDescription": "隐藏图片描述",
+        "editImageConflict": "图片已更新，请重新打开这条记录。",
+        "editImageProcessing": "图片正在处理，请稍后保存。",
+        "editDescription": "编辑描述",
+        "descriptionHelp": "描述用于记录列表和标签页的预览。",
+        "descriptionLoadFailed": "无法读取记录描述。",
+        "descriptionChanged": "记录描述可能已更新，请重新打开编辑窗口。",
+        "backToTop": "返回顶部",
         "tag": "所属标签",
+        "classification": "标签",
+        "copySource": "复制路径",
+        "todoTitle": "标题",
+        "todoNotes": "备注",
+        "todoNotesPlaceholder": "添加备注…",
+        "linkUrl": "链接地址",
+        "readOnly": "只读",
+        "emptyContent": "暂无内容",
+        "saveFailed": "保存失败",
+        "retrySave": "重试保存",
+        "previewImage": "预览图片",
         "discardTitle": "放弃未保存的修改？",
-        "discardDescription": "返回后，本次修改将不会保留。",
+        "discardDescription": "你可以继续编辑，或放弃这次修改。",
         "discard": "放弃修改"
       },
       "type": {
@@ -4111,6 +4141,7 @@
         "priorityLow": "低",
         "priorityMedium": "中",
         "priorityHigh": "高",
+        "status": "状态",
         "dateRange": "日期范围",
         "dateRangePlaceholder": "选择日期范围",
         "dueDate": "截止日期",
@@ -4122,7 +4153,9 @@
         "cancel": "取消",
         "selectTag": "选择标签",
         "completed": "已完成",
-        "uncompleted": "未完成"
+        "uncompleted": "未完成",
+        "markCompleted": "标为完成",
+        "markUncompleted": "标为未完成"
       },
       "clipboard": {
         "detectedImage": "检测到剪贴板图片",
@@ -6322,6 +6355,20 @@
     "pendingTranscription": "原音频已保存，待重新识别",
     "pendingModelConfiguration": "原音频已保存，配置语音识别后可转写",
     "doubleClickToSelectFile": "双击选择音频文件",
+    "playback": {
+      "label": "录音播放",
+      "play": "播放录音",
+      "pause": "暂停录音",
+      "progress": "播放进度",
+      "elapsed": "已播放 {time}",
+      "skipBackward": "后退 {seconds} 秒",
+      "skipForward": "前进 {seconds} 秒",
+      "options": "播放选项，{rate}×",
+      "currentSpeed": "播放倍速，{rate}×",
+      "loading": "正在加载录音…",
+      "unavailable": "无法播放这段录音",
+      "retry": "重新加载录音"
+    },
     "mode": {
       "builtin": "浏览器识别",
       "builtinDesc": "免费，实时识别",
@@ -6862,6 +6909,16 @@
     "retry": "重试"
   },
   "editorImage": {
+    "crop": "裁剪",
+    "applyCrop": "应用裁剪",
+    "moreTools": "更多图片工具",
+    "rotate": "旋转",
+    "flipHorizontal": "水平翻转",
+    "flipVertical": "垂直翻转",
+    "reset": "重置",
+    "preview": "图片预览",
+    "loadError": "无法加载图片",
+    "saveError": "保存图片失败",
     "changedOnDisk": "图片已被同步或其他操作更新。请重新打开图片后再编辑保存。"
   },
   "wiki": {

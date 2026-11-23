@@ -1,4 +1,5 @@
 import Foundation
+import QuickLook
 import UniformTypeIdentifiers
 import UIKit
 import Vision
@@ -21,6 +22,27 @@ struct RecognizeResponse: Encodable {
 
 struct FolderBookmarkArgs: Decodable {
     let bookmarkBase64: String
+}
+
+private struct OpenRecordFileArgs: Decodable {
+    let path: String
+}
+
+private final class RecordFilePreviewSource: NSObject, QLPreviewControllerDataSource {
+    let item: NSURL
+
+    init(url: URL) {
+        item = url as NSURL
+        super.init()
+    }
+
+    func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
+        1
+    }
+
+    func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+        item
+    }
 }
 
 struct FolderPickerResponse: Encodable {
@@ -150,9 +172,11 @@ func recognizeText(imagePath: String, languages: [String]) throws -> String {
     return sortedRecognizedLines(from: request.results ?? []).joined(separator: "\n")
 }
 
-class OcrPlugin: Plugin, UIDocumentPickerDelegate {
+class OcrPlugin: Plugin, UIDocumentPickerDelegate, QLPreviewControllerDelegate {
     private var pendingFolderInvoke: Invoke?
     private var activeFolders: [String: ActiveFolderAccess] = [:]
+    private weak var recordFileController: UIViewController?
+    private var recordFilePreviewSource: RecordFilePreviewSource?
     deinit {
         var releasedURLs = Set<URL>()
         for active in activeFolders.values where releasedURLs.insert(active.url).inserted {
@@ -267,6 +291,69 @@ class OcrPlugin: Plugin, UIDocumentPickerDelegate {
             }
             presenter.present(picker, animated: true)
         }
+    }
+
+    @objc public func openRecordFile(_ invoke: Invoke) {
+        DispatchQueue.main.async {
+            let path: String
+            do {
+                path = try invoke.parseArgs(OpenRecordFileArgs.self).path
+            } catch {
+                invoke.reject(error.localizedDescription)
+                return
+            }
+
+            let fileURL = path.hasPrefix("/") ? URL(fileURLWithPath: path) : URL(string: path)
+            guard let fileURL = fileURL,
+                  fileURL.isFileURL,
+                  fileURL.path.hasPrefix("/"),
+                  (fileURL.host ?? "").isEmpty || fileURL.host?.lowercased() == "localhost",
+                  (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
+                  FileManager.default.isReadableFile(atPath: fileURL.path) else {
+                invoke.reject("The record file is unavailable or could not be read.")
+                return
+            }
+            guard self.recordFileController == nil, var presenter = self.manager.viewController else {
+                invoke.reject("The record file could not be opened right now.")
+                return
+            }
+            while let presented = presenter.presentedViewController {
+                presenter = presented
+            }
+            guard presenter.viewIfLoaded?.window != nil,
+                  !presenter.isBeingPresented, !presenter.isBeingDismissed else {
+                invoke.reject("The record file could not be opened right now.")
+                return
+            }
+
+            let source = RecordFilePreviewSource(url: fileURL)
+            let controller: UIViewController
+            if QLPreviewController.canPreview(source.item) {
+                let preview = QLPreviewController()
+                preview.dataSource = source
+                preview.delegate = self
+                self.recordFilePreviewSource = source
+                controller = preview
+            } else {
+                let activity = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+                UIUtils.centerPopover(rootViewController: presenter, popoverController: activity)
+                activity.completionWithItemsHandler = { [weak self, weak activity] _, _, _, _ in
+                    if let activity = activity, self?.recordFileController === activity {
+                        self?.recordFileController = nil
+                    }
+                }
+                controller = activity
+            }
+
+            self.recordFileController = controller
+            presenter.present(controller, animated: true) { invoke.resolve() }
+        }
+    }
+
+    func previewControllerDidDismiss(_ controller: QLPreviewController) {
+        guard recordFileController === controller else { return }
+        recordFileController = nil
+        recordFilePreviewSource = nil
     }
 
     @objc public func restoreFolder(_ invoke: Invoke) throws {

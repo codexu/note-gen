@@ -159,8 +159,8 @@ const previewComponents: Components = {
 }
 const exportComponents: Components = {
   ...components,
-  img: (({ alt, title, 'data-notegen-export-src': source }: ComponentProps<'img'> & { 'data-notegen-export-src'?: string }) => (
-    <img alt={alt ?? ''} title={title} data-notegen-export-src={source ?? ''} />
+  img: (({ alt, title, width, height, 'data-notegen-export-src': source }: ComponentProps<'img'> & { 'data-notegen-export-src'?: string }) => (
+    <img alt={alt ?? ''} title={title} width={width} height={height} data-notegen-export-src={source ?? ''} />
   )) as Components['img'],
 }
 

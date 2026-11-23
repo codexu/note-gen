@@ -1,36 +1,26 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import dayjs from 'dayjs'
-import { usePathname, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import {
-  Copy,
-  EllipsisVertical,
-  ExternalLink,
-  FileText,
-  Link as LinkIcon,
-  RotateCcw,
-  Trash2,
-} from 'lucide-react'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { invoke } from '@tauri-apps/api/core'
+import { appDataDir } from '@tauri-apps/api/path'
+import { platform } from '@tauri-apps/plugin-os'
+import { openPath, openUrl } from '@tauri-apps/plugin-opener'
+import { BaseDirectory, readFile } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
+import type { MarkdownChangeHandler, MarkdownFlushRef } from '@/app/core/main/editor/markdown/tiptap-editor'
+import { getRecordBodyMarkdown, replaceRecordBodyMarkdown } from '@/app/core/main/mark/mark-list-item-content'
+import { getMarkOpenAction } from '@/app/core/main/mark/mark-open-path'
+import { getRecordTabName, getRecordTabPath } from '@/app/core/main/mark/mark-record-tab'
+import { getRecordImageCaption, isImageRecord } from '@/app/core/main/mark/image-record-status'
+import type { RecordImageView } from '@/app/core/main/mark/record-image-view-switch'
+import { canEditRecordImage, RecordImageWorkspace } from '@/app/core/main/mark/record-image-workspace'
+import { TodoRecordDetails } from '@/app/core/main/mark/todo-record-details'
+import { readRecordAfterPendingWrites, useRecordDetailSave } from '@/app/core/main/mark/use-record-detail-save'
 import { AudioPlayer } from '@/components/audio-player'
-import { LocalImage } from '@/components/local-image'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { SwipeBack, type SwipeBackHandle } from '@/components/ui/swipe-back'
 import { MobileBackButton } from '@/components/mobile-back-button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
-import { MobileActionDrawer } from '@/app/mobile/components/mobile-action-drawer'
-import { MobileRecordTagSelect } from './mobile-record-tag-tree'
-import { MobileRecordStream } from '@/app/mobile/record/mobile-record-stream'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,579 +31,523 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { parseTodoMarkContent } from '@/app/core/main/mark/mark-list-item-content'
-import { getRecordTabPath } from '@/app/core/main/mark/mark-record-tab'
-import { getMarkTypeListBadgeClasses } from '@/app/core/main/mark/mark-type-meta'
-import type { Priority } from '@/app/core/main/mark/todo-form'
-import { isLargeMarkdownDocument } from '@/app/core/main/editor/markdown/large-markdown'
-import { delMark, delMarkForever, getMarkById, restoreMark, type Mark } from '@/db/marks'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
+import { SwipeBack, type SwipeBackHandle } from '@/components/ui/swipe-back'
+import { delMark, delMarkForever, getMarkLocalAssetPath, restoreMark, type Mark } from '@/db/marks'
 import { toast } from '@/hooks/use-toast'
+import emitter from '@/lib/emitter'
+import { recognizeImageWithFallback } from '@/lib/image-recognition'
 import { cn, isHttpUrl } from '@/lib/utils'
+import useChatStore from '@/stores/chat'
 import useMarkStore from '@/stores/mark'
 import useTagStore from '@/stores/tag'
-import useChatStore from '@/stores/chat'
-import { RecordTagEditor } from '@/app/core/main/mark/record-tag-editor'
-import { recordTagIds } from '@/lib/record-tags'
+import { MobileRecordContent } from './mobile-record-content'
+import { MobileRecordDetailHeader } from './mobile-record-detail-header'
+import { MobileRecordStream } from './mobile-record-stream'
 
 interface MobileRecordDetailProps {
   markId: number
   isActive: boolean
 }
 
-const LargeRecordMarkdownEditor = dynamic(
+type BackGuard = () => boolean | Promise<boolean>
+type RecordAction = 'leaving' | 'recognition' | 'delete' | 'restore'
+
+const RecordMarkdownEditor = dynamic(
   () => import('@/app/core/main/editor/markdown/tiptap-editor').then(module => module.TipTapEditor),
-  {
-    ssr: false,
-    loading: () => <div className="h-full w-full animate-pulse bg-muted/20" />,
-  }
+  { ssr: false, loading: () => <Skeleton className="mx-2 mt-4 h-24 motion-reduce:animate-none" /> },
 )
 
-interface MarkDraft {
-  tagId: number
-  desc: string
-  content: string
-  url: string
-  todoTitle: string
-  todoDescription: string
-  todoCompleted: boolean
-  todoPriority: Priority
+async function getRecognitionImage(mark: Mark, imagePath: string | null) {
+  if (!imagePath) return isHttpUrl(mark.url) ? mark.url : null
+
+  const bytes = await readFile(imagePath, { baseDir: BaseDirectory.AppData })
+  const extension = imagePath.split('.').pop()?.toLowerCase() || 'png'
+  const mime = extension === 'jpg' ? 'jpeg' : extension
+  const blob = new Blob([new Uint8Array(bytes)], { type: `image/${mime}` })
+
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => typeof reader.result === 'string'
+      ? resolve(reader.result) : reject(new Error('Could not read the record image'))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
 }
 
-function createDraft(mark: Mark): MarkDraft {
-  const todo = parseTodoMarkContent(mark)
-
-  return {
-    tagId: mark.tagId,
-    desc: mark.desc || '',
-    content: mark.content || '',
-    url: mark.url || '',
-    todoTitle: todo.title,
-    todoDescription: todo.description,
-    todoCompleted: todo.completed,
-    todoPriority: todo.priority,
-  }
+export function MobileRecordDetail(props: MobileRecordDetailProps) {
+  return <MobileRecordDetailScreen key={props.markId} {...props} />
 }
 
-function getImageSrc(mark: Mark) {
-  if (!mark.url || (mark.type !== 'image' && mark.type !== 'scan')) return ''
-  if (isHttpUrl(mark.url)) return mark.url
-  return `/${mark.type === 'scan' ? 'screenshot' : 'image'}/${mark.url}`
-}
-
-function DetailField({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  children: ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={htmlFor} className="text-xs text-muted-foreground">
-        {label}
-      </Label>
-      {children}
-    </div>
-  )
-}
-
-export function MobileRecordDetail({ markId, isActive }: MobileRecordDetailProps) {
+function MobileRecordDetailScreen({ markId, isActive }: MobileRecordDetailProps) {
   const t = useTranslations()
   const router = useRouter()
-  const pathname = usePathname()
-  const {
-    updateMark,
-    fetchMarkPreviews,
-    fetchTrashMarkPreviews,
-    setActiveMarkId,
-    clearActiveMark,
-  } = useMarkStore()
-  const { tags, fetchTags, getCurrentTag } = useTagStore()
-  const [mark, setMark] = useState<Mark | null>(null)
-  const [draft, setDraft] = useState<MarkDraft | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const autoSaveTimerRef = useRef<number | null>(null)
+  const fetchTags = useTagStore(state => state.fetchTags)
+  const [mark, setMark] = useState<Mark | null | undefined>(undefined)
+  const activeRef = useRef(isActive)
   const swipeBackRef = useRef<SwipeBackHandle>(null)
+  const beforeBackRef = useRef<BackGuard | null>(null)
+
+  useLayoutEffect(() => {
+    activeRef.current = isActive
+    if (!isActive) swipeBackRef.current?.reset()
+    return () => { activeRef.current = false }
+  }, [isActive])
 
   useEffect(() => {
-    if (pathname !== '/mobile/record/detail') return
-    setActiveMarkId(markId)
-    const chatState = useChatStore.getState()
-    chatState.setMobileActiveContexts({ markId })
-  }, [markId, pathname, setActiveMarkId])
+    if (!isActive) return
+    useMarkStore.getState().setActiveMarkId(markId)
+    useChatStore.getState().setMobileActiveContexts({ markId })
+  }, [isActive, markId])
 
   useEffect(() => {
+    if (!isActive || mark !== undefined) return
     let cancelled = false
+    void fetchTags().catch(error => console.error('Failed to load record tags:', error))
+    void readRecordAfterPendingWrites(markId).then(saved => {
+      if (!cancelled) setMark(saved ?? null)
+    }).catch(error => {
+      if (cancelled) return
+      setMark(null)
+      toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
+    })
+    return () => { cancelled = true }
+  }, [fetchTags, isActive, mark, markId, t])
 
-    const load = async () => {
-      try {
-        const [record] = await Promise.all([getMarkById(markId), fetchTags()])
-        if (!cancelled) {
-          setMark(record || null)
-          if (!record) {
-            clearActiveMark()
-            const mobileContexts = useChatStore.getState().mobileActiveContexts
-            if (mobileContexts.markId === markId) {
-              useChatStore.getState().setMobileActiveContexts({ markId: null })
-            }
-          }
-        }
-      } catch (error) {
-        toast({
-          title: t('common.error'),
-          description: error instanceof Error ? error.message : t('common.error'),
-          variant: 'destructive',
-        })
-      } finally {
-        if (!cancelled) setIsLoading(false)
-      }
-    }
+  const navigateBack = useCallback(() => {
+    if (!activeRef.current) return
+    const records = useMarkStore.getState()
+    if (records.activeMarkId === markId) records.clearActiveMark()
+    const chat = useChatStore.getState()
+    if (chat.mobileActiveContexts.markId === markId) chat.setMobileActiveContexts({ markId: null })
+    router.replace('/mobile/record')
+    void Store.load('store.json').then(store => store.set('currentPage', '/mobile/record')).catch(error => {
+      console.error('Failed to remember the record page:', error)
+    })
+  }, [markId, router])
 
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [clearActiveMark, fetchTags, markId])
-
-  useEffect(() => {
-    if (mark) setDraft(createDraft(mark))
-  }, [mark?.id])
-
-  const savedDraft = useMemo(() => (mark ? createDraft(mark) : null), [mark])
-  const hasChanges = Boolean(draft && savedDraft && JSON.stringify(draft) !== JSON.stringify(savedDraft))
-  const isReadOnly = mark?.deleted === 1
-  const currentTag = tags.find((tag) => tag.id === draft?.tagId)
-  const currentTags = tags.filter((tag) => mark && recordTagIds(mark).includes(tag.id))
-
-  function navigateBack() {
-    clearActiveMark()
-    useChatStore.getState().setMobileActiveContexts({ markId: null })
-    router.push('/mobile/record')
-    void Store.load('store.json').then(store => store.set('currentPage', '/mobile/record'))
-  }
-
-  const refreshRecords = useCallback(async (deleted: boolean) => {
-    if (deleted) {
-      await fetchTrashMarkPreviews()
-      return
-    }
-
-    await Promise.all([fetchMarkPreviews(), fetchTags()])
-    getCurrentTag()
-  }, [fetchMarkPreviews, fetchTags, fetchTrashMarkPreviews, getCurrentTag])
-
-  const saveDraft = useCallback(async (sourceMark: Mark, nextDraft: MarkDraft) => {
-    if (sourceMark.deleted === 1) return false
-    setIsSaving(true)
-    try {
-      const nextMark: Mark = sourceMark.type === 'todo'
-        ? {
-            ...sourceMark,
-            tagId: nextDraft.tagId,
-            desc: nextDraft.todoTitle.trim(),
-            content: JSON.stringify({
-              title: nextDraft.todoTitle,
-              description: nextDraft.todoDescription,
-              completed: nextDraft.todoCompleted,
-              priority: nextDraft.todoPriority,
-            }),
-          }
-        : {
-            ...sourceMark,
-            tagId: nextDraft.tagId,
-            desc: sourceMark.type === 'text' ? nextDraft.content : nextDraft.desc,
-            content: nextDraft.content,
-            url: nextDraft.url,
-          }
-
-      await updateMark(nextMark)
-      const saved = await getMarkById(nextMark.id)
-      setMark(saved || nextMark)
-      const mobileContexts = useChatStore.getState().mobileActiveContexts
-      if (mobileContexts.markId === nextMark.id) {
-        useChatStore.getState().setMobileActiveContexts({ markId: nextMark.id })
-      }
-      if (sourceMark.tagId !== nextDraft.tagId) {
-        await refreshRecords(false)
-      }
-      return true
-    } catch (error) {
-      toast({
-        title: t('common.error'),
-        description: error instanceof Error ? error.message : t('common.error'),
-        variant: 'destructive',
-      })
-      return false
-    } finally {
-      setIsSaving(false)
-    }
-  }, [refreshRecords, t, updateMark])
-
-  useEffect(() => {
-    if (!mark || !draft || isReadOnly || !hasChanges) return
-
-    if (autoSaveTimerRef.current) {
-      window.clearTimeout(autoSaveTimerRef.current)
-    }
-    autoSaveTimerRef.current = window.setTimeout(() => {
-      autoSaveTimerRef.current = null
-      void saveDraft(mark, draft)
-    }, 500)
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        window.clearTimeout(autoSaveTimerRef.current)
-        autoSaveTimerRef.current = null
-      }
-    }
-  }, [draft, hasChanges, isReadOnly, mark, saveDraft])
-
-  async function closeDetail() {
-    if (autoSaveTimerRef.current) {
-      window.clearTimeout(autoSaveTimerRef.current)
-      autoSaveTimerRef.current = null
-    }
-
-    if (mark && draft && hasChanges && !isReadOnly) {
-      const saved = await saveDraft(mark, draft)
-      if (!saved) return
-    }
-
-    navigateBack()
-  }
-
-  async function handleCopyLink() {
-    if (!draft?.url) return
-    await navigator.clipboard.writeText(draft.url)
-    toast({ title: t('record.mark.toolbar.copied') })
-  }
-
-  async function handleOpenLink(url: string) {
-    if (!isHttpUrl(url)) return
-    await openUrl(url)
-  }
-
-  async function handleDelete() {
-    if (!mark) return
-
-    if (mark.deleted === 1) {
-      await delMarkForever(mark.id)
-    } else {
-      await delMark(mark.id)
-    }
-    await refreshRecords(mark.deleted === 1)
-    navigateBack()
-  }
-
-  async function handleRestore() {
-    if (!mark) return
-    await restoreMark(mark.id)
-    await fetchTrashMarkPreviews()
-    navigateBack()
-  }
-
-  if (isLoading || (mark && !draft)) {
-    return (
-      <SwipeBack
-        ref={swipeBackRef}
-        onBack={() => void closeDetail()}
-        backdrop={<MobileRecordStream preview />}
-      >
-        <div className="flex h-full items-center justify-center bg-background text-sm text-muted-foreground">
-          {t('record.mark.loading')}
-        </div>
-      </SwipeBack>
-    )
-  }
-
-  if (!mark || !draft) {
-    return (
-      <SwipeBack
-        ref={swipeBackRef}
-        onBack={() => void closeDetail()}
-        backdrop={<MobileRecordStream preview />}
-      >
-        <div className="flex h-full flex-col bg-background">
-          <header className="mobile-page-header flex shrink-0 items-center border-b px-2">
-            <MobileBackButton
-              label={t('common.back')}
-              onClick={() => swipeBackRef.current?.back()}
-            />
-          </header>
-          <div className="flex flex-1 items-center justify-center px-6 text-sm text-muted-foreground">
-            {t('record.mark.detail.notFound')}
-          </div>
-        </div>
-      </SwipeBack>
-    )
-  }
-
-  const imageSrc = getImageSrc(mark)
-  const typeLabel = t(`record.mark.type.${mark.type}`)
-  const recordEditorPath = getRecordTabPath(mark.id)
-  const isLargeContent = isLargeMarkdownDocument(draft.content)
-  const isLargeTodoDescription = isLargeMarkdownDocument(draft.todoDescription)
+  const onBack = () => swipeBackRef.current?.back()
 
   return (
     <SwipeBack
       ref={swipeBackRef}
-      onBack={() => void closeDetail()}
-      enabled={!deleteDialogOpen}
+      beforeBack={() => beforeBackRef.current?.() ?? true}
+      onBack={navigateBack}
+      enabled={isActive}
       backdrop={<MobileRecordStream preview />}
     >
-      <div id="mobile-record-detail" className="relative flex h-full min-h-0 w-full flex-col bg-background">
-      <header className="mobile-page-header flex shrink-0 items-center gap-2 border-b bg-background px-2">
-        <MobileBackButton
-          label={t('common.back')}
-          onClick={() => swipeBackRef.current?.back()}
+      <div id="mobile-record-detail" className="flex h-full min-h-0 w-full flex-col bg-background">
+        {mark ? (
+          <MobileRecordDetailEditor
+            mark={mark}
+            isActive={isActive}
+            onMarkChange={setMark}
+            onBack={onBack}
+            navigateBack={navigateBack}
+            beforeBackRef={beforeBackRef}
+          />
+        ) : (
+          <>
+            <header className="mobile-page-header flex w-full shrink-0 items-center gap-2 border-b bg-background px-2 text-sm">
+              <MobileBackButton label={t('common.back')} className="size-11" onClick={onBack} />
+              <span className="min-w-0 truncate font-medium">{t('record.mark.list.title')}</span>
+            </header>
+            <div className="flex flex-1 items-center justify-center gap-2 px-6 text-sm text-muted-foreground" role="status">
+              {mark === undefined ? <Spinner aria-hidden="true" className="motion-reduce:animate-none" /> : null}
+              {t(mark === undefined ? 'record.mark.loading' : 'record.mark.detail.notFound')}
+            </div>
+          </>
+        )}
+      </div>
+    </SwipeBack>
+  )
+}
+
+function MobileRecordDetailEditor({
+  mark,
+  isActive,
+  onMarkChange,
+  onBack,
+  navigateBack,
+  beforeBackRef,
+}: {
+  mark: Mark
+  isActive: boolean
+  onMarkChange: (mark: Mark | null) => void
+  onBack: () => void
+  navigateBack: () => void
+  beforeBackRef: RefObject<BackGuard | null>
+}) {
+  const t = useTranslations()
+  const tags = useTagStore(state => state.tags)
+  const { draft, save, status, retry, getStatus, replaceBodyIfUnchanged } = useRecordDetailSave(mark, onMarkChange)
+  const [toolsTarget, setToolsTarget] = useState<HTMLDivElement | null>(null)
+  const [formatTarget, setFormatTarget] = useState<HTMLDivElement | null>(null)
+  const [imageToolbarTarget, setImageToolbarTarget] = useState<HTMLDivElement | null>(null)
+  const [imageSaveTarget, setImageSaveTarget] = useState<HTMLDivElement | null>(null)
+  const [pendingAction, setPendingAction] = useState<RecordAction | null>(null)
+  const pendingActionRef = useRef<RecordAction | null>(null)
+  const [confirmation, setConfirmation] = useState<'delete' | 'discard' | null>(null)
+  const [markdownDirty, setMarkdownDirty] = useState(false)
+  const [imageView, setImageView] = useState<RecordImageView | null>(null)
+  const markdownDirtyRef = useRef(false)
+  const markdownFlushRef: MarkdownFlushRef = useRef(null)
+  const [editorRevision, setEditorRevision] = useState(0)
+  const activeRef = useRef(isActive)
+  const wasInactive = useRef(false)
+  const discarding = useRef(false)
+  const committedMark = useRef(mark)
+  committedMark.current = mark
+  const isReadOnly = draft.deleted === 1
+  const body = getRecordBodyMarkdown(draft)
+  const hasBody = Boolean(body.trim())
+  const imageRecord = isImageRecord(draft)
+  const editableImage = canEditRecordImage(draft)
+  const showImageWorkspace = editableImage && imageView !== 'body'
+  const canRecognize = !isReadOnly && imageRecord && Boolean(draft.url)
+
+  const beginAction = useCallback((action: RecordAction) => {
+    if (pendingActionRef.current || !activeRef.current) return false
+    pendingActionRef.current = action
+    setPendingAction(action)
+    return true
+  }, [])
+
+  const endAction = useCallback(() => {
+    pendingActionRef.current = null
+    setPendingAction(null)
+  }, [])
+
+  function showError(error: unknown) {
+    toast({ title: t('common.error'), description: String(error), variant: 'destructive' })
+  }
+
+  const flushPending = useCallback(async () => {
+    if (markdownFlushRef.current?.() === false || markdownDirtyRef.current) return false
+    return await retry()
+  }, [retry])
+
+  function changeImageView(value: RecordImageView) {
+    if (value === 'image' && imageView === 'body' && markdownFlushRef.current?.() === false) return
+    setImageView(value)
+  }
+
+  useLayoutEffect(() => {
+    const beforeBack = async () => {
+      if (confirmation || !beginAction('leaving')) return false
+      let leaving = false
+      try {
+        const focused = document.activeElement
+        if (focused instanceof HTMLElement && focused.closest('#mobile-record-detail')) focused.blur()
+        leaving = await flushPending() && activeRef.current
+        if (leaving) return true
+        if (getStatus() === 'failed' && activeRef.current) setConfirmation('discard')
+        return false
+      } finally {
+        if (!leaving) endAction()
+      }
+    }
+    beforeBackRef.current = beforeBack
+    return () => {
+      if (beforeBackRef.current === beforeBack) beforeBackRef.current = null
+    }
+  }, [beforeBackRef, beginAction, confirmation, endAction, flushPending, getStatus])
+
+  useLayoutEffect(() => {
+    activeRef.current = isActive
+    if (!isActive) {
+      wasInactive.current = true
+      setConfirmation(null)
+      if (pendingActionRef.current === 'leaving') endAction()
+      if (!discarding.current) void flushPending()
+    }
+    return () => { activeRef.current = false }
+  }, [endAction, flushPending, isActive])
+
+  const refreshRecord = useCallback(async () => {
+    if (!activeRef.current || pendingActionRef.current || markdownDirtyRef.current || getStatus() !== 'idle') return
+    const before = committedMark.current
+    try {
+      const saved = await readRecordAfterPendingWrites(before.id)
+      if (!activeRef.current || pendingActionRef.current || markdownDirtyRef.current
+        || getStatus() !== 'idle' || committedMark.current !== before) return
+      if (saved && (saved.deleted !== before.deleted || getRecordBodyMarkdown(saved) !== getRecordBodyMarkdown(before))) {
+        setEditorRevision(revision => revision + 1)
+      }
+      onMarkChange(saved ?? null)
+    } catch (error) {
+      console.error('Failed to refresh the record:', error)
+    }
+  }, [getStatus, onMarkChange])
+
+  useEffect(() => {
+    if (!isActive) return
+    if (wasInactive.current) {
+      wasInactive.current = false
+      void refreshRecord()
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') void flushPending()
+      else void refreshRecord()
+    }
+    const onRecordsChanged = () => { void refreshRecord() }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    emitter.on('plugin-records-changed', onRecordsChanged)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      emitter.off('plugin-records-changed', onRecordsChanged)
+    }
+  }, [flushPending, isActive, refreshRecord])
+
+  const onMarkdownChange: MarkdownChangeHandler = (value) => {
+    markdownDirtyRef.current = false
+    setMarkdownDirty(false)
+    if (!isReadOnly) void save(latest => replaceRecordBodyMarkdown(latest, value), { debounce: true })
+  }
+
+  function updateDescription(saved: Mark) {
+    onMarkChange({ ...committedMark.current, desc: saved.desc })
+  }
+
+  function updateImage(saved: Mark) {
+    onMarkChange({ ...committedMark.current, url: saved.url })
+  }
+
+  function updateTags(saved: Mark) {
+    onMarkChange({
+      ...committedMark.current,
+      tagId: saved.tagId,
+      tagIds: saved.tagIds,
+      tagUpdatedAt: saved.tagUpdatedAt,
+    })
+  }
+
+  async function changeTrash(action: 'delete' | 'restore') {
+    if (!beginAction(action)) return
+    try {
+      if (!await flushPending()) return
+      if (action === 'restore') await restoreMark(mark.id)
+      else if (isReadOnly) await delMarkForever(mark.id)
+      else await delMark(mark.id)
+
+      const records = useMarkStore.getState()
+      const tagStore = useTagStore.getState()
+      void Promise.all([
+        records.trashState ? records.fetchTrashMarkPreviews() : records.fetchMarkPreviews(),
+        records.fetchAllMarks(),
+        tagStore.fetchTags(),
+      ]).then(tagStore.getCurrentTag).catch(showError)
+      navigateBack()
+    } catch (error) {
+      showError(error)
+    } finally {
+      endAction()
+    }
+  }
+
+  async function copySource() {
+    if (!draft.url) return
+    try {
+      await navigator.clipboard.writeText(draft.url)
+      toast({ title: t('record.mark.toolbar.copied') })
+    } catch (error) {
+      showError(error)
+    }
+  }
+
+  async function openSource() {
+    const url = draft.url?.trim()
+    if (!url) return
+    try {
+      if (isHttpUrl(url)) {
+        await openUrl(url)
+        return
+      }
+      const filePlatform = draft.type === 'file' ? platform() : undefined
+      if (filePlatform === 'android' || filePlatform === 'ios') {
+        await invoke('open_record_file', { path: url })
+      } else {
+        const action = getMarkOpenAction(draft, await appDataDir(), 'file')
+        if (action?.path) await openPath(action.path)
+      }
+    } catch (error) {
+      showError(error)
+    }
+  }
+
+  async function recognizeText() {
+    if (!canRecognize || !beginAction('recognition')) return
+    try {
+      if (!await flushPending()) return
+      const imagePath = getMarkLocalAssetPath(draft)
+      const result = await recognizeImageWithFallback({
+        imagePath,
+        base64: await getRecognitionImage(draft, imagePath),
+      })
+      if (!activeRef.current) return
+      if (result.method === 'none') {
+        toast({ title: t('record.capture.screenshotRecognitionFailed'), variant: 'destructive' })
+        return
+      }
+      if (!result.content.trim()) {
+        toast({ title: t('record.capture.screenshotNoText') })
+        return
+      }
+      if (await replaceBodyIfUnchanged(body, result.content, () => activeRef.current, draft.url)) {
+        setEditorRevision(revision => revision + 1)
+      } else if (getStatus() !== 'failed') {
+        toast({ title: t('record.mark.detail.recognitionChanged') })
+      }
+    } catch (error) {
+      showError(error)
+    } finally {
+      endAction()
+    }
+  }
+
+  const busy = pendingAction !== null
+  const recognitionRunning = pendingAction === 'recognition'
+  const audioPath = draft.type === 'recording' ? (draft.url?.trim() ?? '') : ''
+  const bodyPlaceholder = isReadOnly ? t('record.mark.detail.emptyContent')
+    : draft.type === 'todo' ? t('record.mark.detail.todoNotesPlaceholder')
+    : imageRecord ? t('record.capture.screenshotOcrContent')
+    : t('record.mark.content')
+  const hasUrl = Boolean(draft.url?.trim())
+  const imageCaption = imageRecord && hasUrl ? getRecordImageCaption(draft, {
+    pending: t('record.capture.screenshotRecognitionPending'),
+    failed: t('record.capture.screenshotRecognitionFailed'),
+    noText: t('record.capture.screenshotNoText'),
+    savedOnly: t('record.capture.screenshotSavedOnly'),
+  }) : ''
+  const hasContentHeader = (draft.type === 'link' && (!isReadOnly || hasUrl))
+    || (hasUrl && imageRecord && !editableImage)
+  const contentHeader = draft.type === 'todo' ? (
+    <TodoRecordDetails mark={draft} save={save} disabled={busy} />
+  ) : hasContentHeader ? (
+    <MobileRecordContent
+      mark={draft}
+      imageCaption={imageCaption}
+      isActive={isActive}
+      busy={busy}
+      save={save}
+    />
+  ) : undefined
+
+  return (
+    <>
+      {isActive ? (
+        <MobileRecordDetailHeader
+          mark={draft}
+          tags={tags}
+          saving={markdownDirty || status === 'pending' || status === 'saving' || pendingAction === 'leaving'}
+          saveFailed={status === 'failed'}
+          busy={busy}
+          recognizing={recognitionRunning}
+          onBack={onBack}
+          onRetrySave={() => void flushPending()}
+          onDelete={() => setConfirmation('delete')}
+          onRestore={() => void changeTrash('restore')}
+          onCopySource={() => void copySource()}
+          onOpenSource={() => void openSource()}
+          onRecognize={canRecognize ? () => void recognizeText() : undefined}
+          recognizeAgain={hasBody}
+          showImageToolbar={showImageWorkspace}
+          imageView={imageView ?? 'image'}
+          onImageViewChange={editableImage ? changeImageView : undefined}
+          onDescriptionSaved={updateDescription}
+          onTagsSaved={updateTags}
+          toolsRef={setToolsTarget}
+          formatRef={setFormatTarget}
+          imageToolsRef={setImageToolbarTarget}
+          imageSaveRef={setImageSaveTarget}
         />
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <Badge variant="outline" className={cn('shrink-0', getMarkTypeListBadgeClasses(mark.type))}>
-            {typeLabel}
-          </Badge>
-          {isSaving || hasChanges ? <span className="truncate text-xs text-muted-foreground">{t('common.saving')}</span> : null}
-        </div>
-        <MobileActionDrawer
-          title={t('record.mark.detail.moreActions')}
-          trigger={
-            <Button variant="ghost" size="icon" aria-label={t('record.mark.detail.moreActions')}>
-              <EllipsisVertical />
-            </Button>
-          }
-          items={[
-            ...(mark.url ? [{
-              key: 'copy-link',
-              label: t('record.mark.toolbar.copyLink'),
-              icon: <Copy />,
-              onSelect: handleCopyLink,
-            }] : []),
-            ...(isHttpUrl(draft.url) ? [{
-              key: 'open-link',
-              label: t('common.open'),
-              icon: <ExternalLink />,
-              onSelect: () => handleOpenLink(draft.url),
-            }] : []),
-            ...(isReadOnly ? [{
-              key: 'restore',
-              label: t('record.mark.toolbar.restore'),
-              icon: <RotateCcw />,
-              onSelect: handleRestore,
-            }] : []),
-            {
-              key: 'delete',
-              label: isReadOnly ? t('record.mark.toolbar.deleteForever') : t('record.mark.toolbar.delete'),
-              icon: <Trash2 />,
-              onSelect: () => setDeleteDialogOpen(true),
-              destructive: true,
-              separatorBefore: true,
-            },
-          ]}
-        />
-      </header>
-
-      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-allow-text-selection>
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
-          <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
-            <span className="shrink-0">{dayjs(mark.createdAt).format('YYYY-MM-DD HH:mm')}</span>
-            <span aria-hidden="true">·</span>
-            <span className="truncate">{currentTags.map((tag) => tag.name).join(' · ') || currentTag?.name || t('record.mark.detail.tag')}</span>
+      ) : null}
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col" data-record-audio-player={audioPath ? '' : undefined}>
+        {editableImage ? (
+          <div className={cn('min-h-0 min-w-0 flex-1', !showImageWorkspace && 'hidden')}>
+            <RecordImageWorkspace
+              mark={draft}
+              caption={imageCaption}
+              isActive={isActive && showImageWorkspace}
+              toolbarTarget={showImageWorkspace ? imageToolbarTarget : null}
+              saveTarget={showImageWorkspace ? imageSaveTarget : null}
+              onSaved={updateImage}
+            />
           </div>
-
-          {imageSrc ? (
-            <div className="overflow-hidden rounded-md border bg-muted/20">
-              <LocalImage src={imageSrc} alt={draft.desc || typeLabel} className="h-auto max-h-[42vh] min-h-48 w-full object-contain" />
-            </div>
-          ) : null}
-
-          {mark.type === 'recording' && mark.url ? (
-            <div className="rounded-md border bg-muted/20 p-3">
-              <AudioPlayer audioPath={mark.url} />
-            </div>
-          ) : null}
-
-          {mark.type === 'file' && mark.url ? (
-            <div className="flex min-w-0 items-center gap-3 rounded-md border bg-muted/20 p-3">
-              <FileText className="shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate text-sm">{mark.url}</span>
-            </div>
-          ) : null}
-
-          {mark.type === 'link' && draft.url ? (
-            <button
-              type="button"
-              className="flex min-w-0 items-center gap-3 rounded-md border bg-muted/20 p-3 text-left"
-              onClick={() => void handleOpenLink(draft.url)}
-              disabled={!isHttpUrl(draft.url)}
-            >
-              <LinkIcon className="shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate text-sm">{draft.url}</span>
-              {isHttpUrl(draft.url) ? <ExternalLink className="shrink-0 text-muted-foreground" /> : null}
-            </button>
-          ) : null}
-
-          <Separator />
-
-          <div className="flex flex-col gap-5">
-            <DetailField label={t('record.mark.detail.tag')} htmlFor="record-tag">
-              <MobileRecordTagSelect
-                id="record-tag"
-                title={t('record.mark.detail.tag')}
-                value={draft.tagId}
-                onValueChange={(value) => setDraft(current => current ? { ...current, tagId: value } : current)}
-                onTagsChanged={fetchTags}
-                disabled={isReadOnly}
-                tags={tags}
-              />
-            </DetailField>
-
-            <RecordTagEditor mark={mark} onSaved={saved => setMark(current => current ? { ...current, tagIds: saved.tagIds, tagUpdatedAt: saved.tagUpdatedAt } : current)} />
-
-            {mark.type === 'todo' ? (
-              <>
-                <DetailField label={t('record.mark.todo.title')} htmlFor="todo-title">
-                  <Input
-                    id="todo-title"
-                    value={draft.todoTitle}
-                    onChange={(event) => setDraft({ ...draft, todoTitle: event.target.value })}
-                    placeholder={t('record.mark.todo.titlePlaceholder')}
-                    disabled={isReadOnly}
-                    className="h-11"
-                  />
-                </DetailField>
-                <label className="flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm">
-                  <Checkbox
-                    checked={draft.todoCompleted}
-                    onCheckedChange={(checked) => setDraft({ ...draft, todoCompleted: checked === true })}
-                    disabled={isReadOnly}
-                  />
-                  {draft.todoCompleted ? t('record.mark.todo.completed') : t('record.mark.todo.uncompleted')}
-                </label>
-                <DetailField label={t('record.mark.todo.priority')} htmlFor="todo-priority">
-                  <Tabs
-                    value={draft.todoPriority}
-                    onValueChange={(value) => setDraft({ ...draft, todoPriority: value as Priority })}
-                  >
-                    <TabsList id="todo-priority" className="grid h-11 w-full grid-cols-3">
-                      <TabsTrigger value="low" disabled={isReadOnly}>{t('record.mark.todo.priorityLow')}</TabsTrigger>
-                      <TabsTrigger value="medium" disabled={isReadOnly}>{t('record.mark.todo.priorityMedium')}</TabsTrigger>
-                      <TabsTrigger value="high" disabled={isReadOnly}>{t('record.mark.todo.priorityHigh')}</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </DetailField>
-                <DetailField label={t('record.mark.todo.description')} htmlFor="todo-description">
-                  {isLargeTodoDescription ? (
-                    <div id="todo-description" className="h-[60vh] min-h-80 overflow-hidden rounded-md border bg-background">
-                      <LargeRecordMarkdownEditor
-                        initialContent={draft.todoDescription}
-                        onChange={(value) => setDraft(current => current ? { ...current, todoDescription: value } : current)}
-                        activeFilePath={recordEditorPath}
-                        placeholder={t('record.mark.todo.descriptionPlaceholder')}
-                        editable={!isReadOnly}
-                        showFooterBar={false}
-                        mobileMode
-                        enableLargeDocumentMode
-                        isActive={isActive}
-                        exposeToPluginHost={false}
-                      />
-                    </div>
-                  ) : (
-                    <Textarea
-                      id="todo-description"
-                      value={draft.todoDescription}
-                      onChange={(event) => setDraft({ ...draft, todoDescription: event.target.value })}
-                      placeholder={t('record.mark.todo.descriptionPlaceholder')}
-                      disabled={isReadOnly}
-                      rows={5}
-                      maxRows={10}
-                      className="min-h-36 resize-none"
-                    />
-                  )}
-                </DetailField>
-              </>
-            ) : (
-              <>
-                {mark.type !== 'text' ? (
-                  <DetailField label={t('record.mark.desc')} htmlFor="record-description">
-                    <Input
-                      id="record-description"
-                      value={draft.desc}
-                      onChange={(event) => setDraft({ ...draft, desc: event.target.value })}
-                      disabled={isReadOnly}
-                      className="h-11"
-                    />
-                  </DetailField>
-                ) : null}
-                <DetailField label={t('record.mark.content')} htmlFor="record-content">
-                  {isLargeContent ? (
-                    <div id="record-content" className="h-[65vh] min-h-96 overflow-hidden rounded-md border bg-background">
-                      <LargeRecordMarkdownEditor
-                        initialContent={draft.content}
-                        onChange={(value) => setDraft(current => current ? { ...current, content: value } : current)}
-                        activeFilePath={recordEditorPath}
-                        editable={!isReadOnly}
-                        showFooterBar={false}
-                        mobileMode
-                        enableLargeDocumentMode
-                        isActive={isActive}
-                        exposeToPluginHost={false}
-                      />
-                    </div>
-                  ) : (
-                    <Textarea
-                      id="record-content"
-                      value={draft.content}
-                      onChange={(event) => setDraft({ ...draft, content: event.target.value })}
-                      disabled={isReadOnly}
-                      maxRows={30}
-                      className={cn('resize-none leading-7', mark.type === 'text' ? 'min-h-[48vh]' : 'min-h-56')}
-                    />
-                  )}
-                </DetailField>
-                {mark.type === 'link' ? (
-                  <DetailField label="URL" htmlFor="record-url">
-                    <Input
-                      id="record-url"
-                      inputMode="url"
-                      value={draft.url}
-                      onChange={(event) => setDraft({ ...draft, url: event.target.value })}
-                      disabled={isReadOnly}
-                      className="h-11"
-                    />
-                  </DetailField>
-                ) : null}
-              </>
-            )}
+        ) : null}
+        {!editableImage || imageView !== null ? (
+          <div
+            className={cn('min-h-0 min-w-0 flex-1 px-2.5 [&_.tiptap-editor-content-header:empty]:hidden', showImageWorkspace && 'hidden')}
+            data-allow-text-selection
+          >
+            <RecordMarkdownEditor
+              key={editorRevision}
+              initialContent={body}
+              activeFilePath={getRecordTabPath(draft.id)}
+              contentHeader={contentHeader}
+              placeholder={bodyPlaceholder}
+              onChange={onMarkdownChange}
+              onContentDirty={() => {
+                markdownDirtyRef.current = true
+                setMarkdownDirty(true)
+              }}
+              markdownFlushRef={markdownFlushRef}
+              editable={!isReadOnly && !busy}
+              readOnly={isReadOnly || busy}
+              showFooterBar={false}
+              mobileMode
+              enableLargeDocumentMode
+              applyLayoutPreferences
+              isActive={isActive && !showImageWorkspace}
+              exposeToPluginHost={false}
+              recordExportName={getRecordTabName(draft, t(`record.mark.type.${draft.type}`))}
+              recordToolsTarget={showImageWorkspace ? null : toolsTarget}
+              recordMobileFormatTarget={showImageWorkspace ? null : formatTarget}
+            />
           </div>
-        </div>
+        ) : null}
       </main>
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      {audioPath ? (
+        <footer
+          data-swipe-back-ignore
+          className="shrink-0 border-t bg-background px-[max(0.75rem,env(safe-area-inset-left),env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] [.mobile-keyboard-open_&]:pb-0"
+        >
+          <AudioPlayer
+            audioPath={audioPath}
+            variant="detail"
+            className="[.mobile-keyboard-open_&]:min-h-11 [.mobile-keyboard-open_&]:py-0"
+          />
+        </footer>
+      ) : null}
+      <AlertDialog open={confirmation !== null} onOpenChange={open => { if (!open) setConfirmation(null) }}>
         <AlertDialogContent className="w-[calc(100%-2rem)] rounded-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {isReadOnly ? t('record.mark.toolbar.deleteForever') : t('record.mark.toolbar.delete')}
+              {t(confirmation === 'discard' ? 'record.mark.detail.discardTitle'
+                : isReadOnly ? 'record.mark.toolbar.deleteForever' : 'record.mark.toolbar.delete')}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {isReadOnly ? t('record.trash.syncWarning') : t('record.mark.toolbar.deleteConfirm')}
+              {t(confirmation === 'discard' ? 'record.mark.detail.discardDescription'
+                : isReadOnly ? 'record.trash.syncWarning' : 'record.mark.toolbar.deleteConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel className="min-h-11">{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => void handleDelete()}
+              className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (confirmation === 'discard') {
+                  discarding.current = true
+                  navigateBack()
+                } else void changeTrash('delete')
+              }}
             >
-              {t('common.confirm')}
+              {t(confirmation === 'discard' ? 'record.mark.detail.discard' : 'common.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      </div>
-    </SwipeBack>
+    </>
   )
 }

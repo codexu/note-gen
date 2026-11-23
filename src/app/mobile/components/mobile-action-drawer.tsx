@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, ReactNode, useState } from 'react'
+import { Fragment, type ComponentProps, type ReactNode, useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,7 @@ interface MobileActionDrawerProps {
   trigger: ReactNode
   items: MobileActionDrawerItem[]
   renderExtraItems?: (dismiss: () => void) => ReactNode
+  onCloseAutoFocus?: ComponentProps<typeof DrawerContent>['onCloseAutoFocus']
 }
 
 export function MobileActionDrawer({
@@ -37,6 +38,7 @@ export function MobileActionDrawer({
   trigger,
   items,
   renderExtraItems,
+  onCloseAutoFocus,
 }: MobileActionDrawerProps) {
   const [open, setOpen] = useState(false)
   const [pendingKey, setPendingKey] = useState<string | null>(null)
@@ -44,7 +46,7 @@ export function MobileActionDrawer({
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-      <DrawerContent>
+      <DrawerContent onCloseAutoFocus={onCloseAutoFocus}>
         <DrawerHeader>
           <DrawerTitle>{title}</DrawerTitle>
         </DrawerHeader>

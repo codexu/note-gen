@@ -1,7 +1,9 @@
 import { TooltipButton } from "@/components/tooltip-button"
 import { FilePlus } from "lucide-react"
 import { useTranslations } from 'next-intl'
+import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog';
+import { platform } from '@tauri-apps/plugin-os'
 import useMarkStore from "@/stores/mark";
 import { insertMark } from "@/db/marks";
 import { useEffect, useCallback } from 'react'
@@ -34,13 +36,14 @@ export function ControlFile() {
   }, [handleSelectFile])
 
   async function selectFile() {
-    const filePath = await open({
-      multiple: false,
-      directory: false,
-    });
-    if (!filePath) return
-
-    await readFileByPath(filePath)
+    try {
+      const file = platform() === 'android'
+        ? await invoke<{ path: string | null; name: string | null }>('pick_android_record_file')
+        : { path: await open({ multiple: false, directory: false }), name: null }
+      if (file.path) await readFileByPath(file.path, file.name)
+    } catch (error) {
+      toast({ title: t('common.error'), description: error instanceof Error ? error.message : String(error), variant: 'destructive' })
+    }
   }
 
   async function saveFileRecord(path: string, desc: string, content: string, tagId: number) {
@@ -59,9 +62,9 @@ export function ControlFile() {
     })
   }
 
-  async function readFileByPath(path: string) {
+  async function readFileByPath(path: string, name: string | null) {
     const tagId = await getDefaultRecordSaveTagId()
-    const fileName = getDocumentFileName(path)
+    const fileName = name || getDocumentFileName(path)
     const desc = fileName
     let content = ''
     const queueId = uuid()

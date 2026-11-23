@@ -70,6 +70,16 @@ pub fn is_available(app_handle: &AppHandle) -> bool {
     app_handle.try_state::<IosOcrPlugin<Wry>>().is_some()
 }
 
+pub fn open_file(app: AppHandle, path: String) -> Result<(), String> {
+    let plugin = app
+        .try_state::<IosOcrPlugin<Wry>>()
+        .ok_or_else(|| "The iOS file preview is unavailable.".to_string())?;
+    plugin
+        .0
+        .run_mobile_plugin::<()>("openRecordFile", serde_json::json!({ "path": path }))
+        .map_err(|error| error.to_string())
+}
+
 pub fn recognize_image(
     app_handle: &AppHandle,
     absolute_image_path: &Path,

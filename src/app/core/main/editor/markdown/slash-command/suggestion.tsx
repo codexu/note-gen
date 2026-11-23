@@ -40,6 +40,8 @@ import { toast } from '@/hooks/use-toast'
 import { getWorkspacePath, isAbsoluteFsPath } from '@/lib/workspace'
 import { isMobileDevice } from '@/lib/check'
 import { pickImagesFromPhotoLibrary } from '@/lib/image-picker'
+import { isRecordTabPath } from '@/app/core/main/mark/mark-record-tab'
+import { createUploadPlaceholder, trackEditorRange } from '../async-editor-operations'
 
 export interface SlashCommandItem {
   id?: string
@@ -52,6 +54,16 @@ export interface SlashCommandItem {
 }
 
 const WINDOWS_ABSOLUTE_PATH_RE = /^[a-zA-Z]:[\\/]/
+
+function getSlashCommandTarget(editor: Editor) {
+  const host = editor.view.dom.closest<HTMLElement>('[data-editor-document-path]')
+  const documentPath = host?.dataset.editorDocumentPath
+
+  return {
+    path: documentPath || useArticleStore.getState().activeFilePath,
+    isCurrent: () => !editor.isDestroyed && editor.isEditable && (!host || host.dataset.editorDocumentPath === documentPath),
+  }
+}
 
 function normalizeLocalFilePath(path: string): string {
   const normalized = path.trim().replace(/\\/g, '/')
@@ -365,7 +377,7 @@ export function filterItems(items: SlashCommandItem[], query: string): SlashComm
   )
 }
 
-export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[] => {
+export const suggestionItems = (t?: SlashCommandTranslations, editor?: Editor): SlashCommandItem[] => {
   // 默认中文翻译（作为后备）
   const defaultT: SlashCommandTranslations = {
     groups: {
@@ -451,8 +463,7 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
 
   const tr = t || defaultT
 
-  const items: SlashCommandItem[] = [
-    // AI
+  const directAiItems: SlashCommandItem[] = [
     {
       title: tr.items.continue,
       description: tr.items.continueDesc,
@@ -485,6 +496,9 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
       searchTerms: ['ai', 'custom', 'instruction', 'prompt'],
       ...createCustomAiInstructionCommand(),
     },
+  ]
+
+  const items: SlashCommandItem[] = [
     {
       title: tr.items.heading1,
       description: tr.items.heading1Desc,
@@ -590,17 +604,9 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
       group: tr.groups.block,
       searchTerms: ['image', 'picture', 'photo', 'img'],
       command: async ({ editor, range }: { editor: Editor; range: Range }) => {
-        const rangeStart = range.from
-
-        // Insert "Uploading..." text as placeholder
-        editor.chain().focus().deleteRange(range).insertContentAt(rangeStart, {
-          type: 'text',
-          text: 'Uploading... ',
-        }).run()
-
-        // Get the position range of the placeholder
-        const placeholderStart = rangeStart
-        const placeholderEnd = rangeStart + 'Uploading... '.length
+        const target = getSlashCommandTarget(editor)
+        editor.chain().focus().deleteRange(range).run()
+        const placeholder = createUploadPlaceholder(editor, range.from)
 
         try {
           let fileObj: File | null = null
@@ -627,20 +633,14 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
             }
           }
 
-          if (!fileObj) {
-            // User cancelled, remove placeholder
-            editor.chain().focus().deleteRange({ from: placeholderStart, to: placeholderEnd }).run()
-            return
-          }
+          if (!fileObj || !target.isCurrent() || placeholder.position() === undefined) return
+          const result = await handleImageUpload(fileObj, target.path)
+          if (!target.isCurrent()) return
+          const position = placeholder.position()
+          if (position === undefined) return
 
-          const activeFilePath = useArticleStore.getState().activeFilePath
-          const result = await handleImageUpload(fileObj, activeFilePath)
-
-          // Delete the placeholder text
-          editor.chain().focus().deleteRange({ from: placeholderStart, to: placeholderEnd }).run()
-
-          // Insert the actual image
-          editor.chain().focus().insertContentAt(placeholderStart, {
+          placeholder.remove()
+          editor.chain().insertContentAt(position, {
             type: 'image',
             attrs: {
               src: result.src,
@@ -649,14 +649,14 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
             },
           }).run()
         } catch (error) {
-          // Remove the placeholder on error
-          editor.chain().focus().deleteRange({ from: placeholderStart, to: placeholderEnd }).run()
-
+          if (!target.isCurrent()) return
           toast({
             title: tr.imageUpload.failed,
             description: error instanceof Error ? error.message : 'Unknown error',
             variant: 'destructive',
           })
+        } finally {
+          placeholder.remove()
         }
       },
     },
@@ -667,8 +667,8 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
       group: tr.groups.block,
       searchTerms: ['file', 'attachment', 'link', 'local', 'document', '文件', '附件', '链接'],
       command: async ({ editor, range }: { editor: Editor; range: Range }) => {
-        const rangeStart = range.from
-        editor.chain().focus().deleteRange(range).run()
+        const target = getSlashCommandTarget(editor)
+        const trackedRange = trackEditorRange(editor, range.from, range.to, () => {})
 
         try {
           const selected = await open({
@@ -682,27 +682,30 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
               ? [selected]
               : []
 
-          if (paths.length === 0) {
-            return
-          }
-
-          const currentFilePath = useArticleStore.getState().activeFilePath
+          if (!target.isCurrent() || !trackedRange.range()) return
+          const currentFilePath = isRecordTabPath(target.path) ? '' : target.path
           const links = await createMarkdownLinksForFilePaths(paths, currentFilePath)
+          const currentRange = trackedRange.range()
+          if (!target.isCurrent() || !currentRange) return
 
           if (links.length === 0) {
+            editor.chain().deleteRange(currentRange).run()
             return
           }
 
           editor.chain()
-            .focus()
-            .insertContentAt(rangeStart, links.join('\n'), { contentType: 'markdown' })
+            .deleteRange(currentRange)
+            .insertContentAt(currentRange.from, links.join('\n'), { contentType: 'markdown' })
             .run()
         } catch (error) {
+          if (!target.isCurrent()) return
           toast({
             title: tr.fileInsert.failed,
             description: error instanceof Error ? error.message : 'Unknown error',
             variant: 'destructive',
           })
+        } finally {
+          trackedRange.dispose()
         }
       },
     },
@@ -832,7 +835,8 @@ export const suggestionItems = (t?: SlashCommandTranslations): SlashCommandItem[
     },
   ]
 
-  return items
+  const isMobileRecord = editor && !editor.isDestroyed && editor.view.dom.closest('[data-mobile-record-editor]')
+  return isMobileRecord ? items : [...directAiItems, ...items]
 }
 
 // Simple slash match function - hardcoded to match "/"
@@ -894,8 +898,8 @@ export function registerMenuKeyDownHandler(view: EditorView, handler: MenuKeyDow
 }
 
 export const suggestionOptions = {
-  items: ({ query }: { query: string }) => {
-    return filterItems(suggestionItems(), query)
+  items: ({ query, editor }: { query: string; editor: Editor }) => {
+    return filterItems(suggestionItems(undefined, editor), query)
   },
 
   render: () => {

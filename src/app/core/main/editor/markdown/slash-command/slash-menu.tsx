@@ -175,8 +175,8 @@ export const SlashMenu = forwardRef<SlashMenuRef, SlashMenuProps>(({ editor, ran
         })
       },
     }))
-    return filterItems([...suggestionItems(translations), ...pluginItems], query)
-  }, [pluginCommands, query, translations])
+    return filterItems([...suggestionItems(translations, editor), ...pluginItems], query)
+  }, [editor, pluginCommands, query, translations])
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, SlashCommandItem[]> = {}

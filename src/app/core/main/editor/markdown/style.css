@@ -117,10 +117,16 @@
   background-color: var(--scrollbar-thumb-active);
 }
 
+.tiptap-editor .ProseMirror,
+.tiptap-editor-content-header {
+  padding-block-start: 24px;
+  padding-inline: 16px;
+}
+
 .tiptap-editor .ProseMirror {
   outline: none;
   min-height: 100%;
-  padding: 24px 16px;
+  padding-block-end: 24px;
   font-size: var(--editor-font-size, 16px);
   line-height: var(--editor-line-height);
   color: hsl(var(--foreground));
@@ -281,21 +287,22 @@
   color: #86efac;
 }
 
-.tiptap-editor.tiptap-editor-no-inset .ProseMirror {
-  padding: 0;
-}
-
 .record-detail-markdown-editor .ProseMirror,
 .record-detail-markdown-editor .ProseMirror a {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.record-detail-markdown-editor .tiptap-editor,
-.record-detail-markdown-editor .tiptap-editor > div,
-.record-detail-markdown-editor .tiptap,
-.record-detail-markdown-editor .ProseMirror {
-  min-height: inherit;
+.record-detail-markdown-editor .tiptap-editor-content-header {
+  padding-block-start: 16px;
+}
+
+.record-detail-markdown-editor[data-record-has-header] .ProseMirror {
+  padding-block-start: 12px;
+}
+
+.record-detail-markdown-editor[data-record-mode="read"] .editor-scroll-container {
+  overscroll-behavior-y: auto;
 }
 
 .tiptap-editor .ProseMirror p.is-empty::before {
@@ -1545,6 +1552,17 @@
 
 .mobile-keyboard-open #mobile-writing .mobile-scroll-top-button {
   display: none;
+}
+
+.mobile-record-editor-scroll {
+  scroll-padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.mobile-keyboard-open .mobile-record-editor-scroll,
+[data-record-audio-player] .mobile-record-editor-scroll {
+  scroll-padding-bottom: 0.5rem;
+  padding-bottom: 0;
 }
 
 /* 移动端工具栏支持左右滑动 */

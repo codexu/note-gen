@@ -48,19 +48,25 @@ function pixelate(context: CanvasRenderingContext2D, rect: Rect, width: number) 
   const bottom = Math.min(context.canvas.height, Math.ceil(end.y))
   if (right <= left || bottom <= top) return
 
+  const pixelWidth = right - left
+  const pixelHeight = bottom - top
   const blockSize = Math.max(10, width * 6)
   const sample = document.createElement('canvas')
-  sample.width = Math.max(1, Math.ceil(rect.width / blockSize))
-  sample.height = Math.max(1, Math.ceil(rect.height / blockSize))
+  sample.width = Math.min(pixelWidth, Math.max(1, Math.ceil(rect.width / blockSize)))
+  sample.height = Math.min(pixelHeight, Math.max(1, Math.ceil(rect.height / blockSize)))
   const sampleContext = sample.getContext('2d')
   if (!sampleContext) throw new Error('Canvas is unavailable')
-  sampleContext.drawImage(context.canvas, left, top, right - left, bottom - top, 0, 0, sample.width, sample.height)
+  sampleContext.drawImage(context.canvas, left, top, pixelWidth, pixelHeight, 0, 0, sample.width, sample.height)
   context.save()
+  // Replace the full sampled pixels, including alpha, within the selected area.
+  context.setTransform(1, 0, 0, 1, 0, 0)
   context.beginPath()
-  context.rect(rect.x, rect.y, rect.width, rect.height)
+  context.rect(left, top, pixelWidth, pixelHeight)
   context.clip()
+  context.globalAlpha = 1
+  context.globalCompositeOperation = 'copy'
   context.imageSmoothingEnabled = false
-  context.drawImage(sample, rect.x, rect.y, rect.width, rect.height)
+  context.drawImage(sample, left, top, pixelWidth, pixelHeight)
   context.restore()
   sample.width = 0
   sample.height = 0

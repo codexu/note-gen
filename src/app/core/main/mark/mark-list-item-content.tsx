@@ -51,21 +51,60 @@ function splitTitleAndPreview(value?: string) {
   return { title, preview }
 }
 
-export function parseTodoMarkContent(mark: Mark): ParsedTodoMark {
+export function parseTodoMarkContent(mark: Mark, { preserveFormatting = false } = {}): ParsedTodoMark {
   try {
-    const parsed = JSON.parse(mark.content || '{}')
+    const parsed = JSON.parse(mark.content || '{}') as Partial<ParsedTodoMark>
+    const title = typeof parsed.title === 'string' ? parsed.title : mark.desc || ''
+    const description = typeof parsed.description === 'string' ? parsed.description : ''
+    const priority = parsed.priority === 'low' || parsed.priority === 'high' ? parsed.priority : 'medium'
     return {
-      title: compactText(parsed.title) || compactText(mark.desc),
-      description: compactText(parsed.description),
+      title: preserveFormatting ? title : compactText(title) || compactText(mark.desc),
+      description: preserveFormatting ? description : compactText(description),
       completed: Boolean(parsed.completed),
-      priority: parsed.priority || 'medium',
+      priority,
     }
   } catch {
     return {
       ...DEFAULT_TODO,
-      title: compactText(mark.desc),
+      title: preserveFormatting ? mark.desc || '' : compactText(mark.desc),
     }
   }
+}
+
+export function getRecordBodyMarkdown(mark: Mark): string {
+  if (mark.type === 'todo') return parseTodoMarkContent(mark, { preserveFormatting: true }).description
+  return mark.content || (mark.type === 'text' ? mark.desc || '' : '')
+}
+
+export function canEditRecordDescription(mark: Pick<Mark, 'type' | 'deleted'>): boolean {
+  return mark.deleted !== 1 && mark.type !== 'text' && mark.type !== 'todo'
+}
+
+export function patchTodoMarkContent(mark: Mark, changes: Partial<ParsedTodoMark>): Mark {
+  if (Object.keys(changes).length === 0) return mark
+
+  let existing: Record<string, unknown> = {}
+  try {
+    const parsed: unknown = JSON.parse(mark.content || '{}')
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) existing = { ...parsed }
+  } catch {
+    // Legacy records can have only a display title.
+  }
+
+  return {
+    ...mark,
+    desc: changes.title === undefined ? mark.desc : changes.title.trim(),
+    content: JSON.stringify({ ...existing, ...changes }),
+  }
+}
+
+export function replaceRecordBodyMarkdown(mark: Mark, content: string): Mark {
+  if (mark.type === 'todo') return patchTodoMarkContent(mark, { description: content })
+  if (mark.type === 'text') return { ...mark, content, desc: content }
+  if (mark.type === 'recording' && (!mark.desc || mark.desc === mark.content?.trim().slice(0, 100))) {
+    return { ...mark, content, desc: content.trim().slice(0, 100) }
+  }
+  return { ...mark, content }
 }
 
 export function getMarkListItemContent(mark: Mark): MarkListItemContent {

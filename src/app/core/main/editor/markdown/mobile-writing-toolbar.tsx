@@ -73,6 +73,7 @@ type MobileWritingToolbarAction =
 interface MobileWritingToolbarProps {
   activeActions?: string[]
   onAction: (action: MobileWritingToolbarAction) => void
+  recordHost?: boolean
 }
 
 type ToolbarItem =
@@ -98,6 +99,8 @@ const ROOT_ITEMS: ToolbarItem[] = [
   { kind: 'menu', menu: 'diagram', label: '图表', icon: Workflow },
   { kind: 'action', action: 'open-mobile-more', label: '更多', icon: MoreHorizontal },
 ]
+
+const RECORD_ROOT_ITEMS = ROOT_ITEMS.filter(item => item.kind !== 'menu' || item.menu !== 'ai')
 
 const MENU_LABELS: Record<Exclude<MobileWritingToolbarMenu, 'root'>, string> = {
   ai: 'AI',
@@ -152,10 +155,12 @@ const SECONDARY_ITEMS: Record<Exclude<MobileWritingToolbarMenu, 'root'>, Toolbar
 export function MobileWritingToolbar({
   activeActions = [],
   onAction,
+  recordHost = false,
 }: MobileWritingToolbarProps) {
   const [activeMenu, setActiveMenu] = useState<MobileWritingToolbarMenu>('root')
+  const rootItems = recordHost ? RECORD_ROOT_ITEMS : ROOT_ITEMS
   const items = activeMenu === 'root'
-    ? ROOT_ITEMS
+    ? rootItems
     : SECONDARY_ITEMS[activeMenu]
 
   const preventFocusSteal = (event: PointerEvent<HTMLButtonElement> | MouseEvent<HTMLButtonElement>) => {
@@ -163,8 +168,10 @@ export function MobileWritingToolbar({
   }
 
   return (
-    <div className="mobile-writing-toolbar border-t border-border bg-background/95 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div key={activeMenu} className="mobile-writing-toolbar-track flex items-center gap-1 overflow-x-auto overflow-y-hidden px-2 scrollbar-hide">
+    <div className={cn('mobile-writing-toolbar', recordHost
+      ? 'shrink-0 border-s border-border ps-1'
+      : 'border-t border-border bg-background/95 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/80')}>
+      <div key={activeMenu} className={cn('mobile-writing-toolbar-track flex items-center gap-1', !recordHost && 'overflow-x-auto overflow-y-hidden px-2 scrollbar-hide')}>
         {activeMenu !== 'root' && (
           <Button
             type="button"
@@ -172,7 +179,7 @@ export function MobileWritingToolbar({
             title="返回一级菜单"
             variant="default"
             size="sm"
-            className="h-9 min-w-9 shrink-0 rounded-full px-2.5 text-xs"
+            className={cn('shrink-0 rounded-full px-2.5 text-xs', recordHost ? 'h-11 min-w-11' : 'h-9 min-w-9')}
             onPointerDown={preventFocusSteal}
             onMouseDown={preventFocusSteal}
             onClick={() => setActiveMenu('root')}
@@ -195,7 +202,8 @@ export function MobileWritingToolbar({
               variant="ghost"
               size="sm"
               className={cn(
-                'h-9 min-w-9 shrink-0 rounded-full px-2.5 text-xs',
+                'shrink-0 rounded-full px-2.5 text-xs',
+                recordHost ? 'h-11 min-w-11' : 'h-9 min-w-9',
                 'text-muted-foreground hover:bg-muted/80 hover:text-foreground',
                 isActive && 'bg-muted text-foreground',
               )}

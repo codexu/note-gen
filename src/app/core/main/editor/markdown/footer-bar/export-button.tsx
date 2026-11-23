@@ -3,10 +3,16 @@
 import { Editor } from '@tiptap/react'
 import { Download, FileCode, FileJson, FileText } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import useArticleStore from '@/stores/article'
@@ -21,9 +27,13 @@ interface ExportButtonProps {
   editor: Editor
   markdown?: string
   getMarkdown?: () => string
+  recordExportName?: string
+  submenuLabel?: string
 }
 
-export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProps) {
+export function ExportButton({ editor, markdown, getMarkdown, recordExportName, submenuLabel }: ExportButtonProps) {
+  const t = useTranslations('record.mark.detail')
+  const label = recordExportName !== undefined ? t('exportBody') : '导出'
   const [isOpen, setIsOpen] = useState(false)
   const [exporting, setExporting] = useState<MarkdownExportFormat | null>(null)
 
@@ -38,14 +48,17 @@ export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProp
     try {
       setExporting(format)
 
-      const activeFilePath = useArticleStore.getState().activeFilePath
+      const isRecord = recordExportName !== undefined
+      const activeFilePath = isRecord ? undefined : useArticleStore.getState().activeFilePath
+      const readMarkdown = () => getMarkdown?.() ?? markdown ?? editor.getMarkdown()
       const exported = await exportMarkdownSource(
         format,
         {
-          baseName: getMarkdownExportBaseName(activeFilePath),
-          markdown: () => getMarkdown?.() ?? markdown ?? editor.getMarkdown(),
-          json: getMarkdown || markdown !== undefined ? undefined : () => editor.getJSON(),
+          baseName: recordExportName ?? getMarkdownExportBaseName(activeFilePath),
+          markdown: isRecord ? readMarkdown() : readMarkdown,
+          json: isRecord || getMarkdown || markdown !== undefined ? undefined : () => editor.getJSON(),
           sourcePath: activeFilePath,
+          kind: isRecord ? 'record' : undefined,
         },
         { onPdfRenderStart: showPdfExportStart },
       )
@@ -64,23 +77,59 @@ export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProp
       setExporting(null)
       setIsOpen(false)
     }
-  }, [editor, getMarkdown, markdown, showPdfExportStart])
+  }, [editor, getMarkdown, markdown, recordExportName, showPdfExportStart])
 
-  const handleExport = useCallback((format: MarkdownExportFormat) => {
+  const handleExport = (event: Event, format: MarkdownExportFormat) => {
+    if (submenuLabel === undefined) event.preventDefault()
     void runExport(format)
-  }, [runExport])
+  }
+
+  const formats = (
+    <DropdownMenuGroup>
+      <DropdownMenuItem disabled={exporting !== null} onSelect={(event) => handleExport(event, 'markdown')}>
+        <FileText size={12} />
+        <span>Markdown</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={exporting !== null} onSelect={(event) => handleExport(event, 'html')}>
+        <FileCode size={12} />
+        <span>HTML</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={exporting !== null} onSelect={(event) => handleExport(event, 'json')}>
+        <FileJson size={12} />
+        <span>JSON</span>
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={exporting !== null} onSelect={(event) => handleExport(event, 'pdf')}>
+        <FileText size={12} />
+        <span>PDF</span>
+      </DropdownMenuItem>
+    </DropdownMenuGroup>
+  )
+
+  if (submenuLabel !== undefined) {
+    return (
+      <DropdownMenuSub open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuSubTrigger>
+          <Download />
+          {submenuLabel}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuPortal>
+          <DropdownMenuSubContent>{formats}</DropdownMenuSubContent>
+        </DropdownMenuPortal>
+      </DropdownMenuSub>
+    )
+  }
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          title="导出"
+          title={label}
           className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-0"
           disabled={exporting !== null}
         >
           <Download className="size-3" />
-          <span>导出</span>
+          <span>{label}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -88,46 +137,7 @@ export function ExportButton({ editor, markdown, getMarkdown }: ExportButtonProp
         side="top"
         sideOffset={4}
       >
-        <DropdownMenuItem
-          disabled={exporting !== null}
-          onSelect={(event) => {
-            event.preventDefault()
-            handleExport('markdown')
-          }}
-        >
-          <FileText size={12} />
-          <span>Markdown</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={exporting !== null}
-          onSelect={(event) => {
-            event.preventDefault()
-            handleExport('html')
-          }}
-        >
-          <FileCode size={12} />
-          <span>HTML</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={exporting !== null}
-          onSelect={(event) => {
-            event.preventDefault()
-            handleExport('json')
-          }}
-        >
-          <FileJson size={12} />
-          <span>JSON</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={exporting !== null}
-          onSelect={(event) => {
-            event.preventDefault()
-            handleExport('pdf')
-          }}
-        >
-          <FileText size={12} />
-          <span>PDF</span>
-        </DropdownMenuItem>
+        {formats}
       </DropdownMenuContent>
     </DropdownMenu>
   )

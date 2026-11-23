@@ -59,6 +59,16 @@ input, textarea, select, [contenteditable] {
   height: 1.125rem;
 }
 
+.mobile-app-active :is(
+  #mobile-record-detail > header,
+  #mobile-record-detail > footer,
+  #mobile-canvas-editor > header,
+  #mobile-canvas-editor [role="toolbar"]
+) button:is([data-slot="button"], [data-slot="toggle"], [data-slot="toggle-group-item"]) > svg {
+  width: calc(var(--spacing) * 4);
+  height: calc(var(--spacing) * 4);
+}
+
 html,
 body {
   width: 100%;

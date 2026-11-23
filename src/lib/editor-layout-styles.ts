@@ -40,14 +40,7 @@ export function normalizeEditorViewMode(value: unknown): EditorViewMode {
 export function getEditorContentContainerClass(options: {
   contentWidth: EditorContentWidth
   isMobile: boolean
-  outlineOpen?: boolean
-  outlinePosition?: 'left' | 'right'
-  contentInset?: boolean
 }) {
-  if (options.contentInset === false) {
-    return ''
-  }
-
   if (options.isMobile) {
     return ''
   }

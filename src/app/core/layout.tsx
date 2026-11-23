@@ -50,6 +50,7 @@ import { PluginDialogHost } from "@/components/plugins/plugin-dialog-host"
 import { DesktopScreenshotBridge } from "@/components/desktop-screenshot-bridge"
 import { InitialSetupScreen } from '@/components/initial-setup/initial-setup-screen'
 import { useInitialSetupStore } from '@/stores/initial-setup'
+import { getRecordIdFromTabPath, getRecordTabPath } from './main/mark/mark-record-tab'
 
 export default function RootLayout({
   children,
@@ -453,8 +454,31 @@ export default function RootLayout({
     }
   }, [currentLocale])
 
-  // 禁用浏览器后退快捷键（Backspace）和添加搜索快捷键（Cmd/Ctrl+F）
+  // 记录编辑快捷键、编辑器和侧栏搜索，以及浏览器后退键拦截。
   useEffect(() => {
+    const handleRecordShortcut = (e: KeyboardEvent) => {
+      if (pathname !== '/core/main' || useInitialSetupStore.getState().visible
+        || e.defaultPrevented || e.isComposing || (!e.metaKey && !e.ctrlKey) || e.altKey || e.shiftKey) return
+
+      const key = e.key.toLowerCase()
+      if (key !== 'f' && key !== 's') return
+
+      const target = e.target instanceof Element ? e.target : null
+      if (target?.closest('[role="dialog"], [role="alertdialog"]')) return
+
+      const { activeTabId, openTabs } = useArticleStore.getState()
+      const activeTab = openTabs.find((tab) => tab.id === activeTabId)
+      if (!activeTab) return
+      const pathMarkId = getRecordIdFromTabPath(activeTab.path)
+      const markId = activeTab.kind === 'record' ? activeTab.markId ?? pathMarkId : pathMarkId
+      if (markId === null || !Number.isSafeInteger(markId) || markId <= 0) return
+
+      e.preventDefault()
+      e.stopPropagation()
+      if (key === 'f') emitter.emit('editor-search-trigger', { filePath: getRecordTabPath(markId) })
+      else if (!e.repeat) emitter.emit('record-editor-save-requested', { markId })
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (useInitialSetupStore.getState().visible) return
       // 搜索快捷键：Cmd+F (macOS) 或 Ctrl+F (Windows/Linux)
@@ -469,7 +493,7 @@ export default function RootLayout({
         if (isFocusInEditor) {
           e.preventDefault()
           // 触发编辑器内搜索
-          emitter.emit('editor-search-trigger' as any)
+          emitter.emit('editor-search-trigger')
           return
         }
 
@@ -493,8 +517,10 @@ export default function RootLayout({
 
     }
 
+    window.addEventListener('keydown', handleRecordShortcut, true)
     window.addEventListener('keydown', handleKeyDown)
     return () => {
+      window.removeEventListener('keydown', handleRecordShortcut, true)
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [pathname, router])

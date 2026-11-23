@@ -11,6 +11,7 @@ import {
   queueRecordAssetRemoteDeletions,
 } from '@/lib/sync/record-assets'
 import { getRecordImageThumbnailPath } from '@/lib/record-image-thumbnail'
+import { getRecordInlineImagePath, getRecordInlineImagePaths, RECORD_INLINE_IMAGE_DIRECTORY } from '@/lib/record-inline-images'
 import { recordTagIds } from '@/lib/record-tags'
 
 export { getMarkLocalAssetPath }
@@ -30,7 +31,20 @@ export interface Mark {
   sourceId?: string | null
 }
 
+export type MarkUpdateSnapshot = Pick<Mark, 'type' | 'url' | 'tagId' | 'content' | 'desc' | 'createdAt'>
+
+export interface MarkUpdateOptions {
+  retainPreviousAssets?: boolean
+}
+
 const MARK_COLUMNS = 'id, tagId, type, content, url, desc, deleted, createdAt, sourceId'
+const UPDATE_MARK_SQL = 'update marks set tagId = $1, url = $2, desc = $3, content = $4, createdAt = $5 where id = $6'
+// Truncate display text inside todo JSON so completion and priority remain readable.
+const MARK_PREVIEW_CONTENT_SQL = `case when type = 'todo' and json_valid(content) then json_set(
+  content,
+  '$.title', case when json_type(content, '$.title') = 'text' then substr(json_extract(content, '$.title'), 1, 500) end,
+  '$.description', case when json_type(content, '$.description') = 'text' then substr(json_extract(content, '$.description'), 1, 500) end
+) else substr(content, 1, 500) end`
 
 // Match the exact tag or its descendants; substr avoids LIKE wildcard surprises.
 export const RECORD_TAG_MATCH_SQL = `marks.tagId = $1 or exists (
@@ -117,14 +131,33 @@ async function deleteMarkLocalAsset(assetPath: string) {
   await remove(assetPath, { baseDir: BaseDirectory.AppData })
 }
 
-async function deleteMarkLocalAssets(marks: Pick<Mark, 'type' | 'url' | 'content'>[]) {
-  const assetPaths = Array.from(new Set(marks.flatMap(getMarkLocalAssetPaths)))
-  for (const assetPath of assetPaths) {
+async function deleteMarkLocalAssets(assetPaths: string[]) {
+  for (const assetPath of new Set(assetPaths)) {
     try {
       await deleteMarkLocalAsset(assetPath)
     } catch (error) {
       console.error('Error deleting mark local asset:', assetPath, error)
     }
+  }
+}
+
+async function deleteUnusedRecordInlineImages(marks: Pick<Mark, 'type' | 'content'>[]) {
+  const paths = new Set(marks.flatMap(mark => getRecordInlineImagePaths(mark.type, mark.content)))
+  if (!paths.size) return
+
+  try {
+    const db = await getDb()
+    const remaining = await db.select<Array<Pick<Mark, 'type' | 'content'>>>(
+      'select type, content from marks where instr(content, $1) > 0',
+      [`${RECORD_INLINE_IMAGE_DIRECTORY}/`],
+    )
+    for (const mark of remaining) {
+      for (const path of getRecordInlineImagePaths(mark.type, mark.content)) paths.delete(path)
+      if (!paths.size) return
+    }
+    await deleteMarkLocalAssets([...paths])
+  } catch (error) {
+    console.error('Failed to check remaining record image references:', error)
   }
 }
 
@@ -197,7 +230,7 @@ export async function getMarkPreviews(id?: number) {
       id,
       tagId,
       type,
-      substr(content, 1, 500) as content,
+      ${MARK_PREVIEW_CONTENT_SQL} as content,
       url,
       substr(desc, 1, 500) as desc,
       deleted,
@@ -216,7 +249,7 @@ export async function getTrashMarkPreviews() {
       id,
       tagId,
       type,
-      substr(content, 1, 500) as content,
+      ${MARK_PREVIEW_CONTENT_SQL} as content,
       url,
       substr(desc, 1, 500) as desc,
       deleted,
@@ -316,23 +349,49 @@ export async function getAllMarks() {
 
 export async function updateMark(mark: Mark) {
   const db = await getDb();
-  const previousMarks = await db.select<Mark[]>("select type, url, content from marks where id = $1", [mark.id])
+  const previousMarks = await db.select<Array<Pick<Mark, 'type' | 'url' | 'content'>>>("select type, url, content from marks where id = $1", [mark.id])
   const res = await db.execute(
-    "update marks set tagId = $1, url = $2, desc = $3, content = $4, createdAt = $5 where id = $6",
+    UPDATE_MARK_SQL,
     [mark.tagId, mark.url, mark.desc, mark.content, mark.createdAt, mark.id]
   )
-  const previousMark = previousMarks[0]
-  if (
-    previousMark &&
-    JSON.stringify(getMarkLocalAssetPaths(previousMark).sort())
-      !== JSON.stringify(getMarkLocalAssetPaths(mark).sort())
-  ) {
-    await queueRecordAssetRemoteDeletions([previousMark])
+  await finishMarkUpdate(mark, previousMarks[0])
+  return res
+}
+
+export async function updateMarkIfCurrent(
+  mark: Mark,
+  expected: MarkUpdateSnapshot,
+  { retainPreviousAssets }: MarkUpdateOptions = {},
+): Promise<boolean> {
+  const db = await getDb()
+  const result = await db.execute(
+    `${UPDATE_MARK_SQL} and deleted = 0
+     and type = $7 and url is $8 and tagId = $9 and content is $10 and desc is $11 and createdAt is $12`,
+    [mark.tagId, mark.url ?? null, mark.desc ?? null, mark.content ?? null, mark.createdAt ?? null, mark.id,
+      expected.type, expected.url ?? null, expected.tagId, expected.content ?? null, expected.desc ?? null, expected.createdAt ?? null],
+  )
+  if (result.rowsAffected !== 1) return false
+
+  // A follow-up failure does not undo the committed write.
+  await finishMarkUpdate(mark, retainPreviousAssets ? undefined : expected)
+    .catch(error => console.error('Record update follow-up failed:', error))
+  return true
+}
+
+async function finishMarkUpdate(mark: Mark, previousMark?: Pick<Mark, 'type' | 'url' | 'content'>) {
+  try {
+    if (
+      previousMark &&
+      JSON.stringify(getMarkLocalAssetPaths(previousMark).sort())
+        !== JSON.stringify(getMarkLocalAssetPaths(mark).sort())
+    ) {
+      await queueRecordAssetRemoteDeletions([previousMark])
+    }
+  } finally {
+    enqueueRecordsAutoSync('mark:update')
+    await invalidateMarkKnowledgeIndex(mark.id)
+    enqueueMarkKnowledgeIndex(mark.id)
   }
-  enqueueRecordsAutoSync('mark:update')
-  await invalidateMarkKnowledgeIndex(mark.id)
-  enqueueMarkKnowledgeIndex(mark.id)
-  return res 
 }
 
 export async function restoreMark(id: number) {
@@ -417,9 +476,10 @@ export async function delMarkForever(id: number) {
   const db = await getDb();
   const marks = await db.select<Mark[]>("select type, url, content, sourceId from marks where id = $1", [id])
   await queueRecordAssetRemoteDeletions(marks)
-  await deleteMarkLocalAssets(marks)
+  await deleteMarkLocalAssets(marks.flatMap(getMarkLocalAssetPaths).filter(path => !getRecordInlineImagePath(path)))
   const result = await db.execute("delete from marks where id = $1", [id])
   enqueueRecordsAutoSync('mark:delete-forever')
+  await deleteUnusedRecordInlineImages(marks)
   await removeMarkKnowledgeIndex(id, marks[0]?.sourceId ?? null)
   return result
 }
@@ -428,9 +488,10 @@ export async function clearTrash() {
   const db = await getDb();
   const marks = await db.select<Mark[]>("select id, type, url, content, sourceId from marks where deleted = $1", [1])
   await queueRecordAssetRemoteDeletions(marks)
-  await deleteMarkLocalAssets(marks)
+  await deleteMarkLocalAssets(marks.flatMap(getMarkLocalAssetPaths).filter(path => !getRecordInlineImagePath(path)))
   const result = await db.execute("delete from marks where deleted = $1", [1])
   enqueueRecordsAutoSync('mark:clear-trash')
+  await deleteUnusedRecordInlineImages(marks)
   await Promise.all(marks.map(mark => removeMarkKnowledgeIndex(mark.id, mark.sourceId ?? null)))
   return result
 }

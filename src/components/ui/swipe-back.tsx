@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 
 export interface SwipeBackHandle {
   back: () => void
+  reset: () => void
 }
 
 interface SwipeBackProps {
@@ -14,6 +15,7 @@ interface SwipeBackProps {
   edgeWidth?: number // 左侧边缘触发区域宽度（像素）
   threshold?: number // 触发返回的滑动距离阈值（像素）
   enabled?: boolean
+  beforeBack?: () => boolean | Promise<boolean>
   onBack?: () => void
   className?: string
   backdrop?: React.ReactNode
@@ -25,6 +27,7 @@ export const SwipeBack = forwardRef<SwipeBackHandle, SwipeBackProps>(
     edgeWidth = 24,
     threshold = 72,
     enabled = true,
+    beforeBack,
     onBack,
     className,
     backdrop,
@@ -43,6 +46,7 @@ export const SwipeBack = forwardRef<SwipeBackHandle, SwipeBackProps>(
   const gestureState = useRef<'idle' | 'pending' | 'dragging' | 'cancelled'>('idle')
   const navigating = useRef(false)
   const exiting = useRef(false)
+  const exitRequest = useRef(0)
 
   // 检查是否可以返回
   useEffect(() => {
@@ -138,26 +142,80 @@ export const SwipeBack = forwardRef<SwipeBackHandle, SwipeBackProps>(
     router.back()
   }, [onBack, router])
 
-  const finishBack = useCallback(() => {
-    if (exiting.current || navigating.current) return
-    exiting.current = true
-    resetGesture()
+  const resetPosition = useCallback(() => {
+    if (reduceMotion) {
+      x.set(0)
+      return
+    }
+
+    animate(x, 0, {
+      type: 'spring',
+      stiffness: 520,
+      damping: 42,
+    })
+  }, [reduceMotion, x])
+
+  const playExit = useCallback((request: number) => {
+    const completeExit = () => {
+      if (exitRequest.current === request) navigateBack()
+    }
 
     if (reduceMotion) {
-      navigateBack()
+      completeExit()
       return
     }
 
     animate(x, window.innerWidth, {
       duration: 0.22,
       ease: [0.32, 0.72, 0, 1],
-      onComplete: navigateBack,
+      onComplete: completeExit,
     })
-  }, [navigateBack, reduceMotion, resetGesture, x])
+  }, [navigateBack, reduceMotion, x])
+
+  const finishBack = useCallback(() => {
+    if (exiting.current || navigating.current) return
+    exiting.current = true
+    resetGesture()
+    const request = ++exitRequest.current
+
+    const completeBack = (allowed: boolean) => {
+      if (exitRequest.current !== request) return
+      if (allowed) {
+        playExit(request)
+      } else {
+        exiting.current = false
+        if (x.get() !== 0) resetPosition()
+      }
+    }
+    try {
+      const decision = beforeBack?.() ?? true
+      if (typeof decision === 'boolean') {
+        completeBack(decision)
+        return
+      }
+
+      if (x.get() !== 0) resetPosition()
+      void decision.then(completeBack, () => completeBack(false))
+    } catch {
+      completeBack(false)
+    }
+  }, [beforeBack, playExit, resetGesture, resetPosition, x])
+
+  const reset = useCallback(() => {
+    exitRequest.current++
+    exiting.current = false
+    navigating.current = false
+    resetGesture()
+    x.stop()
+    x.set(0)
+  }, [resetGesture, x])
+
+  useEffect(() => () => { exitRequest.current++ }, [])
 
   useImperativeHandle(ref, () => ({
     back: finishBack,
-  }), [finishBack])
+    reset,
+  }), [finishBack, reset])
 
   const settleGesture = useCallback((e: TouchEvent, cancelled = false) => {
     if (
@@ -188,17 +246,8 @@ export const SwipeBack = forwardRef<SwipeBackHandle, SwipeBackProps>(
       return
     }
 
-    if (reduceMotion) {
-      x.set(0)
-      return
-    }
-
-    animate(x, 0, {
-      type: 'spring',
-      stiffness: 520,
-      damping: 42,
-    })
-  }, [finishBack, reduceMotion, resetGesture, threshold, x])
+    resetPosition()
+  }, [finishBack, resetGesture, resetPosition, threshold, x])
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     settleGesture(e)

@@ -3886,7 +3886,7 @@
   },
   "record": {
     "tagging": {
-      "manage": "Manage tags",
+      "manage": "Edit tags",
       "help": "Select multiple tags. Use / for nesting, such as Ideas/Music. The primary tag remains the save destination; use Move Tag to change it. Changes apply on save.",
       "primary": "Primary",
       "search": "Search or create tags",
@@ -4029,9 +4029,39 @@
       "detail": {
         "notFound": "This record does not exist or has been deleted",
         "moreActions": "More actions",
+        "bodyTools": "Content tools",
+        "copyBody": "Copy content",
+        "exportBody": "Export content",
+        "openOriginalPage": "Open original page",
+        "recognizeText": "Recognize text",
+        "recognitionChanged": "The record changed during recognition. Review it and try again.",
+        "regeneratingDescription": "Regenerating description…",
+        "imageBody": "Text",
+        "imageView": "Image",
+        "imageViewMode": "Record view",
+        "showImageDescription": "Show image description",
+        "hideImageDescription": "Hide image description",
+        "editImageConflict": "The image has changed. Reopen this record to load the latest image.",
+        "editImageProcessing": "The image is still being processed. Try saving again in a moment.",
+        "editDescription": "Edit description",
+        "descriptionHelp": "The description appears in record lists and tabs.",
+        "descriptionLoadFailed": "Could not load the record description.",
+        "descriptionChanged": "The description may have changed. Reopen the editor to load the latest version.",
+        "backToTop": "Back to top",
         "tag": "Tag",
+        "classification": "Tags",
+        "copySource": "Copy path",
+        "todoTitle": "Title",
+        "todoNotes": "Notes",
+        "todoNotesPlaceholder": "Add notes…",
+        "linkUrl": "URL",
+        "readOnly": "Read-only",
+        "emptyContent": "No content",
+        "saveFailed": "Could not save",
+        "retrySave": "Retry save",
+        "previewImage": "Preview image",
         "discardTitle": "Discard unsaved changes?",
-        "discardDescription": "Your changes will not be kept after leaving this page.",
+        "discardDescription": "You can keep editing or discard this draft.",
         "discard": "Discard changes"
       },
       "type": {
@@ -4102,6 +4132,7 @@
         "priorityLow": "Low",
         "priorityMedium": "Medium",
         "priorityHigh": "High",
+        "status": "Status",
         "dateRange": "Date Range",
         "dateRangePlaceholder": "Select date range",
         "dueDate": "Due Date",
@@ -4113,7 +4144,9 @@
         "cancel": "Cancel",
         "selectTag": "Select Tag",
         "completed": "Completed",
-        "uncompleted": "Uncompleted"
+        "uncompleted": "Incomplete",
+        "markCompleted": "Mark complete",
+        "markUncompleted": "Mark incomplete"
       },
       "clipboard": {
         "detectedImage": "Clipboard image detected",
@@ -6322,6 +6355,20 @@
     "pendingTranscription": "Original audio saved. Ready to retry transcription.",
     "pendingModelConfiguration": "Original audio saved. Configure speech recognition to transcribe it.",
     "doubleClickToSelectFile": "Double click to select audio file",
+    "playback": {
+      "label": "Recording playback",
+      "play": "Play recording",
+      "pause": "Pause recording",
+      "progress": "Playback position",
+      "elapsed": "{time} elapsed",
+      "skipBackward": "Back {seconds} seconds",
+      "skipForward": "Forward {seconds} seconds",
+      "options": "Playback options, {rate}×",
+      "currentSpeed": "Playback speed, {rate}×",
+      "loading": "Loading recording…",
+      "unavailable": "Could not play the recording",
+      "retry": "Reload recording"
+    },
     "mode": {
       "builtin": "Browser Recognition",
       "builtinDesc": "Free, real-time recognition",
@@ -6862,6 +6909,16 @@
     "retry": "Retry"
   },
   "editorImage": {
+    "crop": "Crop",
+    "applyCrop": "Apply crop",
+    "moreTools": "More image tools",
+    "rotate": "Rotate",
+    "flipHorizontal": "Flip horizontally",
+    "flipVertical": "Flip vertically",
+    "reset": "Reset",
+    "preview": "Image preview",
+    "loadError": "Could not load the image",
+    "saveError": "Could not save the image",
     "changedOnDisk": "The image was updated by sync or another operation. Reopen it before editing and saving again."
   },
   "wiki": {

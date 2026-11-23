@@ -26,6 +26,7 @@ interface MobileEditorContextBarProps {
   previewText?: string
   activeActions?: string[]
   onAction: (action: MobileContextAction) => void
+  recordHost?: boolean
 }
 
 export function MobileEditorContextBar({
@@ -33,6 +34,7 @@ export function MobileEditorContextBar({
   previewText,
   activeActions = [],
   onAction,
+  recordHost = false,
 }: MobileEditorContextBarProps) {
   void mode
   void previewText
@@ -42,8 +44,10 @@ export function MobileEditorContextBar({
   }
 
   return (
-    <div className="mobile-editor-context-bar border-b border-border bg-background/95 px-2 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className={cn('flex gap-1 overflow-x-auto', viewModel.hideScrollbar && 'scrollbar-hide')}>
+    <div className={cn('mobile-editor-context-bar', recordHost
+      ? 'shrink-0'
+      : 'border-b border-border bg-background/95 px-2 py-1 backdrop-blur supports-[backdrop-filter]:bg-background/80')}>
+      <div className={cn('flex gap-1', !recordHost && 'overflow-x-auto', !recordHost && viewModel.hideScrollbar && 'scrollbar-hide')}>
         {viewModel.items.map((item) => {
           const typedAction = item.action as MobileContextAction
           const Icon = item.icon
@@ -57,7 +61,8 @@ export function MobileEditorContextBar({
               variant={viewModel.buttonVariant}
               size={viewModel.buttonSize}
               className={cn(
-                'size-9 min-h-9 min-w-9 shrink-0 rounded-full text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                'shrink-0 rounded-full text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                recordHost ? 'size-11 min-h-11 min-w-11' : 'size-9 min-h-9 min-w-9',
                 typedAction === 'delete-image' && 'text-destructive hover:bg-destructive/10 hover:text-destructive',
               )}
               onPointerDown={preventFocusSteal}

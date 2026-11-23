@@ -1,12 +1,14 @@
 import { Store } from '@tauri-apps/plugin-store'
-import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs'
+import { BaseDirectory, writeFile, exists, mkdir } from '@tauri-apps/plugin-fs'
 import { v4 as uuidv4 } from 'uuid'
+import { RECORD_TAB_PREFIX } from '@/app/core/main/mark/mark-record-tab'
 import { isImageHostingReady, uploadImage } from './imageHosting'
 import { getFilePathOptions, isAbsoluteFsPath, toWorkspaceRelativePath } from './workspace'
-import { convertImageByWorkspace } from './utils'
+import { convertImage, convertImageByWorkspace } from './utils'
 import { toMarkdownImagePath } from './markdown-image-path'
 import { getWritingAssetsDirName } from './writing-assets-path'
 import useArticleStore from '@/stores/article'
+import { RECORD_INLINE_IMAGE_DIRECTORY, RECORD_INLINE_IMAGE_EXTENSIONS } from '@/lib/record-inline-images'
 import {
   captureStaticAssetSyncSource,
   enqueueStaticAssetSync,
@@ -50,6 +52,29 @@ export async function saveImageToWorkspace(
   }
 }
 
+export async function saveImageToEditor(file: File, activeFilePath: string): Promise<ImageUploadResult> {
+  if (!activeFilePath.startsWith(RECORD_TAB_PREFIX)) return saveImageToWorkspace(file, activeFilePath)
+
+  const id = activeFilePath.slice(RECORD_TAB_PREFIX.length)
+  const numericId = Number(id)
+  if (!Number.isSafeInteger(numericId) || numericId < 1 || String(numericId) !== id) {
+    throw new Error('Invalid record ID for image storage')
+  }
+
+  const mimeExtension = file.type.toLowerCase().match(/^image\/([a-z0-9]+)/)?.[1]
+  const nameExtension = file.name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1]
+  const extension = [mimeExtension, nameExtension].find(candidate => (
+    RECORD_INLINE_IMAGE_EXTENSIONS.some(allowed => allowed === candidate)
+  )) || 'png'
+  const directory = `${RECORD_INLINE_IMAGE_DIRECTORY}/${id}`
+  const relativePath = `${directory}/${uuidv4()}.${extension}`
+  const options = { baseDir: BaseDirectory.AppData }
+  await mkdir(directory, { ...options, recursive: true })
+  await writeFile(relativePath, new Uint8Array(await file.arrayBuffer()), options)
+
+  return { src: await convertImage(relativePath), relativePath, useImageHosting: false }
+}
+
 /**
  * 处理图片文件：上传到图床或保存到本地
  * @param file 图片文件
@@ -87,7 +112,7 @@ export async function handleImageUpload(
   // 2. 如果没有配置图床，保存到本地
   if (activeFilePath) {
     try {
-      return await saveImageToWorkspace(file, activeFilePath)
+      return await saveImageToEditor(file, activeFilePath)
     } catch (error) {
       console.error('Failed to save image locally:', error)
       throw error

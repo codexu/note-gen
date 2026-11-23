@@ -11,7 +11,9 @@ export async function fetchAiDesc(text: string) {
     // 获取AI设置
     const aiConfig = await getAISettings('markDescModel')
     
-    const descContent = `Based on the screenshot content: ${text}, return a description. Keep it under 50 characters and avoid special characters.`
+    const descContent = `Write a concise description for this record. Aim for a short phrase or sentence that captures the main subject and the most useful detail. Match the language of the record and return only the description as plain text.
+
+${text}`
     
     // 准备消息
     const { messages } = await prepareMessages(descContent)
@@ -22,7 +24,6 @@ export async function fetchAiDesc(text: string) {
       messages: messages,
       temperature: aiConfig?.temperature || 1,
       top_p: aiConfig?.topP || 1,
-      max_tokens: 80,
     }, aiConfig))
     
     return completion.choices[0].message.content || ''

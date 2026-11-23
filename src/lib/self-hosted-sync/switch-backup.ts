@@ -5,6 +5,7 @@ import { BaseDirectory, exists, mkdir, readDir, readFile, writeFile } from '@tau
 import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb, type RecordStatement } from '@/db'
 import { shouldExcludeFromSync, shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
+import { RECORD_INLINE_IMAGE_DIRECTORY } from '@/lib/record-inline-images'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import { bytesToBase64Url, hashBytes } from './blob'
 import { isManagedPersonalAssetPath, readPersonalAsset } from './personal-assets'
@@ -59,7 +60,7 @@ async function localPersonalAssets(assertActive: () => void) {
       }
     }
   }
-  for (const root of ['image', 'screenshot', 'recordings', 'link-assets', 'conversation-assets']) await scan(root)
+  for (const root of ['image', 'screenshot', 'recordings', 'link-assets', 'conversation-assets', RECORD_INLINE_IMAGE_DIRECTORY]) await scan(root)
   return assets
 }
 

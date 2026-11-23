@@ -84,8 +84,8 @@ export interface SourceMarkdownEditorController {
   applyEdits: (edits: readonly { from: number; to: number; text: string }[]) => void
   setSelection: (from: number, to: number) => void
   isFocused: () => boolean
-  undo: () => boolean
-  redo: () => boolean
+  undo: (focus?: boolean) => boolean
+  redo: (focus?: boolean) => boolean
   getUndoRedoState: () => { undo: boolean; redo: boolean }
   openSearch: () => boolean
   find: (query: string) => boolean
@@ -541,16 +541,16 @@ export function SourceMarkdownEditor({
         ]) })
       },
       isFocused: () => view.hasFocus,
-      undo: () => {
+      undo: (focus = true) => {
         if (view.state.facet(EditorState.readOnly)) return false
         const didUndo = undo(view)
-        if (didUndo) view.focus()
+        if (didUndo && focus) view.focus()
         return didUndo
       },
-      redo: () => {
+      redo: (focus = true) => {
         if (view.state.facet(EditorState.readOnly)) return false
         const didRedo = redo(view)
-        if (didRedo) view.focus()
+        if (didRedo && focus) view.focus()
         return didRedo
       },
       getUndoRedoState,

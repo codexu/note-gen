@@ -10,7 +10,7 @@ export function ImageViewer({url, path, imageClassName, interactive = true}: {ur
       return ''
     }
 
-    return isHttpUrl(url) ? url : `/${path}/${url}`
+    return path && !isHttpUrl(url) ? `/${path}/${url}` : url
   }, [path, url])
 
   useEffect(() => {

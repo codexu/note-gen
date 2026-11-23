@@ -1,178 +1,167 @@
-import { Mark } from "@/db/marks"
-import { useTranslations } from 'next-intl'
-import dayjs from "dayjs"
+'use client'
+
+import { useState } from 'react'
+import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import type { CSSProperties } from "react"
-import { useEffect, useState } from "react"
-import { CheckSquare, Square } from "lucide-react"
-import { cn } from "@/lib/utils"
-import useMarkStore from "@/stores/mark"
-import useSettingStore from "@/stores/setting"
-import { getMarkTypeListBadgeClasses } from "./mark-type-meta"
-import { parseTodoMarkContent } from "./mark-list-item-content"
-import { TodoEditTrigger } from "./todo-edit-button"
-import { Priority } from "./todo-form"
+import { useTranslations } from 'next-intl'
+import { Checkbox } from '@/components/ui/checkbox'
+import type { Mark } from '@/db/marks'
+import { toast } from '@/hooks/use-toast'
+import { cn } from '@/lib/utils'
+import { parseTodoMarkContent } from './mark-list-item-content'
+import { getMarkTypeListBadgeClasses, MARK_LIST_BADGE_CLASS } from './mark-type-meta'
+import { TodoEditTrigger } from './todo-edit-button'
+import { setRecordTodoCompleted } from './use-record-detail-save'
 
 dayjs.extend(relativeTime)
 
-interface TodoData {
-  title: string
-  description: string
-  completed: boolean
-  priority: Priority
+const priorityStyles = {
+  low: {
+    label: 'todo.priorityLow',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/35 dark:bg-emerald-500/15 dark:text-emerald-300',
+  },
+  medium: {
+    label: 'todo.priorityMedium',
+    className: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-300',
+  },
+  high: {
+    label: 'todo.priorityHigh',
+    className: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/35 dark:bg-red-500/15 dark:text-red-300',
+  },
+} as const
+
+interface TodoItemContentProps {
+  mark: Mark
+  variant: 'list' | 'compact' | 'cards' | 'mobile'
+  titleClassName: string
+  previewClassName: string
+  interactive?: boolean
+  selectionMode?: boolean
+  onOpen?: () => void
+  timeLabel?: string
 }
 
-export function TodoItemContent({ mark, interactive = true }: { mark: Mark, interactive?: boolean }) {
-  const t = useTranslations()
-  const { updateMark } = useMarkStore()
-  const { recordTextSize } = useSettingStore()
+export function TodoItemContent({
+  mark,
+  variant,
+  titleClassName,
+  previewClassName,
+  interactive = true,
+  selectionMode = false,
+  onOpen,
+  timeLabel,
+}: TodoItemContentProps) {
+  const t = useTranslations('record.mark')
+  const [pendingCompleted, setPendingCompleted] = useState<boolean | null>(null)
+  const todo = parseTodoMarkContent(mark)
+  const completed = pendingCompleted ?? todo.completed
+  const saving = pendingCompleted !== null
+  const taskType = t('type.todo')
+  const taskTitle = todo.title || taskType
+  const compact = variant === 'compact'
+  const canToggle = interactive && !selectionMode && mark.deleted !== 1
+  const completionLabel = t(completed ? 'todo.markUncompleted' : 'todo.markCompleted')
+  const priority = priorityStyles[todo.priority]
+  const priorityLabel = t(priority.label)
+  const badgeTextClassName = variant === 'mobile' ? 'text-[10px]' : 'text-xs'
 
-  const [todoData, setTodoData] = useState<TodoData>(() => {
-    return parseTodoMarkContent(mark)
-  })
+  async function changeCompletion(next: boolean) {
+    if (!canToggle || saving) return
 
-  useEffect(() => {
-    setTodoData(parseTodoMarkContent(mark))
-  }, [mark])
-
-  // 根据文字大小映射行高
-  const getLineHeight = (textSize: string) => {
-    const heightMap = {
-      'xs': 'leading-3',
-      'sm': 'leading-4',
-      'md': 'leading-5',
-      'lg': 'leading-6',
-      'xl': 'leading-7'
+    setPendingCompleted(next)
+    try {
+      if (await setRecordTodoCompleted(mark.id, next)) return
+    } catch (error) {
+      console.error('Failed to update to-do completion:', error)
+    } finally {
+      setPendingCompleted(null)
     }
-    return heightMap[textSize as keyof typeof heightMap] || 'leading-4'
+    toast({ title: t('detail.saveFailed'), variant: 'destructive' })
   }
 
-  const getLineHeightRem = (textSize: string) => {
-    const heightMap = {
-      'xs': 0.75,
-      'sm': 1,
-      'md': 1.25,
-      'lg': 1.5,
-      'xl': 1.75
-    }
-    return heightMap[textSize as keyof typeof heightMap] || 1
-  }
+  const contentClassName = 'group/todo-open block w-full min-w-0 rounded-sm text-left hover:no-underline focus-visible:outline-2 focus-visible:outline-ring'
+  const content = (
+    <>
+      <span className={cn(
+        'flex min-h-6 min-w-0 items-center gap-2',
+        titleClassName,
+        !selectionMode && 'ps-8 pointer-coarse:min-h-8 pointer-coarse:ps-13',
+      )}>
+        <span className={cn('min-w-0 truncate', completed
+          ? 'text-muted-foreground line-through'
+          : 'group-hover/todo-open:underline')}
+        >
+          {taskTitle}
+        </span>
+        <span
+          className={cn(
+            MARK_LIST_BADGE_CLASS,
+            'ms-auto shrink-0 whitespace-nowrap',
+            badgeTextClassName,
+            priority.className,
+          )}
+          title={`${t('todo.priority')} ${priorityLabel}`}
+        >
+          <span className="sr-only">{t('todo.priority')} </span>
+          {priorityLabel}
+        </span>
+      </span>
+      {!compact && todo.description ? (
+        <span className={cn('mt-1.5 line-clamp-3 break-words [overflow-wrap:anywhere]', previewClassName)}>
+          {todo.description}
+        </span>
+      ) : null}
+    </>
+  )
 
-  const lineHeight = getLineHeight(recordTextSize)
-  const lineHeightRem = getLineHeightRem(recordTextSize)
-
-  // 获取优先级颜色（用于圆点）
-  const getPriorityColor = (priority: Priority) => {
-    const colors = {
-      low: 'bg-green-500',
-      medium: 'bg-orange-500',
-      high: 'bg-red-500'
-    }
-    return colors[priority]
-  }
-
-  // 切换完成状态
-  const handleToggleComplete = async () => {
-    if (!interactive) return
-
-    const newData = { ...todoData, completed: !todoData.completed }
-    setTodoData(newData)
-
-    await updateMark({
-      ...mark,
-      content: JSON.stringify(newData)
-    })
-  }
-
-  const priorityDotColor = getPriorityColor(todoData.priority)
-  const descriptionClampStyle: CSSProperties = {
-    display: '-webkit-box',
-    WebkitBoxOrient: 'vertical',
-    WebkitLineClamp: 4,
-    maxHeight: `${lineHeightRem * 4}rem`,
-    overflow: 'hidden',
-  }
+  const body = (
+    <div className={cn('relative min-w-0', compact && 'flex-1')}>
+      {!selectionMode ? (
+        <div className={cn(
+          'absolute start-0 top-0 z-10 grid h-lh min-h-6 w-6 place-items-center pointer-coarse:h-8 pointer-coarse:w-11',
+          titleClassName,
+        )}>
+          <Checkbox
+            aria-label={canToggle ? completionLabel : t(completed ? 'todo.completed' : 'todo.uncompleted')}
+            title={canToggle ? completionLabel : undefined}
+            checked={completed}
+            disabled={!canToggle}
+            aria-disabled={saving || undefined}
+            aria-busy={saving || undefined}
+            className={cn(
+              'size-4 rounded-full border-muted-foreground/60 after:-inset-1 pointer-coarse:size-5 pointer-coarse:after:-inset-3',
+              'aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground dark:aria-checked:bg-primary',
+            )}
+            onClick={event => event.stopPropagation()}
+            onCheckedChange={checked => void changeCompletion(checked === true)}
+          />
+        </div>
+      ) : null}
+      {!selectionMode && onOpen ? (
+        <button type="button" className={contentClassName} onClick={onOpen}>{content}</button>
+      ) : !selectionMode && interactive ? (
+        <TodoEditTrigger mark={mark} className={contentClassName}>{content}</TodoEditTrigger>
+      ) : (
+        <div>{content}</div>
+      )}
+    </div>
+  )
 
   return (
-    <>
-      <div className="group min-w-0 max-w-full flex-1 overflow-hidden pr-10 md:pr-0">
-        <div className={`flex w-full min-w-0 max-w-full items-center gap-2 overflow-hidden text-zinc-500 text-${recordTextSize} ${lineHeight}`}>
-          <span className={cn(getMarkTypeListBadgeClasses(mark.type, 'xs'), 'shrink-0')}>
-            {t('record.mark.type.todo')}
-          </span>
-
-          {/* 优先级圆点 */}
-          <span className={cn("h-2 w-2 shrink-0 rounded-full", priorityDotColor)} />
-          {/* 创建时间 */}
-          <span className="ml-auto shrink-0">{dayjs(mark.createdAt).fromNow()}</span>
-        </div>
-
-        {/* 待办内容 */}
-        <div className="mt-2 min-w-0 max-w-full overflow-hidden">
-          <div className="flex min-w-0 max-w-full items-center gap-3 overflow-hidden">
-            {/* 完成状态复选框 */}
-            <button
-              onClick={handleToggleComplete}
-              disabled={!interactive}
-              className={cn("flex-shrink-0 transition-transform", interactive && "hover:scale-110")}
-            >
-              {todoData.completed ? (
-                <CheckSquare className="w-5 h-5 text-green-600" />
-              ) : (
-                <Square className="w-5 h-5 text-zinc-400" />
-              )}
-            </button>
-
-            {interactive ? (
-              <TodoEditTrigger mark={mark} className="block min-w-0 max-w-full flex-1 overflow-hidden">
-                <p className={cn(
-                  `break-words font-medium text-${recordTextSize} [overflow-wrap:anywhere]`,
-                  todoData.completed && "line-through text-zinc-500"
-                )}>
-                  {todoData.title}
-                </p>
-                {todoData.description && (
-                  <div className={cn(
-                    "mt-1",
-                    todoData.completed && "opacity-50"
-                  )}>
-                    <p className={cn(
-                      `break-words text-${recordTextSize} ${lineHeight} text-muted-foreground [overflow-wrap:anywhere]`,
-                      todoData.completed && "line-through"
-                    )}
-                    style={descriptionClampStyle}>
-                      {todoData.description}
-                    </p>
-                  </div>
-                )}
-              </TodoEditTrigger>
-            ) : (
-              <div className="min-w-0 max-w-full flex-1 overflow-hidden">
-                <p className={cn(
-                  `break-words font-medium text-${recordTextSize} [overflow-wrap:anywhere]`,
-                  todoData.completed && "line-through text-zinc-500"
-                )}>
-                  {todoData.title}
-                </p>
-                {todoData.description && (
-                  <div className={cn(
-                    "mt-1",
-                    todoData.completed && "opacity-50"
-                  )}>
-                    <p className={cn(
-                      `break-words text-${recordTextSize} ${lineHeight} text-muted-foreground [overflow-wrap:anywhere]`,
-                      todoData.completed && "line-through"
-                    )}
-                    style={descriptionClampStyle}>
-                      {todoData.description}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+    <div className={cn('flex min-w-0 flex-1 flex-col', variant === 'cards' ? 'gap-2.5' : 'gap-2')}>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn(getMarkTypeListBadgeClasses('todo'), 'shrink-0', badgeTextClassName)}>
+          {taskType}
+        </span>
+        {compact ? body : null}
+        <span className={cn(
+          'ms-auto shrink-0 whitespace-nowrap',
+          variant === 'list' ? previewClassName : 'text-xs text-muted-foreground',
+        )}>
+          {timeLabel ?? dayjs(mark.createdAt).fromNow()}
+        </span>
       </div>
-    </>
+      {!compact ? body : null}
+    </div>
   )
 }

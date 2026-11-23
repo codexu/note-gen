@@ -1,5 +1,15 @@
 import type { RemoteWriteCondition } from '@/lib/sync/write-condition'
-import { getAllMarks, getMarkPreviews, getMarks, getTrashMarkPreviews, Mark, updateMark } from '@/db/marks'
+import {
+  getAllMarks,
+  getMarkPreviews,
+  getMarks,
+  getTrashMarkPreviews,
+  type Mark,
+  type MarkUpdateOptions,
+  type MarkUpdateSnapshot,
+  updateMark,
+  updateMarkIfCurrent as writeMarkIfCurrent,
+} from '@/db/marks'
 import { replaceRecordSnapshot, validateRecordSnapshot } from '@/db/record-snapshot'
 import { isMobileDevice } from '@/lib/check'
 import { normalizeTagRules, preserveLegacyRecordTags, reconcileTagRules, recordTagIds, type TagRules } from '@/lib/record-tags'
@@ -15,7 +25,7 @@ import { CloudFolderConfig, WebDAVConfig } from '@/types/sync'
 import { getDataSyncRepoName } from '@/lib/sync/repo-utils';
 import { getRemoteFileContent, isMissingRemoteFileError, parseSyncJson, syncDataError } from '@/lib/sync/remote-file';
 import { Store } from '@tauri-apps/plugin-store';
-import { create } from 'zustand'
+import { create, type StoreApi } from 'zustand'
 import { S3Config } from '@/types/sync'
 import { normalizeRecordFilters } from '@/app/core/main/mark/mark-filters'
 import { setAutoDataSyncApplyingRemote } from '@/lib/sync/auto-data-sync-queue'
@@ -90,7 +100,8 @@ interface MarkState {
   setTrashState: (flag: boolean, options?: { deferFetch?: boolean }) => Promise<void>
 
   marks: Mark[]
-  updateMark: (mark: Mark) => Promise<void>
+  updateMark: (mark: Mark, options?: { optimistic?: boolean }) => Promise<void>
+  updateMarkIfCurrent: (mark: Mark, expected: MarkUpdateSnapshot, options?: MarkUpdateOptions) => Promise<boolean>
   setMarks: (marks: Mark[]) => void
   fetchMarks: () => Promise<void>
   fetchAllTrashMarks: () => Promise<void>
@@ -144,6 +155,21 @@ interface MarkState {
   downloadMarks: (options?: RecordDataDownloadOptions) => Promise<Mark[]>
 }
 
+function publishMarkUpdate(set: StoreApi<MarkState>['setState'], mark: Mark) {
+  function mergeMark(item: Mark) {
+    if (item.id !== mark.id) return item
+    return {
+      ...item,
+      ...mark,
+      tagIds: recordTagIds({ tagId: mark.tagId, tagIds: recordTagIds(item).filter(id => id !== item.tagId) }),
+      tagUpdatedAt: item.tagUpdatedAt,
+    }
+  }
+
+  set(state => ({ marks: state.marks.map(mergeMark), allMarks: state.allMarks.map(mergeMark) }))
+  void useArticleStore.getState().updateRecordTab(mark)
+}
+
 const useMarkStore = create<MarkState>((set, get) => ({
   trashState: false,
   setTrashState: async (flag, options) => {
@@ -157,35 +183,15 @@ const useMarkStore = create<MarkState>((set, get) => ({
   },
 
   marks: [],
-  updateMark: async (mark) => {
-    set((state) => {
-      return {
-        marks: state.marks.map(item => {
-          if (item.id === mark.id) {
-            return {
-              ...item,
-              ...mark,
-              tagIds: recordTagIds({ tagId: mark.tagId, tagIds: recordTagIds(item).filter(id => id !== item.tagId) }),
-              tagUpdatedAt: item.tagUpdatedAt,
-            }
-          }
-          return item
-        }),
-        allMarks: state.allMarks.map(item => {
-          if (item.id === mark.id) {
-            return {
-              ...item,
-              ...mark,
-              tagIds: recordTagIds({ tagId: mark.tagId, tagIds: recordTagIds(item).filter(id => id !== item.tagId) }),
-              tagUpdatedAt: item.tagUpdatedAt,
-            }
-          }
-          return item
-        }),
-      }
-    })
-    void useArticleStore.getState().updateRecordTab(mark)
-    await updateMark(mark)
+  updateMark: async (mark, { optimistic = true } = {}) => {
+    if (!optimistic) await updateMark(mark)
+    publishMarkUpdate(set, mark)
+    if (optimistic) await updateMark(mark)
+  },
+  updateMarkIfCurrent: async (mark, expected, options) => {
+    if (!await writeMarkIfCurrent(mark, expected, options)) return false
+    publishMarkUpdate(set, mark)
+    return true
   },
   setMarks: (marks) => {
     set({ marks })

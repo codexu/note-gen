@@ -1,4 +1,5 @@
 import type { Mark } from "@/db/marks"
+import type { Priority } from "./todo-form"
 import { cn } from "@/lib/utils"
 import {
   CheckSquare,
@@ -83,10 +84,22 @@ export function getMarkTypeIconClasses(type: Mark["type"]) {
   return MARK_TYPE_TONES[type].icon
 }
 
+export const MARK_LIST_BADGE_CLASS = "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium"
+
 export function getMarkTypeListBadgeClasses(type: Mark["type"], textSize?: string) {
   return cn(
-    "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-medium",
+    MARK_LIST_BADGE_CLASS,
     MARK_TYPE_TONES[type].list,
     textSize ? `text-${textSize}` : "text-xs"
   )
+}
+
+const TODO_PRIORITY_DOT_CLASSES: Record<Priority, string> = {
+  low: 'bg-muted-foreground',
+  medium: 'bg-primary',
+  high: 'bg-destructive',
+}
+
+export function getTodoPriorityDotClass(priority: Priority) {
+  return TODO_PRIORITY_DOT_CLASSES[priority]
 }

@@ -38,13 +38,13 @@ import { WikiMetadata } from './wiki-metadata-extension'
 import { WikiCitations } from './wiki-citation-extension'
 import type { WikiTopicCitation } from '@/types/wiki'
 import { SearchReplacePanel } from './search-replace-panel'
-import { useEffect, useId, useLayoutEffect, useRef, useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useCallback, useMemo, useState, type CSSProperties, type ReactNode, type RefObject, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type UIEvent as ReactUIEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { openPath, openUrl } from '@tauri-apps/plugin-opener'
 import { open } from '@tauri-apps/plugin-dialog'
 import { BaseDirectory, readFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
-import { handleImageUpload, saveImageToWorkspace } from '@/lib/image-handler'
+import { handleImageUpload, saveImageToEditor } from '@/lib/image-handler'
 import useArticleStore from '@/stores/article'
 import { cn, convertImage, convertImageByWorkspace } from '@/lib/utils'
 import { resolveImagePathFromMarkdown } from '@/lib/markdown-image-path'
@@ -70,6 +70,7 @@ import { TableScrollbar } from './table-scrollbar'
 import { AgentDiffNavigation } from './agent-diff-navigation'
 import { PluginEditorInlineViews } from '@/components/plugins/plugin-embedded-views'
 import { FooterBar } from './footer-bar/index'
+import { MobileRecordEditorTools, RecordEditorHistory } from './footer-bar/record-editor-tools'
 import { Outline } from './outline'
 import { SlashCommand, suggestionOptions } from './slash-command'
 import { SlashCommandPortal } from './slash-command/slash-command-portal'
@@ -1428,18 +1429,19 @@ async function getWorkspaceRelativePathForAbsolutePath(path: string): Promise<st
 
 async function getMarkdownHrefForDroppedPath(path: string, currentFilePath: string): Promise<string> {
   const normalizedPath = normalizeLocalFilePath(path)
+  const markdownPath = isRecordTabPath(currentFilePath) ? '' : currentFilePath
 
   if (isAbsoluteFsPath(normalizedPath)) {
     const workspaceRelativePath = await getWorkspaceRelativePathForAbsolutePath(normalizedPath)
 
     if (workspaceRelativePath !== null) {
-      return encodeLocalLinkHref(toMarkdownRelativePath(currentFilePath, workspaceRelativePath))
+      return encodeLocalLinkHref(toMarkdownRelativePath(markdownPath, workspaceRelativePath))
     }
 
     return toFileUrl(normalizedPath)
   }
 
-  return encodeLocalLinkHref(toMarkdownRelativePath(currentFilePath, normalizedPath))
+  return encodeLocalLinkHref(toMarkdownRelativePath(markdownPath, normalizedPath))
 }
 
 async function createMarkdownLinksForDroppedPaths(files: DroppedFileLink[], currentFilePath: string): Promise<string[]> {
@@ -2349,10 +2351,14 @@ function runDeferredEditorCommand(onSuccess: () => void, onError: (error: unknow
   }, 0)
 }
 
+export type MarkdownFlushRef = RefObject<(() => boolean) | null>
+export type MarkdownChangeHandler = (content: string) => void
+
 interface TipTapEditorProps {
   initialContent: string
-  onChange?: (content: string) => void
+  onChange?: MarkdownChangeHandler
   onContentDirty?: () => void
+  markdownFlushRef?: MarkdownFlushRef
   placeholder?: string
   editable?: boolean
   readOnly?: boolean
@@ -2360,6 +2366,7 @@ interface TipTapEditorProps {
   standalone?: boolean
   onReady?: () => void
   onEditorReady?: (editor: TipTapReactEditor) => void
+  onVisualEditorChange?: (editor: TipTapReactEditor | null) => void
   outlineOpen?: boolean
   outlinePosition?: OutlinePosition
   outlineWidth?: number
@@ -2368,7 +2375,10 @@ interface TipTapEditorProps {
   autoScroll?: boolean
   showOverlay?: boolean
   showFooterBar?: boolean
-  contentInset?: boolean
+  contentHeader?: ReactNode
+  recordExportName?: string
+  recordToolsTarget?: HTMLElement | null
+  recordMobileFormatTarget?: HTMLDivElement | null
   scrollable?: boolean
   mobileMode?: boolean
   applyLayoutPreferences?: boolean
@@ -2467,6 +2477,7 @@ export function TipTapEditor({
   initialContent,
   onChange,
   onContentDirty,
+  markdownFlushRef,
   placeholder,
   editable: editingAllowed = true,
   readOnly: inheritedReadOnly = false,
@@ -2474,6 +2485,7 @@ export function TipTapEditor({
   standalone = false,
   onReady,
   onEditorReady,
+  onVisualEditorChange,
   outlineOpen,
   outlinePosition = 'right',
   outlineWidth = DEFAULT_OUTLINE_WIDTH,
@@ -2482,7 +2494,10 @@ export function TipTapEditor({
   autoScroll = false,
   showOverlay = false,
   showFooterBar = true,
-  contentInset = true,
+  contentHeader,
+  recordExportName,
+  recordToolsTarget,
+  recordMobileFormatTarget,
   scrollable = true,
   mobileMode,
   applyLayoutPreferences = false,
@@ -2491,6 +2506,7 @@ export function TipTapEditor({
   exposeToPluginHost = true,
   onTerminate,
 }: TipTapEditorProps) {
+  const isRecordDocument = isRecordTabPath(activeFilePath)
   const editorRenderStartedAtRef = useRef(
     typeof performance === 'undefined' ? Date.now() : performance.now(),
   )
@@ -2510,6 +2526,9 @@ export function TipTapEditor({
   const setPendingSearchKeyword = useArticleStore((state) => state.setPendingSearchKeyword)
   const setEditorViewState = useArticleStore((state) => state.setEditorViewState)
   const getEditorViewState = useArticleStore((state) => state.getEditorViewState)
+  const recordEditorMode = useArticleStore((state) => (
+    recordToolsTarget !== undefined ? state.editorViewStates[activeFilePath]?.recordEditorMode : undefined
+  ))
   // This is an editor-session reading preference, not a filesystem permission.
   const readingWorkspacePath = useSettingStore(state => state.workspacePath)
   useEffect(() => { setWikiCitation(null) }, [activeFilePath, isActive, readingWorkspacePath])
@@ -2527,12 +2546,14 @@ export function TipTapEditor({
   const editable = editingAllowed && !readOnly && !agentReviewActive && !agentFileMutationActive
   const applyingReadOnlySnapshotRef = useRef(false)
   const isEditorUnmountingRef = useRef(false)
+
   const initialEditorViewState = activeFilePath
     ? getEditorViewState(activeFilePath)
     : null
 
   const placeholderText = placeholder || t('placeholder')
   const isMobile = mobileMode ?? isMobileDevice()
+  const hasMobileRecordFormat = isMobile && recordMobileFormatTarget !== undefined
   const [isRestoringMobileView, setIsRestoringMobileView] = useState(isMobile)
   const [sourceMarkdown, setSourceMarkdown] = useState(initialContent)
   const sourceMarkdownRef = useRef(initialContent)
@@ -2596,9 +2617,24 @@ export function TipTapEditor({
     developerPerformanceInfo,
   } = useSettingStore()
   const selfHostedRuntimeReady = useSyncStore((state) => state.selfHostedRuntimeReady)
-  const viewMode: EditorViewMode = applyLayoutPreferences
-    ? editorViewMode
-    : 'visual'
+  const hasRecordTools = recordToolsTarget !== undefined && recordExportName !== undefined
+  const [recordUndoRedo, setRecordUndoRedo] = useState({ undo: false, redo: false })
+  const publishUndoRedoState = useCallback((state: ReturnType<typeof getEditorUndoRedoState>) => {
+    if (hasRecordTools) {
+      setRecordUndoRedo(current => current.undo === state.undo && current.redo === state.redo ? current : state)
+    }
+    emitter.emit('editor-undo-redo-changed', state)
+  }, [hasRecordTools])
+  const viewMode: EditorViewMode = hasRecordTools
+    ? recordEditorMode ?? 'visual'
+    : applyLayoutPreferences ? editorViewMode : 'visual'
+  const changeViewMode = useCallback((mode: EditorViewMode) => {
+    if (hasRecordTools) {
+      setEditorViewState(activeFilePath, { recordEditorMode: mode })
+    } else if (applyLayoutPreferences) {
+      void setEditorViewMode(mode)
+    }
+  }, [activeFilePath, applyLayoutPreferences, hasRecordTools, setEditorViewMode, setEditorViewState])
   const useLargeDocumentSourceFallback = ENABLE_LARGE_DOCUMENT_SOURCE_FALLBACK && isLargeDocument
   const shouldDeferVisualParsing = useLargeDocumentSourceFallback && !largeDocumentVisualOverride
   const shouldDeferVisualParsingRef = useRef(shouldDeferVisualParsing)
@@ -2645,7 +2681,14 @@ export function TipTapEditor({
   const [mobileContext, setMobileContext] = useState<MobileSelectionContext>(null)
   const [mobileSheetMode, setMobileSheetMode] = useState<MobileSheetMode>(null)
   const mobileColorSelectionRef = useRef<{ from: number; to: number; doc: CoreEditor['state']['doc'] } | null>(null)
-  const [mobileOutlineOpen, setMobileOutlineOpen] = useState(isMobile && enableOutline)
+  const [mobileOutlineOpen, setMobileOutlineOpen] = useState(isMobile && !hasMobileRecordFormat && enableOutline)
+  useEffect(() => {
+    if (hasMobileRecordFormat && (!isActive || isSourceView)) {
+      setMobileSheetMode(null)
+      setMobileOutlineOpen(false)
+      setSearchReplaceOpen(false)
+    }
+  }, [hasMobileRecordFormat, isActive, isSourceView])
   const [showMobileScrollTop, setShowMobileScrollTop] = useState(false)
   const [imageSrcDraft, setImageSrcDraft] = useState('')
   const [imageAltDraft, setImageAltDraft] = useState('')
@@ -3160,6 +3203,7 @@ export function TipTapEditor({
   const editorOperationEpochRef = useRef(0)
   const editorRequestsRef = useRef(new Set<AbortController>())
   const editorOperationCleanupsRef = useRef(new Set<() => void>())
+
   useEffect(() => {
     editorOperationEpochRef.current += 1
     setIsCanvasDropPending(false)
@@ -3379,7 +3423,7 @@ export function TipTapEditor({
     let cancelled = false
     let stopPresence: (() => void) | null = null
     const setup = async () => {
-      if (standalone || primaryBackupMethod !== 'selfHosted' || !selfHostedRuntimeReady
+      if (standalone || isRecordDocument || primaryBackupMethod !== 'selfHosted' || !selfHostedRuntimeReady
         || !isActive || !activeFilePath || !editor) return
       const workspace = await getWorkspacePath()
       const workspaceRoot = workspace.isCustom
@@ -3546,6 +3590,7 @@ export function TipTapEditor({
     isMobile,
     primaryBackupMethod,
     selfHostedRuntimeReady,
+    isRecordDocument,
     selfHostedSessionRevision,
     standalone,
     tSelfHosted,
@@ -3621,6 +3666,24 @@ export function TipTapEditor({
     flushMarkdownChange(editor)
     return getVisualMarkdownSnapshot(editor)
   }, [editor, flushMarkdownChange, getVisualMarkdownSnapshot, isSourceView])
+
+  useLayoutEffect(() => {
+    if (!markdownFlushRef) return
+    const flush = () => {
+      if (sourceEditorControllerRef.current?.isComposing() || (editor && !editor.isDestroyed && editor.view.composing)) return false
+      try {
+        getCurrentMarkdownSnapshot()
+        return true
+      } catch (error) {
+        console.error('Failed to flush Markdown:', error)
+        return false
+      }
+    }
+    markdownFlushRef.current = flush
+    return () => {
+      if (markdownFlushRef.current === flush) markdownFlushRef.current = null
+    }
+  }, [editor, getCurrentMarkdownSnapshot, markdownFlushRef])
 
   useEffect(() => {
     if (!isActive) return
@@ -3755,7 +3818,7 @@ export function TipTapEditor({
     if (!controller) return
     controller.setEditable(editingAllowed && !readOnlyRef.current && !agentReviewActiveRef.current)
 
-    const pendingKeyword = useArticleStore.getState().pendingSearchKeyword.trim()
+    const pendingKeyword = hasMobileRecordFormat ? '' : useArticleStore.getState().pendingSearchKeyword.trim()
     if (pendingKeyword) {
       controller.find(pendingKeyword)
       setPendingSearchKeyword('')
@@ -3772,12 +3835,12 @@ export function TipTapEditor({
         || path !== activeFilePathRef.current || sourceEditorControllerRef.current !== controller) return
       controller.openSearch()
     })
-  }, [editingAllowed, setPendingSearchKeyword])
+  }, [editingAllowed, hasMobileRecordFormat, setPendingSearchKeyword])
 
   const handleSourceUndoRedoChange = useCallback((state: { undo: boolean; redo: boolean }) => {
     if (!isActive) return
-    emitter.emit('editor-undo-redo-changed', readOnlyRef.current ? { undo: false, redo: false } : state)
-  }, [isActive])
+    publishUndoRedoState(readOnlyRef.current ? { undo: false, redo: false } : state)
+  }, [isActive, publishUndoRedoState])
 
   const handleSourceViewStateChange = useCallback((state: SourceMarkdownEditorViewState) => {
     sourceSelectionRef.current = state.selection
@@ -3868,15 +3931,13 @@ export function TipTapEditor({
       setLargeDocumentVisualOverride(true)
       setEditorViewState(currentPath, { largeDocumentVisualOverride: true })
       previousViewModeRef.current = 'visual'
-      if (applyLayoutPreferences) {
-        void setEditorViewMode('visual')
-      }
+      changeViewMode('visual')
     }, 0)
 
     return () => window.clearTimeout(parseTimer)
   }, [
     activeFilePath,
-    applyLayoutPreferences,
+    changeViewMode,
     classifyCanonicalMarkdown,
     editor,
     isActive,
@@ -3884,7 +3945,6 @@ export function TipTapEditor({
     isPreparingLargeDocumentVisual,
     onEditorReady,
     onReady,
-    setEditorViewMode,
     setEditorViewState,
     trySetMarkdownContent,
   ])
@@ -3940,7 +4000,7 @@ export function TipTapEditor({
       return
     }
     previousViewModeRef.current = 'source'
-    void setEditorViewMode('source')
+    changeViewMode('source')
   }, [
     activeFilePath,
     editor,
@@ -3948,7 +4008,7 @@ export function TipTapEditor({
     handleEnterVisualMode,
     useLargeDocumentSourceFallback,
     isSourceView,
-    setEditorViewMode,
+    changeViewMode,
     setEditorViewState,
   ])
 
@@ -4728,7 +4788,8 @@ export function TipTapEditor({
         return
       }
 
-      const localPath = resolveLocalLinkPath(href, useArticleStore.getState().activeFilePath)
+      const filePath = isRecordTabPath(activeFilePathRef.current) ? '' : useArticleStore.getState().activeFilePath
+      const localPath = resolveLocalLinkPath(href, filePath)
 
       if (!localPath) return
 
@@ -4745,7 +4806,9 @@ export function TipTapEditor({
     const handleModifiedMouseDown = (event: MouseEvent) => {
       if (event.button !== 0 || (!event.metaKey && !event.ctrlKey)) return
 
-      const href = (event.target as HTMLElement).closest<HTMLAnchorElement>('a')?.getAttribute('href')?.trim()
+      const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>('a')
+      if (!anchor || !editor.view.dom.contains(anchor)) return
+      const href = anchor.getAttribute('href')?.trim()
       if (!href || href.startsWith('#')) return
 
       event.preventDefault()
@@ -4756,11 +4819,14 @@ export function TipTapEditor({
 
     const handleClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement
+      const anchor = target.closest<HTMLAnchorElement>('a')
+      if (!anchor || !editor.view.dom.contains(anchor)) return
+      const href = anchor.getAttribute('href')?.trim()
+      if (!href) return
       const modifiedClick = event.metaKey || event.ctrlKey
 
       if (modifiedClick) {
-        const href = target.closest<HTMLAnchorElement>('a')?.getAttribute('href')?.trim()
-        if (!href || href.startsWith('#')) return
+        if (href.startsWith('#')) return
 
         event.preventDefault()
         event.stopPropagation()
@@ -4772,16 +4838,13 @@ export function TipTapEditor({
         return
       }
 
-      const anchor = target.closest<HTMLAnchorElement>('a')
-      const href = anchor?.getAttribute('href')?.trim()
-      if (!anchor || !href) return
-
-      if (isMobile && href.startsWith('#')) return
+      const opensLink = isMobile || !editor.isEditable
+      if (opensLink && href.startsWith('#')) return
 
       event.preventDefault()
       event.stopPropagation()
 
-      if (isMobile) {
+      if (opensLink) {
         void openLink(href).catch(() => {})
       } else {
         editLink(anchor, href)
@@ -4930,10 +4993,10 @@ export function TipTapEditor({
         openSheet('format')
         return
       case 'undo':
-        runCommand(() => editor.chain().focus().undo().run())
+        runCommand(() => hasMobileRecordFormat ? editor.commands.undo() : editor.chain().focus().undo().run())
         return
       case 'redo':
-        runCommand(() => editor.chain().focus().redo().run())
+        runCommand(() => hasMobileRecordFormat ? editor.commands.redo() : editor.chain().focus().redo().run())
         return
       case 'toggle-heading-2':
       case 'insert-heading-2':
@@ -5060,6 +5123,7 @@ export function TipTapEditor({
   }, [
     customAiInstruction,
     editor,
+    hasMobileRecordFormat,
     openSearchReplace,
     updateMobileContext,
   ])
@@ -5085,11 +5149,12 @@ export function TipTapEditor({
 
   const runMobileEditorAction = useCallback((action: string) => {
     if (!editor) return
+    if (hasMobileRecordFormat && isSourceViewRef.current) return
 
     if (!mobileContext) {
       switch (action) {
         case 'ai':
-          setMobileSheetMode('ai-write')
+          if (!hasMobileRecordFormat) setMobileSheetMode('ai-write')
           return
         case 'bold':
           runMobileWritingAction('format-bold')
@@ -5255,6 +5320,7 @@ export function TipTapEditor({
     }
   }, [
     editor,
+    hasMobileRecordFormat,
     mobileContext,
     runMobileWritingAction,
     restoreMobileContextSelection,
@@ -5493,7 +5559,7 @@ export function TipTapEditor({
           const safeTitle = project.title.replace(/[\\/:*?"<>|]/g, '-').trim() || 'NoteGen-Canvas'
           const imageFile = await canvasDocumentToPngFile(project.document, `${safeTitle}.png`)
           if (!isCurrentOperation()) return
-          const result = await saveImageToWorkspace(imageFile, activeFilePath)
+          const result = await saveImageToEditor(imageFile, activeFilePath)
           if (!isCurrentOperation()) return
           const position = placeholder.position()
           if (position === undefined) return
@@ -6089,12 +6155,12 @@ export function TipTapEditor({
 
   // Listen to editor transactions and notify header/tab bar about undo/redo state
   useEffect(() => {
-    if (!editor || !isActive) return
+    if (!editor || !isActive || isSourceView) return
 
     let frameId: number | null = null
 
     const emitUndoRedoState = () => {
-      emitEditorUndoRedoState(editor)
+      publishUndoRedoState(getEditorUndoRedoState(editor))
     }
 
     emitUndoRedoState()
@@ -6116,35 +6182,47 @@ export function TipTapEditor({
       }
       editor.off('transaction', handleTransaction)
     }
-  }, [activeFilePath, editor, isActive])
+  }, [activeFilePath, editor, isActive, isSourceView, publishUndoRedoState])
+
+  const openEditorSearch = useCallback(() => {
+    if (isSourceView) {
+      const sourceController = sourceEditorControllerRef.current
+      if (sourceController) {
+        sourceController.openSearch()
+      } else {
+        pendingSourceSearchRef.current = true
+      }
+      return
+    }
+
+    openSearchReplace()
+  }, [isSourceView, openSearchReplace])
+
+  useEffect(() => {
+    if (!onVisualEditorChange) return
+    onVisualEditorChange(isSourceView ? null : editor)
+    return () => onVisualEditorChange(null)
+  }, [editor, isSourceView, onVisualEditorChange])
 
   // Listen for search trigger from layout (Ctrl+F / Cmd+F)
   useEffect(() => {
     if (!isActive) return
 
-    const handleSearchTrigger = () => {
-      if (isSourceView) {
-        const sourceController = sourceEditorControllerRef.current
-        if (sourceController) {
-          sourceController.openSearch()
-        } else {
-          pendingSourceSearchRef.current = true
-        }
-        return
-      }
-
-      openSearchReplace()
+    const handleSearchTrigger = (target: void | { filePath: string }) => {
+      if (target && target.filePath !== activeFilePathRef.current) return
+      openEditorSearch()
     }
 
-    emitter.on('editor-search-trigger' as any, handleSearchTrigger)
+    emitter.on('editor-search-trigger', handleSearchTrigger)
     return () => {
-      emitter.off('editor-search-trigger' as any, handleSearchTrigger)
+      emitter.off('editor-search-trigger', handleSearchTrigger)
     }
-  }, [isActive, isSourceView, openSearchReplace])
+  }, [isActive, openEditorSearch])
 
   useEffect(() => {
     if (
       !isActive
+      || hasMobileRecordFormat
       || !activeFilePath
       || !pendingSearchKeyword.trim()
     ) {
@@ -6241,6 +6319,7 @@ export function TipTapEditor({
     pendingSearchKeyword,
     setPendingSearchKeyword,
     initialContent,
+    hasMobileRecordFormat,
     isActive,
     isSourceView,
     openSearchReplace,
@@ -6250,7 +6329,7 @@ export function TipTapEditor({
   // All canonical update channels share a sequence so a delayed older event
   // can never overwrite a newer Agent or sync result.
   useEffect(() => {
-    if (!isActive) return
+    if (!isActive || hasMobileRecordFormat) return
 
     const handleRemoteContentUpdate = (event: { content: string }) => {
       if (!editor || typeof event?.content !== 'string') return
@@ -6298,6 +6377,7 @@ export function TipTapEditor({
     editor,
     activeFilePath,
     classifyCanonicalMarkdown,
+    hasMobileRecordFormat,
     isActive,
     trySetMarkdownContent,
   ])
@@ -6393,7 +6473,7 @@ export function TipTapEditor({
 
   // Handle external content updates (e.g., from Agent tools).
   useEffect(() => {
-    if (!isActive) return
+    if (!isActive || hasMobileRecordFormat) return
     let retryTimer: number | null = null
 
     const handleExternalUpdate = (newContent: string) => {
@@ -6450,6 +6530,7 @@ export function TipTapEditor({
   }, [
     classifyCanonicalMarkdown,
     editor,
+    hasMobileRecordFormat,
     isActive,
     trySetMarkdownContent,
   ])
@@ -6465,12 +6546,15 @@ export function TipTapEditor({
         : editor
           ? getEditorUndoRedoState(editor)
           : { undo: false, redo: false }
-    emitter.emit('editor-undo-redo-changed', historyState)
-  }, [editable, editor, isActive, isInitializingVisualContent, isSourceView])
+    publishUndoRedoState(historyState)
+  }, [editable, editor, isActive, isInitializingVisualContent, isSourceView, publishUndoRedoState])
 
   // Handle AI continue writing
   useEffect(() => {
-    if (!isActive) return
+    // These writing actions insert temporary text while streaming. Record
+    // detail saves body transactions automatically, so only finished AI
+    // changes from selection actions go there.
+    if (!isActive || hasMobileRecordFormat) return
 
     let abortController: AbortController | null = null
 
@@ -6601,11 +6685,11 @@ export function TipTapEditor({
       document.removeEventListener('tiptap-ai-continue', handleAIContinue)
       abortController?.abort()
     }
-  }, [captureEditorOperation, editor, isActive, isMobile])
+  }, [captureEditorOperation, editor, hasMobileRecordFormat, isActive, isMobile])
 
   // Handle slash-command AI generation actions that operate without selected text.
   useEffect(() => {
-    if (!isActive) return
+    if (!isActive || hasMobileRecordFormat) return
 
     let abortController: AbortController | null = null
 
@@ -6776,7 +6860,7 @@ export function TipTapEditor({
       document.removeEventListener('tiptap-ai-generate', handleAIGenerate)
       abortController?.abort()
     }
-  }, [captureEditorOperation, editor, isActive, isMobile])
+  }, [captureEditorOperation, editor, hasMobileRecordFormat, isActive, isMobile])
 
   // Handle drag and drop from marks
   const handleEditorDrop = useCallback((e: React.DragEvent) => {
@@ -7801,9 +7885,18 @@ export function TipTapEditor({
     // Defer emitter and document listener registration to avoid flushSync conflict during React render
     const setupListeners = () => {
       // Check if editor is initialized before registering listeners
-      if (!editor || !isActive) return
+      if (!editor || !isActive || !activeFilePath) return
 
-      if (!activeFilePath || !exposeToPluginHost) return
+      emitter.on('editor-undo', handleUndo)
+      emitter.on('editor-redo', handleRedo)
+      emitter.on('editor-can-undo-redo', handleCanUndoRedo)
+      if (!isSourceView) {
+        emitter.on('mobile-editor-toggle-outline', handleMobileToggleOutline)
+        document.addEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
+        listenersSetup = true
+      }
+
+      if (!exposeToPluginHost) return
 
       const pluginRegistration = registerPluginEditor({
         path: activeFilePath,
@@ -7852,17 +7945,12 @@ export function TipTapEditor({
       }
 
       if (isSourceView) {
-        // Keep the Markdown-aware Agent bridge active, while leaving commands that
-        // target the hidden ProseMirror view (history, diffs and node insertion)
-        // disabled.
+        // Keep the Markdown-aware Agent bridge active in source mode.
         emitter.on('editor-get-selection', handleGetSelection)
         emitter.on('editor-get-content', handleGetContent)
         emitter.on('editor-insert', handleInsert)
         emitter.on('editor-replace', handleReplace)
         emitter.on('get-quote-from-editor', handleGetQuote)
-        emitter.on('editor-undo', handleUndo)
-        emitter.on('editor-redo', handleRedo)
-        emitter.on('editor-can-undo-redo', handleCanUndoRedo)
         editorListenersRegistered = true
         return
       }
@@ -7872,17 +7960,11 @@ export function TipTapEditor({
       emitter.on('editor-insert', handleInsert)
       emitter.on('editor-replace', handleReplace)
       emitter.on('get-quote-from-editor', handleGetQuote)
-      emitter.on('editor-undo', handleUndo)
-      emitter.on('editor-redo', handleRedo)
-      emitter.on('mobile-editor-toggle-outline', handleMobileToggleOutline)
-      emitter.on('editor-can-undo-redo', handleCanUndoRedo)
       editor.on('selectionUpdate', scheduleSelectionQuote)
       document.addEventListener('pointerup', flushSelectionQuote)
       editor.view.dom.addEventListener('keyup', flushSelectionQuote)
-      document.addEventListener('tiptap-insert-mermaid', handleInsertMermaid as EventListener)
       syncEditorSelectionQuote()
       editorListenersRegistered = true
-      listenersSetup = true
     }
 
     const cleanupListeners = () => {
@@ -7946,6 +8028,10 @@ export function TipTapEditor({
 
   const effectiveOutlineOpen = isMobile ? mobileOutlineOpen : outlineOpen
   const outlineContentPadding = `${getOutlineContentPadding(outlineWidth)}px`
+  const contentColumnClassName = getEditorContentContainerClass({
+    contentWidth: applyLayoutPreferences ? editorContentWidth : DEFAULT_EDITOR_CONTENT_WIDTH,
+    isMobile,
+  })
   const handleOutlineToggle = () => {
     if (isMobile) {
       setMobileOutlineOpen((prev) => !prev)
@@ -7988,15 +8074,51 @@ export function TipTapEditor({
     )
   }
 
+  function runRecordHistoryAction(action: 'undo' | 'redo') {
+    if (!isActiveRef.current || readOnlyRef.current || agentReviewActiveRef.current) return
+
+    if (isSourceViewRef.current) {
+      const controller = sourceEditorControllerRef.current
+      if (controller && !controller.isComposing()) controller[action](!hasMobileRecordFormat)
+      return
+    }
+
+    if (!editor || editor.isDestroyed || !editor.isEditable || editor.view.composing) return
+    if (hasMobileRecordFormat) editor.commands[action]()
+    else editor.chain().focus()[action]().run()
+  }
+
+  const showMobileFormat = editable && isMobile && !isSourceView
+  const mobileContextActions = mobileContext?.actions
+    ?? (hasMobileRecordFormat ? ['bold', 'italic', 'highlight'] : getMobileContextPrimaryActions('text'))
+  const mobileContextToolbar = showMobileFormat ? (
+    <MobileEditorContextBar
+      mode={mobileContext?.mode ?? 'text'}
+      previewText={mobileContext?.mode === 'text' ? mobileContext.previewText : undefined}
+      activeActions={[...(showEditorUndoRedo && !hasMobileRecordFormat ? ['undo', 'redo'] : []), ...mobileContextActions]}
+      onAction={runMobileEditorAction}
+      recordHost={hasMobileRecordFormat}
+    />
+  ) : null
+  const mobileWritingToolbar = showMobileFormat && showMobileEditorToolbar && !mobileContext ? (
+    <MobileWritingToolbar
+      activeActions={mobileWritingActiveActions}
+      onAction={runMobileWritingAction}
+      recordHost={hasMobileRecordFormat}
+    />
+  ) : null
+
   return (
     <PluginEditorContextMenu enabled={exposeToPluginHost} editor={effectiveViewMode === 'visual' ? editor : null}>
       <div
         ref={editorContainerRef}
         id="aritcle-md-editor"
+        data-editor-document-path={activeFilePath || undefined}
+        data-mobile-record-editor={hasMobileRecordFormat || undefined}
         className={cn(
           "tiptap-editor relative flex select-none flex-col",
           scrollable ? "h-full" : "h-auto min-h-full",
-          !contentInset && "tiptap-editor-no-inset"
+          hasMobileRecordFormat && 'mobile-record-editor',
         )}
         data-editor-line-height={applyLayoutPreferences ? editorLineHeight : undefined}
         style={{
@@ -8015,7 +8137,7 @@ export function TipTapEditor({
           onClose={() => setWikiCitation(null)}
         />
       )}
-      {!standalone && primaryBackupMethod === 'selfHosted' && (
+      {!standalone && !isRecordDocument && primaryBackupMethod === 'selfHosted' && (
         <SelfHostedNoteConflicts
           activeFilePath={activeFilePath}
           isActive={isActive}
@@ -8041,17 +8163,18 @@ export function TipTapEditor({
           <span className="text-xs text-muted-foreground">{selfHostedCollaborators.length}</span>
         </div>
       ) : null}
-      {editable && isMobile && effectiveViewMode === 'visual' && (
-        <MobileEditorContextBar
-          mode={mobileContext?.mode ?? 'text'}
-          previewText={mobileContext?.mode === 'text' ? mobileContext.previewText : undefined}
-          activeActions={[
-            ...(showEditorUndoRedo ? ['undo', 'redo'] : []),
-            ...(mobileContext?.actions ?? getMobileContextPrimaryActions('text')),
-          ]}
-          onAction={runMobileEditorAction}
-        />
-      )}
+      {hasMobileRecordFormat ? (
+        recordMobileFormatTarget && isActive && showMobileFormat ? createPortal(
+          <div
+            data-swipe-back-ignore
+            className="flex min-w-0 touch-pan-x items-center gap-1 overflow-x-auto overscroll-x-contain border-t bg-background px-1 scrollbar-hide"
+          >
+            {mobileContextToolbar}
+            {mobileWritingToolbar}
+          </div>,
+          recordMobileFormatTarget,
+        ) : null
+      ) : mobileContextToolbar}
 
       {!isMobile && isActive && editable && effectiveViewMode === 'visual' && (
         <TableContextToolbar editor={editor} pluginsEnabled={exposeToPluginHost} />
@@ -8080,7 +8203,8 @@ export function TipTapEditor({
                 ? "h-full overflow-x-hidden overflow-y-auto overscroll-y-contain"
                 : "overflow-x-clip overflow-y-visible",
             scrollable && !isMobile && "editor-scroll-container-custom",
-            isMobile && "mobile-under-dock-scroll mobile-writing-editor-scroll",
+            contentHeader && isSourceView && "flex flex-col",
+            isMobile && (isRecordDocument ? 'mobile-record-editor-scroll' : 'mobile-under-dock-scroll mobile-writing-editor-scroll'),
             isMobile && activeFilePath && isRestoringMobileView && "opacity-0"
           )}
           onScroll={handleEditorScroll}
@@ -8089,6 +8213,13 @@ export function TipTapEditor({
           onDragLeave={effectiveViewMode === 'visual' ? handleEditorDragLeave : undefined}
           onDropCapture={effectiveViewMode === 'visual' ? handleEditorDrop : undefined}
         >
+        {isSourceView && contentHeader ? (
+          <div className="max-h-[40%] shrink-0 overflow-y-auto overscroll-contain">
+            <div className={contentColumnClassName}>
+              <div className="tiptap-editor-content-header pb-4">{contentHeader}</div>
+            </div>
+          </div>
+        ) : null}
         {(isCanvasDragOver || isCanvasDropPending) && (
           <div className={cn(
             'pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-primary/60 bg-primary/5 transition-colors duration-150',
@@ -8102,19 +8233,10 @@ export function TipTapEditor({
         )}
         <div
           className={cn(
-            effectiveViewMode === 'source'
-              ? 'w-full'
-              : getEditorContentContainerClass({
-                contentWidth: applyLayoutPreferences
-                  ? editorContentWidth
-                  : DEFAULT_EDITOR_CONTENT_WIDTH,
-                isMobile,
-                outlineOpen: !!outlineOpen,
-                outlinePosition,
-                contentInset,
-              }),
-            scrollable && effectiveViewMode !== 'source' && 'h-full',
-            effectiveViewMode === 'source' && 'h-full min-h-0'
+            isSourceView ? 'w-full' : contentColumnClassName,
+            !isSourceView && contentHeader && 'flex flex-col',
+            scrollable && !isSourceView && (contentHeader ? 'min-h-full' : 'h-full'),
+            isSourceView && (contentHeader ? 'min-h-0 flex-1' : 'h-full min-h-0')
           )}
           style={
             !isMobile
@@ -8127,6 +8249,9 @@ export function TipTapEditor({
               : undefined
           }
         >
+        {!isSourceView && contentHeader ? (
+          <div className="tiptap-editor-content-header shrink-0">{contentHeader}</div>
+        ) : null}
         {effectiveViewMode === 'source' ? (
           <div className="flex h-full min-h-0 w-full flex-col">
             {markdownParseError ? (
@@ -8244,7 +8369,10 @@ export function TipTapEditor({
               />,
               editorDragHandleElement,
             ) : null}
-            <EditorContent editor={editor} className={cn("relative select-text", scrollable && "h-full")}>
+            <EditorContent editor={editor} className={cn(
+              "relative select-text",
+              scrollable && (contentHeader ? "flex flex-1 flex-col [&>.tiptap]:flex-1" : "h-full"),
+            )}>
               <SmartFileLink editor={editor} activeFilePath={activeFilePath} />
 
               {editable && !isMobile && <ImageBubbleMenu editor={editor} pluginsEnabled={exposeToPluginHost} />}
@@ -8299,7 +8427,7 @@ export function TipTapEditor({
         ) : null}
       </div>
 
-      {isMobile && showMobileScrollTop && (
+      {isMobile && !hasMobileRecordFormat && showMobileScrollTop && (
         <Button
           type="button"
           variant="outline"
@@ -8313,14 +8441,9 @@ export function TipTapEditor({
         </Button>
       )}
 
-      {editable && isMobile && effectiveViewMode === 'visual' && showMobileEditorToolbar && !mobileContext && (
-        <MobileWritingToolbar
-          activeActions={mobileWritingActiveActions}
-          onAction={runMobileWritingAction}
-        />
-      )}
+      {!hasMobileRecordFormat ? mobileWritingToolbar : null}
 
-      {editable && isMobile && (
+      {editable && isMobile && (!hasMobileRecordFormat || isActive && !isSourceView) && (
         <MobileEditorMoreSheet
           editor={editor}
           pluginsEnabled={exposeToPluginHost}
@@ -8344,7 +8467,7 @@ export function TipTapEditor({
         />
       )}
 
-      {isMobile && (
+      {isMobile && (!hasMobileRecordFormat || isActive && !isSourceView) && (
         <Outline
           editor={editor}
           isOpen={mobileOutlineOpen}
@@ -8373,19 +8496,41 @@ export function TipTapEditor({
         </div>
       )}
 
-      {showFooterBar ? (
+      {isActive && recordToolsTarget && recordExportName !== undefined ? createPortal(
+        <>
+          {editable && showEditorUndoRedo ? (
+            <RecordEditorHistory {...recordUndoRedo} onAction={runRecordHistoryAction} mobile={hasMobileRecordFormat} />
+          ) : null}
+          {hasMobileRecordFormat ? (
+            <MobileRecordEditorTools
+              editor={editor}
+              exportName={recordExportName}
+              viewMode={effectiveViewMode}
+              onToggleViewMode={handleToggleViewMode}
+              outlineOpen={effectiveOutlineOpen}
+              onToggleOutline={isSourceView ? undefined : handleOutlineToggle}
+              onScrollToTop={!isSourceView && showMobileScrollTop ? handleMobileScrollTop : undefined}
+              getMarkdown={getCurrentMarkdownSnapshot}
+            />
+          ) : null}
+        </>,
+        recordToolsTarget,
+      ) : null}
+
+      {showFooterBar && (!hasRecordTools || !isMobile) ? (
         <MainStatusBarPortal active={isActive} inline={isMobile || standalone}>
           <FooterBar
             editor={editor}
             readOnly={!editable}
             outlineOpen={effectiveOutlineOpen}
-            onToggleOutline={handleOutlineToggle}
+            onToggleOutline={isRecordDocument && isSourceView ? undefined : handleOutlineToggle}
             viewMode={effectiveViewMode}
             onToggleViewMode={applyLayoutPreferences ? handleToggleViewMode : undefined}
             sourceMarkdown={isSourceView ? sourceMarkdown : undefined}
             getMarkdown={getCurrentMarkdownSnapshot}
             onMarkdownChange={isSourceView ? handleSourceMarkdownChange : undefined}
             embedded={!isMobile && !standalone}
+            recordExportName={recordExportName}
           />
         </MainStatusBarPortal>
       ) : null}

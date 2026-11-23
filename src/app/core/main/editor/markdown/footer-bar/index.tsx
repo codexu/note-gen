@@ -33,6 +33,7 @@ interface FooterBarProps {
   prepareExternalAction?: () => boolean
   onMarkdownChange?: (markdown: string) => void
   embedded?: boolean
+  recordExportName?: string
 }
 
 export function FooterBar({
@@ -47,8 +48,10 @@ export function FooterBar({
   prepareExternalAction,
   onMarkdownChange,
   embedded = false,
+  recordExportName,
 }: FooterBarProps) {
   const isMobile = isMobileDevice()
+  const isRecord = recordExportName !== undefined
   const primaryBackupMethod = useSettingStore((state) => state.primaryBackupMethod)
   const showEditorStats = useSettingStore((state) => state.showEditorStats)
   const pluginStatisticsVisible = usePluginStore((state) => Object.entries(state.statusBar).some(
@@ -56,11 +59,20 @@ export function FooterBar({
   ))
   const tSourceMode = useTranslations('settings.editor.sourceMode')
   const tReading = useTranslations('editor.readingMode')
+  const wordCount = showEditorStats && (isRecord || !pluginStatisticsVisible)
+    ? <WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact />
+    : null
+  const statistics = wordCount && (embedded
+    ? <StatusBarItem id="editor:word-count" rank={60}>{wordCount}</StatusBarItem>
+    : wordCount)
+
   const prepareWriteAction = () => !readOnly && (prepareExternalAction?.() ?? true)
+  const copyButton = <CopyButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} kind={isRecord ? 'record' : undefined} />
+  const exportButton = <ExportButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} recordExportName={recordExportName} />
   if (isMobile) {
     return (
       <div className="mobile-editor-footer flex h-7 select-none items-center justify-between gap-3 border-t border-border bg-background px-3 text-xs text-muted-foreground">
-        {!readOnly ? (
+        {!readOnly || isRecord ? (
           <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
             {showEditorStats ? <WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact /> : null}
           </div>
@@ -79,25 +91,28 @@ export function FooterBar({
               <span>{tSourceMode(viewMode)}</span>
             </Button>
           ) : null}
-          {readOnly ? (
+          {readOnly || isRecord ? (
             <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={tReading('search')}
-                title={tReading('search')}
-                onClick={() => emitter.emit('editor-search-trigger')}
-              >
-                <Search />
-              </Button>
-              <CopyButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} />
+              {!isRecord ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={tReading('search')}
+                  title={tReading('search')}
+                  onClick={() => emitter.emit('editor-search-trigger')}
+                >
+                  <Search />
+                </Button>
+              ) : null}
+              {copyButton}
+              {isRecord ? exportButton : null}
               {onToggleOutline ? (
                 <OutlineToggle editor={editor} outlineOpen={outlineOpen} onToggleOutline={onToggleOutline} />
               ) : null}
             </>
           ) : null}
-          {!readOnly && primaryBackupMethod !== 'selfHosted' && primaryBackupMethod !== 'local' ? (
+          {!isRecord && !readOnly && primaryBackupMethod !== 'selfHosted' && primaryBackupMethod !== 'local' ? (
             <>
               <HistorySheet editor={editor} prepareExternalAction={prepareWriteAction} onMarkdownChange={onMarkdownChange} />
               <SyncButton getMarkdown={getMarkdown} prepareExternalAction={prepareWriteAction} />
@@ -122,8 +137,8 @@ export function FooterBar({
     )}>
       {/* Left side: Plugin contributions, Copy, Export, Outline */}
       <div className={embedded ? 'contents' : 'flex items-center gap-1'}>
-        {!embedded ? <PluginStatusBarItems alignment="left" /> : null}
-        {!readOnly && !embedded && viewMode === 'visual' ? <PluginEditorToolbar editor={editor} location="editor/toolbar" /> : null}
+        {!isRecord && !embedded ? <PluginStatusBarItems alignment="left" /> : null}
+        {!isRecord && !readOnly && !embedded && viewMode === 'visual' ? <PluginEditorToolbar editor={editor} location="editor/toolbar" /> : null}
         {onToggleViewMode ? (embedded ? <StatusBarItem id="editor:view-mode" rank={20}>
           <Button
             type="button"
@@ -149,8 +164,8 @@ export function FooterBar({
             <span>{tSourceMode(viewMode)}</span>
           </Button>
         )) : null}
-        {embedded ? <StatusBarItem id="editor:copy" rank={21}><CopyButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} /></StatusBarItem> : <CopyButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} />}
-        {embedded ? <StatusBarItem id="editor:export" rank={22}><ExportButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} /></StatusBarItem> : <ExportButton editor={editor} markdown={sourceMarkdown} getMarkdown={getMarkdown} />}
+        {embedded ? <StatusBarItem id="editor:copy" rank={21}>{copyButton}</StatusBarItem> : copyButton}
+        {embedded ? <StatusBarItem id="editor:export" rank={22}>{exportButton}</StatusBarItem> : exportButton}
         {onToggleOutline ? (
           embedded ? <StatusBarItem id="editor:outline" rank={23}><OutlineToggle
             editor={editor}
@@ -162,9 +177,9 @@ export function FooterBar({
 
       {/* Right side: Sync tools */}
       <div className={embedded ? 'contents' : 'flex min-w-0 items-center gap-1'}>
-        {showEditorStats && !pluginStatisticsVisible ? (embedded ? <StatusBarItem id="editor:word-count" rank={60}><WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact /></StatusBarItem> : <WordCount editor={editor} sourceMarkdown={sourceMarkdown} compact />) : null}
-        {!embedded ? <PluginStatusBarItems alignment="right" /> : null}
-        {!readOnly && <SyncTools
+        {statistics}
+        {!isRecord && !embedded ? <PluginStatusBarItems alignment="right" /> : null}
+        {!isRecord && !readOnly && <SyncTools
           embedded={embedded}
           editor={editor}
           markdown={sourceMarkdown}

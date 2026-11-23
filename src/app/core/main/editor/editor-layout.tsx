@@ -37,6 +37,10 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { OnboardingSpotlight } from '@/components/onboarding-spotlight'
 import { TabContentErrorBoundary } from '@/components/tab-content-error-boundary'
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -52,6 +56,7 @@ import { parsePluginEditorTabPath } from '@/lib/plugins/editor-tab'
 import { UnsupportedFile } from './unsupported-file'
 import { MarkDetailPanel } from '../mark/mark-detail-panel'
 import { getRecordIdFromTabPath, isRecordTabPath } from '../mark/mark-record-tab'
+import { getRecordTabCloseGuards, type RecordTabCloseGuard } from '../mark/record-detail-tab-guard'
 import { createCanvasTab, getCanvasIdFromTabPath, isCanvasTabPath } from '../canvas/canvas-tab'
 import { canOpenInEditorWindow, focusEditorWindowForPath, openEditorWindow } from '@/lib/editor-windows'
 import {
@@ -342,6 +347,8 @@ export function EditorLayout({
   const setActiveCanvasId = useCanvasStore(state => state.setActiveCanvasId)
   const tOnboarding = useTranslations('article.emptyState.onboarding')
   const tGroups = useTranslations('tabContext')
+  const tRecordDetail = useTranslations('record.mark.detail')
+  const tCommon = useTranslations('common')
 
   const tabContentsRef = useRef<Record<string, string>>({})
   const tabContentsWorkspacePathRef = useRef(workspacePath)
@@ -365,6 +372,8 @@ export function EditorLayout({
   const [layoutReady, setLayoutReady] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [detachingTabId, setDetachingTabId] = useState('')
+  const [confirmRecordTabClose, setConfirmRecordTabClose] = useState<(() => void) | null>(null)
+  const recordCloseFocusRef = useRef<HTMLElement | null>(null)
   const [pluginTabRevisions, setPluginTabRevisions] = useState<Record<string, number>>({})
   const handleRestartPluginTab = useCallback((tabId: string) => {
     setPluginTabRevisions(current => ({ ...current, [tabId]: (current[tabId] ?? 0) + 1 }))
@@ -395,6 +404,30 @@ export function EditorLayout({
     })
     return canDeactivate
   }, [])
+
+  const canCloseRecordTabs = useCallback((
+    groupId: string,
+    tabIds: readonly string[],
+    confirmed: readonly RecordTabCloseGuard[],
+    resume: (guards: readonly RecordTabCloseGuard[]) => void,
+  ) => {
+    const dirty: RecordTabCloseGuard[] = []
+    for (const guard of getRecordTabCloseGuards(groupId, tabIds)) {
+      const status = guard()
+      if (status === 'saving') {
+        toast.info(tCommon('saving'))
+        return false
+      }
+      if (status === 'dirty' && !confirmed.includes(guard)) dirty.push(guard)
+    }
+    if (!dirty.length) return true
+
+    if (!recordCloseFocusRef.current && document.activeElement instanceof HTMLElement) {
+      recordCloseFocusRef.current = document.activeElement
+    }
+    setConfirmRecordTabClose(current => current ?? (() => resume([...confirmed, ...dirty])))
+    return false
+  }, [tCommon])
 
   useEffect(() => {
     if (initializedRef.current) return
@@ -1016,25 +1049,31 @@ export function EditorLayout({
 
   const removeGlobalTabIfUnused = useCallback((nextLayout: EditorWorkspaceLayout, tabId: string) => {
     if (!tabIsReferenced(nextLayout, tabId)) {
-      const tab = openTabs.find(item => item.id === tabId)
+      const tab = useArticleStore.getState().openTabs.find(item => item.id === tabId)
       if (tab) {
         emitter.emit('editor-file-close', { path: tab.path })
         delete tabContentsRef.current[tab.path]
       }
       void removeTab(tabId, { deactivationAlreadyPrepared: true })
     }
-  }, [openTabs, removeTab])
+  }, [removeTab])
 
-  const handleCloseTab = useCallback((groupId: string, tabId: string) => {
+  const handleCloseTab = useCallback((
+    groupId: string,
+    tabId: string,
+    confirmed: readonly RecordTabCloseGuard[] = [],
+  ): void => {
     const group = layoutRef.current.groups[groupId]
-    if (!group) return
-    const tab = openTabs.find(item => item.id === tabId)
+    if (!group?.tabIds.includes(tabId)) return
+    const { openTabs: currentTabs, activeTabId: currentActiveTabId } = useArticleStore.getState()
+    const tab = currentTabs.find(item => item.id === tabId)
     if (
       group.tabIds.length === 1
       && tab?.kind === 'blank'
       && tab.autoCreated
       && getEditorGroupIds(layoutRef.current.root).length === 1
     ) return
+    if (!canCloseRecordTabs(groupId, [tabId], confirmed, guards => handleCloseTab(groupId, tabId, guards))) return
     const wasActiveGroup = layoutRef.current.activeGroupId === groupId
     if (group.activeTabId === tabId && layoutRef.current.activeGroupId === groupId && !canDeactivateActiveEditor()) return
     let next = removeTabFromEditorGroup(layoutRef.current, groupId, tabId)
@@ -1044,11 +1083,11 @@ export function EditorLayout({
     setLayout(next)
     removeGlobalTabIfUnused(next, tabId)
     const nextGroup = next.groups[next.activeGroupId]
-    const nextTab = openTabs.find(tab => tab.id === nextGroup?.activeTabId)
-    if (wasActiveGroup || activeTabId === tabId) {
+    const nextTab = currentTabs.find(tab => tab.id === nextGroup?.activeTabId)
+    if (wasActiveGroup || currentActiveTabId === tabId) {
       void activateTab(next.activeGroupId, nextTab)
     }
-  }, [activateTab, activeTabId, canDeactivateActiveEditor, openTabs, removeGlobalTabIfUnused, setLayout])
+  }, [activateTab, canCloseRecordTabs, canDeactivateActiveEditor, removeGlobalTabIfUnused, setLayout])
 
   const handleCloseTabRef = useRef(handleCloseTab)
   handleCloseTabRef.current = handleCloseTab
@@ -1080,14 +1119,20 @@ export function EditorLayout({
     }
   }, [])
 
-  const handleKeepTabs = useCallback((groupId: string, keptTabIds: string[]) => {
+  const handleKeepTabs = useCallback((
+    groupId: string,
+    keptTabIds: string[],
+    confirmed: readonly RecordTabCloseGuard[] = [],
+  ): void => {
     const group = layoutRef.current.groups[groupId]
     if (!group) return
+    const { openTabs: currentTabs } = useArticleStore.getState()
     const protectedTabIds = group.tabIds.filter(tabId => (
-      openTabs.find(tab => tab.id === tabId)?.pinned
+      currentTabs.find(tab => tab.id === tabId)?.pinned
     ))
     const effectiveKeptTabIds = new Set([...keptTabIds, ...protectedTabIds])
     const removedIds = group.tabIds.filter(id => !effectiveKeptTabIds.has(id))
+    if (!canCloseRecordTabs(groupId, removedIds, confirmed, guards => handleKeepTabs(groupId, keptTabIds, guards))) return
     if (removedIds.includes(group.activeTabId) && layoutRef.current.activeGroupId === groupId && !canDeactivateActiveEditor()) return
     let next = layoutRef.current
     for (const tabId of removedIds) next = removeTabFromEditorGroup(next, groupId, tabId)
@@ -1095,8 +1140,8 @@ export function EditorLayout({
     setLayout(next)
     removedIds.forEach(tabId => removeGlobalTabIfUnused(next, tabId))
     const nextGroup = next.groups[next.activeGroupId]
-    void activateTab(next.activeGroupId, openTabs.find(tab => tab.id === nextGroup?.activeTabId))
-  }, [activateTab, canDeactivateActiveEditor, openTabs, removeGlobalTabIfUnused, setLayout])
+    void activateTab(next.activeGroupId, currentTabs.find(tab => tab.id === nextGroup?.activeTabId))
+  }, [activateTab, canCloseRecordTabs, canDeactivateActiveEditor, removeGlobalTabIfUnused, setLayout])
 
   const handlePinTab = useCallback((tabId: string) => {
     void setTabDisposition(tabId, 'pinned')
@@ -1106,23 +1151,25 @@ export function EditorLayout({
     void setTabDisposition(tabId, 'regular')
   }, [setTabDisposition])
 
-  const handleCloseGroup = useCallback((groupId: string) => {
+  const handleCloseGroup = useCallback((groupId: string, confirmed: readonly RecordTabCloseGuard[] = []): void => {
     const group = layoutRef.current.groups[groupId]
     if (!group) return
+    const { openTabs: currentTabs } = useArticleStore.getState()
     const pinnedTabIds = group.tabIds.filter(tabId => (
-      openTabs.find(tab => tab.id === tabId)?.pinned
+      currentTabs.find(tab => tab.id === tabId)?.pinned
     ))
     if (pinnedTabIds.length) {
-      handleKeepTabs(groupId, pinnedTabIds)
+      handleKeepTabs(groupId, pinnedTabIds, confirmed)
       return
     }
+    if (!canCloseRecordTabs(groupId, group.tabIds, confirmed, guards => handleCloseGroup(groupId, guards))) return
     if (!canDeactivateActiveEditor()) return
     const next = closeEditorGroup(layoutRef.current, groupId)
     setLayout(next)
     group.tabIds.forEach(tabId => removeGlobalTabIfUnused(next, tabId))
     const activeGroup = next.groups[next.activeGroupId]
-    void activateTab(next.activeGroupId, openTabs.find(tab => tab.id === activeGroup?.activeTabId))
-  }, [activateTab, canDeactivateActiveEditor, handleKeepTabs, openTabs, removeGlobalTabIfUnused, setLayout])
+    void activateTab(next.activeGroupId, currentTabs.find(tab => tab.id === activeGroup?.activeTabId))
+  }, [activateTab, canCloseRecordTabs, canDeactivateActiveEditor, handleKeepTabs, removeGlobalTabIfUnused, setLayout])
 
   const handleSplitTab = useCallback((groupId: string, tabId: string, direction: EditorSplitDirection) => {
     const group = layoutRef.current.groups[groupId]
@@ -1138,9 +1185,14 @@ export function EditorLayout({
     void activateTab(next.activeGroupId, openTabs.find(tab => tab.id === tabId))
   }, [activateTab, canDeactivateActiveEditor, openTabs, setLayout, setTabDisposition])
 
-  const handleMoveToNewWindow = useCallback(async (_groupId: string, tabId: string) => {
+  const handleMoveToNewWindow = useCallback(async (
+    groupId: string,
+    tabId: string,
+    confirmed: readonly RecordTabCloseGuard[] = [],
+  ): Promise<void> => {
     const tab = openTabs.find(item => item.id === tabId)
-    if (!tab) return
+    if (!tab || !canOpenInEditorWindow(tab)) return
+    if (!canCloseRecordTabs(groupId, [tabId], confirmed, guards => void handleMoveToNewWindow(groupId, tabId, guards))) return
     setDetachingTabId(tabId)
     try {
       const currentActivePath = useArticleStore.getState().activeFilePath
@@ -1178,7 +1230,7 @@ export function EditorLayout({
     } finally {
       setDetachingTabId('')
     }
-  }, [activateTab, openTabs, setLayout, setOpenTabs, setTabDisposition, tGroups])
+  }, [activateTab, canCloseRecordTabs, openTabs, setLayout, setOpenTabs, setTabDisposition, tGroups])
 
   const handleToggleMaximize = useCallback((groupId: string) => {
     suppressPanelLayoutUntilRef.current = Date.now() + 200
@@ -1737,7 +1789,13 @@ export function EditorLayout({
     }
     if (isRecordEditorTab(tab)) {
       const markId = getRecordIdForTab(tab)
-      return <div className="flex min-h-0 flex-1 overflow-hidden">{markId !== null ? <MarkDetailPanel markId={markId} onClose={() => handleCloseTab(groupId, tab.id)} isActive={active} /> : <UnsupportedFile filePath={tab.path} />}</div>
+      return (
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {markId !== null ? (
+            <MarkDetailPanel markId={markId} groupId={groupId} tabId={tab.id} onClose={() => handleCloseTab(groupId, tab.id)} isActive={active} />
+          ) : <UnsupportedFile filePath={tab.path} />}
+        </div>
+      )
     }
     if (isCanvasEditorTab(tab)) {
       const canvasId = tab.canvasId || getCanvasIdFromTabPath(tab.path)
@@ -1898,6 +1956,31 @@ export function EditorLayout({
       <div className="relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
         {renderLayoutNode(layout.root)}
       </div>
+      <AlertDialog open={confirmRecordTabClose !== null} onOpenChange={open => {
+        if (!open) setConfirmRecordTabClose(null)
+      }}>
+        <AlertDialogContent onCloseAutoFocus={event => {
+          event.preventDefault()
+          const target = recordCloseFocusRef.current
+          recordCloseFocusRef.current = null
+          if (target?.isConnected) target.focus({ preventScroll: true })
+        }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tRecordDetail('discardTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{tRecordDetail('discardDescription')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={event => {
+              event.preventDefault()
+              setConfirmRecordTabClose(null)
+              confirmRecordTabClose?.()
+            }}>
+              {tRecordDetail('discard')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {onboarding.hintedStep && (
         <OnboardingSpotlight
           targetId={ONBOARDING_TARGETS[onboarding.hintedStep]}

@@ -27,6 +27,11 @@ export interface WikiScope {
   clock: Record<string, number>
 }
 
+export function isWikiNoteScope(scope: Pick<WikiScope, 'kind' | 'id'>) {
+  return scope.kind === 'article' || scope.kind === 'article-folder'
+    || (scope.kind === 'source-type' && scope.id === 'article')
+}
+
 export interface WikiSettings {
   enabled: boolean
   semanticSearchEnabled: boolean
@@ -135,6 +140,11 @@ export function wikiPageVersion(page: Pick<WikiPage, 'inputHash' | 'outputHash'>
   return `${page.inputHash}:${page.outputHash}`
 }
 
+export function canOrganizeWikiPage(page: Pick<WikiPage, 'kind' | 'sourceRefs'>) {
+  if (page.kind === 'source') return page.sourceRefs[0]?.sourceType === 'article'
+  return !page.sourceRefs.length || page.sourceRefs.some(source => source.sourceType === 'article')
+}
+
 export interface WikiJob {
   id: string
   contextId: string
@@ -149,6 +159,11 @@ export interface WikiJob {
   readyAt: number
   updatedAt: number
   error: string | null
+}
+
+/** Manual actions check the published page. Automatic topic jobs check current note contributions. */
+export function canRunWikiJob(job: Pick<WikiJob, 'kind' | 'sourceKey'>, page?: Pick<WikiPage, 'kind' | 'sourceRefs'> | null) {
+  return job.kind === 'source' ? job.sourceKey.startsWith('article:') : !page || canOrganizeWikiPage(page)
 }
 
 export interface WikiSegmentCache {

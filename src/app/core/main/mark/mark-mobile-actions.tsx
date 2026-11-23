@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button"
 import { Mark } from '@/db/marks'
 import { Tag } from '@/db/tags'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 
 interface MarkMobileActionsProps {
   mark: Mark
@@ -69,7 +68,6 @@ export function MarkMobileActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        {!trashState && <WikiMenuItems variant="dropdown" kind="record" id={mark.sourceId || String(mark.id)} label={(mark.desc || mark.content || mark.url || `#${mark.id}`).replace(/\s+/g, ' ').slice(0, 120)} sourceKey={`record:${mark.id}`} disabled={isMultiSelectMode} />}
         {!trashState && (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>

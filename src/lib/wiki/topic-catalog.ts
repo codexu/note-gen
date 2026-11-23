@@ -10,9 +10,9 @@ export async function createWikiTopicCatalog(contextId: string, settings: WikiSe
   const policy = await getWikiSourcePolicy(contextId, settings)
   const [active, pages] = await Promise.all([getActiveWikiRevisions(contextId), listWikiPages(contextId)])
   const revisions = active.filter(revision =>
-    revision.source.syncDomain === domain && policy.allows(revision.source))
+    revision.source.sourceType === 'article' && revision.source.syncDomain === domain && policy.allows(revision.source))
   const published = new Map(pages.filter(page => page.kind === 'topic' && page.status !== 'archived' && page.topicKey
-    && page.sourceRefs.every(ref => ref.syncDomain === domain && policy.allows(ref))).map(page => [page.topicKey!, page]))
+    && page.sourceRefs.every(ref => ref.sourceType === 'article' && ref.syncDomain === domain && policy.allows(ref))).map(page => [page.topicKey!, page]))
   const entries = new Map<string, Array<{ contribution: WikiContribution; revision: WikiSourceRevision }>>()
   const byName = new Map<string, Set<string>>()
   const rememberName = (alias: string, key: string) => {

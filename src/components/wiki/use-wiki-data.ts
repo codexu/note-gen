@@ -6,7 +6,7 @@ import { initAllDatabases } from '@/db'
 import { getWikiSettings } from '@/lib/wiki/settings'
 import { getWikiMeta, getWikiUsage, listWikiJobs, listWikiPages, listWikiSourceStates } from '@/db/wiki'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
-import type { WikiContext, WikiJob, WikiPage, WikiSettings, WikiSourceState, WikiUsage } from '@/types/wiki'
+import { canRunWikiJob, type WikiContext, type WikiJob, type WikiPage, type WikiSettings, type WikiSourceState, type WikiUsage } from '@/types/wiki'
 
 interface WikiData {
   context: WikiContext
@@ -79,7 +79,9 @@ export function useWikiData() {
       if (!isCurrent()) return
       const latestContext = await getWikiContext()
       if (!isCurrent() || latestContext.id !== context.id) return
-      setState({ scope: target, data: { context, settings, pages, jobs, sources, usage, syncStatus },
+      const pagesById = new Map(pages.map(page => [page.id, page]))
+      const visibleJobs = jobs.filter(job => canRunWikiJob(job, pagesById.get(job.id)))
+      setState({ scope: target, data: { context, settings, pages, jobs: visibleJobs, sources, usage, syncStatus },
         error: null, loading: false })
     } catch (cause) {
       if (isCurrent()) {

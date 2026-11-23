@@ -1,15 +1,13 @@
 import { BaseDirectory, readTextFile } from '@tauri-apps/plugin-fs'
 import { createHash } from 'crypto'
-import { getDb } from '@/db'
-import { getAllMarks, getMarkById, getRecordLocatorBySourceId, type Mark } from '@/db/marks'
+import { getMarkById, getRecordLocatorBySourceId, type Mark } from '@/db/marks'
 import { getTags, type Tag } from '@/db/tags'
-import { getCanvasProject, getCanvasProjects } from '@/db/canvases'
+import { getCanvasProject } from '@/db/canvases'
 import { getAllMarkdownFiles } from '@/lib/files'
 import { getArticleKnowledgeUpdatedAt, serializeCanvasDocument } from '@/lib/knowledge-content'
 import { parseKnowledgeSourceKey } from '@/types/knowledge'
 import { getFilePathOptions } from '@/lib/workspace'
 import { recordMatchesTag, recordTagIds } from '@/lib/record-tags'
-import { enqueueAutoDataSync } from '@/lib/sync/auto-data-sync-queue'
 import { Store } from '@tauri-apps/plugin-store'
 import { getWikiGeneratedNotes, getWikiSettings, isWikiArticlePathSelected, isWikiSourceSelected, normalizeWikiScopeId } from './settings'
 import { DEFAULT_EXCLUDED_RAG_PATHS, isPathAllowedForRag } from '@/lib/rag-retrieval-policy'
@@ -42,16 +40,6 @@ export function wikiTopicKey(title: string, domain: WikiSyncDomain): string {
 
 function normalizeSourceContent(content: string) {
   return content.replace(/\r\n?/g, '\n').trim()
-}
-
-async function recordStableId(mark: Mark): Promise<string> {
-  if (mark.sourceId) return mark.sourceId
-  const database = await getDb()
-  await database.execute("update marks set sourceId = $1 where id = $2 and coalesce(sourceId, '') = ''", [crypto.randomUUID(), mark.id])
-  const rows = await database.select<Array<{ sourceId: string }>>('select sourceId from marks where id = $1', [mark.id])
-  if (!rows[0]?.sourceId) throw new Error('WIKI_SOURCE_NOT_FOUND')
-  enqueueAutoDataSync('records', 'wiki:stable-record-id')
-  return rows[0].sourceId
 }
 
 async function readWikiRecord(mark: Mark, tags: Tag[]): Promise<WikiSourceDocument | null> {
@@ -162,22 +150,6 @@ export async function getWikiSourceAvailability(reference: WikiSourceReference):
   return await resolveWikiSourceReference(reference) ? 'available' : 'unavailable'
 }
 
-/** Only selected sources acquire a legacy synchronization identity; discovery stays read-only. */
-export async function ensureWikiSourceIdentity(document: WikiSourceDocument): Promise<WikiSourceDocument> {
-  if (document.source.sourceType !== 'record') return document
-  const identified = await resolveWikiSourceReference(document.source)
-  if (identified) return identified
-  if (!/^record:legacy-[0-9a-f]{64}$/.test(document.source.stableId)) throw new Error('WIKI_SOURCE_NOT_FOUND')
-  const mark = await getMarkById(document.source.locator.markId ?? Number(document.source.sourceKey.replace(/^record:/, '')))
-  if (!mark || mark.deleted) throw new Error('WIKI_SOURCE_NOT_FOUND')
-  const legacy = await readWikiRecord({ ...mark, sourceId: null }, await getTags())
-  if (legacy?.source.stableId !== document.source.stableId) throw new Error('WIKI_SOURCE_NOT_FOUND')
-  const stableId = `record:${await recordStableId(mark)}`
-  const current = await resolveWikiSourceReference({ ...document.source, stableId })
-  if (!current) throw new Error('WIKI_SOURCE_NOT_FOUND')
-  return current
-}
-
 /** A change event identifies a local row, while Wiki jobs and files identify a portable source. */
 export async function getLocalWikiSourceStableId(sourceKey: string) {
   const parsed = parseKnowledgeSourceKey(sourceKey)
@@ -240,24 +212,14 @@ export async function collectWikiArticleSourceDocuments(paths: string[], context
   return documents
 }
 
-export async function collectWikiSourceDocuments(): Promise<WikiSourceDocument[]> {
-  const [files, marks, canvases, tags] = await Promise.all([
-    getAllMarkdownFiles(), getAllMarks(), getCanvasProjects(), getTags(),
-  ])
-  const documents = await collectWikiArticleSourceDocuments(files.map(file => file.relativePath))
-  for (const mark of marks) {
-    const document = await readWikiRecord(mark, tags)
-    if (document) documents.push(document)
-  }
-  for (const canvas of canvases) {
-    const document = await getWikiSourceDocument(`canvas:${canvas.id}`)
-    if (document) documents.push(document)
-  }
-  return documents
+export async function collectWikiSourceDocuments(contextId?: string): Promise<WikiSourceDocument[]> {
+  const files = await getAllMarkdownFiles()
+  return collectWikiArticleSourceDocuments(files.map(file => file.relativePath), contextId)
 }
 
 export async function isWikiSourceDocumentAllowed(document: WikiSourceDocument, contextId?: string): Promise<boolean> {
-  return (await getWikiSourcePolicy(contextId)).allows(document.source, document.derived)
+  return document.source.sourceType === 'article'
+    && (await getWikiSourcePolicy(contextId)).allows(document.source, document.derived)
 }
 
 /** Resolve a compiled revision against the current source, selection and exclusions before use. */

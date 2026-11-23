@@ -110,7 +110,8 @@ async function assertCurrentSource(document: WikiSourceDocument, context: WikiCo
   throwIfWikiAborted(signal)
   if ((await getWikiContext()).id !== context.id) throw new WikiSourceChangedError()
   const settings = await getWikiSettings(context.id)
-  if (!settings.enabled || !settings.started || !isWikiSourceSelected(document.source, settings)) throw new WikiSourceChangedError()
+  if (document.source.sourceType !== 'article' || !settings.enabled || !settings.started
+    || !isWikiSourceSelected(document.source, settings)) throw new WikiSourceChangedError()
   const current = await resolveWikiSourceReference(document.source)
   if (!current || current.source.contentHash !== document.source.contentHash || current.source.stableId !== document.source.stableId) {
     throw new WikiSourceChangedError()
@@ -122,7 +123,7 @@ async function eligibleRevisions(context: WikiContext, settings: WikiSettings, m
   const policy = await getWikiSourcePolicy(context.id, settings)
   const eligible: WikiSourceRevision[] = []
   for (const revision of await getActiveWikiRevisions(context.id)) {
-    if (!matches(revision)) continue
+    if (revision.source.sourceType !== 'article' || !matches(revision)) continue
     const current = await resolveEligibleWikiRevision(revision, policy)
     if (current) eligible.push(current)
   }
@@ -242,7 +243,9 @@ function combineContributions(segments: WikiSegmentCache[]): WikiContribution[] 
 export async function scheduleWikiTopics(contextId: string, keys: string[]) {
   for (const key of new Set(keys)) {
     const page = await getWikiPage(contextId, `topic:${key}`)
-    if (page && page.status !== 'archived') await upsertWikiPage({ ...page, status: 'stale' })
+    if (page && page.status !== 'archived' && page.sourceRefs.every(source => source.sourceType === 'article')) {
+      await upsertWikiPage({ ...page, status: 'stale' })
+    }
     await upsertWikiJob({
       id: `topic:${key}`, contextId, sourceKey: key, kind: 'topic', inputHash: '', status: 'pending',
       stage: 'topic', attempts: 0, readyAt: Date.now() + 1000, updatedAt: Date.now(), error: null,
@@ -254,6 +257,7 @@ export async function compileWikiSource(
   document: WikiSourceDocument, context: WikiContext, settings: WikiSettings,
   state: WikiSourceState, signal?: AbortSignal,
 ): Promise<void> {
+  if (document.source.sourceType !== 'article') throw new WikiSourceChangedError()
   const generation = await getWikiSourceGeneration(context.id, document.source.stableId, settings)
   const inputHash = buildWikiSourceInputHash(document, settings, generation)
   const previous = state.revisionId ? await getWikiRevision(context.id, state.revisionId) : null
@@ -326,7 +330,8 @@ export async function compileWikiTopic(
     throwIfWikiAborted(signal)
   }
   if (!revisions.length) {
-    if (existing) {
+    // Keep historical topics when no eligible note remains to update them.
+    if (existing && existing.sourceRefs.every(source => source.sourceType === 'article')) {
       await checkDependencies()
       await upsertWikiPage({ ...existing, status: 'archived', sourceRefs: [], body: '', updatedAt: Date.now() })
       const { notifyWikiChanged } = await import('./sync')

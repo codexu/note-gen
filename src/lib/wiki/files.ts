@@ -375,6 +375,7 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
   assertCurrent()
   const entries: WikiFileEntry[] = []
   const changedTopics = new Set<string>()
+  const updatedNoteTopics = new Set<string>()
   let repairNavigation = navigationDirty.has(context.id)
   const found = new Set<string>()
   const settingsFiles: Array<{ path: string; settings: WikiSharedSettings }> = []
@@ -441,7 +442,8 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
     const oldEntry = catalogById.get(page.id)
     if (oldEntry && (oldEntry.conflicted || (oldPage?.status === 'archived' && !oldPage.body && page.status !== 'archived'))) {
       repairNavigation = true
-      if (await recoverWikiMarkdownJob(page, oldEntry.inputHash)) jobsAdded = true
+      if (page.sourceRefs.every(source => source.sourceType === 'article')
+        && await recoverWikiMarkdownJob(page, oldEntry.inputHash)) jobsAdded = true
     }
     if (oldPage?.filePath !== path || oldPage?.title !== page.title || document.page.filePath !== path) repairNavigation = true
     const entry = { id: page.id, path, inputHash: page.inputHash, hash: snapshot.hash ?? wikiHash(text) }
@@ -479,10 +481,12 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
     }
     pagesById.set(page.id, page)
     const activated = afterState?.status === 'ready' && (beforeState?.revisionId !== afterState.revisionId || beforeState?.status !== 'ready')
-    if (revision && (oldPage?.outputHash !== page.outputHash || activated)) {
-      for (const contribution of revision.contributions) changedTopics.add(contribution.topicKey)
+    if (revision?.source.sourceType === 'article' && (oldPage?.outputHash !== page.outputHash || activated)) {
       const oldRevision = beforeState?.revisionId ? await getWikiRevision(context.id, beforeState.revisionId) : null
-      for (const contribution of oldRevision?.contributions ?? []) changedTopics.add(contribution.topicKey)
+      for (const contribution of [...revision.contributions, ...(oldRevision?.contributions ?? [])]) {
+        changedTopics.add(contribution.topicKey)
+        if (oldPage && oldPage.outputHash !== page.outputHash) updatedNoteTopics.add(contribution.topicKey)
+      }
     }
     entries.push(entry)
   }
@@ -520,9 +524,11 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
     assertCurrent()
     const page = pagesById.get(old.id)
     if (page?.kind === 'source') for (const ref of page.sourceRefs) {
-      const state = sourcesById.get(ref.stableId)
-      const revision = state?.revisionId ? await getWikiRevision(context.id, state.revisionId) : null
-      for (const contribution of revision?.contributions ?? []) changedTopics.add(contribution.topicKey)
+      if (ref.sourceType === 'article') {
+        const state = sourcesById.get(ref.stableId)
+        const revision = state?.revisionId ? await getWikiRevision(context.id, state.revisionId) : null
+        for (const contribution of revision?.contributions ?? []) changedTopics.add(contribution.topicKey)
+      }
       await setWikiMeta(context.id, `markdown-deleted-source:${ref.stableId}`, ref.contentHash)
     }
     await removeWikiMarkdownCache(context.id, old.id, old.inputHash)
@@ -576,11 +582,13 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
   // would recursively acquire it. Current topic files are kept until rebuilt.
   if (changedTopics.size) {
     const settings = await getWikiSettings(context.id)
-    const revisions = await getActiveWikiRevisions(context.id)
+    const revisions = (await getActiveWikiRevisions(context.id)).filter(revision => revision.source.sourceType === 'article')
     const jobs = await listWikiJobs(context.id)
     const { buildWikiTopicInputHash } = await import('./compiler')
     for (const key of changedTopics) {
       const topic = await getWikiPage(context.id, `topic:${key}`)
+      // Importing an existing file into an empty cache does not rewrite old topics.
+      if (topic?.sourceRefs.some(source => source.sourceType !== 'article') && !updatedNoteTopics.has(key)) continue
       const generation = Math.max(settings.generation, topic?.generation ?? 0,
         await getWikiMeta<number>(context.id, `topic-generation:${key}`) ?? 0)
       const inputHash = buildWikiTopicInputHash(key, revisions, generation, settings.language)

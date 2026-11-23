@@ -5,11 +5,11 @@ import {
   commitWikiSourceRevision, getWikiMeta, getWikiPage, getWikiRevision, getWikiSourceState, listWikiJobs, listWikiSourceStates,
   removeWikiJob, setWikiMeta, upsertWikiJob, upsertWikiPage, upsertWikiSourceState,
 } from '@/db/wiki'
-import type { WikiContext, WikiJob, WikiSettings, WikiSourceReference, WikiSourceState, WikiSourceStatus } from '@/types/wiki'
+import { canOrganizeWikiPage, canRunWikiJob, type WikiContext, type WikiJob, type WikiSettings, type WikiSourceReference, type WikiSourceState, type WikiSourceStatus } from '@/types/wiki'
 import { assertWikiContextCurrent, captureWikiWorkspaceGuard, getWikiContext } from './context'
 import { addWikiScope, getWikiSettings, isWikiSourceSelected, normalizeWikiScopeId, removeWikiScope, updateWikiSettings } from './settings'
 import {
-  collectWikiSourceDocuments, ensureWikiSourceIdentity, getLocalWikiSourceStableId, getWikiSourceAvailability, getWikiSourceDocument,
+  collectWikiSourceDocuments, getLocalWikiSourceStableId, getWikiSourceAvailability, getWikiSourceDocument,
   getWikiSourcePolicy, isWikiSourceDocumentAllowed, resolveWikiSourceReference,
   wikiHash, type WikiSourceDocument,
 } from './sources'
@@ -107,24 +107,12 @@ async function enqueueDocument(
   options: { immediate?: boolean; force?: boolean; retry?: boolean; reconcile?: boolean },
   isCurrent: () => boolean,
 ) {
+  if (document.source.sourceType !== 'article') return
   await assertOperationCurrent(context, isCurrent)
   if (!isWikiSourceSelected(document.source, settings) || !await isWikiSourceDocumentAllowed(document, context.id)) {
     const existing = await getWikiSourceState(context.id, document.source.stableId)
     if (existing) await setSourceUnavailable(context, existing, 'excluded', isCurrent)
     return
-  }
-  const oldStableId = document.source.stableId
-  document = await ensureWikiSourceIdentity(document)
-  await assertOperationCurrent(context, isCurrent)
-  if (oldStableId !== document.source.stableId) {
-    for (const scope of settings.scopes) {
-      if (scope.enabled && scope.kind === 'record' && (scope.id === oldStableId || `record:${scope.id}` === oldStableId)) {
-        await assertOperationCurrent(context, isCurrent)
-        await removeWikiScope(scope.key, context.id)
-        await addWikiScope({ kind: 'record', id: document.source.stableId.replace(/^record:/, ''), label: scope.label }, context.id)
-      }
-    }
-    settings = await getWikiSettings(context.id)
   }
   const existing = await getWikiSourceState(context.id, document.source.stableId)
   // A surviving local file is not proof that a synchronized deletion was undone.
@@ -178,6 +166,7 @@ async function enqueueDocument(
 export async function enqueueWikiSource(sourceKey: string, options: {
   immediate?: boolean; force?: boolean; retry?: boolean; expectedContextId?: string; reference?: WikiSourceReference
 } = {}) {
+  if (!sourceKey.startsWith('article:') || (options.reference && options.reference.sourceType !== 'article')) return
   const isCurrent = captureWikiWorkspaceGuard()
   return serializeMutation(async () => {
     const context = await operationContext(isCurrent, options.expectedContextId)
@@ -205,11 +194,13 @@ export async function reconcileWikiSources(expectedContextId?: string) {
     const context = await operationContext(isCurrent, expectedContextId)
     const settings = await getWikiSettings(context.id)
     if (!settings.enabled || !settings.started) return
-    const documents = await collectWikiSourceDocuments()
+    const documents = await collectWikiSourceDocuments(context.id)
     await assertOperationCurrent(context, isCurrent)
     const current = new Map(documents.map(document => [document.source.stableId, document]))
     const policy = await getWikiSourcePolicy(context.id, settings)
     for (const state of await listWikiSourceStates(context.id)) {
+      // Legacy output remains available, but its original no longer drives maintenance.
+      if (state.sourceType !== 'article') continue
       await assertOperationCurrent(context, isCurrent)
       const document = current.get(state.stableId)
       if (state.status === 'deleted') continue
@@ -254,6 +245,7 @@ async function topicDependencyDelays(
   contextId: string, topicKeys: Set<string>, settings: WikiSettings, jobs: WikiJob[],
 ): Promise<Map<string, number>> {
   const sourceJobs = jobs.filter(job => job.kind === 'source'
+    && canRunWikiJob(job)
     && (job.status === 'pending' || job.status === 'running'))
   const delays = new Map<string, number>()
   if (!sourceJobs.length || !topicKeys.size) return delays
@@ -305,7 +297,7 @@ async function assertTopicSourcesReady(context: WikiContext, topicKey: string, i
   await assertOperationCurrent(context, isCurrent)
   const readyAt = delays.get(topicKey)
   if (readyAt !== undefined) throw new WikiTopicSourcesPendingError(readyAt)
-  const failures = jobs.filter(job => job.kind === 'source' && job.status === 'failed')
+  const failures = jobs.filter(job => job.kind === 'source' && canRunWikiJob(job) && job.status === 'failed')
   if (!failures.length) return
   const policy = await getWikiSourcePolicy(context.id, settings)
   const existing = await getWikiPage(context.id, `topic:${topicKey}`)
@@ -326,6 +318,7 @@ async function executeWikiJob(
   isCurrent: () => boolean,
 ) {
   await assertOperationCurrent(context, isCurrent)
+  if (!canRunWikiJob(job)) return
   const { pullWikiBeforeCompilation } = await import('./sync')
   try { await pullWikiBeforeCompilation(context) } catch (error) {
     // Synchronization is an optimization here; locally available sources remain usable offline.
@@ -349,6 +342,7 @@ async function executeWikiJob(
   }
   const state = await getWikiSourceState(context.id, job.id.slice('source:'.length))
   if (!state || ['deleted', 'excluded', 'unavailable'].includes(state.status)) throw new WikiSourceChangedError()
+  if (state.sourceType !== 'article') return
   const document = await resolveWikiSourceReference(state.source)
   await assertOperationCurrent(context, isCurrent)
   if (!document) throw new Error('WIKI_SOURCE_NOT_FOUND')
@@ -489,9 +483,15 @@ export async function resumeWikiQueue(options: { unpause?: boolean; expectedCont
   }
   if (!running) for (const job of await listWikiJobs(context.id)) {
     await assertOperationCurrent(context, isCurrent)
+    if (!canRunWikiJob(job)) {
+      await removeWikiJob(context.id, job.id, job)
+      continue
+    }
     if (job.status === 'running' || job.status === 'paused') {
-      if (job.stage === 'waiting-source' && job.waitingSourceId
-        && (await getWikiSourceState(context.id, job.waitingSourceId))?.status === 'failed') continue
+      if (job.stage === 'waiting-source' && job.waitingSourceId) {
+        const source = await getWikiSourceState(context.id, job.waitingSourceId)
+        if (source?.sourceType === 'article' && source.status === 'failed') continue
+      }
       await upsertWikiJob({ ...job, status: 'pending', stage: job.kind, waitingSourceId: undefined,
         readyAt: Date.now(), updatedAt: Date.now() }, job)
     }
@@ -551,7 +551,7 @@ export async function estimateWikiScope(expectedContextId?: string) {
   const context = await operationContext(isCurrent, expectedContextId)
   const settings = await getWikiSettings(context.id)
   const policy = await getWikiSourcePolicy(context.id, settings)
-  const documents = (await collectWikiSourceDocuments()).filter(document =>
+  const documents = (await collectWikiSourceDocuments(context.id)).filter(document =>
     policy.allows(document.source, document.derived) && isWikiSourceSelected(document.source, settings))
   await assertOperationCurrent(context, isCurrent)
   return {
@@ -565,7 +565,7 @@ export async function retryWikiJob(id: string, options: { overwriteEdited?: bool
   const context = await operationContext(isCurrent, options.expectedContextId)
   const job = (await listWikiJobs(context.id)).find(item => item.id === id)
   await assertOperationCurrent(context, isCurrent)
-  if (!job) return
+  if (!job || !canRunWikiJob(job, job.kind === 'topic' ? await getWikiPage(context.id, job.id) : null)) return
   if (job.kind === 'source') {
     const state = await getWikiSourceState(context.id, job.id.slice('source:'.length))
     if (!state) throw new Error('WIKI_SOURCE_NOT_FOUND')
@@ -594,7 +594,7 @@ export async function rebuildWikiPage(id: string, expectedContextId?: string) {
   const context = await operationContext(isCurrent, expectedContextId)
   const page = await getWikiPage(context.id, id)
   await assertOperationCurrent(context, isCurrent)
-  if (!page) return
+  if (!page || !canOrganizeWikiPage(page)) return
   if (page.kind === 'source') {
     const source = page.sourceRefs[0]
     if (!source) throw new Error('WIKI_SOURCE_NOT_FOUND')
@@ -607,7 +607,7 @@ export async function rebuildWikiPage(id: string, expectedContextId?: string) {
       await getWikiMeta<number>(context.id, `topic-generation:${key}`) ?? 0) + 1
     await assertOperationCurrent(context, isCurrent)
     await setWikiMeta(context.id, `topic-generation:${key}`, generation)
-    await upsertWikiPage({ ...page, status: 'stale' })
+    if (page.sourceRefs.every(source => source.sourceType === 'article')) await upsertWikiPage({ ...page, status: 'stale' })
     await upsertWikiJob({ id: `topic:${key}`, contextId: context.id, sourceKey: key, kind: 'topic',
       inputHash: '', status: 'pending', stage: 'topic', attempts: 0, error: null, readyAt: Date.now(), updatedAt: Date.now() })
   }
@@ -616,6 +616,7 @@ export async function rebuildWikiPage(id: string, expectedContextId?: string) {
 }
 
 export async function removeWikiSource(sourceKey: string, reason: 'deleted' | 'excluded' = 'deleted', expectedContextId?: string, knownStableId?: string | null) {
+  if (!sourceKey.startsWith('article:')) return
   const isCurrent = captureWikiWorkspaceGuard()
   return serializeMutation(async () => {
     const context = await operationContext(isCurrent, expectedContextId)

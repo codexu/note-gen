@@ -11,18 +11,15 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useWikiActionScope } from '@/components/wiki/use-wiki-action-scope'
 import { useWikiErrorMessage } from '@/components/wiki/use-wiki-error-message'
-import { getCanvasProjects } from '@/db/canvases'
-import { getMarkPreviews } from '@/db/marks'
-import { getTags } from '@/db/tags'
 import { getAllMarkdownFiles } from '@/lib/files'
 import { getKnowledgeSettings } from '@/lib/knowledge-settings'
 import { assertWikiContextCurrent, captureWikiWorkspaceGuard } from '@/lib/wiki/context'
 import { isWikiFolderPath } from '@/lib/wiki/path'
 import { addWikiScope } from '@/lib/wiki/settings'
 import { getWikiSourceDocument, getWikiSourcePolicy } from '@/lib/wiki/sources'
-import type { WikiScopeKind } from '@/types/wiki'
 
-const kinds = ['article-folder', 'article', 'record-tag', 'record', 'canvas', 'source-type'] as const
+const kinds = ['article-folder', 'article'] as const
+type SourceKind = typeof kinds[number]
 type Choice = { id: string; label: string }
 
 /** Load choices for the active source kind only. */
@@ -30,7 +27,7 @@ export function WikiSourcePicker({ contextId, disabled }: { contextId: string; d
   const t = useTranslations('wiki')
   const errorMessage = useWikiErrorMessage()
   const [open, setOpen] = useState(false)
-  const [kind, setKind] = useState<WikiScopeKind>('article-folder')
+  const [kind, setKind] = useState<SourceKind>('article-folder')
   const [query, setQuery] = useState('')
   const [limit, setLimit] = useState(50)
   const [choices, setChoices] = useState<Choice[] | null>(null)
@@ -47,27 +44,17 @@ export function WikiSourcePicker({ contextId, disabled }: { contextId: string; d
     const load = async (): Promise<Choice[]> => {
       await assertWikiContextCurrent(contextId)
       const { enabledSourceTypes } = await getKnowledgeSettings()
-      if (kind === 'source-type') return enabledSourceTypes.map(id => ({ id, label:
-        t(id === 'record' ? 'allRecords' : id === 'canvas' ? 'allCanvases' : 'allArticles') }))
-      if (kind === 'article-folder' || kind === 'article') {
-        if (!enabledSourceTypes.includes('article')) return []
-        const policy = await getWikiSourcePolicy(contextId)
-        const files = (await getAllMarkdownFiles()).map(file => file.relativePath)
-          .filter(path => !isWikiFolderPath(path) && policy.allowsArticle(path))
-        if (kind === 'article') return files.sort().map(id => ({ id, label: id }))
-        const folders = new Set<string>()
-        for (const file of files) {
-          const parts = file.split('/')
-          for (let i = 1; i < parts.length; i++) folders.add(parts.slice(0, i).join('/'))
-        }
-        return [{ id: '', label: t('allArticles') }, ...[...folders].sort().map(id => ({ id, label: id }))]
+      if (!enabledSourceTypes.includes('article')) return []
+      const policy = await getWikiSourcePolicy(contextId)
+      const files = (await getAllMarkdownFiles()).map(file => file.relativePath)
+        .filter(path => !isWikiFolderPath(path) && policy.allowsArticle(path))
+      if (kind === 'article') return files.sort().map(id => ({ id, label: id }))
+      const folders = new Set<string>()
+      for (const file of files) {
+        const parts = file.split('/')
+        for (let i = 1; i < parts.length; i++) folders.add(parts.slice(0, i).join('/'))
       }
-      if (kind === 'canvas') return enabledSourceTypes.includes('canvas')
-        ? (await getCanvasProjects()).map(project => ({ id: project.id, label: project.title })) : []
-      if (!enabledSourceTypes.includes('record')) return []
-      if (kind === 'record-tag') return (await getTags()).map(tag => ({ id: tag.name, label: tag.name }))
-      return (await getMarkPreviews()).map(mark => ({ id: String(mark.id),
-        label: (mark.desc || mark.content || mark.url || mark.type).trim().split('\n')[0].slice(0, 120) || mark.type }))
+      return [{ id: '', label: t('allArticles') }, ...[...folders].sort().map(id => ({ id, label: id }))]
     }
     void load().then(items => { if (active && workspace()) setChoices(items) })
       .catch(cause => { if (active && workspace()) setError(errorMessage(cause)) })
@@ -99,7 +86,7 @@ export function WikiSourcePicker({ contextId, disabled }: { contextId: string; d
       <DialogHeader><DialogTitle>{t('folder.selectSources')}</DialogTitle><DialogDescription>{t('scopeDescription')}</DialogDescription></DialogHeader>
       <Field>
         <FieldLabel htmlFor={kindId}>{t('scopeKind')}</FieldLabel>
-        <Select value={kind} disabled={busy} onValueChange={value => { setChoices(null); setQuery(''); setLimit(50); setKind(value as WikiScopeKind) }}>
+        <Select value={kind} disabled={busy} onValueChange={value => { setChoices(null); setQuery(''); setLimit(50); setKind(value as SourceKind) }}>
           <SelectTrigger id={kindId}><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>{kinds.map(value => <SelectItem key={value} value={value}>{t(`scopeKinds.${value}`)}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>

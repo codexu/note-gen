@@ -22,7 +22,7 @@ import { isWikiRootFolder } from '@/lib/wiki/path'
 import { estimateWikiScope, pauseWikiQueue, resumeWikiQueue, retryWikiJob, startWikiCompilation } from '@/lib/wiki/queue'
 import { removeWikiScope, updateWikiSettings } from '@/lib/wiki/settings'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
-import { WIKI_ROOT_FOLDER } from '@/types/wiki'
+import { isWikiNoteScope, WIKI_ROOT_FOLDER } from '@/types/wiki'
 import { WikiDirectoryFiles } from './wiki-directory-files'
 import { WikiOverviewStats } from './wiki-overview-stats'
 import { WikiSourcePicker } from './wiki-source-picker'
@@ -37,8 +37,8 @@ function WikiOverview({ data, refresh }: { data: WikiData; refresh: () => Promis
   const { busy, beginAction } = useWikiActionScope(context.id)
   const [scopeLimit, setScopeLimit] = useState(6)
   const [issueLimit, setIssueLimit] = useState(5)
-  const selected = settings.scopes.filter(scope => scope.enabled && scope.effect !== 'exclude')
-  const ready = sources.filter(source => source.status === 'ready').length
+  const selected = settings.scopes.filter(scope => scope.enabled && scope.effect !== 'exclude' && isWikiNoteScope(scope))
+  const ready = sources.filter(source => source.sourceType === 'article' && source.status === 'ready').length
   const running = jobs.find(job => job.status === 'running')
   const pending = jobs.filter(job => ['pending', 'running', 'paused'].includes(job.status)).length
   const failures = jobs.filter(job => job.status === 'failed')

@@ -1,7 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { assertWikiContextCurrent, captureWikiWorkspaceGuard, getWikiContext, getWikiDeviceId } from './context'
 import { emitWikiUpdated, setWikiMeta } from '@/db/wiki'
-import { WIKI_ROOT_FOLDER, type WikiScope, type WikiScopeKind, type WikiSettings, type WikiSourceReference, type WikiSharedSettings } from '@/types/wiki'
+import { WIKI_ROOT_FOLDER, isWikiNoteScope, type WikiScope, type WikiScopeKind, type WikiSettings, type WikiSourceReference, type WikiSharedSettings } from '@/types/wiki'
 import { LANGUAGE_STORAGE_KEY } from '@/i18n/config'
 import { endWikiActivity, useWikiActivityStore } from '@/stores/wiki-activity'
 
@@ -149,35 +149,12 @@ function assertWikiScopePath(path: string, allowRoot: boolean) {
 export async function addWikiScope(
   input: { kind: WikiScopeKind; id: string; label: string; effect?: WikiScope['effect'] }, contextId?: string,
 ) {
+  if (!isWikiNoteScope(input)) throw new Error('WIKI_UNSUPPORTED_SCOPE')
   const { id, assertCurrent } = await currentMutation(contextId)
   const device = await getWikiDeviceId()
   const pathScope = input.kind === 'article' || input.kind === 'article-folder'
-  let scopeId = pathScope ? normalizeWikiScopeId(input.id)
-    : input.id.normalize('NFKC').replaceAll('\\', '/').replace(/^\.\//, '').replace(/^\/+|\/+$/g, '').trim()
+  const scopeId = pathScope ? normalizeWikiScopeId(input.id) : input.id
   if (pathScope) assertWikiScopePath(scopeId, input.kind === 'article-folder')
-  if (input.kind === 'record' && /^\d+$/.test(scopeId)) {
-    const { getMarkById } = await import('@/db/marks')
-    const mark = await getMarkById(Number(scopeId))
-    if (mark) {
-      if (!mark.sourceId) {
-        const { getDb } = await import('@/db')
-        const database = await getDb()
-        await database.execute('update marks set sourceId=$1 where id=$2 and sourceId is null', [crypto.randomUUID(), mark.id])
-        const rows = await database.select<Array<{ sourceId: string }>>('select sourceId from marks where id=$1', [mark.id])
-        mark.sourceId = rows[0]?.sourceId
-        const { enqueueAutoDataSync } = await import('@/lib/sync/auto-data-sync-queue')
-        enqueueAutoDataSync('records', 'wiki:select-record')
-      }
-      if (mark.sourceId) scopeId = mark.sourceId
-    }
-  }
-  if (input.kind === 'record-tag' && /^\d+$/.test(scopeId)) {
-    const { getTags } = await import('@/db/tags')
-    const tags = await getTags()
-    if (!(input.id === input.label && tags.some(tag => tag.name === input.id))) {
-      scopeId = tags.find(tag => tag.id === Number(scopeId))?.name ?? scopeId
-    }
-  }
   await serializeMutation(async () => {
     await assertCurrent()
     const settings = await getWikiSettings(id)
@@ -257,6 +234,7 @@ export function isWikiArticlePathSelected(path: string, settings: WikiSettings):
   return Boolean(rule && rule.effect !== 'exclude')
 }
 
+/** Match stored scopes, including those used to read historical Wiki pages. */
 export function isWikiSourceSelected(source: WikiSourceReference, settings: WikiSettings) {
   if (!settings.enabled) return false
   const path = normalizeWikiScopeId(source.locator.filePath ?? source.sourceKey.replace(/^article:/, ''))

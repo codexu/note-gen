@@ -9,13 +9,12 @@ import { Button } from '@/components/ui/button'
 import { ContextMenuGroup, ContextMenuItem } from '@/components/ui/context-menu'
 import { DropdownMenuGroup, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { assertWikiContextCurrent, captureWikiWorkspaceGuard, getWikiContext, subscribeWikiWorkspaceChanges } from '@/lib/wiki/context'
-import { getMarkById } from '@/db/marks'
 import emitter from '@/lib/emitter'
-import { addWikiScope, getWikiSettings, isWikiArticlePathSelected, removeWikiScope } from '@/lib/wiki/settings'
+import { addWikiScope, getWikiSettings, isWikiArticlePathSelected } from '@/lib/wiki/settings'
 import { getWikiFolderSelection, setWikiFolderEnabled, startWikiFolderCompilation } from '@/lib/wiki/folders'
 import { rebuildWikiPage, startWikiCompilation } from '@/lib/wiki/queue'
 import { getWikiPageForFilePath, WIKI_ROOT_FOLDER } from '@/lib/wiki/files'
-import type { WikiPage, WikiScopeKind } from '@/types/wiki'
+import { canOrganizeWikiPage, type WikiPage } from '@/types/wiki'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { useWikiNavigation } from './use-wiki-navigation'
 import { useWikiActionScope } from './use-wiki-action-scope'
@@ -28,14 +27,12 @@ interface WikiMenuState {
   started: boolean
   paused: boolean
   hasOverrides: boolean
-  normalizedId: string | null
-  scopeKey: string | null
   pathIncluded: boolean
   generatedPage: WikiPage | null
 }
 
 export function WikiMenuItems({ kind, id, label, sourceKey, variant = 'context', disabled = false, local = true, onDismiss }: {
-  kind: WikiScopeKind
+  kind: 'article' | 'article-folder'
   id: string
   label: string
   sourceKey?: string
@@ -52,12 +49,10 @@ export function WikiMenuItems({ kind, id, label, sourceKey, variant = 'context',
   const { busy, beginAction, getActionGuard } = useWikiActionScope(JSON.stringify([kind, id, label]))
   const [menuState, setMenuState] = useState<WikiMenuState | null>(null)
   const menu = menuState?.isCurrent() ? menuState : null
-  const scopeKey = menu?.scopeKey ?? null
   const pathIncluded = menu?.pathIncluded ?? false
   const generatedPage = menu?.generatedPage ?? null
   const normalizedPath = id.replace(/\\/g, '/').replace(/\/$/, '')
-  const isWikiPath = (kind === 'article' || kind === 'article-folder')
-    && (normalizedPath === WIKI_ROOT_FOLDER || normalizedPath.startsWith(`${WIKI_ROOT_FOLDER}/`))
+  const isWikiPath = normalizedPath === WIKI_ROOT_FOLDER || normalizedPath.startsWith(`${WIKI_ROOT_FOLDER}/`)
 
   useEffect(() => {
     let active = true
@@ -72,18 +67,13 @@ export function WikiMenuItems({ kind, id, label, sourceKey, variant = 'context',
         getWikiSettings(context.id),
         kind === 'article' ? getWikiPageForFilePath(id) : Promise.resolve(null),
       ])
-      const normalizedId = kind === 'record' && /^\d+$/.test(id)
-        ? (await getMarkById(Number(id)))?.sourceId ?? null : id
-      // Stable record IDs are accepted by addWikiScope; local IDs are normalized there.
-      const match = settings.scopes.find(scope => scope.kind === kind && scope.enabled && scope.effect !== 'exclude'
-        && (scope.id === normalizedId || (kind === 'record-tag' && scope.label === label)))
       await assertWikiContextCurrent(context.id)
       if (active && isCurrent() && current === request) {
         const folder = kind === 'article-folder' ? getWikiFolderSelection(id, settings) : null
         setMenuState({
-          contextId: context.id, isCurrent, scopeKey: match?.key || null,
+          contextId: context.id, isCurrent,
           enabled: settings.enabled, started: settings.started, paused: settings.paused,
-          normalizedId, hasOverrides: folder?.hasOverrides ?? false,
+          hasOverrides: folder?.hasOverrides ?? false,
           pathIncluded: folder?.included ?? (kind === 'article' && isWikiArticlePathSelected(id, settings)),
           generatedPage: page,
         })
@@ -129,29 +119,18 @@ export function WikiMenuItems({ kind, id, label, sourceKey, variant = 'context',
     const isCurrent = captureWikiWorkspaceGuard()
     emitter.emit('wiki-show-related-files', {
       key: crypto.randomUUID(), contextId: menu.contextId, isCurrent, route: window.location.pathname,
-      kind, id: menu.normalizedId, label, sourceKey, local, organize: () => organize(menu.contextId, isCurrent),
+      kind, id, label, sourceKey, local, organize: () => organize(menu.contextId, isCurrent),
     })
   }
 
   async function toggle() {
     await run(async (contextId, isCurrent) => {
-      const pathScope = kind === 'article' || kind === 'article-folder'
-      const included = pathScope ? pathIncluded : Boolean(scopeKey)
       if (kind === 'article-folder') {
-        await setWikiFolderEnabled(id, !included, contextId)
-        if (isCurrent()) toast.success(t(included ? 'removedScope' : 'addedScope'))
-      } else if (kind === 'article') {
-        await addWikiScope({ kind, id, label, effect: included ? 'exclude' : 'include' }, contextId)
-        if (isCurrent()) toast.success(t(included ? 'removedScope' : 'addedScope'))
-      } else if (scopeKey) {
-        await removeWikiScope(scopeKey, contextId)
-        if (isCurrent()) toast.success(t('removedScope'))
+        await setWikiFolderEnabled(id, !pathIncluded, contextId)
       } else {
-        await addWikiScope({ kind, id, label }, contextId)
-        if (!isCurrent()) return
-        const settings = await getWikiSettings(contextId)
-        if (isCurrent()) toast.success(t('addedScope'), { description: settings.started ? undefined : t('scopeAddedDescription') })
+        await addWikiScope({ kind, id, label, effect: pathIncluded ? 'exclude' : 'include' }, contextId)
       }
+      if (isCurrent()) toast.success(t(pathIncluded ? 'removedScope' : 'addedScope'))
     })
   }
 
@@ -176,18 +155,17 @@ export function WikiMenuItems({ kind, id, label, sourceKey, variant = 'context',
 
   const Group = variant === 'dropdown' ? DropdownMenuGroup : ContextMenuGroup
   const MenuItem = variant === 'dropdown' ? DropdownMenuItem : ContextMenuItem
-  const included = kind === 'article' || kind === 'article-folder' ? pathIncluded : Boolean(scopeKey)
   const source = !isWikiPath && !generatedPage
   const actions: { label: string; icon: LucideIcon; select: () => void | Promise<void> }[] = []
   if (source && menu?.enabled) {
-    actions.push({ label: included ? t('removeScope') : kind === 'article-folder' ? folderText('wikiSourceToggle') : t('addToWiki'),
-      icon: included ? X : Sparkles, select: toggle })
+    actions.push({ label: pathIncluded ? t('removeScope') : kind === 'article-folder' ? folderText('wikiSourceToggle') : t('addToWiki'),
+      icon: pathIncluded ? X : Sparkles, select: toggle })
   }
   actions.push({ label: t('viewRelated'), icon: BookOpen, select: viewRelated })
-  if ((source || generatedPage) && menu?.enabled && local) {
+  if ((source || (generatedPage && canOrganizeWikiPage(generatedPage))) && menu?.enabled && local) {
     let organizationLabel = kind === 'article-folder' ? folderText('updateFolder') : t('updateSource')
     if (generatedPage) organizationLabel = t('rebuild')
-    else if (kind === 'article-folder' && !included) organizationLabel = t('includeAndOrganize')
+    else if (kind === 'article-folder' && !pathIncluded) organizationLabel = t('includeAndOrganize')
     else if (menu.paused) organizationLabel = t('resume')
     else if (!menu.started) organizationLabel = t('start')
     actions.push({ label: organizationLabel, icon: RefreshCw, select: () => run(organize) })

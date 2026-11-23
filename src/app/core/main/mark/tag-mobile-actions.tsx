@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tag } from '@/db/tags'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 
 interface TagMobileActionsProps {
   tag: Tag
@@ -45,7 +44,6 @@ export function TagMobileActions({ tag, onRename, onAddChild, onDelete, isEditin
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <WikiMenuItems variant="dropdown" kind="record-tag" id={tag.name} label={tag.name} />
         <DropdownMenuItem
           disabled={isEditing}
           onClick={(e) => {

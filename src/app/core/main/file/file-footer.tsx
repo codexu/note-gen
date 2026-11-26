@@ -10,7 +10,6 @@ import {
   FolderOpen,
   FolderPlus,
   GitBranch,
-  HardDrive,
   Settings2,
   Trash2,
 } from 'lucide-react'
@@ -113,15 +112,13 @@ export function FileFooter() {
     : primaryBackupMethod === 'selfHosted'
       ? tSync('selfHosted.title')
       : SYNC_PLATFORM_INFO[primaryBackupMethod].name
-  const toolbarTargetName = localOnly ? t('localOnly') : platformName
-  const targetName = localOnly ? t('localOnly') : missingRepository ? t('unbound') : repository || platformName
-  const targetDescription = localOnly ? t('localDescription')
-    : missingRepository ? t('unboundDescription')
-      : missingConnection ? t('setupDescription')
-        : repository ? t(workspacePath ? 'filesScope' : 'defaultScope') : platformName
+  const targetName = missingRepository ? t('unbound') : repository || platformName
+  const targetDescription = missingRepository ? t('unboundDescription')
+    : missingConnection ? t('setupDescription')
+      : repository ? t(workspacePath ? 'filesScope' : 'defaultScope') : platformName
   const needsAttention = missingRepository || missingConnection
-  const TargetIcon = needsAttention ? CircleAlert
-    : localOnly ? HardDrive : repositoryConfiguration ? GitBranch : Cloud
+  const PlatformIcon = repositoryConfiguration ? GitBranch : Cloud
+  const TargetIcon = needsAttention ? CircleAlert : PlatformIcon
   const workspaceOptions = Array.from(new Set(workspaceHistory)).filter(path => Boolean(path) && path !== workspacePath)
   const hasOtherWorkspaces = Boolean(workspacePath) || workspaceOptions.length > 0
 
@@ -226,8 +223,6 @@ export function FileFooter() {
     return (
       <div role="status" aria-label={tCommon('loading')} aria-busy="true" className="flex items-center gap-2 px-2">
         <Skeleton aria-hidden="true" className="h-4 w-24" />
-        <ArrowRight aria-hidden="true" className="size-3 shrink-0" />
-        <Skeleton aria-hidden="true" className="h-4 w-14" />
       </div>
     )
   }
@@ -299,30 +294,32 @@ export function FileFooter() {
                 </Tooltip>
               </div>
             </div>
-            <div className="flex items-center gap-2 rounded-lg border bg-background p-2.5">
-              {localOnly ? <HardDrive className="size-4 shrink-0 text-muted-foreground" />
-                : repositoryConfiguration ? <GitBranch className="size-4 shrink-0 text-muted-foreground" />
-                  : <Cloud className="size-4 shrink-0 text-muted-foreground" />}
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-muted-foreground">{t('targetLabel')}{!localOnly && ` · ${platformName}`}</p>
-                <p className="truncate text-sm font-medium">{targetName}</p>
-              </div>
-              <Button variant="ghost" size="icon-sm" onClick={openSyncSettings} aria-label={t('configure')}>
-                <Settings2 />
-              </Button>
-            </div>
-            {needsAttention ? (
-              <Alert variant="warning" role="status">
-                <CircleAlert />
-                <AlertTitle>{t(missingRepository ? 'unboundTitle' : 'setupRequired')}</AlertTitle>
-                <AlertDescription>{targetDescription}</AlertDescription>
-              </Alert>
-            ) : <p className="text-xs leading-relaxed text-muted-foreground">{targetDescription}</p>}
-            {needsAttention && <Button size="sm" className="self-start" onClick={openSyncSettings}>
-              <Settings2 data-icon="inline-start" />
-              {t('configure')}
-              <ArrowRight data-icon="inline-end" />
-            </Button>}
+            {!localOnly && (
+              <>
+                <div className="flex items-center gap-2 rounded-lg border bg-background p-2.5">
+                  <PlatformIcon className="size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted-foreground">{t('targetLabel')} · {platformName}</p>
+                    <p className="truncate text-sm font-medium">{targetName}</p>
+                  </div>
+                  <Button variant="ghost" size="icon-sm" onClick={openSyncSettings} aria-label={t('configure')}>
+                    <Settings2 />
+                  </Button>
+                </div>
+                {needsAttention ? (
+                  <Alert variant="warning" role="status">
+                    <CircleAlert />
+                    <AlertTitle>{t(missingRepository ? 'unboundTitle' : 'setupRequired')}</AlertTitle>
+                    <AlertDescription>{targetDescription}</AlertDescription>
+                  </Alert>
+                ) : <p className="text-xs leading-relaxed text-muted-foreground">{targetDescription}</p>}
+                {needsAttention && <Button size="sm" className="self-start" onClick={openSyncSettings}>
+                  <Settings2 data-icon="inline-start" />
+                  {t('configure')}
+                  <ArrowRight data-icon="inline-end" />
+                </Button>}
+              </>
+            )}
           </div>
           <Separator />
           <Command
@@ -424,26 +421,30 @@ export function FileFooter() {
           </Command>
         </PopoverContent>
       </Popover>
-      <ArrowRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size="xs"
-            variant={needsAttention ? 'outline' : 'ghost'}
-            className={cn('min-w-0 max-w-[min(22rem,35vw)]', needsAttention && 'border-warning/40 bg-warning/10 text-warning-foreground hover:bg-warning/20')}
-            onClick={openSyncSettings}
-            aria-label={`${t('targetLabel')}: ${toolbarTargetName}. ${t('configure')}`}
-          >
-            <TargetIcon data-icon="inline-start" />
-            <span className="truncate">{toolbarTargetName}</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="flex max-w-80 flex-col gap-1">
-          <p className="break-all font-medium">{toolbarTargetName}</p>
-          <p>{targetDescription}</p>
-          <p>{t('configure')}</p>
-        </TooltipContent>
-      </Tooltip>
+      {!localOnly && (
+        <>
+          <ArrowRight className="size-3 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="xs"
+                variant={needsAttention ? 'outline' : 'ghost'}
+                className={cn('min-w-0 max-w-[min(22rem,35vw)]', needsAttention && 'border-warning/40 bg-warning/10 text-warning-foreground hover:bg-warning/20')}
+                onClick={openSyncSettings}
+                aria-label={`${t('targetLabel')}: ${platformName}. ${t('configure')}`}
+              >
+                <TargetIcon data-icon="inline-start" />
+                <span className="truncate">{platformName}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="flex max-w-80 flex-col gap-1">
+              <p className="break-all font-medium">{platformName}</p>
+              <p>{targetDescription}</p>
+              <p>{t('configure')}</p>
+            </TooltipContent>
+          </Tooltip>
+        </>
+      )}
     </div>
   )
 }

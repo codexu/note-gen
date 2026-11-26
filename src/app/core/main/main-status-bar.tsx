@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import { ChatFooter } from './chat/chat-footer'
 import { FileFooter } from './file/file-footer'
 import { PluginStatusBarCenter } from '@/components/plugins/plugin-status-bar-center'
@@ -11,11 +12,15 @@ import { StatusBarItem, StatusBarSpacer, useStatusBarOrder } from './status-bar-
 const EDITOR_STATUS_SLOT_ID = 'main-editor-status-slot'
 
 export function MainStatusBar() {
+  const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
+  const primaryBackupMethod = useSettingStore(state => state.primaryBackupMethod)
   const loadOrder = useStatusBarOrder(state => state.load)
   useEffect(() => { void loadOrder() }, [loadOrder])
   return (
     <footer className="scrollbar-hide flex h-7 min-h-7 shrink-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-t border-border bg-background px-2 text-xs text-muted-foreground">
-      <StatusBarItem id="system:sync" rank={0}><UnifiedSyncStatus /></StatusBarItem>
+      {settingsReady && primaryBackupMethod !== 'local' && (
+        <StatusBarItem id="system:sync" rank={0}><UnifiedSyncStatus /></StatusBarItem>
+      )}
       <StatusBarItem id="system:workspace" rank={10}>
         <FileFooter />
       </StatusBarItem>

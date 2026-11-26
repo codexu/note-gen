@@ -2,6 +2,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getDb, initAllDatabases } from '@/db'
+import { isMobileDevice } from '@/lib/check'
 import useSyncStore from '@/stores/sync'
 import { getSelfHostedSyncRuntime } from './runtime'
 import { isSelfHostedSecureStorageError, selfHostedSessionNeedsLogin } from './profile'
@@ -32,14 +33,17 @@ function installRuntimeListeners(runtime: ReturnType<typeof getSelfHostedSyncRun
       void runtime.wake('foreground')
     }, 150)
   }
-  window.addEventListener('focus', resume)
   window.addEventListener('pageshow', resume)
   void listen('self-hosted-app-resumed', resume).catch(error => {
     console.warn('[self-hosted-sync] Unable to listen for native resume', error)
   })
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') resume()
-  })
+  if (isMobileDevice()) {
+    // On desktop, covering the window can also change the webview's visibility.
+    window.addEventListener('focus', resume)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') resume()
+    })
+  }
 }
 
 export async function refreshSelfHostedSyncRuntime(

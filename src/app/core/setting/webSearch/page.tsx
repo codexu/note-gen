@@ -99,6 +99,12 @@ const SEARCH_PROVIDERS: Array<{
     avatar: 'K',
     apiKeyUrl: 'https://keenable.ai/',
   },
+  {
+    id: 'serply',
+    name: 'Serply',
+    avatar: 'S',
+    apiKeyUrl: 'https://serply.io',
+  },
 ]
 
 type CheckState = 'idle' | 'checking' | 'ok' | 'error'

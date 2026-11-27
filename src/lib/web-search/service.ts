@@ -297,6 +297,20 @@ async function searchWithConfiguredProvider(
       const snippet = asString(record.snippet)
       return { ...record, snippet: snippet.length > 1_200 ? snippet.slice(0, 1_200) : snippet }
     })
+  } else if (provider === 'serply') {
+    payload = await fetchJson(
+      `https://api.serply.io/v1/search?q=${encodeURIComponent(query)}&num=${MAX_SEARCH_RESULTS}`,
+      {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'X-Api-Key': apiKey,
+          'User-Agent': 'NoteGen',
+        },
+      },
+      signal
+    )
+    rawSources = asArray(asRecord(payload)?.results)
   } else {
     payload = await fetchJson('https://api.exa.ai/search', {
       method: 'POST',

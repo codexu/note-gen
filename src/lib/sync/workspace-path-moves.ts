@@ -1,7 +1,8 @@
-import { exists, lstat } from '@tauri-apps/plugin-fs'
+import { exists, lstat, readFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { Store } from '@tauri-apps/plugin-store'
 import emitter from '@/lib/emitter'
+import { getCurrentEditorWorkspaceRoot, markEditorPathTreeMutation } from '@/lib/editor-deactivation'
 import { getFilePathOptions } from '@/lib/workspace'
 import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import { getPathMoveConfiguration, type PathMoveProvider } from './path-move-configuration'
@@ -11,6 +12,7 @@ import { moveCloudFolderPath } from './cloud-folder-path-move'
 import type { Proxy } from '@tauri-apps/plugin-http'
 import { webdavMovePath, type WebDAVPathIdentity } from './webdav'
 import { syncStaleError } from './sync-stale-error'
+import { gitBlobVersion } from './remote-content-cache'
 import { moveGithubPath, type GitPathEntry } from './github-path-migration-commit'
 import {
   applyPathMoveMetadata,
@@ -44,6 +46,11 @@ function serialize<T>(operation: () => Promise<T>): Promise<T> {
   const result = pending.then(operation, operation)
   pending = result.catch(() => undefined)
   return result
+}
+
+/** Keep the final local pull write and its rollback outside a path move. */
+export function runWorkspacePathPullWrite<T>(write: () => Promise<T>): Promise<T> {
+  return serialize(write)
 }
 
 function isWorkspacePath(path: string): boolean {
@@ -110,6 +117,15 @@ async function localExists(path: string): Promise<boolean> {
   return exists(options.path, { baseDir: options.baseDir })
 }
 
+async function localFileMatchesGitBlob(path: string, version: unknown): Promise<boolean> {
+  if (typeof version !== 'string' || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i.test(version)) return false
+  const options = await getFilePathOptions(path)
+  const fsOptions = { baseDir: options.baseDir }
+  const info = await lstat(options.path, fsOptions)
+  return info.isFile && !info.isSymlink
+    && await gitBlobVersion(await readFile(options.path, fsOptions), version.length) === version.toLowerCase()
+}
+
 function destination(entry: PathMove, later: PathMove[]): string {
   return pathAfterMoves(entry.target, later)
 }
@@ -134,7 +150,7 @@ async function reportMove(context: MoveContext, path: string, error?: unknown): 
  * Holding the journal lock also prevents another local rename during a remote
  * snapshot commit. Remote failure never rolls back a successful local move. */
 export async function withWorkspacePathMoves<T>(
-  moves: Array<{ source: string; target: string }>, move: () => Promise<T>,
+  moves: Array<{ source: string; target: string }>, move: () => Promise<T>, singleMoveConfirmedOnReturn = false,
 ): Promise<T> {
   const result = await serialize(async () => {
     const context = await getMoveContext()
@@ -160,9 +176,17 @@ export async function withWorkspacePathMoves<T>(
       })
     }
     if (!additions.length) return { value: await move(), context: null }
+    const workspaceRoot = await getCurrentEditorWorkspaceRoot()
     await assertContext(context)
     await journal.set(context.key, [...previous, ...additions])
     await journal.save()
+    const markMovedPaths = () => {
+      for (const { source, target } of additions) {
+        markEditorPathTreeMutation(source, workspaceRoot)
+        markEditorPathTreeMutation(target, workspaceRoot)
+      }
+    }
+    markMovedPaths()
     let value: T
     try { value = await move() }
     catch (error) {
@@ -175,6 +199,8 @@ export async function withWorkspacePathMoves<T>(
         await journal.save()
       }
       throw error
+    } finally {
+      markMovedPaths()
     }
     try {
       await assertContext(context)
@@ -186,7 +212,9 @@ export async function withWorkspacePathMoves<T>(
           next.splice(next.indexOf(entry), 1) // Unstarted or rolled back item.
           continue
         }
-        if (!sourceExists && targetExists) {
+        // The single-move callback returns only after the local move. A new
+        // file at the original name does not undo that move.
+        if (targetExists && (!sourceExists || (context.provider === 'gitea' && singleMoveConfirmedOnReturn))) {
           await applyPathMoveMetadata(entry.metadata)
           entry.ready = true
         }
@@ -206,7 +234,7 @@ export async function withWorkspacePathMoves<T>(
 }
 
 export function withWorkspacePathMove<T>(source: string, target: string, move: () => Promise<T>): Promise<T> {
-  return withWorkspacePathMoves([{ source, target }], move)
+  return withWorkspacePathMoves([{ source, target }], move, true)
 }
 
 /** Startup, online, manual retry and normal uploads share the ordered queue.
@@ -233,7 +261,15 @@ export function retryWorkspacePathMoves(): Promise<void> {
           continue
         }
         if (!targetExists) throw new Error(`本地重命名目标已不存在，已保留远端原路径：${entry.source} → ${finalTarget}`)
-        if (sourceExists && finalTarget !== entry.source) throw new Error(`本地原路径和新路径同时存在，未覆盖或删除任何文件：${entry.source} → ${finalTarget}`)
+        const sourceReused = sourceExists && finalTarget !== entry.source
+        const sourceVersions: Record<string, string | number> = entry.metadata.stores?.syncedFileShas?.source ?? {}
+        const canReuseSource = context.provider === 'gitea' && sourceReused && (entry.ready
+          // An older journal may have stopped before applying metadata. The
+          // recorded Git blob can still prove which local file was moved.
+          || await localFileMatchesGitBlob(finalTarget, sourceVersions[entry.source]))
+        if (sourceReused && !canReuseSource) {
+          throw new Error(`本地两份文件均已保留。请将旧路径移到其他位置后重试：${entry.source} → ${finalTarget}`)
+        }
         if (!entry.ready) {
           await applyPathMoveMetadata(entry.metadata)
           entry.ready = true
@@ -243,10 +279,20 @@ export function retryWorkspacePathMoves(): Promise<void> {
         const assertCurrent = async () => {
           await assertContext(context)
           return await localExists(finalTarget)
-            && (!await localExists(entry.source) || finalTarget === entry.source)
+            && (canReuseSource || finalTarget === entry.source || !await localExists(entry.source))
         }
         const rememberSource = async (expected: unknown) => {
           await assertContext(context)
+          if (canReuseSource && isGitPlatformPathSnapshot(expected)) {
+            const versionsMatch = expected.files.every(file => {
+              const path = file.path ? `${entry.source}/${file.path}` : entry.source
+              const version = sourceVersions[path]
+              return typeof version === 'string' && version.toLowerCase() === file.sha
+            })
+            if (!versionsMatch && !(expected.root.type === 'blob' && await localFileMatchesGitBlob(finalTarget, expected.root.sha))) {
+              throw new Error(`旧路径已有本地文件，远端源版本无法确认，已保留所有文件：${entry.source}`)
+            }
+          }
           entry.expected = expected
           await journal.set(context.key, entries)
           await journal.save()

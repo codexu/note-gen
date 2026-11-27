@@ -66,9 +66,9 @@ async function getGitlabBranch(): Promise<string> {
 /**
  * 获取 Gitea 分支配置
  */
-async function getGiteaBranch(): Promise<string> {
+async function getGiteaBranch(): Promise<string | undefined> {
   const store = await getStore()
-  return await store.get<string>('giteaBranch') || 'main'
+  return (await store.get<string>('giteaBranch'))?.trim() || undefined
 }
 
 /**
@@ -240,19 +240,11 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
       case 'gitea': {
         const giteaRepo = await getSyncRepoName('gitea')
         const giteaBranch = await getGiteaBranch()
-        file = await getGiteaFileContent({ path, ref: giteaBranch, repo: giteaRepo })
-        if (file) {
-          const commits = await getGiteaFileCommits({ path, repo: giteaRepo })
-          if (commits && commits.data && commits.data.length > 0) {
-            return {
-              sha: commits.data[0].sha,
-              lastModified: new Date(commits.data[0].commit.committer.date).getTime()
-            }
-          }
-          // 当前平台 API 不直接返回 SHA，返回 undefined
-          return { sha: undefined }
-        }
-        break
+        const giteaFile = await getGiteaFileContent({ path, ref: giteaBranch, repo: giteaRepo })
+        if (!giteaFile) break
+        const commits = await getGiteaFileCommits({ path, repo: giteaRepo, ref: giteaBranch })
+        const commitDate = commits ? commits.data?.[0]?.commit?.committer?.date : undefined
+        return { sha: giteaFile.sha, lastModified: commitDate ? new Date(commitDate).getTime() : undefined }
       }
 
       case 'cloudFolder': {

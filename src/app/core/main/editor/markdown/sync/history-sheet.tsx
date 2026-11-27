@@ -12,7 +12,13 @@ import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { getFileCommits as getGithubFileCommits, getFiles as getGithubFiles, decodeBase64ToString } from '@/lib/sync/github'
 import { getFileCommits as getGiteeFileCommits, getFiles as getGiteeFiles, decodeBase64ToString as decodeGiteeBase64 } from '@/lib/sync/gitee'
 import { getFileCommits as getGitlabFileCommits, getFileContent as getGitlabFileContent } from '@/lib/sync/gitlab'
-import { getFileCommits as getGiteaFileCommits, getFileContentFromCommit as getGiteaFileContentFromCommit, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
+import {
+  checkSyncRepoState as checkGiteaRepoState,
+  getFileCommits as getGiteaFileCommits,
+  getFileContentFromCommit as getGiteaFileContentFromCommit,
+  getGiteaApiBaseUrl,
+} from '@/lib/sync/gitea'
+import { buildRepoContentPath } from '@/lib/sync/remote-file'
 import { saveLocalFile } from '@/lib/sync/auto-sync'
 import { updateFileSyncTime, updateFileRestoreTime } from '@/lib/sync/conflict-resolution'
 import { toast } from '@/hooks/use-toast'
@@ -46,7 +52,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
   const [isLoading, setIsLoading] = useState(false)
   const [restoringSha, setRestoringSha] = useState<string | null>(null)
   const [provider, setProvider] = useState<SyncProvider | null>(null)
-  const [repoInfo, setRepoInfo] = useState<{ username?: string; projectId?: string; baseUrl?: string; repo?: string }>({})
+  const [repoInfo, setRepoInfo] = useState<{ username?: string; projectId?: string; baseUrl?: string; repo?: string; branch?: string }>({})
   const isMobile = isMobileDevice()
 
   // Get the sync provider
@@ -74,6 +80,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
 
       const repo = await getSyncRepoName(provider)
       let commits: any[] = []
+      let giteaBranch: string | undefined
 
       switch (provider) {
         case 'github': {
@@ -93,9 +100,13 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
           break
         }
         case 'gitea': {
-          const result = await getGiteaFileCommits({ path: activeFilePath, repo })
+          const [result, repository] = await Promise.all([
+            getGiteaFileCommits({ path: activeFilePath, repo }),
+            checkGiteaRepoState(repo).catch(() => null),
+          ])
           // Gitea 返回 { data } 对象，需要从中提取数组
           commits = (result && result.data) ? result.data : []
+          if (typeof repository?.default_branch === 'string') giteaBranch = repository.default_branch.trim()
           break
         }
       }
@@ -156,6 +167,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
         username: provider === 'github' ? githubUsername : provider === 'gitee' ? giteeUsername : provider === 'gitea' ? giteaUsername : undefined,
         projectId: provider === 'gitlab' ? gitlabProjectId : undefined,
         baseUrl: provider === 'gitea' ? giteaBaseUrl : undefined,
+        branch: giteaBranch,
         repo
       })
     } catch (error) {
@@ -309,14 +321,19 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
     <>
       <div className="flex items-center justify-between mb-2">
         <div className="font-semibold text-sm">{t('historyVersions')}</div>
-        {activeFilePath && provider && repoInfo.repo && (
+        {activeFilePath && provider && repoInfo.repo && (provider !== 'gitea' || repoInfo.branch) && (
           <a
             href={(() => {
               switch (provider) {
                 case 'github': return `https://github.com/${repoInfo.username}/${repoInfo.repo}/blob/main/${activeFilePath}`
                 case 'gitee': return `https://gitee.com/${repoInfo.username}/${repoInfo.repo}/blob/master/${activeFilePath}`
                 case 'gitlab': return `https://gitlab.com/${repoInfo.projectId?.split('/').pop()}/-/blob/main/${activeFilePath}`
-                case 'gitea': return `${repoInfo.baseUrl?.replace('/api/v1', '')}/${repoInfo.username}/${repoInfo.repo}/src/branch/main/${activeFilePath}`
+                case 'gitea': {
+                  const baseUrl = repoInfo.baseUrl?.replace(/\/api\/v1$/, '')
+                  const branch = buildRepoContentPath({ path: repoInfo.branch })
+                  const path = buildRepoContentPath({ path: activeFilePath })
+                  return `${baseUrl}/${repoInfo.username}/${repoInfo.repo}/src/branch/${branch}/${path}`
+                }
                 default: return '#'
               }
             })()}

@@ -2,7 +2,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { getSyncMetadataKey } from './sync-context'
 import { captureFileSyncWorkspaceGuard, getFileSyncProofKey, recordFileSyncProof } from './file-sync-proof'
 import { getWorkspaceOverwriteVersion, readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
-import { prepareWorkspacePathUpload, retryWorkspacePathMoves } from './workspace-path-moves'
+import { prepareWorkspacePathUpload, retryWorkspacePathMoves, runWorkspacePathPullWrite } from './workspace-path-moves'
 import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
 import { calculateFileSha, getLocalFileMetadata, getRemoteFileInfo, compareFileVersions, pullRemoteFile, setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
 import { hasInvalidFileNameChars, sanitizeFilePath } from './filename-utils'
@@ -287,6 +287,8 @@ export class SyncManager {
       const localPathOptions = workspace.isCustom
         ? { path: await join(workspace.path, safePath), baseDir: undefined }
         : { path: `article/${safePath}`, baseDir: BaseDirectory.AppData }
+      const localPathIsCurrent = () => getEditorPathMutationRevision(path) === initialEditorMutationRevision
+        && !isFileDeletionPending(path)
       await retryWorkspacePathMoves()
       const pullMetadataKey = await getSyncMetadataKey(path, platform)
       const proofKey = /\.md$/i.test(path) ? await getFileSyncProofKey(path, platform).catch(() => null) : null
@@ -316,8 +318,8 @@ export class SyncManager {
           if (parent && parent !== '.') await mkdir(parent, { ...options, recursive: true })
           await writeFile(localPathOptions.path, content, options)
         }
-        const pullAccepted = await runEditorPathWriteTransaction(path, async ({ hasQueuedSave }) => {
-          if (isFileDeletionPending(path)) return false
+        const applyPull = () => runEditorPathWriteTransaction(path, async ({ hasQueuedSave }) => {
+          if (!localPathIsCurrent()) return false
           const stableFileExists = localPathOptions.baseDir
             ? await exists(localPathOptions.path, { baseDir: localPathOptions.baseDir })
             : await exists(localPathOptions.path)
@@ -347,8 +349,7 @@ export class SyncManager {
             }
           }
 
-          if (!await targetIsCurrent() || getEditorPathMutationRevision(path) !== initialEditorMutationRevision
-            || isFileDeletionPending(path)) {
+          if (!await targetIsCurrent() || !localPathIsCurrent()) {
             return false
           }
 
@@ -368,15 +369,15 @@ export class SyncManager {
             !syncContextIsStable
             || !editorIsStable
             || hasQueuedSave()
-            || getEditorPathMutationRevision(path) !== initialEditorMutationRevision
-            || isFileDeletionPending(path)
+            || !localPathIsCurrent()
           ) {
             await restoreStableContent()
             return false
           }
           return true
         })
-        if (!pullAccepted) {
+        const pullAccepted = await runWorkspacePathPullWrite(applyPull)
+        if (!pullAccepted || !localPathIsCurrent()) {
           return { success: false, action: 'none', error: '本地内容在拉取期间发生变化' }
         }
 
@@ -384,11 +385,17 @@ export class SyncManager {
         // in the background so there is no extra await window between the
         // final content verification and handing the snapshot to the editor.
         void (async () => {
-          if (acceptedVersion) await setLocalRecordedSha(path, acceptedVersion, pullMetadataKey)
-          await updateFileSyncTime(path, pullMetadataKey)
-          if (proofKey && proofWorkspaceIsCurrent() && /^notegen-wiki-data:/m.test(decodedContent || '')
+          const metadataAccepted = await runWorkspacePathPullWrite(async () => {
+            if (!await targetIsCurrent() || !localPathIsCurrent()) return false
+            if (acceptedVersion) await setLocalRecordedSha(path, acceptedVersion, pullMetadataKey)
+            await updateFileSyncTime(path, pullMetadataKey)
+            return true
+          })
+          if (!metadataAccepted) return
+          const proofIsCurrent = () => proofWorkspaceIsCurrent() && localPathIsCurrent()
+          if (proofKey && proofIsCurrent() && /^notegen-wiki-data:/m.test(decodedContent || '')
             && proofKey === await getFileSyncProofKey(path, platform).catch(() => null)) {
-            await recordFileSyncProof(proofKey, remoteFile.content, acceptedVersion, proofWorkspaceIsCurrent)
+            await recordFileSyncProof(proofKey, remoteFile.content, acceptedVersion, proofIsCurrent)
           }
           await this.logSync(path, 'pull', true)
         })().catch(error => {

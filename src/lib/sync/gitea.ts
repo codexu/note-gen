@@ -476,7 +476,7 @@ export async function deleteFile({ path, sha, repo, guarded = false, beforeWrite
  * 获取文件提交历史
  * @param params 查询参数
  */
-export async function getFileCommits({ path, repo }: { path: string; repo: string }) {
+export async function getFileCommits({ path, repo, ref }: { path: string; repo: string; ref?: string }) {
   try {
     const store = await Store.load('store.json');
     const giteaUsername = await store.get<string>('giteaUsername');
@@ -489,10 +489,10 @@ export async function getFileCommits({ path, repo }: { path: string; repo: strin
     const headers = await getCommonHeaders();
     const proxy = await getProxyConfig();
 
-    // Gitea API 需要指定分支（sha 参数），默认使用 main 分支
-    // 对 path 进行编码，避免特殊字符导致 404
-    const encodedPath = encodeURIComponent(path);
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/commits?sha=main&path=${encodedPath}&per_page=100`;
+    // 未指定 ref 时，Gitea 使用仓库的默认分支。
+    const query = new URLSearchParams({ path, per_page: '100' });
+    if (ref) query.set('sha', ref);
+    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/commits?${query}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -624,8 +624,7 @@ export async function getFileContent({ path, ref, repo }: { path: string; ref?: 
       encodedPath,
       ref,
     })
-    // Gitea API 使用 sha 参数而不是 ref 参数来获取特定 commit 的文件内容
-    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}${ref ? `?sha=${encodeURIComponent(ref)}` : ''}`;
+    const url = `${baseUrl}/repos/${giteaUsername}/${repo}/contents/${encodedPath}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`;
 
     const response = await encodeFetch(url, {
       method: 'GET',
@@ -636,6 +635,7 @@ export async function getFileContent({ path, ref, repo }: { path: string; ref?: 
     if (response.status >= 200 && response.status < 300) {
       const data = await readSyncResponseJson(response, `gitea / ${path}`) as GiteaFileContent;
       return {
+        sha: data.sha,
         content: data.content || '',
         encoding: data.encoding || 'base64'
       };

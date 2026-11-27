@@ -58,6 +58,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
   const contentInitializedRef = useRef(false)
   // Bug fix: Track expected content to detect if editor is behind
   const expectedContentRef = useRef<string | null>(null)
+  const savePathRef = useRef(filePath)
   // State for editor instance (to trigger re-render when ready)
   const [editorInstance, setEditorInstance] = useState<any>(null)
   // Track if editor has called onEditorReady (meaning it's fully initialized)
@@ -65,6 +66,18 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
   // AI streaming state
   const [aiStreaming, setAiStreaming] = useState(false)
   const terminateRef = useRef<(() => void) | undefined>(undefined)
+
+  useEffect(() => {
+    savePathRef.current = filePath
+    const handlePathMoved = ({ oldPath, newPath }: Events['editor-navigation-path-moved']) => {
+      const path = savePathRef.current
+      if (path === oldPath || path.startsWith(`${oldPath}/`)) {
+        savePathRef.current = `${newPath}${path.slice(oldPath.length)}`
+      }
+    }
+    emitter.on('editor-navigation-path-moved', handlePathMoved)
+    return () => emitter.off('editor-navigation-path-moved', handlePathMoved)
+  }, [filePath])
 
   // Bug fix: Listen for file close events to clean up loaded state
   useEffect(() => {
@@ -279,25 +292,23 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     if (!contentInitializedRef.current) {
       contentInitializedRef.current = true
     }
-    // Update cache
-    if (filePath && tabContentsRef.current) {
-      tabContentsRef.current[filePath] = content
-    }
-
-    if (filePath) {
+    // TipTap can flush an edit as the old tab unmounts after a rename.
+    const savePath = savePathRef.current
+    if (savePath) {
+      if (tabContentsRef.current) tabContentsRef.current[savePath] = content
       const previewTab = useArticleStore.getState().openTabs.find(tab => (
-        tab.path === filePath && tab.preview
+        tab.path === savePath && tab.preview
       ))
       if (previewTab) void setTabDisposition(previewTab.id, 'regular')
-      saveCurrentArticle(content, filePath)
-    } else if (!filePath && !isCreatingFileRef.current) {
+      saveCurrentArticle(content, savePath)
+    } else if (!isCreatingFileRef.current) {
       // Auto-create untitled file
       isCreatingFileRef.current = true
       void createUntitledFile(content).finally(() => {
         isCreatingFileRef.current = false
       })
     }
-  }, [saveCurrentArticle, setTabDisposition, filePath, tabContentsRef])
+  }, [saveCurrentArticle, setTabDisposition, tabContentsRef])
 
   // Handle editor ready - store editor instance
   const handleEditorReady = useCallback((editor: any) => {

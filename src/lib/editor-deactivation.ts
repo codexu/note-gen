@@ -19,6 +19,8 @@ let activeEditorDurableSaveFlusher: ActiveEditorDurableSaveFlusher | null = null
 let editorPathMutationFlusher: EditorPathMutationFlusher | null = null
 let editorPathWriteTransactionRunner: EditorPathWriteTransactionRunner | null = null
 const editorPathMutationRevisions = new Map<string, number>()
+const editorPathTreeMutationRevisions = new Map<string, { path: string; workspaceRoot?: string; revision: number }>()
+let editorPathMutationSequence = 0
 const editorPathMutationLocks = new Set<{ paths: readonly string[]; workspaceRoot: string }>()
 
 type NormalizedEditorPath = {
@@ -250,25 +252,39 @@ export function markEditorPathMutation(path: string, workspaceRoot?: string): vo
   const matchingKeys = [...editorPathMutationRevisions.keys()].filter(candidate => (
     editorPathsReferToSameFile(candidate, key, workspaceRoot)
   ))
-  const nextRevision = Math.max(
-    0,
-    ...matchingKeys.map(candidate => editorPathMutationRevisions.get(candidate) ?? 0),
-  ) + 1
+  const nextRevision = ++editorPathMutationSequence
   editorPathMutationRevisions.set(key, nextRevision)
   for (const matchingKey of matchingKeys) {
     editorPathMutationRevisions.set(matchingKey, nextRevision)
   }
 }
 
+/** Invalidate older operations for a moved path and any files below it. */
+export function markEditorPathTreeMutation(path: string, workspaceRoot?: string): void {
+  const key = getEditorPathRevisionKey(path)
+  if (!key) return
+  const root = workspaceRoot ? getEditorPathRevisionKey(workspaceRoot) : ''
+  const revision = ++editorPathMutationSequence
+  editorPathTreeMutationRevisions.set(JSON.stringify([root, key]), { path, workspaceRoot, revision })
+}
+
 export function getEditorPathMutationRevision(path: string, workspaceRoot?: string): number {
   const key = getEditorPathRevisionKey(path)
   if (!key) return 0
-  return Math.max(
+  let revision = Math.max(
     editorPathMutationRevisions.get(key) ?? 0,
     ...[...editorPathMutationRevisions.entries()]
       .filter(([candidate]) => editorPathsReferToSameFile(candidate, key, workspaceRoot))
       .map(([, revision]) => revision),
   )
+  for (const tree of editorPathTreeMutationRevisions.values()) {
+    if (tree.revision <= revision) continue
+    if (workspaceRoot && tree.workspaceRoot && !workspaceRootsReferToSameLocation(workspaceRoot, tree.workspaceRoot)) continue
+    if (editorPathIsSameOrDescendant(path, tree.path, workspaceRoot || tree.workspaceRoot)) {
+      revision = tree.revision
+    }
+  }
+  return revision
 }
 
 export function registerActiveEditorDurableSaveFlusher(

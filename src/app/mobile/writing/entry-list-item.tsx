@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { WikiMenuItems } from '@/components/wiki/wiki-menu-items'
 import { cn } from '@/lib/utils'
-import { FileTreeDecorations } from '@/app/core/main/file/file-tree-decorations'
 
 type EntryAction = {
   key: string
@@ -26,7 +25,6 @@ interface EntryListItemProps {
   isActive: boolean
   onOpen: (entry: BrowserEntry) => void
   actions: EntryAction[]
-  syncStatusLabel: string
   subtitle?: string
   dragDisabled?: boolean
   isDragging?: boolean
@@ -44,7 +42,6 @@ export function EntryListItem({
   isActive,
   onOpen,
   actions,
-  syncStatusLabel,
   subtitle,
   dragDisabled = false,
   isDragging = false,
@@ -177,14 +174,6 @@ export function EntryListItem({
               <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
             )}
           </button>
-          <FileTreeDecorations
-            path={entry.relativePath}
-            kind={entry.type}
-            iconSize="size-4"
-            syncStatus={entry.syncStatus}
-            syncTitle={syncStatusLabel}
-            alwaysShowSynced
-          />
           <MobileActionDrawer
             title={entry.name}
             renderExtraItems={wikiEligible ? dismiss => <Collapsible>

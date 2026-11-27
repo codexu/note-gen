@@ -20,7 +20,6 @@ export function FileTreeDecorations({
   rag,
   syncStatus,
   syncTitle,
-  alwaysShowSynced = false,
 }: {
   path: string
   kind?: 'file' | 'folder'
@@ -28,7 +27,6 @@ export function FileTreeDecorations({
   rag?: FileTreeRagStatus
   syncStatus: FileTreeSyncStatus
   syncTitle: string
-  alwaysShowSynced?: boolean
 }) {
   const t = useTranslations('article.file.activityStatus')
   const wikiWorking = useWikiWorking(kind === 'folder' && isWikiFolderPath(path) ? undefined : path, kind)
@@ -66,7 +64,7 @@ export function FileTreeDecorations({
             tabIndex={0}
             role="img"
             aria-label={summary}
-            data-file-manager-status={alwaysShowSynced ? undefined : ''}
+            data-file-manager-status=""
             title=""
             className={cn(
               'inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring',

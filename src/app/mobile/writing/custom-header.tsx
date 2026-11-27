@@ -131,6 +131,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [entryMetaMap, setEntryMetaMap] = useState<Record<string, { modifiedAt?: string; size?: number }>>({})
   const hasInitializedBrowserRef = useRef(false)
+  const lastVisitedDirRef = useRef('')
   const remoteRefreshInFlightRef = useRef(false)
 
   const [createType, setCreateType] = useState<'file' | 'folder' | null>(null)
@@ -520,6 +521,10 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   ])
 
   useEffect(() => {
+    lastVisitedDirRef.current = currentDir
+  }, [currentDir])
+
+  useEffect(() => {
     if (!active) {
       hasInitializedBrowserRef.current = false
       resetDragState()
@@ -529,10 +534,14 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
     if (hasInitializedBrowserRef.current) return
     hasInitializedBrowserRef.current = true
 
-    const activeParentDir = parentPath(normalizedActivePath)
+    // Opening a file makes the browser inactive, and closing the editor clears the
+    // active file first, so deriving the folder from it would drop the user back at
+    // the root. Only follow the active file when one is actually open; otherwise
+    // return to the folder the user was browsing.
+    const baseDir = normalizedActivePath ? parentPath(normalizedActivePath) : lastVisitedDirRef.current
     const initialDir = showAssetsFolders
-      ? activeParentDir
-      : getVisibleDirectoryPath(activeParentDir, assetsFolderName)
+      ? baseDir
+      : getVisibleDirectoryPath(baseDir, assetsFolderName)
     setCurrentDir(initialDir)
     setSearchQuery('')
 

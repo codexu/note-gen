@@ -1,85 +1,114 @@
 import { DEFAULT_CANVAS_DOCUMENT, type CanvasDocument, type CanvasNode, type CanvasNodeType } from '@/types/canvas'
 import { isCanvasFlowchartNodeType } from '@/lib/canvas/shapes'
 
-const NODE_PATTERN = /^([A-Za-z_][\w-]*)\s*(?:\(\[([\s\S]*?)\]\)|\{([\s\S]*?)\}|\[([\s\S]*?)\]|\(([\s\S]*?)\))?$/
+const NODE_START = /\s*([A-Za-z_](?:\w|-(?!-))*)\s*(\(\[|\[\(|\[\/|\[|\{|\()?/y
+const NODE_SHAPES = new Map<string, { type: CanvasNodeType; labelPattern: RegExp }>([
+  ['([', { type: 'terminator', labelPattern: /(\s*"[^"]*"\s*|[^()[\]{}"]*)\]\)/y }],
+  ['{', { type: 'decision', labelPattern: /(\s*"[^"]*"\s*|[^()[\]{}"]*)\}/y }],
+  ['[(', { type: 'database', labelPattern: /(\s*"[^"]*"\s*|[^()[\]{}"]*)\)\]/y }],
+  ['[/', { type: 'input-output', labelPattern: /(\s*"[^"]*"\s*|[^()[\]{}"]*)\/\]/y }],
+  ['[', { type: 'process', labelPattern: /(\s*"[^"]*"\s*|[^()[\]{}"]*)\]/y }],
+  ['(', { type: 'terminator', labelPattern: /(\s*"[^"]*"\s*|[^()[\]{}"]*)\)/y }],
+])
+const EDGE_PATTERN = /\s*(?:-->|---|==>|--(\s*"[^"]*"\s*|(?:#\w+;|(?!%%)[^>";])+?)-->)\s*(?:\|(\s*"[^"]*"\s*|[^|"]*)\|)?/y
+const STATEMENT_END = /\s*(?:;|%%[\s\S]*|$)/y
 
-function cleanLabel(value: string | undefined, fallback: string) {
-  return (value || fallback).trim().replace(/^['"]|['"]$/g, '').replace(/<br\s*\/?>/gi, '\n')
+const LABEL_ENTITIES: Record<string, string> = { '#quot;': '"', '#34;': '"', '#35;': '#', '#60;': '<', '#13;': '\r' }
+
+const PARSE_ERROR_MESSAGES = {
+  header: 'Only Mermaid flowchart/graph syntax is supported',
+  empty: 'No Mermaid nodes found',
 }
 
-function parseNodeToken(token: string): { id: string; type: CanvasNodeType; label: string } | null {
-  const match = token.trim().match(NODE_PATTERN)
-  if (!match) return null
-  const [, id, terminator, decision, rectangle, rounded] = match
-  const database = rectangle?.match(/^\(([\s\S]*)\)$/)?.[1]
-  const inputOutput = rectangle?.match(/^\/([\s\S]*)\/$/)?.[1]
-  return {
-    id,
-    type: terminator
-      ? 'terminator'
-      : decision
-        ? 'decision'
-        : rounded
-          ? 'terminator'
-          : database
-            ? 'database'
-            : inputOutput ? 'input-output' : 'process',
-    label: cleanLabel(terminator || decision || database || inputOutput || rectangle || rounded, id),
+export class MermaidCanvasParseError extends Error {
+  constructor(readonly reason: 'syntax' | 'header' | 'empty', readonly lineNumber?: number) {
+    super(reason === 'syntax'
+      ? `Unsupported or invalid Mermaid syntax on line ${lineNumber}`
+      : PARSE_ERROR_MESSAGES[reason])
   }
 }
 
-function stripComment(line: string) {
-  return line.replace(/%%.*$/, '').trim()
+function matchAt(pattern: RegExp, line: string, offset: number) {
+  pattern.lastIndex = offset
+  return pattern.exec(line)
+}
+
+function cleanLabel(value: string, allowSingleQuotes = false) {
+  const trimmed = value.trim()
+  const quote = trimmed[0]
+  const isQuoted = (quote === '"' || (allowSingleQuotes && quote === "'")) && trimmed.endsWith(quote)
+  const text = isQuoted ? trimmed.slice(1, -1) : trimmed
+  return text.replace(/<br\s*\/?>|#(?:quot|34|35|60|13);/gi, token => LABEL_ENTITIES[token.toLowerCase()] ?? '\n')
+}
+
+function parseNode(line: string, offset: number, lineNumber: number) {
+  const start = matchAt(NODE_START, line, offset)
+  if (!start) throw new MermaidCanvasParseError('syntax', lineNumber)
+
+  const [token, id, shapeName] = start
+  const labelOffset = offset + token.length
+  const shape = NODE_SHAPES.get(shapeName)
+  if (!shape) return { id, type: 'process' as const, label: id, explicit: false, end: labelOffset }
+
+  const label = matchAt(shape.labelPattern, line, labelOffset)
+  if (!label) throw new MermaidCanvasParseError('syntax', lineNumber)
+  return { id, type: shape.type, label: cleanLabel(label[1] || id, true), explicit: true, end: labelOffset + label[0].length }
 }
 
 export function mermaidToCanvasDocument(source: string): CanvasDocument {
+  const lines = source.split(/\r\n?|\n/)
   const typeOverrides = new Map<string, CanvasNodeType>()
-  for (const line of source.split(/\r?\n/)) {
+  for (const line of lines) {
     const match = line.trim().match(/^%%\s*notegen-type\s+([A-Za-z_][\w-]*)\s+([\w-]+)$/)
     if (match && isCanvasFlowchartNodeType(match[2])) {
       typeOverrides.set(match[1], match[2])
     }
   }
-  const lines = source.split(/\r?\n/).map(stripComment).filter(Boolean)
-  const header = lines.shift()?.match(/^(?:flowchart|graph)\s+(TB|TD|BT|LR|RL)/i)
-  if (!header) throw new Error('Only Mermaid flowchart/graph syntax is supported')
+  const headerIndex = lines.findIndex(line => {
+    const text = line.trim()
+    return text.length > 0 && !text.startsWith('%%')
+  })
+  const header = lines[headerIndex]?.match(/^\s*(?:flowchart|graph)\s+(TB|TD|BT|LR|RL)\s*(?=;|%%|$)/i)
+  if (!header) throw new MermaidCanvasParseError('header')
   const direction = ['LR', 'RL'].includes(header[1].toUpperCase()) ? 'LR' : 'TB'
   const nodes = new Map<string, Omit<CanvasNode, 'position'>>()
   const edges: CanvasDocument['edges'] = []
 
-  const register = (token: string) => {
-    const parsed = parseNodeToken(token)
-    if (!parsed) return null
-    const existing = nodes.get(parsed.id)
-    nodes.set(parsed.id, {
-      id: parsed.id,
-      type: typeOverrides.get(parsed.id) || existing?.type || parsed.type,
-      data: { label: existing?.data.label || parsed.label },
-    })
-    return parsed.id
-  }
-
-  for (const line of lines) {
-    const edgeMatch = line.match(/^(.+?)\s*(?:--\s*([^>]+?)\s*-->|-->|---|==>)\s*(.+)$/)
-    if (edgeMatch) {
-      const sourceId = register(edgeMatch[1])
-      let targetToken = edgeMatch[3].trim()
-      let label = edgeMatch[2]?.trim()
-      const pipeLabel = targetToken.match(/^\|([^|]+)\|\s*(.+)$/)
-      if (pipeLabel) {
-        label = pipeLabel[1].trim()
-        targetToken = pipeLabel[2]
-      }
-      const targetId = register(targetToken)
-      if (sourceId && targetId) {
-        edges.push({ id: crypto.randomUUID(), source: sourceId, target: targetId, ...(label ? { label } : {}), type: 'smoothstep' })
-      }
-      continue
+  const register = ({ id, type, label, explicit }: ReturnType<typeof parseNode>) => {
+    if (explicit || !nodes.has(id)) {
+      nodes.set(id, { id, type: typeOverrides.get(id) ?? type, data: { label } })
     }
-    register(line)
   }
 
-  if (nodes.size === 0) throw new Error('No Mermaid nodes found')
+  for (let index = headerIndex; index < lines.length; index++) {
+    const line = lines[index]
+    const lineNumber = index + 1
+    let offset = index === headerIndex ? header[0].length : 0
+    while (offset < line.length) {
+      const separator = matchAt(STATEMENT_END, line, offset)
+      if (separator) {
+        offset += separator[0].length
+        continue
+      }
+
+      let node = parseNode(line, offset, lineNumber)
+      register(node)
+      while (!matchAt(STATEMENT_END, line, node.end)) {
+        const edge = matchAt(EDGE_PATTERN, line, node.end)
+        if (!edge) throw new MermaidCanvasParseError('syntax', lineNumber)
+
+        const target = parseNode(line, node.end + edge[0].length, lineNumber)
+        register(target)
+        const [, inlineLabel, pipeLabel] = edge
+        const label = cleanLabel(pipeLabel ?? inlineLabel ?? '')
+        edges.push({ id: crypto.randomUUID(), source: node.id, target: target.id, ...(label ? { label } : {}), type: 'smoothstep' })
+        node = target
+      }
+      offset = node.end
+    }
+  }
+
+  if (nodes.size === 0) throw new MermaidCanvasParseError('empty')
   const indegree = new Map([...nodes.keys()].map(id => [id, 0]))
   const outgoing = new Map([...nodes.keys()].map(id => [id, [] as string[]]))
   edges.forEach(edge => {
@@ -88,7 +117,6 @@ export function mermaidToCanvasDocument(source: string): CanvasDocument {
   })
   const level = new Map<string, number>()
   const queue = [...nodes.keys()].filter(id => (indegree.get(id) || 0) === 0)
-  if (queue.length === 0) queue.push([...nodes.keys()][0])
   queue.forEach(id => level.set(id, 0))
   while (queue.length) {
     const id = queue.shift()!
@@ -98,7 +126,7 @@ export function mermaidToCanvasDocument(source: string): CanvasDocument {
       if (indegree.get(target) === 0) queue.push(target)
     }
   }
-  let fallbackLevel = Math.max(0, ...level.values()) + 1
+  let fallbackLevel = Math.max(-1, ...level.values()) + 1
   const columns = new Map<number, number>()
   const positioned = [...nodes.values()].map(node => {
     const nodeLevel = level.get(node.id) ?? fallbackLevel++
@@ -118,7 +146,7 @@ export function mermaidToCanvasDocument(source: string): CanvasDocument {
 }
 
 function escapeLabel(value: string) {
-  return value.replace(/"/g, '#quot;').replace(/\n/g, '<br/>')
+  return value.replace(/#/g, '#35;').replace(/"/g, '#quot;').replace(/</g, '#60;').replace(/\r/g, '#13;').replace(/\n/g, '<br/>')
 }
 
 export function canvasDocumentToMermaid(document: CanvasDocument): string {
@@ -138,6 +166,9 @@ export function canvasDocumentToMermaid(document: CanvasDocument): string {
     })
   const edgeLines = document.edges
     .filter(edge => aliases.has(edge.source) && aliases.has(edge.target))
-    .map(edge => `  ${aliases.get(edge.source)} -->${edge.label ? `|${String(edge.label).replace(/\|/g, '/')}|` : ''} ${aliases.get(edge.target)}`)
+    .map(edge => {
+      const label = edge.label ? `|"${escapeLabel(edge.label)}"|` : ''
+      return `  ${aliases.get(edge.source)} -->${label} ${aliases.get(edge.target)}`
+    })
   return [`flowchart ${direction}`, ...nodeLines, ...edgeLines].join('\n')
 }

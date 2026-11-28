@@ -5258,7 +5258,12 @@
       "fileType": "画布文件",
       "defaultTitle": "导入的画布",
       "success": "画布导入成功",
-      "error": "无法导入这个文件"
+      "error": "无法导入这个文件",
+      "mermaid": {
+        "header": "请以 flowchart 或 graph 开头并指定方向，例如 flowchart TD。",
+        "syntax": "第 {line} 行包含不支持或无效的 Mermaid 语法。",
+        "empty": "Mermaid 流程图中没有节点。"
+      }
     },
     "untitled": "未命名画布",
     "more": "更多操作",

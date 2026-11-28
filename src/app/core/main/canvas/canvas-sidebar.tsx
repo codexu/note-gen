@@ -66,7 +66,7 @@ import { uploadCanvas } from '@/lib/sync/canvas-sync'
 import { createCanvasTab, getCanvasTabPath } from './canvas-tab'
 import { setCanvasDragData } from '@/lib/canvas/canvas-dnd'
 import { parseCanvasProjectFile } from '@/lib/canvas/file-format'
-import { mermaidToCanvasDocument } from '@/lib/canvas/mermaid'
+import { MermaidCanvasParseError, mermaidToCanvasDocument } from '@/lib/canvas/mermaid'
 import { CanvasThumbnail } from './canvas-thumbnail'
 
 type CanvasSyncDisplayStatus = 'pending' | 'uploading' | 'synced' | 'failed'
@@ -182,7 +182,11 @@ export function CanvasActions() {
       }
     } catch (error) {
       console.error('Failed to import canvas:', error)
-      toast.error(t('import.error'))
+      toast.error(t('import.error'), {
+        description: error instanceof MermaidCanvasParseError
+          ? t(`import.mermaid.${error.reason}`, { line: error.lineNumber ?? '' })
+          : undefined,
+      })
     }
   }
 
@@ -417,7 +421,11 @@ export function CanvasSidebar() {
       }
     } catch (error) {
       console.error('Failed to import canvas:', error)
-      toast.error(t('import.error'))
+      toast.error(t('import.error'), {
+        description: error instanceof MermaidCanvasParseError
+          ? t(`import.mermaid.${error.reason}`, { line: error.lineNumber ?? '' })
+          : undefined,
+      })
     }
   }
 

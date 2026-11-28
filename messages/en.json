@@ -5258,7 +5258,12 @@
       "fileType": "Canvas file",
       "defaultTitle": "Imported canvas",
       "success": "Canvas imported",
-      "error": "This file could not be imported"
+      "error": "This file could not be imported",
+      "mermaid": {
+        "header": "Start the Mermaid diagram with flowchart or graph followed by a direction, such as flowchart TD.",
+        "syntax": "Line {line} contains unsupported or invalid Mermaid syntax.",
+        "empty": "The Mermaid diagram contains no nodes."
+      }
     },
     "untitled": "Untitled canvas",
     "more": "More actions",

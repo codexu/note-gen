@@ -164,7 +164,7 @@ import {
   CanvasToolsSidebar,
   type InsertableCanvasNodeType,
 } from './canvas-tools-sidebar'
-import { canvasDocumentToMermaid, mermaidToCanvasDocument } from '@/lib/canvas/mermaid'
+import { canvasDocumentToMermaid, MermaidCanvasParseError, mermaidToCanvasDocument } from '@/lib/canvas/mermaid'
 import { parseCanvasProjectFile, serializeCanvasProject } from '@/lib/canvas/file-format'
 import { cn } from '@/lib/utils'
 import {
@@ -2012,11 +2012,10 @@ function CanvasEditorInner({ canvasId, mobile = false, isActive = true }: Canvas
     }
   }, [canvasId, getCurrentDocument, projects, t])
 
-  const applyImportedContent = useCallback((source: string) => {
-    const trimmedSource = source.trim()
-    const nextDocument = trimmedSource.startsWith('{')
-      ? parseCanvasProjectFile(trimmedSource).document
-      : mermaidToCanvasDocument(trimmedSource)
+  const applyImportedContent = useCallback((source: string, isMermaidFile = false) => {
+    const nextDocument = !isMermaidFile && source.trimStart().startsWith('{')
+      ? parseCanvasProjectFile(source.trim()).document
+      : mermaidToCanvasDocument(source)
     pushHistory()
     setNodes(nextDocument.nodes as FlowCanvasNode[])
     setEdges(nextDocument.edges as Edge[])
@@ -2032,10 +2031,14 @@ function CanvasEditorInner({ canvasId, mobile = false, isActive = true }: Canvas
         filters: [{ name: t('import.fileType'), extensions: ['json', 'canvas', 'mmd', 'mermaid'] }],
       })
       if (!path || Array.isArray(path)) return
-      applyImportedContent(await readTextFile(path))
+      applyImportedContent(await readTextFile(path), /\.(mmd|mermaid)$/i.test(path))
     } catch (error) {
       console.error('Failed to import canvas:', error)
-      toast.error(t('import.error'))
+      toast.error(t('import.error'), {
+        description: error instanceof MermaidCanvasParseError
+          ? t(`import.mermaid.${error.reason}`, { line: error.lineNumber ?? '' })
+          : undefined,
+      })
     }
   }, [applyImportedContent, t])
 
@@ -2046,7 +2049,11 @@ function CanvasEditorInner({ canvasId, mobile = false, isActive = true }: Canvas
       setImportContentDraft('')
     } catch (error) {
       console.error('Failed to import canvas content:', error)
-      toast.error(t('import.error'))
+      toast.error(t('import.error'), {
+        description: error instanceof MermaidCanvasParseError
+          ? t(`import.mermaid.${error.reason}`, { line: error.lineNumber ?? '' })
+          : undefined,
+      })
     }
   }, [applyImportedContent, importContentDraft, t])
 

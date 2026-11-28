@@ -102,6 +102,7 @@ export class MCPClient {
    * 调用工具
    */
   async callTool(name: string, args: Record<string, unknown> = {}, signal?: AbortSignal): Promise<CallToolResult> {
+    if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError')
     if (!this.isInitialized) {
       await this.initialize()
     }
@@ -167,11 +168,9 @@ export class MCPClient {
       params,
     }
     
-    if (this.config.type === 'stdio') {
-      return this.withTimeout(this.sendStdioRequest<T>(request), signal)
-    } else {
-      return this.withTimeout(this.sendHttpRequest<T>(request, signal), signal)
-    }
+    return this.withTimeout(() => this.config.type === 'stdio'
+      ? this.sendStdioRequest<T>(request)
+      : this.sendHttpRequest<T>(request, signal), signal)
   }
 
   private async collectPages<T>(method: string, field: 'tools' | 'resources' | 'resourceTemplates'): Promise<T[]> {
@@ -211,17 +210,21 @@ export class MCPClient {
     if (!response.ok) throw new Error(`MCP notification failed with HTTP ${response.status}`)
   }
 
-  private async withTimeout<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  private async withTimeout<T>(start: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     if (signal?.aborted) throw new DOMException('Request aborted', 'AbortError')
-    return await new Promise<T>((resolve, reject) => {
-      const timeout = window.setTimeout(() => reject(new Error(`MCP request timed out after ${this.defaultTimeout}ms`)), this.defaultTimeout)
-      const onAbort = () => reject(new DOMException('Request aborted', 'AbortError'))
-      signal?.addEventListener('abort', onAbort, { once: true })
-      promise.then(resolve, reject).finally(() => {
-        window.clearTimeout(timeout)
-        signal?.removeEventListener('abort', onAbort)
+    let timeout: number | undefined
+    let onAbort: (() => void) | undefined
+    try {
+      return await new Promise<T>((resolve, reject) => {
+        timeout = window.setTimeout(() => reject(new Error(`MCP request timed out after ${this.defaultTimeout}ms`)), this.defaultTimeout)
+        onAbort = () => reject(new DOMException('Request aborted', 'AbortError'))
+        signal?.addEventListener('abort', onAbort, { once: true })
+        start().then(resolve, reject)
       })
-    })
+    } finally {
+      window.clearTimeout(timeout)
+      if (onAbort) signal?.removeEventListener('abort', onAbort)
+    }
   }
   
   /**

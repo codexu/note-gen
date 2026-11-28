@@ -1,5 +1,6 @@
 import * as Y from 'yjs'
 import { getDb } from '@/db'
+import { getCanvasProject } from '@/db/canvases'
 import useSyncStore from '@/stores/sync'
 import type { CanvasDocument } from '@/types/canvas'
 import { enqueueCanvasSnapshot } from './outbox'
@@ -330,7 +331,7 @@ async function materializeRemoteCanvas(
     scheduleRemoteMaterialization(canvasId, session, fallback ?? current)
     return
   }
-  const base = fallback ?? current
+  const base = fallback ?? current ?? (await getCanvasProject(canvasId, { includeHistory: false }))?.document
   if (!base) return
   const next = JSON.parse(await localizeCanvasRecords(session.transport.workspaceId,
     JSON.stringify(materializeCanvas(session, base)))) as CanvasDocument

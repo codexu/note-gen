@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import {
   getCanvasProject,
-  getCanvasProjects,
+  getCanvasProjectSummaries,
   insertCanvasProject,
   permanentlyDeleteCanvasProject,
   renameCanvasProject,
@@ -20,6 +20,7 @@ import type {
   CanvasDocument,
   CanvasHistoryState,
   CanvasProject,
+  CanvasProjectSummary,
   CanvasProjectType,
   CanvasSelectionContext,
 } from '@/types/canvas'
@@ -64,7 +65,7 @@ function persistCanvasHistory(id: string, history: CanvasHistoryState) {
   })
 }
 
-function hasCurrentThumbnail(project: Pick<CanvasProject, 'thumbnailPath'>) {
+export function hasCurrentThumbnail(project: Pick<CanvasProject, 'thumbnailPath'>) {
   return Boolean(project.thumbnailPath?.endsWith(`-v${CANVAS_THUMBNAIL_VERSION}.png`))
 }
 
@@ -81,9 +82,39 @@ function rememberThumbnailRepairAttempt(key: string) {
 
 export type CanvasDeleteResult = 'local' | 'synced' | 'queued' | 'pending'
 
+type ListedProject = CanvasProjectSummary & Partial<Pick<CanvasProject, 'document' | 'history'>>
+
+function isLoaded(project: ListedProject | undefined): project is CanvasProject {
+  return Boolean(project?.document)
+}
+
+function summaryOf(project: ListedProject): CanvasProjectSummary {
+  const summary = { ...project }
+  delete summary.document
+  delete summary.history
+  return summary
+}
+
+let listRequest = 0
+let activation = 0
+const mountedEditors = new Map<string, number>()
+const projectSaves = new Map<string, Promise<void>>()
+const projectReads = new Map<string, Promise<CanvasProject | null>>()
+
+async function queueDocumentWrite(id: string, write: () => Promise<void>) {
+  const previous = projectSaves.get(id)
+  const pending = previous ? previous.catch(() => undefined).then(write) : write()
+  projectSaves.set(id, pending)
+  try {
+    await pending
+  } finally {
+    if (projectSaves.get(id) === pending) projectSaves.delete(id)
+  }
+}
+
 interface CanvasState {
-  projects: CanvasProject[]
-  deletedProjects: CanvasProject[]
+  projects: ListedProject[]
+  deletedProjects: CanvasProjectSummary[]
   documents: Record<string, CanvasDocument>
   activeCanvasId: string | null
   selectionContext: CanvasSelectionContext | null
@@ -94,6 +125,8 @@ interface CanvasState {
   createProject: (canvasType?: CanvasProjectType, title?: string) => Promise<CanvasProject | null>
   createProjectFromDocument: (document: CanvasDocument, title: string, canvasType?: CanvasProjectType) => Promise<CanvasProject | null>
   duplicateProject: (id: string, title?: string) => Promise<CanvasProject | null>
+  retainEditor: (id: string) => () => Promise<void>
+  loadProject: (id: string) => Promise<CanvasProject | null>
   openProject: (id: string) => Promise<CanvasProject | null>
   setActiveCanvasId: (id: string | null) => void
   setSelectionContext: (context: CanvasSelectionContext | null) => void
@@ -124,27 +157,40 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
   trashMode: false,
 
   loadProjects: async () => {
+    const request = ++listRequest
     set({ loading: true })
-    const allProjects = await getCanvasProjects({ includeDeleted: true })
-    const projects = allProjects.filter(project => !project.deletedAt)
-    set(state => ({
-      projects,
-      deletedProjects: allProjects.filter(project => project.deletedAt),
-      activeCanvasId: projects.some(project => project.id === state.activeCanvasId) ? state.activeCanvasId : null,
-      selectionContext: projects.some(project => project.id === state.selectionContext?.canvasId) ? state.selectionContext : null,
-      documents: Object.fromEntries(projects.map(project => [
-        project.id,
-        project.id === state.activeCanvasId
-          ? state.documents[project.id] ?? project.document
-          : project.document,
-      ])),
-      loading: false,
-    }))
-    void (async () => {
-      for (const project of projects.filter(project => !hasCurrentThumbnail(project))) {
-        await get().repairThumbnail(project.id)
+    try {
+      while (request === listRequest) {
+        const before = get()
+        const summaries = await getCanvasProjectSummaries({ includeDeleted: true })
+        const active = summaries.filter(project => !project.deletedAt)
+        const loaded = new Map(before.projects.filter(isLoaded).map(project => [project.id, project]))
+        const refreshed = new Map<string, CanvasProject>()
+        for (const summary of active) {
+          if (!loaded.has(summary.id)) continue
+          const project = await getCanvasProject(summary.id)
+          if (project && !project.deletedAt) refreshed.set(project.id, project)
+        }
+        if (request !== listRequest) return
+        const current = get()
+        if (current.projects !== before.projects || current.deletedProjects !== before.deletedProjects) continue
+        const documents: Record<string, CanvasDocument> = {}
+        for (const [id, fresh] of refreshed) {
+          const draft = current.documents[id]
+          documents[id] = draft && draft !== loaded.get(id)?.document ? draft : fresh.document
+        }
+        set({
+          projects: active.map(summary => refreshed.get(summary.id) ?? summary),
+          deletedProjects: summaries.filter(project => project.deletedAt),
+          activeCanvasId: active.some(p => p.id === current.activeCanvasId) ? current.activeCanvasId : null,
+          selectionContext: active.some(p => p.id === current.selectionContext?.canvasId) ? current.selectionContext : null,
+          documents,
+        })
+        return
       }
-    })()
+    } finally {
+      if (request === listRequest) set({ loading: false })
+    }
   },
 
   createProject: async (canvasType = 'blank', title = '未命名画布') => {
@@ -157,7 +203,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     })
     if (!project) return null
     set(state => ({
-      projects: [project, ...state.projects],
+      projects: [project, ...state.projects.filter(item => item.id !== project.id)],
       documents: { ...state.documents, [project.id]: project.document },
       activeCanvasId: project.id,
       selectionContext: null,
@@ -175,7 +221,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     })
     if (!project) return null
     set(state => ({
-      projects: [project, ...state.projects],
+      projects: [project, ...state.projects.filter(item => item.id !== project.id)],
       documents: { ...state.documents, [project.id]: project.document },
       activeCanvasId: project.id,
       selectionContext: null,
@@ -185,8 +231,9 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   duplicateProject: async (id, title) => {
-    const source = get().projects.find(project => project.id === id)
-    if (!source) return null
+    const cached = get().projects.find(project => project.id === id)
+    const source = isLoaded(cached) ? cached : await getCanvasProject(id, { includeHistory: false })
+    if (!source || source.deletedAt) return null
     const project = await insertCanvasProject({
       id: crypto.randomUUID(),
       title: title?.trim() || `${source.title} copy`,
@@ -195,7 +242,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     })
     if (!project) return null
     set(state => ({
-      projects: [project, ...state.projects],
+      projects: [project, ...state.projects.filter(item => item.id !== project.id)],
       documents: { ...state.documents, [project.id]: project.document },
       activeCanvasId: project.id,
       selectionContext: null,
@@ -204,22 +251,82 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     return project
   },
 
-  openProject: async (id) => {
+  loadProject: async (id) => {
     const cached = get().projects.find(project => project.id === id)
-    const project = cached || await getCanvasProject(id)
-    if (!project || project.deletedAt) return null
-    set(state => ({
-      activeCanvasId: id,
-      documents: { ...state.documents, [id]: project.document },
-      selectionContext: state.selectionContext?.canvasId === id ? state.selectionContext : null,
-    }))
+    if (isLoaded(cached)) return cached
+    const pending = projectReads.get(id)
+    if (pending) return pending
+    const read = (async () => {
+      let summary = cached
+      while (true) {
+        const project = await getCanvasProject(id)
+        const state = get()
+        if (!project || project.deletedAt || state.deletedProjects.some(item => item.id === id)) return null
+        const current = state.projects.find(item => item.id === id)
+        if (isLoaded(current)) return current
+        if (summary && !current) return null
+        if (current !== summary) {
+          summary = current
+          continue
+        }
+        const hydrated = { ...project, thumbnailRevision: current?.thumbnailRevision }
+        set({
+          projects: current
+            ? state.projects.map(item => item.id === id ? hydrated : item)
+            : [hydrated, ...state.projects],
+          documents: { ...state.documents, [id]: state.documents[id] ?? hydrated.document },
+        })
+        return hydrated
+      }
+    })()
+    projectReads.set(id, read)
+    try {
+      return await read
+    } finally {
+      if (projectReads.get(id) === read) projectReads.delete(id)
+    }
+  },
+
+  retainEditor: (id) => {
+    mountedEditors.set(id, (mountedEditors.get(id) ?? 0) + 1)
+    return async () => {
+      const count = (mountedEditors.get(id) ?? 1) - 1
+      if (count) {
+        mountedEditors.set(id, count)
+        return
+      }
+      mountedEditors.delete(id)
+      await projectReads.get(id)
+      const draft = get().documents[id]
+      if (!draft || mountedEditors.has(id)) return
+      await get().saveProject(id)
+      await historySaveChains.get(id)
+      if (mountedEditors.has(id) || get().documents[id] !== draft) return
+      set(state => {
+        const documents = { ...state.documents }
+        delete documents[id]
+        return {
+          documents,
+          projects: state.projects.map(project => project.id === id ? summaryOf(project) : project),
+        }
+      })
+    }
+  },
+
+  openProject: async (id) => {
+    const request = ++activation
+    const project = await get().loadProject(id)
+    if (project && request === activation) get().setActiveCanvasId(id)
     return project
   },
 
-  setActiveCanvasId: (id) => set(state => ({
-    activeCanvasId: id,
-    selectionContext: state.selectionContext?.canvasId === id ? state.selectionContext : null,
-  })),
+  setActiveCanvasId: (id) => {
+    ++activation
+    set(state => ({
+      activeCanvasId: id,
+      selectionContext: state.selectionContext?.canvasId === id ? state.selectionContext : null,
+    }))
+  },
   setSelectionContext: (selectionContext) => set({ selectionContext }),
   setPendingFocus: (pendingFocus) => set({ pendingFocus }),
 
@@ -242,12 +349,22 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     const timer = saveTimers.get(id)
     if (timer) clearTimeout(timer)
     saveTimers.delete(id)
-    set(state => ({ documents: { ...state.documents, [id]: document } }))
-    const updatedAt = await updateCanvasDocument(id, document, { enqueueSync: false })
-    set(state => ({
-      projects: state.projects.map(project => project.id === id
-        ? { ...project, document, updatedAt } : project),
-    }))
+    if (get().documents[id]) {
+      set(state => ({ documents: { ...state.documents, [id]: document } }))
+    }
+    await queueDocumentWrite(id, async () => {
+      const updatedAt = await updateCanvasDocument(id, document, { enqueueSync: false })
+      set(state => {
+        const project = state.projects.find(item => item.id === id)
+        // An editor may have opened with the previous saved version while the write was in flight.
+        const needsRemoteDocument = project?.document && state.documents[id] === project.document
+        return {
+          documents: needsRemoteDocument ? { ...state.documents, [id]: document } : state.documents,
+          projects: state.projects.map(item => item.id === id
+            ? { ...item, ...(item.document ? { document } : {}), updatedAt } : item),
+        }
+      })
+    })
   },
 
   updateHistory: (id, history) => {
@@ -256,37 +373,36 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
       projects: state.projects.map(project => (
         project.id === id ? { ...project, history: nextHistory } : project
       )),
-      deletedProjects: state.deletedProjects.map(project => (
-        project.id === id ? { ...project, history: nextHistory } : project
-      )),
     }))
     persistCanvasHistory(id, nextHistory)
   },
 
   saveProject: async (id) => {
-    const document = get().documents[id]
-    if (!document) return
-    const cachedProject = get().projects.find(project => project.id === id)
-    const hasDocumentChanges = !cachedProject
-      || JSON.stringify(cachedProject.document) !== JSON.stringify(document)
-    if (!hasDocumentChanges) {
+    await queueDocumentWrite(id, async () => {
+      const document = get().documents[id]
+      if (!document) return
+      const cachedProject = get().projects.find(project => project.id === id)
+      const hasDocumentChanges = cachedProject?.document !== document
+        && JSON.stringify(cachedProject?.document) !== JSON.stringify(document)
+      if (!hasDocumentChanges) {
+        await syncCanvasCollaboration(id, document, true)
+        if (!cachedProject?.thumbnailPath) void get().refreshThumbnail(id)
+        return
+      }
+      const updatedAt = await updateCanvasDocument(id, document)
+      set(state => ({
+        projects: state.projects
+          .map(project => project.id === id ? { ...project, document, updatedAt } : project)
+          .sort((left, right) => right.updatedAt - left.updatedAt),
+      }))
+      const previousThumbnailTimer = thumbnailTimers.get(id)
+      if (previousThumbnailTimer) clearTimeout(previousThumbnailTimer)
+      thumbnailTimers.set(id, setTimeout(() => {
+        thumbnailTimers.delete(id)
+        void get().refreshThumbnail(id)
+      }, 1500))
       await syncCanvasCollaboration(id, document, true)
-      if (!cachedProject?.thumbnailPath) void get().refreshThumbnail(id)
-      return
-    }
-    const updatedAt = await updateCanvasDocument(id, document)
-    await syncCanvasCollaboration(id, document, true)
-    set(state => ({
-      projects: state.projects
-        .map(project => project.id === id ? { ...project, document, updatedAt } : project)
-        .sort((left, right) => right.updatedAt - left.updatedAt),
-    }))
-    const previousThumbnailTimer = thumbnailTimers.get(id)
-    if (previousThumbnailTimer) clearTimeout(previousThumbnailTimer)
-    thumbnailTimers.set(id, setTimeout(() => {
-      thumbnailTimers.delete(id)
-      void get().refreshThumbnail(id)
-    }, 1500))
+    })
   },
 
   refreshThumbnail: async (id) => {
@@ -294,10 +410,11 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     if (pendingGeneration) return pendingGeneration
     const project = get().projects.find(item => item.id === id)
       || get().deletedProjects.find(item => item.id === id)
-    const document = get().documents[id] || project?.document
-    if (!document) return
+    if (!project) return
     const generation = (async () => {
       try {
+        const document = get().documents[id] ?? (await getCanvasProject(id, { includeHistory: false }))?.document
+        if (!document) return
         const thumbnailPath = await generateCanvasThumbnail(id, document)
         await updateCanvasThumbnailPath(id, thumbnailPath)
         set(state => ({
@@ -327,7 +444,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
       || get().deletedProjects.find(item => item.id === id)
     if (!project) return
     const repairKey = getThumbnailRepairKey(project)
-    if (thumbnailRepairAttempts.has(repairKey)) return
+    if (thumbnailRepairAttempts.has(repairKey)) return thumbnailGenerationPromises.get(id)
     rememberThumbnailRepairAttempt(repairKey)
     await get().refreshThumbnail(id)
   },
@@ -382,8 +499,8 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
       if (key.startsWith(`${id}:`)) thumbnailRepairAttempts.delete(key)
     }
     const selfHosted = useSettingStore.getState().primaryBackupMethod === 'selfHosted'
+    await get().saveProject(id)
     if (selfHosted) {
-      await get().saveProject(id)
       const { closeCanvasCollaboration } = await import('@/lib/self-hosted-sync/canvas-collaboration')
       await closeCanvasCollaboration(id)
     }
@@ -411,7 +528,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
       return {
         projects: state.projects.filter(project => project.id !== id),
         deletedProjects: deletedProject
-          ? [{ ...deletedProject, deletedAt, updatedAt: deletedAt }, ...state.deletedProjects]
+          ? [{ ...summaryOf(deletedProject), deletedAt, updatedAt: deletedAt }, ...state.deletedProjects.filter(item => item.id !== id)]
           : state.deletedProjects,
         documents,
         activeCanvasId: state.activeCanvasId === id ? null : state.activeCanvasId,
@@ -444,7 +561,7 @@ const useCanvasStore = create<CanvasState>((set, get) => ({
     const project = await restoreCanvasProject(id)
     if (!project) return null
     set(state => ({
-      projects: [project, ...state.projects],
+      projects: [project, ...state.projects.filter(item => item.id !== project.id)],
       deletedProjects: state.deletedProjects.filter(item => item.id !== id),
       documents: { ...state.documents, [id]: project.document },
     }))

@@ -24,7 +24,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import useSettingStore from "@/stores/setting";
 import { VectorKnowledgeMenu } from "./vector-knowledge-menu";
 import { isSkillsFolder } from "@/lib/skills/utils";
-import { exportMarkdownFile, type MarkdownExportFormat } from "../editor/markdown/markdown-export";
+import type { MarkdownExportFormat } from "../editor/markdown/markdown-export";
 import { setFileManagerDragData } from "./file-dnd";
 import { debugSyncPath } from "@/lib/sync/remote-file";
 import { BatchSelectionContextMenu } from "./batch-selection-context-menu";
@@ -650,6 +650,7 @@ export function FileItem({
     if (isFileDeletionPending(path, workspacePath)) return
     try {
       setExportingFormat(format)
+      const { exportMarkdownFile } = await import("../editor/markdown/markdown-export")
       const exported = await exportMarkdownFile(
         format,
         path,

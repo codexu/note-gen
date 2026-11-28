@@ -31,6 +31,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import emitter from '@/lib/emitter'
 import { EmitterRecordEvents } from '@/config/emitters'
 import { search, type SearchableItem } from '@/lib/search-utils'
+import { useCanvasSearchProjects } from '@/hooks/use-canvas-search-projects'
 import useCanvasStore from '@/stores/canvas'
 import { createCanvasTab } from '@/app/core/main/canvas/canvas-tab'
 import { searchKnowledge } from '@/lib/knowledge-search'
@@ -81,7 +82,7 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
   const { allMarks, fetchAllMarks, setPendingScrollMarkId } = useMarkStore()
   const { tags, fetchTags, setCurrentTagId } = useTagStore()
   const { setLeftSidebarTab } = useSidebarStore()
-  const canvasProjects = useCanvasStore(state => state.projects)
+  const canvasProjects = useCanvasSearchProjects(open && Boolean(searchValue.trim()))
   const loadCanvasProjects = useCanvasStore(state => state.loadProjects)
   const openCanvasProject = useCanvasStore(state => state.openProject)
   const setPendingCanvasFocus = useCanvasStore(state => state.setPendingFocus)
@@ -207,24 +208,12 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
     const canvasItems: SearchableItem[] = canvasProjects.map(project => ({
       id: `canvas-${project.id}`,
       title: project.title,
-      content: [
-        ...project.document.nodes.flatMap(node => [
-          node.data.label,
-          node.data.description,
-          node.data.filePath,
-          node.data.url,
-        ]),
-        ...project.document.edges.map(edge => edge.label),
-      ].filter(value => typeof value === 'string').join(' '),
+      content: project.content,
       metadata: {
         canvasId: project.id,
-        nodeIds: project.document.nodes.filter(node => [
-          node.data.label,
-          node.data.description,
-          node.data.filePath,
-          node.data.url,
-        ].some(field => typeof field === 'string' && field.toLocaleLowerCase().includes(normalizedCanvasQuery)))
-          .map(node => node.id),
+        nodeIds: project.nodes.filter(node => (
+          node.fields.some(field => field.toLocaleLowerCase().includes(normalizedCanvasQuery))
+        )).map(node => node.id),
         type: project.canvasType,
         searchType: 'canvas',
       },

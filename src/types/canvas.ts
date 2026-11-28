@@ -252,6 +252,8 @@ export interface CanvasProject {
   deletedAt?: number | null
 }
 
+export type CanvasProjectSummary = Omit<CanvasProject, 'document' | 'history'>
+
 export interface CanvasProjectRow {
   id: string
   title: string

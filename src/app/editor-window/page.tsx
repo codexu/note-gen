@@ -28,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { TipTapEditor } from '@/app/core/main/editor/markdown/tiptap-editor'
+import { LazyTipTapEditor } from '@/app/core/main/editor/markdown/lazy-tiptap-editor'
 import useArticleStore from '@/stores/article'
 import {
   loadEditorWindowSession,
@@ -256,7 +256,7 @@ export default function EditorWindowPage() {
 
       {error && <div className="border-b px-3 py-2 text-xs text-destructive">{error}</div>}
       <div className="flex min-h-0 flex-1">
-        <TipTapEditor
+        <LazyTipTapEditor
           initialContent={content}
           onChange={handleContentChange}
           placeholder={tEditor('placeholder')}

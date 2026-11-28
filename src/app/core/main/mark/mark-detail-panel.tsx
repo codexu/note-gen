@@ -72,11 +72,8 @@ import useMarkStore from '@/stores/mark'
 import useTagStore from '@/stores/tag'
 import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
-import {
-  TipTapEditor,
-  type MarkdownChangeHandler,
-  type MarkdownFlushRef,
-} from '@/app/core/main/editor/markdown/tiptap-editor'
+import type { MarkdownChangeHandler, MarkdownFlushRef } from '@/app/core/main/editor/markdown/tiptap-editor'
+import { LazyTipTapEditor } from '@/app/core/main/editor/markdown/lazy-tiptap-editor'
 import { Outline } from '@/app/core/main/editor/markdown/outline'
 import { useDesktopEditorOutline } from '@/app/core/main/editor/markdown/use-desktop-editor-outline'
 import {
@@ -545,7 +542,7 @@ function RecordMarkdown({
     >
       {outlinePosition === 'left' ? outline : null}
       <div className="relative h-full min-w-0 flex-1">
-        <TipTapEditor
+        <LazyTipTapEditor
           initialContent={content}
           onChange={onChange}
           onContentDirty={onDirty}

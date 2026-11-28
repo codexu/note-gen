@@ -27,6 +27,7 @@ import useArticleStore, {
   beginDeferredFileActivation,
   isDeferredFileActivationCurrent,
 } from '@/stores/article'
+import { useCanvasSearchProjects } from '@/hooks/use-canvas-search-projects'
 import useCanvasStore from '@/stores/canvas'
 import useMarkStore from '@/stores/mark'
 import { useSidebarStore } from '@/stores/sidebar'
@@ -260,7 +261,6 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
   const setActiveMarkId = useMarkStore(state => state.setActiveMarkId)
   const tags = useTagStore(state => state.tags)
   const fetchTags = useTagStore(state => state.fetchTags)
-  const canvasProjects = useCanvasStore(state => state.projects)
   const loadCanvasProjects = useCanvasStore(state => state.loadProjects)
   const openCanvasProject = useCanvasStore(state => state.openProject)
   const setPendingCanvasFocus = useCanvasStore(state => state.setPendingFocus)
@@ -268,6 +268,7 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
 
   const normalizedQuery = query.trim()
   const searching = Boolean(normalizedQuery)
+  const canvasProjects = useCanvasSearchProjects(searching)
 
   useEffect(() => {
     if (!sidebarSearchFocusRequest) return
@@ -443,10 +444,7 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
     const canvasItems: SearchableItem[] = canvasProjects.map(project => ({
       id: `canvas-${project.id}`,
       title: project.title,
-      content: [
-        ...project.document.nodes.flatMap(node => [node.data.label, node.data.description, node.data.filePath, node.data.url]),
-        ...project.document.edges.map(edge => edge.label),
-      ].filter(value => typeof value === 'string').join(' '),
+      content: project.content,
       metadata: { canvasId: project.id, type: project.canvasType },
     }))
     const canvasResults = search(canvasItems, trimmedValue, { maxResults: 50 })
@@ -454,9 +452,8 @@ export function SidebarSearch({ activeTab, children }: { activeTab: SidebarTab; 
       .map(result => {
         const canvasId = String(result.item.metadata?.canvasId || '')
         const project = canvasProjects.find(item => item.id === canvasId)
-        const nodeIds = project?.document.nodes.filter(node => (
-          [node.data.label, node.data.description, node.data.filePath, node.data.url]
-            .some(field => typeof field === 'string' && field.toLocaleLowerCase().includes(loweredQuery))
+        const nodeIds = project?.nodes.filter(node => (
+          node.fields.some(field => field.toLocaleLowerCase().includes(loweredQuery))
         )).map(node => node.id)
         return {
           id: result.item.id,

@@ -44,7 +44,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { MdEditor } from './markdown/md-editor-wrapper'
+import { Spinner } from '@/components/ui/spinner'
 import { TabBar, type TabInfo } from './tab-bar'
 import { BrowserPanel } from './browser-panel'
 import { ImageEditor } from './image/image-editor'
@@ -54,7 +54,6 @@ import { PluginDocumentPreview } from '@/components/plugins/plugin-document-prev
 import { PluginViewSurface } from '@/components/plugins/plugin-view-surface'
 import { parsePluginEditorTabPath } from '@/lib/plugins/editor-tab'
 import { UnsupportedFile } from './unsupported-file'
-import { MarkDetailPanel } from '../mark/mark-detail-panel'
 import { getRecordIdFromTabPath, isRecordTabPath } from '../mark/mark-record-tab'
 import { getRecordTabCloseGuards, type RecordTabCloseGuard } from '../mark/record-detail-tab-guard'
 import { createCanvasTab, getCanvasIdFromTabPath, isCanvasTabPath } from '../canvas/canvas-tab'
@@ -124,10 +123,27 @@ type PendingEditorNavigation = {
   activeFilePath: string
 }
 type BrowserNewWindow = { sourceTabId: string; url: string }
+const MdEditor = dynamic(
+  () => import('./markdown/md-editor-wrapper').then(module => module.MdEditor),
+  { ssr: false, loading: () => <Spinner className="m-auto text-muted-foreground" /> },
+)
+const MarkDetailPanel = dynamic(
+  () => import('../mark/mark-detail-panel').then(module => module.MarkDetailPanel),
+  { ssr: false, loading: () => <Spinner className="m-auto text-muted-foreground" /> },
+)
 const CanvasEditor = dynamic(
   () => import('../canvas/canvas-editor').then(module => module.CanvasEditor),
   { ssr: false },
 )
+
+// Restored background tabs can wait. Once visible, keep their drafts and editor state mounted.
+function EditorTabContent({ visible, children }: { visible: boolean; children: React.ReactNode }) {
+  const [visited, setVisited] = useState(visible)
+  useEffect(() => {
+    if (visible) setVisited(true)
+  }, [visible])
+  return visible || visited ? children : null
+}
 
 function getEditorWorkspaceKey(workspace: { path: string; isCustom: boolean }) {
   return workspace.isCustom
@@ -1777,11 +1793,10 @@ export function EditorLayout({
   }, [handleActivateGroup, handleNavigateHistory, handleSplitTab])
 
   const renderContentPanel = useCallback((tab: TabInfo, active: boolean, groupId: string) => {
+    const visible = layout.groups[groupId]?.activeTabId === tab.id
+      && (!layout.maximizedGroupId || layout.maximizedGroupId === groupId)
     if (isBrowserEditorTab(tab)) {
-      const visible = layout.groups[groupId]?.activeTabId === tab.id
-        && (!layout.maximizedGroupId || layout.maximizedGroupId === groupId)
-        && !dragging
-      return <BrowserPanel tabId={tab.id} url={tab.url} visible={visible} />
+      return <BrowserPanel tabId={tab.id} url={tab.url} visible={visible && !dragging} />
     }
     if (isPluginEditorTab(tab)) {
       const view = parsePluginEditorTabPath(tab.path)
@@ -1792,7 +1807,9 @@ export function EditorLayout({
       return (
         <div className="flex min-h-0 flex-1 overflow-hidden">
           {markId !== null ? (
-            <MarkDetailPanel markId={markId} groupId={groupId} tabId={tab.id} onClose={() => handleCloseTab(groupId, tab.id)} isActive={active} />
+            <EditorTabContent visible={visible}>
+              <MarkDetailPanel markId={markId} groupId={groupId} tabId={tab.id} onClose={() => handleCloseTab(groupId, tab.id)} isActive={active} />
+            </EditorTabContent>
           ) : <UnsupportedFile filePath={tab.path} />}
         </div>
       )
@@ -1810,7 +1827,11 @@ export function EditorLayout({
           <div className="flex min-h-0 flex-1 overflow-hidden">
             {itemType === 'folder' && <FolderView folderPath={tab.path} />}
             {itemType === 'image' && <ImageEditor filePath={tab.path} isActive={active} />}
-            {itemType === 'markdown' && <MdEditor tabContentsRef={tabContentsRef} filePath={tab.path} isActive={active} disabled={detachingTabId === tab.id} />}
+            {itemType === 'markdown' && (
+              <EditorTabContent visible={visible}>
+                <MdEditor tabContentsRef={tabContentsRef} filePath={tab.path} isActive={active} disabled={detachingTabId === tab.id} />
+              </EditorTabContent>
+            )}
             {itemType === 'unknown' && <PluginDocumentPreview path={tab.path} isActive={active} />}
           </div>
           <PluginEmbeddedViews location="document-bottom" active={active && layout.activeGroupId === groupId && itemType !== 'folder'} contextKey={`${groupId}:${tab.id}:${tab.path}`} />

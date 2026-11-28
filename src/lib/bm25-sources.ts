@@ -144,7 +144,7 @@ export async function getBM25Sources(isCurrent: () => boolean) {
       signature: JSON.stringify([FORMAT_VERSION, canvas.revision]),
       async readChunks() {
         ensureCurrent()
-        const project = await getCanvasProject(canvas.id)
+        const project = await getCanvasProject(canvas.id, { includeHistory: false })
         const document = project && await getCanvasKnowledgeDocument(project)
         if (!document || !await isBM25SourceRevisionCurrent(key, canvas.revision)) throw new BM25SourceChangedError(key)
         ensureCurrent()

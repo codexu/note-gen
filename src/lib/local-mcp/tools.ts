@@ -556,10 +556,9 @@ export async function executeLocalMcpTool(toolName: string, rawArguments: unknow
         return textResult('已删除对话', { id, deleted: true })
       }
       case 'canvas_list': {
-        await useCanvasStore.getState().loadProjects()
-        const includeDeleted = input.includeDeleted === true
-        const state = useCanvasStore.getState()
-        const projects = includeDeleted ? [...state.projects, ...state.deletedProjects] : state.projects
+        const { getCanvasProjects } = await import('@/db/canvases')
+        const projects = await getCanvasProjects({ includeDeleted: input.includeDeleted === true })
+        projects.sort((left, right) => Number(Boolean(left.deletedAt)) - Number(Boolean(right.deletedAt)))
         await assertWorkspaceUnchanged(workspace)
         return textResult(`找到 ${projects.length} 个画布`, { projects })
       }

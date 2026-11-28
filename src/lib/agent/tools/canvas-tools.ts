@@ -116,8 +116,11 @@ function validateCanvasOperations(document: CanvasDocument, rawOperations: unkno
 
 async function getActiveCanvas(contextCanvasId?: string) {
   const { default: useCanvasStore } = await import('@/stores/canvas')
+  const canvasId = contextCanvasId || useCanvasStore.getState().activeCanvasId || ''
+  if (canvasId && !useCanvasStore.getState().documents[canvasId]) {
+    await useCanvasStore.getState().loadProject(canvasId)
+  }
   const store = useCanvasStore.getState()
-  const canvasId = contextCanvasId || store.activeCanvasId || ''
   const document = canvasId ? store.documents[canvasId] : undefined
   const project = store.projects.find(item => item.id === canvasId)
   return { store, canvasId, document, project }

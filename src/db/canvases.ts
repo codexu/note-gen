@@ -8,6 +8,7 @@ import {
   type CanvasHistoryState,
   type CanvasProject,
   type CanvasProjectRow,
+  type CanvasProjectSummary,
   type CanvasProjectType,
 } from '@/types/canvas'
 
@@ -43,7 +44,7 @@ function rowToProject(row: CanvasProjectRow): CanvasProject {
     canvasType: row.canvasType,
     schemaVersion: row.schemaVersion,
     document: normalizeCanvasDocument(parsed),
-    history: {
+    history: row.undoStack === undefined && row.redoStack === undefined ? undefined : {
       undo: parseHistoryStack(row.undoStack),
       redo: parseHistoryStack(row.redoStack),
     },
@@ -144,19 +145,41 @@ async function createCanvasSchema(db: CanvasDatabase) {
   }
 }
 
-export async function getCanvasProjects(options: { includeDeleted?: boolean } = {}) {
+const summaryColumns = 'id, title, canvasType, schemaVersion, thumbnailPath, createdAt, updatedAt, pinnedAt, deletedAt'
+
+export async function getCanvasProjectSummaries(options: { includeDeleted?: boolean } = {}) {
   const db = await getCanvasDb()
   const where = options.includeDeleted ? '' : 'where deletedAt is null'
+  return db.select<CanvasProjectSummary[]>(`
+    select ${summaryColumns} from canvases ${where} order by updatedAt desc
+  `)
+}
+
+export async function getCanvasResourceList() {
+  const db = await getCanvasDb()
+  return db.select<Array<{ id: string; title: string; nodes: number; edges: number }>>(
+    `select id, title,
+       case when json_valid(content) then coalesce(json_array_length(content, '$.nodes'), 0) else 0 end as nodes,
+       case when json_valid(content) then coalesce(json_array_length(content, '$.edges'), 0) else 0 end as edges
+     from canvases where deletedAt is null order by updatedAt desc`
+  )
+}
+
+export async function getCanvasProjects(options: { includeDeleted?: boolean; includeHistory?: boolean } = {}) {
+  const db = await getCanvasDb()
+  const where = options.includeDeleted ? '' : 'where deletedAt is null'
+  const columns = options.includeHistory === false ? `${summaryColumns}, content` : '*'
   const rows = await db.select<CanvasProjectRow[]>(`
-    select * from canvases ${where} order by updatedAt desc
+    select ${columns} from canvases ${where} order by updatedAt desc
   `)
   return rows.map(rowToProject)
 }
 
-export async function getCanvasProject(id: string) {
+export async function getCanvasProject(id: string, options: { includeHistory?: boolean } = {}) {
   const db = await getCanvasDb()
+  const columns = options.includeHistory === false ? `${summaryColumns}, content` : '*'
   const rows = await db.select<CanvasProjectRow[]>(
-    'select * from canvases where id = $1 limit 1',
+    `select ${columns} from canvases where id = $1 limit 1`,
     [id]
   )
   return rows[0] ? rowToProject(rows[0]) : null
@@ -205,8 +228,10 @@ export async function updateCanvasDocument(id: string, document: CanvasDocument,
   if (options.enqueueSync !== false) enqueueCanvasSync('canvas-updated')
   await invalidateCanvasKnowledgeIndex(id)
   enqueueCanvasKnowledgeIndex(id)
-  const project = await getCanvasProject(id)
-  if (options.enqueueSync !== false) await recordCanvasProjectActivity(id, project?.title || id, updatedAt)
+  if (options.enqueueSync !== false) {
+    const rows = await db.select<Array<{ title: string }>>('select title from canvases where id = $1', [id])
+    await recordCanvasProjectActivity(id, rows[0]?.title || id, updatedAt)
+  }
   return updatedAt
 }
 

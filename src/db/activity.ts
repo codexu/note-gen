@@ -1,6 +1,6 @@
 import { getDb, initAllDatabases } from './index'
 import { getAllChats } from './chats'
-import { getCanvasProjects } from './canvases'
+import { getCanvasProjectSummaries } from './canvases'
 import { getAllMarks } from './marks'
 import { getAllMarkdownFiles } from '@/lib/files'
 import { shouldCreateWritingSession, truncateActivityText } from '@/lib/activity/events'
@@ -194,7 +194,7 @@ async function backfillActivityEvents() {
     getAllMarks(),
     getAllChats(),
     getAllMarkdownFiles(true),
-    getCanvasProjects(),
+    getCanvasProjectSummaries(),
   ])
 
   for (const mark of marks) {

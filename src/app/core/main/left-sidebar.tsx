@@ -24,8 +24,14 @@ import { usePluginStore } from '@/stores/plugins'
 import { resolvePluginViewTitle } from '@/app/core/setting/plugins/plugin-display'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
 import { useEditorOutlineStore } from '@/stores/editor-outline'
-import { Outline } from './editor/markdown/outline'
+import dynamic from 'next/dynamic'
+import { Spinner } from '@/components/ui/spinner'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+
+const Outline = dynamic(
+  () => import('./editor/markdown/outline').then(module => module.Outline),
+  { ssr: false, loading: () => <Spinner className="m-auto text-muted-foreground" /> },
+)
 
 const SIDEBAR_TABS = [
   { title: "files", icon: Files },

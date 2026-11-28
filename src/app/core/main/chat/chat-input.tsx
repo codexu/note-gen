@@ -12,6 +12,7 @@ import { useDesktopOnboardingStore } from '@/stores/desktop-onboarding'
 import useChatStore from "@/stores/chat"
 import useArticleStore from "@/stores/article"
 import useCanvasStore from "@/stores/canvas"
+import { getCanvasProject } from "@/db/canvases"
 import { useTranslations } from 'next-intl'
 import { useLocalStorage } from 'react-use';
 import { getDefaultArticleAbsolutePath, getFilePathOptions, getWorkspacePath } from "@/lib/workspace"
@@ -1436,15 +1437,15 @@ ${previewLines.join('\n')}
         const canvasId = getCanvasIdFromTabPath(contextPath)
         if (canvasId !== null) {
           const canvasStore = useCanvasStore.getState()
-          const project = canvasStore.projects.find(item => item.id === canvasId)
-            || await canvasStore.openProject(canvasId)
-          if (project) {
-            const latestDocument = useCanvasStore.getState().documents[canvasId]
+          const summary = canvasStore.projects.find(item => item.id === canvasId)
+          const project = summary?.document ? summary : await getCanvasProject(canvasId, { includeHistory: false })
+          const document = useCanvasStore.getState().documents[canvasId] ?? project?.document
+          if (project && !project.deletedAt && document) {
             nextActiveContexts.push({
               kind: 'canvas',
               canvas: createCanvasContext({
                 ...project,
-                document: latestDocument || project.document,
+                document,
               }),
             })
           }

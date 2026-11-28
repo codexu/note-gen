@@ -329,7 +329,7 @@ function CanvasEditorInner({ canvasId, mobile = false, isActive = true }: Canvas
   const document = useCanvasStore(state => state.documents[canvasId])
   const updateDocument = useCanvasStore(state => state.updateDocument)
   const updateHistory = useCanvasStore(state => state.updateHistory)
-  const openProject = useCanvasStore(state => state.openProject)
+  const loadProject = useCanvasStore(state => state.loadProject)
   const projects = useCanvasStore(state => state.projects)
   const activeCanvasId = useCanvasStore(state => state.activeCanvasId)
   const setCanvasSelectionContext = useCanvasStore(state => state.setSelectionContext)
@@ -676,9 +676,9 @@ function CanvasEditorInner({ canvasId, mobile = false, isActive = true }: Canvas
 
   useEffect(() => {
     if (!document) {
-      void openProject(canvasId)
+      void loadProject(canvasId)
     }
-  }, [canvasId, document, openProject])
+  }, [canvasId, document, loadProject])
 
   const hasCanvasDocument = Boolean(document)
   useEffect(() => {
@@ -691,17 +691,20 @@ function CanvasEditorInner({ canvasId, mobile = false, isActive = true }: Canvas
     return () => { cancelled = true }
   }, [canvasId, hasCanvasDocument, isActive, syncMethod, selfHostedReady])
 
-  useEffect(() => () => {
-    endCanvasLocalInteraction(canvasId, 'drawing')
-    endCanvasLocalInteraction(canvasId, 'drag')
-    endCanvasLocalInteraction(canvasId, 'resize')
-    if (pendingDocumentTimerRef.current) clearTimeout(pendingDocumentTimerRef.current)
-    const pendingDocument = pendingDocumentRef.current
-    if (pendingDocument) {
-      useCanvasStore.getState().updateDocument(canvasId, pendingDocument)
-      pendingDocumentRef.current = null
+  useEffect(() => {
+    const release = useCanvasStore.getState().retainEditor(canvasId)
+    return () => {
+      endCanvasLocalInteraction(canvasId, 'drawing')
+      endCanvasLocalInteraction(canvasId, 'drag')
+      endCanvasLocalInteraction(canvasId, 'resize')
+      if (pendingDocumentTimerRef.current) clearTimeout(pendingDocumentTimerRef.current)
+      const pendingDocument = pendingDocumentRef.current
+      if (pendingDocument) {
+        useCanvasStore.getState().updateDocument(canvasId, pendingDocument)
+        pendingDocumentRef.current = null
+      }
+      void release().catch(error => console.error('Failed to save canvas on close:', error))
     }
-    void useCanvasStore.getState().saveProject(canvasId)
   }, [canvasId])
 
   useEffect(() => {

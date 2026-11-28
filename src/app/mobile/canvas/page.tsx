@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Image from 'next/image'
+import { CanvasThumbnail } from '@/app/core/main/canvas/canvas-thumbnail'
 import { useRouter } from 'next/navigation'
-import { convertFileSrc } from '@tauri-apps/api/core'
 import {
   BrainCircuit,
   CalendarDays,
@@ -51,12 +50,11 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { canvasDocumentToSvg } from '@/lib/canvas/static-export'
 import { isAutoDataSyncProviderConfigured } from '@/lib/sync/auto-data-sync-queue'
 import useCanvasStore from '@/stores/canvas'
 import useChatStore from '@/stores/chat'
 import useSettingStore from '@/stores/setting'
-import type { CanvasProject, CanvasProjectType } from '@/types/canvas'
+import type { CanvasProjectSummary, CanvasProjectType } from '@/types/canvas'
 
 const TEMPLATE_ICONS = {
   blank: FilePlus2,
@@ -69,35 +67,6 @@ const TEMPLATE_ICONS = {
 } satisfies Record<CanvasProjectType, typeof FilePlus2>
 
 let mobileCanvasScrollTop = 0
-
-function MobileCanvasThumbnail({ project }: { project: CanvasProject }) {
-  const fallback = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(canvasDocumentToSvg(project.document))}`
-  const repairThumbnail = useCanvasStore(state => state.repairThumbnail)
-  const [failedSourceKey, setFailedSourceKey] = useState<string | null>(null)
-  const thumbnailSourceKey = `${project.thumbnailPath || 'missing'}:${project.thumbnailRevision || project.updatedAt}`
-  const fallbackActive = failedSourceKey === thumbnailSourceKey
-  const source = project.thumbnailPath && !fallbackActive
-    ? `${convertFileSrc(project.thumbnailPath)}?v=${project.thumbnailRevision || project.updatedAt}`
-    : fallback
-
-  return (
-    <span className="relative block aspect-[4/3] w-full overflow-hidden border-b bg-muted/20">
-      <Image
-        src={source}
-        alt=""
-        fill
-        unoptimized
-        sizes="(min-width: 700px) 30vw, 50vw"
-        className="object-contain p-2"
-        onError={() => {
-          if (fallbackActive || !project.thumbnailPath) return
-          setFailedSourceKey(thumbnailSourceKey)
-          void repairThumbnail(project.id)
-        }}
-      />
-    </span>
-  )
-}
 
 interface MobileCanvasPageProps {
   preview?: boolean
@@ -119,7 +88,7 @@ export function MobileCanvasPage({ preview = false }: MobileCanvasPageProps = {}
   const sortMode = useSettingStore(state => state.canvasManagerSortMode)
   const setSortMode = useSettingStore(state => state.setCanvasManagerSortMode)
   const [templateOpen, setTemplateOpen] = useState(false)
-  const [editingProject, setEditingProject] = useState<CanvasProject | null>(null)
+  const [editingProject, setEditingProject] = useState<CanvasProjectSummary | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
@@ -282,7 +251,7 @@ export function MobileCanvasPage({ preview = false }: MobileCanvasPageProps = {}
                     className="w-full min-w-0 overflow-hidden rounded-xl border bg-card text-left transition-colors active:bg-accent"
                     onClick={() => void handleOpen(project.id)}
                   >
-                    <MobileCanvasThumbnail project={project} />
+                    <CanvasThumbnail project={project} mobile />
                     <span className="block truncate px-2.5 py-2 text-xs font-medium">{project.title}</span>
                     {project.pinnedAt ? (
                       <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-md bg-background/85 p-1 text-primary">

@@ -11,6 +11,16 @@ pub struct RecordStatement {
     expected_rows: Option<u64>,
 }
 
+pub(crate) async fn record_database_pool(
+    databases: &DbInstances,
+) -> Result<sqlx::SqlitePool, String> {
+    let instances = databases.0.read().await;
+    match instances.get("sqlite:note.db") {
+        Some(DbPool::Sqlite(pool)) => Ok(pool.clone()),
+        _ => Err("Record database is not loaded".into()),
+    }
+}
+
 // The SQL plugin otherwise acquires a new pooled connection for each invoke.
 // Keep every statement, including trigger effects, on one real transaction.
 #[tauri::command]
@@ -18,13 +28,7 @@ pub async fn execute_record_transaction(
     databases: State<'_, DbInstances>,
     statements: Vec<RecordStatement>,
 ) -> Result<(), String> {
-    let pool = {
-        let instances = databases.0.read().await;
-        match instances.get("sqlite:note.db") {
-            Some(DbPool::Sqlite(pool)) => pool.clone(),
-            _ => return Err("Record database is not loaded".into()),
-        }
-    };
+    let pool = record_database_pool(&databases).await?;
     let mut transaction = pool.begin().await.map_err(|error| error.to_string())?;
     for statement in statements {
         let mut query = sqlx::query(&statement.sql);
@@ -43,10 +47,19 @@ pub async fn execute_record_transaction(
                 _ => return Err("Record SQL parameters must be scalar values".into()),
             };
         }
-        let result = query.execute(&mut *transaction).await.map_err(|error| error.to_string())?;
-        if statement.expected_rows.is_some_and(|expected| expected != result.rows_affected()) {
+        let result = query
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| error.to_string())?;
+        if statement
+            .expected_rows
+            .is_some_and(|expected| expected != result.rows_affected())
+        {
             return Err("Record tags changed. Reopen the tag editor and try again.".into());
         }
     }
-    transaction.commit().await.map_err(|error| error.to_string())
+    transaction
+        .commit()
+        .await
+        .map_err(|error| error.to_string())
 }

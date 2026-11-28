@@ -1,6 +1,6 @@
 import { BaseDirectory, readTextFile, stat } from '@tauri-apps/plugin-fs'
 import { createHash } from 'crypto'
-import { getCanvasProject, getCanvasProjects } from '@/db/canvases'
+import { getCanvasProject, getCanvasProjectSummaries } from '@/db/canvases'
 import { getAllMarks, getMarkById, type Mark } from '@/db/marks'
 import { getTags, type Tag } from '@/db/tags'
 import { recordMatchesTag, recordTagIds } from '@/lib/record-tags'
@@ -178,7 +178,7 @@ export async function getKnowledgeSourceDocument(sourceKey: string): Promise<Kno
     return mark ? getRecordKnowledgeDocument(mark) : null
   }
   if (parsed.sourceType === 'canvas') {
-    const project = await getCanvasProject(parsed.sourceId)
+    const project = await getCanvasProject(parsed.sourceId, { includeHistory: false })
     return project ? getCanvasKnowledgeDocument(project) : null
   }
   return getArticleKnowledgeDocument(parsed.sourceId)
@@ -191,7 +191,10 @@ export async function collectRecordKnowledgeDocuments() {
 }
 
 export async function collectCanvasKnowledgeDocuments() {
-  const projects = await getCanvasProjects()
-  const documents = await Promise.all(projects.map(getCanvasKnowledgeDocument))
-  return documents.filter((document): document is KnowledgeSourceDocument => Boolean(document))
+  const documents: KnowledgeSourceDocument[] = []
+  for (const { id } of await getCanvasProjectSummaries()) {
+    const document = await getKnowledgeSourceDocument(createKnowledgeSourceKey('canvas', id))
+    if (document) documents.push(document)
+  }
+  return documents
 }

@@ -15,7 +15,7 @@ interface CanvasRevision {
 }
 
 /** Records have no edit timestamp. Keep a token in the same transaction as each source write. */
-async function ensureSourceRevisions() {
+export async function ensureSourceRevisions() {
   await initCanvasesDb()
   const installed = await db.select<{ name: string }[]>(
     "select name from sqlite_master where type = 'trigger' and name = 'bm25_canvas_delete_v1'",

@@ -49,7 +49,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import useCanvasStore from '@/stores/canvas'
-import type { CanvasProject, CanvasProjectType } from '@/types/canvas'
+import type { CanvasProjectSummary, CanvasProjectType } from '@/types/canvas'
 import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
 import type {
@@ -302,8 +302,8 @@ export function CanvasSidebar() {
   const setOpenTabs = useArticleStore(state => state.setOpenTabs)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
-  const [pendingDelete, setPendingDelete] = useState<CanvasProject | null>(null)
-  const [pendingPermanentDelete, setPendingPermanentDelete] = useState<CanvasProject | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<CanvasProjectSummary | null>(null)
+  const [pendingPermanentDelete, setPendingPermanentDelete] = useState<CanvasProjectSummary | null>(null)
   const [processingCanvas, setProcessingCanvas] = useState<{
     id: string
     action: 'delete' | 'permanent-delete'
@@ -354,7 +354,7 @@ export function CanvasSidebar() {
     })
   }, [deletedProjects, projects, sortMode, trashMode])
 
-  const getSyncStatus = (project: CanvasProject): CanvasSyncDisplayStatus => {
+  const getSyncStatus = (project: CanvasProjectSummary): CanvasSyncDisplayStatus => {
     if (uploadingCanvasId === project.id) return 'uploading'
     if (syncedVersions[project.id] === project.updatedAt) return 'synced'
     if (failedCanvasIds.has(project.id)) return 'failed'
@@ -370,7 +370,7 @@ export function CanvasSidebar() {
     setSyncedVersions(await store.get<Record<string, number>>('canvasSyncVersions') || {})
   }
 
-  const handleUpload = async (project: CanvasProject) => {
+  const handleUpload = async (project: CanvasProjectSummary) => {
     if (uploadingCanvasId) return
     setUploadingCanvasId(project.id)
     setFailedCanvasIds(current => {
@@ -434,7 +434,7 @@ export function CanvasSidebar() {
     if (project) await addTab(createCanvasTab(project))
   }
 
-  const handleDuplicate = async (project: CanvasProject) => {
+  const handleDuplicate = async (project: CanvasProjectSummary) => {
     const duplicate = await duplicateProject(
       project.id,
       t('duplicateTitle', { title: project.title })
@@ -465,7 +465,7 @@ export function CanvasSidebar() {
     }
   }
 
-  const handlePermanentDelete = async (project: CanvasProject) => {
+  const handlePermanentDelete = async (project: CanvasProjectSummary) => {
     if (processingCanvas) return
     const syncConfigured = await isAutoDataSyncProviderConfigured()
     if (syncConfigured) setProcessingCanvas({ id: project.id, action: 'permanent-delete' })

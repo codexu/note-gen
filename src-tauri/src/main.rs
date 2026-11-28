@@ -27,6 +27,7 @@ mod notion_import;
 mod ocr_packages;
 mod printing;
 mod record_transaction;
+mod vector_search;
 mod quick_record;
 mod plugins;
 mod plugin_terminal;
@@ -200,6 +201,7 @@ fn main() {
             #[cfg(target_os = "macos")]
             system_permissions::request_screen_capture_permission,
             record_transaction::execute_record_transaction,
+            vector_search::search_vector_documents,
             quick_record::remember_quick_record_foreground,
             quick_record::hide_quick_record_window,
             open_developer_tools,

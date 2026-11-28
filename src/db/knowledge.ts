@@ -1,4 +1,5 @@
-import { db } from './index'
+import { db, executeRecordTransaction } from './index'
+import { ensureSourceRevisions } from './bm25-source-revisions'
 import type {
   KnowledgeIndexStatus,
   KnowledgeLocator,
@@ -61,6 +62,10 @@ export async function initKnowledgeDb() {
     on knowledge_sources(source_type, status)
   `)
 
+  await db.execute(`create table if not exists canvas_knowledge_checkpoints (
+    source_key text primary key references knowledge_sources(source_key) on delete cascade,
+    revision text not null, content_hash text not null)`)
+
   const legacyArticles = await db.select<Array<{ filename: string; updated_at: number }>>(`
     select filename, max(updated_at) as updated_at
     from vector_documents
@@ -87,11 +92,13 @@ export async function initKnowledgeDb() {
   }
 }
 
-export async function upsertKnowledgeSource(source: KnowledgeSource) {
-  await db.execute(
-    `insert into knowledge_sources
+export async function upsertKnowledgeSource(source: KnowledgeSource, canvasRevision?: string) {
+  // A canvas can be edited or deleted while its body is being hashed.
+  const current = `exists (select 1 from bm25_source_revisions r join canvases c on c.id = $3
+    where r.source_key = $1 and r.revision = $11 and c.updatedAt = $10 and c.deletedAt is null)`
+  const sql = `insert into knowledge_sources
       (source_key, source_type, source_id, title, locator, content_hash, indexed_hash, status, error, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ${canvasRevision ? `where ${current}` : ''}
      on conflict(source_key) do update set
        source_type = excluded.source_type,
        source_id = excluded.source_id,
@@ -101,20 +108,45 @@ export async function upsertKnowledgeSource(source: KnowledgeSource) {
        indexed_hash = excluded.indexed_hash,
        status = excluded.status,
        error = excluded.error,
-       updated_at = excluded.updated_at`,
-    [
-      source.sourceKey,
-      source.sourceType,
-      source.sourceId,
-      source.title,
-      JSON.stringify(source.locator),
-      source.contentHash,
-      source.indexedHash || null,
-      source.status,
-      source.error || null,
-      source.updatedAt,
-    ]
-  )
+       updated_at = excluded.updated_at`
+  const values = [
+    source.sourceKey,
+    source.sourceType,
+    source.sourceId,
+    source.title,
+    JSON.stringify(source.locator),
+    source.contentHash,
+    source.indexedHash || null,
+    source.status,
+    source.error || null,
+    source.updatedAt,
+  ]
+  if (!canvasRevision) {
+    await db.execute(sql, values)
+    return
+  }
+  await executeRecordTransaction([
+    { sql, values: [...values, canvasRevision] },
+    { sql: `insert into canvas_knowledge_checkpoints (source_key, revision, content_hash)
+        select r.source_key, r.revision, k.content_hash from bm25_source_revisions r
+        join knowledge_sources k on k.source_key = r.source_key join canvases c on c.id = k.source_id
+        where r.source_key = $1 and r.revision = $2 and k.content_hash = $3 and c.updatedAt = $4 and c.deletedAt is null
+        on conflict(source_key) do update set revision = excluded.revision, content_hash = excluded.content_hash`,
+      values: [source.sourceKey, canvasRevision, source.contentHash, source.updatedAt] },
+  ])
+}
+
+export async function getCanvasRegistryInventory() {
+  const canvas = await db.select<{ id: string }[]>('select id from canvases where deletedAt is null limit 1')
+  if (!canvas.length) return []
+  await ensureSourceRevisions()
+  return db.select<Array<{ sourceKey: string; revision: string; registered: number; status: KnowledgeIndexStatus | null }>>(`
+    select r.source_key as sourceKey, r.revision, k.status,
+      coalesce(p.revision = r.revision and p.content_hash = k.content_hash and c.updatedAt = k.updated_at, 0) as registered
+    from canvases c join bm25_source_revisions r on r.source_key = 'canvas:' || c.id
+    left join knowledge_sources k on k.source_key = r.source_key
+    left join canvas_knowledge_checkpoints p on p.source_key = r.source_key where c.deletedAt is null
+  `)
 }
 
 // Wiki discovery only registers an original. Vector indexing owns indexed_hash, status and error.

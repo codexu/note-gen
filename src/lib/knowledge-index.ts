@@ -2,6 +2,7 @@ import { invalidateKnowledgeLexicalCache } from '@/lib/knowledge-lexical-cache'
 import { Store } from '@tauri-apps/plugin-store'
 import {
   deleteKnowledgeSource,
+  getCanvasRegistryInventory,
   getKnowledgeSource,
   getKnowledgeSources,
   updateKnowledgeSourceIndexState,
@@ -36,7 +37,7 @@ async function hasStructuredIndexConsent() {
   return await store.get<boolean>('ragStructuredKnowledgeConsent') ?? false
 }
 
-async function registerDocument(document: KnowledgeSourceDocument) {
+async function registerDocument(document: KnowledgeSourceDocument, canvasRevision?: string) {
   const existing = await getKnowledgeSource(document.sourceKey)
   const unchanged = existing?.contentHash === document.contentHash
     && existing.indexedHash === document.contentHash
@@ -46,7 +47,7 @@ async function registerDocument(document: KnowledgeSourceDocument) {
     indexedHash: unchanged ? existing.indexedHash : null,
     status: unchanged ? 'ready' : 'pending',
     error: null,
-  })
+  }, canvasRevision)
   if (existing?.contentHash !== document.contentHash) invalidateWorkspaceBM25(document.sourceKey)
   return !unchanged
 }
@@ -176,31 +177,42 @@ export async function processStructuredKnowledgeSources(
   return { total: documents.length, success, failed, paused }
 }
 
+// Opening the workspace reads metadata for previously registered canvases. New or
+// changed bodies are hashed one at a time, without their undo and redo histories.
+async function registerCanvasSources(queuePending: boolean) {
+  const inventory = await getCanvasRegistryInventory()
+  for (const source of inventory) {
+    if (source.registered) {
+      if (queuePending && source.status !== 'ready') pendingKeys.add(source.sourceKey)
+      continue
+    }
+    const document = await getKnowledgeSourceDocument(source.sourceKey)
+    if (document && await registerDocument(document, source.revision) && queuePending) pendingKeys.add(source.sourceKey)
+  }
+  return inventory
+}
+
 export async function bootstrapStructuredKnowledgeRegistry() {
-  const documents = [
-    ...await collectRecordKnowledgeDocuments(),
-    ...await collectCanvasKnowledgeDocuments(),
-  ]
-  for (const document of documents) await registerDocument(document)
+  const records = await collectRecordKnowledgeDocuments()
+  for (const document of records) await registerDocument(document)
+  const canvases = await registerCanvasSources(false)
   const store = await Store.load('store.json')
   const consent = await store.get<boolean>('ragStructuredKnowledgeConsent')
   if (consent === undefined) {
-    await store.set('ragStructuredKnowledgeConsent', documents.length === 0)
+    await store.set('ragStructuredKnowledgeConsent', !records.length && !canvases.length)
   }
 }
 
 export async function reconcileStructuredKnowledgeSources() {
   invalidateKnowledgeLexicalCache()
-  const documents = [
-    ...await collectRecordKnowledgeDocuments(),
-    ...await collectCanvasKnowledgeDocuments(),
-  ]
-  const currentKeys = new Set(documents.map(document => document.sourceKey))
+  const records = await collectRecordKnowledgeDocuments()
+  const canvases = await registerCanvasSources(true)
+  const currentKeys = new Set([...records, ...canvases].map(source => source.sourceKey))
   const registered = await getKnowledgeSources({ sourceTypes: ['record', 'canvas'] })
   for (const source of registered) {
     if (!currentKeys.has(source.sourceKey)) await removeKnowledgeSourceIndex(source.sourceKey)
   }
-  for (const document of documents) {
+  for (const document of records) {
     if (await registerDocument(document)) pendingKeys.add(document.sourceKey)
   }
   await drainQueue()

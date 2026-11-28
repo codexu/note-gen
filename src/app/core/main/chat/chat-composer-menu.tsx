@@ -42,7 +42,7 @@ import { getAllMarks, type Mark } from "@/db/marks"
 import { getAllMarkdownFiles, type MarkdownFile } from "@/lib/files"
 import { cn } from "@/lib/utils"
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from "@/lib/workspace"
-import useCanvasStore from "@/stores/canvas"
+import { getCanvasProject, getCanvasResourceList } from "@/db/canvases"
 import { useSkillsStore } from "@/stores/skills"
 import type { CanvasProject } from "@/types/canvas"
 import type { SkillMetadata } from "@/lib/skills/types"
@@ -111,8 +111,7 @@ export const ChatComposerMenu = forwardRef<
   onSkillSelect,
 }, ref) {
   const t = useTranslations("record.chat.input.composerMenu")
-  const projects = useCanvasStore(state => state.projects)
-  const loadProjects = useCanvasStore(state => state.loadProjects)
+  const [projects, setProjects] = useState<Awaited<ReturnType<typeof getCanvasResourceList>>>([])
   const skillsEnabled = useSkillsStore(state => state.enabled)
   const skills = useSkillsStore(state => state.skills)
   const skillsInitialized = useSkillsStore(state => state.initialized)
@@ -159,7 +158,9 @@ export const ChatComposerMenu = forwardRef<
       if (!active) return
       setRecords(nextRecords.filter(record => record.deleted === 0).slice(0, 200))
     })
-    const canvasTask = projects.length === 0 ? loadProjects() : Promise.resolve()
+    const canvasTask = getCanvasResourceList().then(rows => {
+      if (active) setProjects(rows)
+    })
 
     void Promise.allSettled([fileTask, recordTask, canvasTask]).then(() => {
       if (active) setLoading(false)
@@ -168,7 +169,7 @@ export const ChatComposerMenu = forwardRef<
     return () => {
       active = false
     }
-  }, [loadProjects, mode, projects.length])
+  }, [mode])
 
   useEffect(() => {
     if (mode !== "command" && mode !== "skill") return
@@ -248,11 +249,14 @@ export const ChatComposerMenu = forwardRef<
         group: t("resources.canvases"),
         label: project.title,
         description: t("resources.canvasSummary", {
-          nodes: project.document.nodes.length,
-          edges: project.document.edges.length,
+          nodes: project.nodes,
+          edges: project.edges,
         }),
         icon: Palette,
-        onSelect: () => onCanvasSelect(project),
+        onSelect: async () => {
+          const canvas = await getCanvasProject(project.id, { includeHistory: false })
+          if (canvas && !canvas.deletedAt) onCanvasSelect(canvas)
+        },
       })),
     ]
   }, [

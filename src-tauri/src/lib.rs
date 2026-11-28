@@ -11,6 +11,7 @@ mod database_recovery;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod record_file;
 mod record_transaction;
+mod vector_search;
 mod device;
 mod document_parser;
 mod fonts;
@@ -147,6 +148,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             system_permissions::request_screen_capture_permission,
             record_transaction::execute_record_transaction,
+            vector_search::search_vector_documents,
             #[cfg(any(target_os = "android", target_os = "ios"))]
             record_file::open_record_file,
             #[cfg(target_os = "android")]

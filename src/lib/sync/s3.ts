@@ -43,6 +43,14 @@ function applyBucketHostname(url: URL, bucket: string) {
   return url
 }
 
+function escapeS3ReservedCharacters(value: string): string {
+  return value.replace(/[!'()*]/g, character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`)
+}
+
+function encodeS3Component(value: string): string {
+  return escapeS3ReservedCharacters(encodeURIComponent(value))
+}
+
 // 生成 AWS 签名 V4 (使用 Web Crypto API)
 async function generateSignature(
   method: string,
@@ -62,24 +70,23 @@ async function generateSignature(
   // 创建规范请求
   // 必须对路径进行 URI 编码，但要保留斜杠
   const urlObj = new URL(url)
-  const canonicalUri = urlObj.pathname
+  const canonicalUri = urlObj.pathname.split('/').map(segment => encodeS3Component(decodeURIComponent(segment))).join('/')
 
   // AWS V4 签名要求查询字符串必须按字母顺序排列并正确编码
   const canonicalQuerystring = Array.from(urlObj.searchParams.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .map(([key, value]) => [encodeS3Component(key), encodeS3Component(value)] as const)
+    .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+      if (leftKey !== rightKey) return leftKey < rightKey ? -1 : 1
+      return leftValue === rightValue ? 0 : leftValue < rightValue ? -1 : 1
+    })
+    .map(([key, value]) => `${key}=${value}`)
     .join('&')
 
-  // AWS V4 签名要求 Headers 的 Key 必须全部转为小写
-  const canonicalHeaders = Object.keys(headers)
-    .sort()
-    .map(key => `${key.toLowerCase()}:${headers[key].trim()}\n`)
-    .join('')
-
-  const signedHeaders = Object.keys(headers)
-    .sort()
-    .map(key => key.toLowerCase())
-    .join(';')
+  const normalizedHeaders = Object.fromEntries(Object.entries(headers)
+    .map(([key, value]) => [key.toLowerCase(), value.trim().replace(/\s+/g, ' ')]))
+  const headerNames = Object.keys(normalizedHeaders).sort()
+  const canonicalHeaders = headerNames.map(key => `${key}:${normalizedHeaders[key]}\n`).join('')
+  const signedHeaders = headerNames.join(';')
 
   // 使用 Web Crypto API 计算 SHA256
   const payloadHash = await crypto.subtle.digest('SHA-256', payload)
@@ -212,7 +219,7 @@ function buildS3Url(config: S3Config, key: string): string {
   const prefix = config.pathPrefix ? config.pathPrefix.trim().replace(/\/+$/, '') : ''
   const fullKey = prefix ? `${prefix}/${key}` : key
   // A directory marker ("folder/") and the object "folder" are different keys.
-  const encodedFullKey = buildRepoContentPath({ path: fullKey, preserveWhitespace: true })
+  const encodedFullKey = escapeS3ReservedCharacters(buildRepoContentPath({ path: fullKey, preserveWhitespace: true }))
     + (fullKey.endsWith('/') ? '/' : '')
   debugSyncPath('s3.buildUrl', {
     key,

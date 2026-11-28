@@ -32,6 +32,7 @@ import { withWorkspacePathMove } from '@/lib/sync/workspace-path-moves'
 import { moveSelfHostedWorkspacePath } from '@/lib/self-hosted-sync/files'
 import { cn } from '@/lib/utils'
 import { CloudLibraryMenu } from '@/app/core/main/file/cloud-library-menu'
+import { isBM25CacheFile } from '@/config/sync-exclusions'
 import { pullRemoteLibraryFolder, uploadLocalLibraryFile, uploadLocalLibraryFolder } from '@/lib/sync/remote-library'
 import useClipboardStore from '@/stores/clipboard'
 import { generateCopyFilename, generateCopyFoldername } from '@/lib/default-filename'
@@ -1163,7 +1164,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
                             disabled: !entry.isLocale,
                             variant: 'outline' as const,
                           }] : []),
-                          ...(officialFileStatus ? [] : entry.type === 'file' ? [{
+                          ...(officialFileStatus || (entry.type === 'file' && isBM25CacheFile(entry.name)) ? [] : entry.type === 'file' ? [{
                             key: 'upload',
                             label: tContext('uploadFile'),
                             icon: <FileUp className="size-4" />,

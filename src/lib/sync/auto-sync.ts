@@ -12,6 +12,7 @@ import { s3HeadObject, s3DownloadBytes } from './s3'
 import { hasStrongWebDAVEtag, webdavHeadObject, webdavDownloadBytes } from './webdav'
 import { decodeBase64ToBytes } from './remote-file'
 import { decodeSyncText, isBinaryFilePath, syncContentBytes } from './file-content'
+import { isBM25CacheFile } from '@/config/sync-exclusions'
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
 import {
   androidCloudFolderWorkspaceDownloadBytes,
@@ -310,6 +311,7 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
  * 因此不直接比较 SHA，而是依赖修改时间进行比较
  */
 export async function compareFileVersions(path: string): Promise<SyncResult> {
+  if (isBM25CacheFile(path)) return { shouldUpdate: false, action: 'none' }
   // 检查当前平台是否是 S3
   const store = await getStore()
   const platform = await store.get<string>('primaryBackupMethod')

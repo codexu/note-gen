@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Store } from "@tauri-apps/plugin-store";
 import { toast } from '@/hooks/use-toast';
 import { DEFAULT_EXCLUDED_RAG_PATHS } from '@/lib/rag-retrieval-policy';
+import { invalidateWorkspaceBM25 } from '@/lib/bm25-workspace-index';
 import {
   DEFAULT_RAG_AGENT_POLICY,
   type RagAgentStrategy,
@@ -149,6 +150,7 @@ const useRagSettingsStore = create<RagSettingsState>((set, get) => ({
         set({ indexNeedsRebuild: true });
         await store.set('ragIndexNeedsRebuild', true);
       }
+      if (key === 'chunkSize' || key === 'chunkOverlap' || key === 'excludedPaths') invalidateWorkspaceBM25();
     } catch (error) {
       console.error(`更新 RAG 设置 ${key} 失败:`, error);
     }
@@ -198,6 +200,7 @@ const useRagSettingsStore = create<RagSettingsState>((set, get) => ({
       await store.set('ragSimilarityThreshold', DEFAULT_RAG_SETTINGS.similarityThreshold);
       await store.set('ragRerankThreshold', DEFAULT_RAG_SETTINGS.rerankThreshold);
       await store.set('ragExcludedPaths', DEFAULT_RAG_SETTINGS.excludedPaths);
+      invalidateWorkspaceBM25();
       await store.set('ragEnabledSourceTypes', DEFAULT_RAG_SETTINGS.enabledSourceTypes);
       await store.set('ragGlobalSemanticSearchEnabled', DEFAULT_RAG_SETTINGS.globalSemanticSearchEnabled);
       await store.set('ragKnowledgeIndexPaused', DEFAULT_RAG_SETTINGS.indexPaused);

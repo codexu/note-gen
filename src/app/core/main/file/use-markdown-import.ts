@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast'
 import { getWorkspacePath } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
 import { getDocumentFileName, parseLocalDocument } from '@/lib/document-parser'
+import { beginKnowledgeArticleImport } from '@/lib/knowledge-article-import'
 
 export const DOCUMENT_TO_MARKDOWN_EXTENSIONS = [
   'doc', 'docx', 'docm',
@@ -37,6 +38,17 @@ async function getAvailableMarkdownPath(targetDir: string, fileName: string) {
   }
 
   return candidate
+}
+
+async function importIntoWorkspace<T>(write: (targetDir: string) => Promise<T>) {
+  const finish = beginKnowledgeArticleImport()
+  try {
+    const workspace = await getWorkspacePath()
+    const targetDir = workspace.isCustom ? workspace.path : await join(await appDataDir(), 'article')
+    return await write(targetDir)
+  } finally {
+    finish()
+  }
 }
 
 async function copyMarkdownFilesRecursively(
@@ -105,11 +117,7 @@ export function useMarkdownImport() {
         return
       }
 
-      const workspace = await getWorkspacePath()
-      const targetDir = workspace.isCustom
-        ? workspace.path
-        : await join(await appDataDir(), 'article')
-      const copiedCount = await copyMarkdownFilesRecursively(selectedPath, targetDir)
+      const copiedCount = await importIntoWorkspace(targetDir => copyMarkdownFilesRecursively(selectedPath, targetDir))
 
       await loadFileTree()
       toast({
@@ -145,14 +153,10 @@ export function useMarkdownImport() {
         return
       }
 
-      const workspace = await getWorkspacePath()
-      const targetDir = workspace.isCustom
-        ? workspace.path
-        : await join(await appDataDir(), 'article')
-      const copiedCount = await invoke<number>('import_notion_zip', {
+      const copiedCount = await importIntoWorkspace(targetDir => invoke<number>('import_notion_zip', {
         zipPath: selectedPath,
         targetDir,
-      })
+      }))
 
       await loadFileTree()
       toast({
@@ -193,25 +197,23 @@ export function useMarkdownImport() {
       }
 
       const selectedPaths = Array.isArray(selected) ? selected : [selected]
-      const workspace = await getWorkspacePath()
-      const targetDir = workspace.isCustom
-        ? workspace.path
-        : await join(await appDataDir(), 'article')
       let convertedCount = 0
       const failures: string[] = []
 
-      for (const sourcePath of selectedPaths) {
-        const fileName = getDocumentFileName(sourcePath)
-        try {
-          const parsed = await parseLocalDocument(sourcePath, fileName)
-          const targetPath = await getAvailableMarkdownPath(targetDir, fileName)
-          await writeTextFile(targetPath, parsed.markdown)
-          convertedCount += 1
-        } catch (error) {
-          console.error(`Convert document to Markdown failed: ${fileName}`, error)
-          failures.push(fileName)
+      await importIntoWorkspace(async targetDir => {
+        for (const sourcePath of selectedPaths) {
+          const fileName = getDocumentFileName(sourcePath)
+          try {
+            const parsed = await parseLocalDocument(sourcePath, fileName)
+            const targetPath = await getAvailableMarkdownPath(targetDir, fileName)
+            await writeTextFile(targetPath, parsed.markdown)
+            convertedCount += 1
+          } catch (error) {
+            console.error(`Convert document to Markdown failed: ${fileName}`, error)
+            failures.push(fileName)
+          }
         }
-      }
+      })
 
       if (convertedCount > 0) {
         await loadFileTree()

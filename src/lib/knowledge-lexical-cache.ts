@@ -1,5 +1,7 @@
 import type { KnowledgeSource, KnowledgeSourceDocument } from '@/types/knowledge'
+import { invalidateWorkspaceBM25 } from './bm25-workspace-index'
 import { getWikiWorkspaceRevision } from './wiki/context'
+import { getAllMarkdownFiles } from './files'
 
 interface LexicalEntry {
   signature: string
@@ -13,9 +15,25 @@ const MAX_CHARACTERS = 8 * 1024 * 1024
 let characters = 0
 let workspace = -1
 let changes = 0
+let articleFiles: { workspace: number; started: number; result: ReturnType<typeof getAllMarkdownFiles> } | undefined
+
+/** Share directory enumeration between queries. Recheck periodically on platforms without a watcher. */
+export function discoverKnowledgeArticles() {
+  const workspace = getWikiWorkspaceRevision()
+  const now = Date.now()
+  if (articleFiles?.workspace === workspace && now - articleFiles.started < 60_000) return articleFiles.result
+  const result = getAllMarkdownFiles(false, true).catch(error => {
+    if (articleFiles?.result === result) articleFiles = undefined
+    throw error
+  })
+  articleFiles = { workspace, started: now, result }
+  return result
+}
 
 export function invalidateKnowledgeLexicalCache(key?: string) {
   changes++
+  if (!key || key.startsWith('article:')) articleFiles = undefined
+  invalidateWorkspaceBM25(key)
   if (key === undefined) {
     entries.clear()
     characters = 0
@@ -28,7 +46,9 @@ export function invalidateKnowledgeLexicalCache(key?: string) {
 export async function lookupKnowledgeLexicalText(source: KnowledgeSource) {
   const revision = getWikiWorkspaceRevision()
   if (workspace !== revision) {
-    invalidateKnowledgeLexicalCache()
+    entries.clear()
+    characters = 0
+    changes++
     workspace = revision
   }
   const version = changes

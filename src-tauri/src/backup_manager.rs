@@ -13,7 +13,7 @@ use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
-use crate::backup::{is_sync_credential_path, PRIVATE_SYNC_CREDENTIALS_DIRECTORY};
+use crate::backup::{is_bm25_cache_file, is_sync_credential_path, PRIVATE_SYNC_CREDENTIALS_DIRECTORY};
 
 const BACKUP_FORMAT: &str = "notegen-backup";
 const BACKUP_VERSION: u32 = 1;
@@ -161,6 +161,9 @@ fn add_directory_to_zip<W: Write + Seek>(
     {
         let entry = entry.map_err(|error| format!("Failed to read backup entry: {error}"))?;
         let path = entry.path();
+        if is_bm25_cache_file(&path) && !path.is_dir() {
+            continue;
+        }
         let metadata = fs::symlink_metadata(&path)
             .map_err(|error| format!("Failed to inspect {}: {error}", path.display()))?;
         if metadata.file_type().is_symlink()
@@ -493,7 +496,7 @@ fn extract_archive(path: &Path, destination: &Path) -> Result<(), String> {
         let relative = entry
             .enclosed_name()
             .ok_or_else(|| "Backup contains an unsafe path".to_string())?;
-        if is_sync_credential_path(&relative) {
+        if is_sync_credential_path(&relative) || (!entry.is_dir() && is_bm25_cache_file(&relative)) {
             continue;
         }
         let output = destination.join(relative);

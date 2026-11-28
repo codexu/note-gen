@@ -3,6 +3,7 @@ import { mutateFileConditionally as mutateGitlabFileConditionally } from './gitl
 import { exists, mkdir, readDir, readFile, writeFile } from '@tauri-apps/plugin-fs'
 import { dirname } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
+import { assertSyncableWorkspaceFile, isBM25CacheFile } from '@/config/sync-exclusions'
 import { deleteFile as deleteGithubFile, getDirectoryFiles as getGithubDirectoryFiles, getFiles as getGithubFiles, uploadFile as uploadGithubFile } from './github'
 import { deleteFile as deleteGiteeFile, getDirectoryFiles as getGiteeDirectoryFiles, getFiles as getGiteeFiles, uploadFile as uploadGiteeFile } from './gitee'
 import { deleteFile as deleteGitlabFile, getFileContent as getGitlabFileContent, getDirectoryFiles as getGitlabDirectoryFiles, uploadFile as uploadGitlabFile } from './gitlab'
@@ -156,7 +157,7 @@ async function getGitRepository(
 function isLibraryPath(path: string, options: RemoteLibraryOptions): boolean {
   if (path.endsWith('/')) return false
   if (options.scope === 'data') return path.startsWith('.data/') && !path.split('/').includes('..')
-  if (!path || path.startsWith('.') || path.split('/').some(part => part.startsWith('.'))) {
+  if (!path || isBM25CacheFile(path) || path.startsWith('.') || path.split('/').some(part => part.startsWith('.'))) {
     return false
   }
   const folder = options.folderPath?.replace(/^\/+|\/+$/g, '')
@@ -668,6 +669,7 @@ export async function downloadRemoteBytesWithVersion(
   scope: RemoteRepositoryScope = 'workspace',
   platform?: SyncPlatform,
 ): Promise<{ content: Uint8Array; version?: string }> {
+  if (scope === 'workspace') assertSyncableWorkspaceFile(path)
   const startedAt = Date.now()
   try {
     let version: string | undefined
@@ -825,6 +827,7 @@ async function uploadRemoteContent(
   target?: SyncPlatform,
   beforeWrite?: () => Promise<void>,
 ): Promise<string> {
+  if (scope === 'workspace') assertSyncableWorkspaceFile(path)
   const startedAt = Date.now()
   const bytes = typeof content === 'string'
     ? new TextEncoder().encode(content).byteLength

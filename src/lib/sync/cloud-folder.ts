@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { platform } from '@tauri-apps/plugin-os'
 import { Store } from '@tauri-apps/plugin-store'
 import { Buffer } from 'buffer'
+import { isBM25CacheFile } from '@/config/sync-exclusions'
 import {
   isOneDriveConfig,
   oneDriveDelete,
@@ -364,16 +365,14 @@ export async function androidCloudFolderWorkspaceList(
   config: CloudFolderConfig,
   prefix = '',
 ): Promise<CloudFolderObject[]> {
-  if (isOneDriveConfig(config)) {
-    return (await oneDriveListObjects(config, prefix)).filter(object => (
-      !object.key.split('/').some(segment => segment.startsWith('.'))
-    ))
-  }
-  return invoke<CloudFolderObject[]>('list_android_cloud_folder_files', {
-    rootUri: requirePath(config),
-    prefix: prefix || null,
-    scope: 'workspace',
-  })
+  const files = isOneDriveConfig(config)
+    ? (await oneDriveListObjects(config, prefix)).filter(object => !object.key.split('/').some(segment => segment.startsWith('.')))
+    : await invoke<CloudFolderObject[]>('list_android_cloud_folder_files', {
+      rootUri: requirePath(config),
+      prefix: prefix || null,
+      scope: 'workspace',
+    })
+  return files.filter(file => !isBM25CacheFile(file.key))
 }
 
 export async function androidCloudFolderWorkspaceHead(

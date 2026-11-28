@@ -58,9 +58,6 @@ const useVectorStore = create<VectorState>((set, get) => ({
       await useRagSettingsStore.getState().initSettings();
       await initVectorDb();
 
-      // 初始化 BM25 索引
-      await initBM25Search();
-
       // 读取用户设置
       const store = await Store.load('store.json');
       const isAutoVectorEnabled = await store.get<boolean>('autoVectorEnabled') ?? true;
@@ -160,7 +157,12 @@ const useVectorStore = create<VectorState>((set, get) => ({
       const totalFailed = result.failed + structuredResult.failed;
       if ((totalFailed > 0 || result.paused || structuredResult.paused) && previousDocuments) {
         await replaceAllVectorDocuments(previousDocuments);
-        await initBM25Search();
+      }
+
+      if (!await initBM25Search()) {
+        set({ isProcessing: false });
+        processingToast.dismiss();
+        return;
       }
 
       // 更新处理时间和状态
@@ -174,8 +176,6 @@ const useVectorStore = create<VectorState>((set, get) => ({
         documentCount: result.success + structuredResult.success
       });
 
-      // 重新初始化 BM25 索引
-      await initBM25Search();
       if (totalFailed === 0 && !result.paused && !structuredResult.paused) {
         await useRagSettingsStore.getState().markIndexClean();
       }

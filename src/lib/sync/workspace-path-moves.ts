@@ -1,6 +1,7 @@
 import { exists, lstat, readFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { Store } from '@tauri-apps/plugin-store'
+import { assertSyncableWorkspaceFile } from '@/config/sync-exclusions'
 import emitter from '@/lib/emitter'
 import { getCurrentEditorWorkspaceRoot, markEditorPathTreeMutation } from '@/lib/editor-deactivation'
 import { getFilePathOptions } from '@/lib/workspace'
@@ -372,6 +373,7 @@ export function retryWorkspacePathMoves(): Promise<void> {
 
 /** Uploads must not create a new path before its pending remote rename. */
 export async function prepareWorkspacePathUpload(path: string): Promise<void> {
+  assertSyncableWorkspaceFile(path)
   await retryWorkspacePathMoves()
   // A queued upload for an old path must not recreate it after a rename.
   if (await getWorkspacePathMoveContext() && !await localExists(path)) {

@@ -87,6 +87,7 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
         private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
         private const val KEYSTORE_ALIAS = "NoteGenSecureStorageKey"
         private const val GCM_TAG_LENGTH = 128
+        private val bm25CacheNames = setOf("bm25.db", "bm25.db-wal", "bm25.db-shm", "bm25.db-journal")
     }
 
     private fun folderOperationLock(rootUri: String, scope: String): Any {
@@ -239,7 +240,7 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
         runAsync(invoke) {
             val args = invoke.parseArgs(AndroidCloudFolderWriteArgs::class.java)
             synchronized(folderOperationLock(args.rootUri, args.scope)) {
-                val segments = normalizedSegments(args.key)
+                val segments = syncFileSegments(args.key, args.scope)
                 val base = resolveBase(args.rootUri, args.scope, true)
                     ?: throw IllegalStateException("Unable to create the NoteGen sync directory")
                 val parent = resolveDirectory(base, segments.dropLast(1), true)
@@ -290,7 +291,9 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
             val files = mutableListOf<Map<String, Any>>()
             if (start.isFile) {
                 val key = prefix ?: start.name.orEmpty()
-                files.add(fileMetadata(key, start, sha256(readBytes(start))))
+                if (args.scope != "workspace" || start.name.orEmpty().lowercase() !in bm25CacheNames) {
+                    files.add(fileMetadata(key, start, sha256(readBytes(start))))
+                }
             } else {
                 val initialPath = prefix?.trim('/') ?: ""
                 collectFiles(start, initialPath, args.scope, files)
@@ -484,6 +487,14 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
         return directory.listFiles().firstOrNull { it.name == name }
     }
 
+    private fun syncFileSegments(key: String, scope: String): List<String> {
+        val segments = normalizedSegments(key)
+        require(scope != "workspace" || segments.last().lowercase() !in bm25CacheNames) {
+            "The local BM25 cache is excluded from synchronization"
+        }
+        return segments
+    }
+
     private fun resolveDirectory(
         base: DocumentFile,
         segments: List<String>,
@@ -513,7 +524,7 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     private fun resolveFile(rootUri: String, scope: String, key: String): DocumentFile? {
-        val segments = normalizedSegments(key)
+        val segments = syncFileSegments(key, scope)
         val base = resolveBase(rootUri, scope, false) ?: return null
         val parent = resolveDirectory(base, segments.dropLast(1), false) ?: return null
         val file = findChild(parent, segments.last()) ?: return null
@@ -554,7 +565,7 @@ class CloudFolderPlugin(private val activity: Activity) : Plugin(activity) {
             val key = if (relativePath.isEmpty()) name else "$relativePath/$name"
             if (entry.isDirectory) {
                 collectFiles(entry, key, scope, files)
-            } else if (entry.isFile) {
+            } else if (entry.isFile && (scope != "workspace" || name.lowercase() !in bm25CacheNames)) {
                 files.add(fileMetadata(key, entry, sha256(readBytes(entry))))
             }
         }

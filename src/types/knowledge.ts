@@ -93,6 +93,8 @@ export interface KnowledgeOriginalGrant {
   stableId: string
   scope: KnowledgeWikiSearchScope
   wikiScoped: boolean
+  /** Selected original discovered before Wiki compilation registered it. */
+  uncompiledArticle?: boolean
 }
 
 export interface KnowledgeSearchResults {

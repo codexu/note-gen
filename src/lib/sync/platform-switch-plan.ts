@@ -10,7 +10,7 @@ import { BaseDirectory, exists, mkdir, readFile, writeFile, remove } from '@taur
 import { Store } from '@tauri-apps/plugin-store'
 import emitter from '@/lib/emitter'
 import { markEditorPathMutation, prepareActiveEditorPathMutationDurably } from '@/lib/editor-deactivation'
-import { filterSyncData, shouldExcludeFromSync } from '@/config/sync-exclusions'
+import { filterSyncData, isBM25CacheFile, shouldExcludeFromSync } from '@/config/sync-exclusions'
 import { getFilePathOptions } from '@/lib/workspace'
 import { normalizeTagSnapshot, remapRemoteProtectedTags, projectConversationTagsForRemote, invalidateLocalTagSyncIdentity } from '@/lib/tag-sync'
 import { recordTagIds } from '@/lib/record-tags'
@@ -1456,7 +1456,8 @@ export async function restorePlatformSwitchBackup(path: string, onProgress: OnPr
   if (manifest.version !== 1 || manifest.workspace !== workspace || !manifest.local
     || moduleIds.some(id => !Array.isArray(manifest.local[id]))) throw new Error('Invalid sync recovery manifest')
   if (journalData.status === 'restored') return
-  const operations = journalData.operations.filter(op => op.side === 'local')
+  const operations = journalData.operations.filter(op =>
+    op.side === 'local' && !(op.scope === 'workspace' && isBM25CacheFile(op.path)))
   const originalFiles = moduleIds.flatMap(id => manifest.local[id]).filter(entry => entry.file)
   const originalFile = (op: typeof operations[number]) => originalFiles.find(entry => entry.file!.scope === op.scope
     && (op.scope === 'workspace' ? entry.id : entry.file!.localPath || entry.file!.path) === op.path)

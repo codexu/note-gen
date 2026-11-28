@@ -3,7 +3,7 @@ import { join } from '@tauri-apps/api/path'
 import { exists, readDir, readFile } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb, type RecordStatement } from '@/db'
-import { shouldExcludeFromSync } from '@/config/sync-exclusions'
+import { shouldExcludeFromSync, shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
 import { markEditorPathMutation, prepareActiveEditorPathMutationDurably, runEditorPathWriteTransaction } from '@/lib/editor-deactivation'
 import emitter from '@/lib/emitter'
 import { syncStaleError } from '@/lib/sync/sync-stale-error'
@@ -212,7 +212,7 @@ async function validateLocalFiles(input: ReplacementInput, workspace: SelfHosted
     if (!prefix) await ensureWorkspaceDirectory(directory)
     for (const entry of await readDir(directory)) {
       input.assertActive()
-      if (entry.isSymlink || excluded(entry.name)) continue
+      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name, entry.isDirectory)) continue
       const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name
       const absolute = await join(directory, entry.name)
       if (entry.isDirectory) await scan(absolute, relativePath)
@@ -260,7 +260,7 @@ async function replaceLibrary(input: ReplacementInput, workspace: SelfHostedRepl
   async function prune(directory: string, prefix = '') {
     if (!await exists(directory)) return
     for (const entry of await readDir(directory)) {
-      if (!entry.isDirectory || entry.isSymlink || excluded(entry.name)) continue
+      if (!entry.isDirectory || entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name, true)) continue
       const path = prefix ? `${prefix}/${entry.name}` : entry.name
       const absolute = await join(directory, entry.name)
       await prune(absolute, path)
@@ -449,5 +449,4 @@ function contentHash(entry: SelfHostedReplacementObject) {
     ? invoke<string>('self_hosted_sha256', { value: new TextDecoder().decode(entry.bytes!) })
     : hashBytes(entry.bytes!)
 }
-function excluded(name: string) { return name === '.notegen' || name === '.DS_Store' || name.endsWith('.tmp') }
 function stale(path: string) { return syncStaleError({ stage: 'apply', source: 'local', path, check: 'content' }) }

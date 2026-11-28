@@ -138,11 +138,8 @@ async function mirrorVectorDocuments(sourcePath: string, targetPath: string): Pr
     latestUpdatedAt = Math.max(latestUpdatedAt, doc.updated_at)
   }
 
-  const { getBM25Index } = await import('@/lib/bm25')
-  getBM25Index()?.replaceByFilename(
-    targetKey,
-    sourceDocs.sort((a, b) => a.chunk_id - b.chunk_id).map(doc => doc.content)
-  )
+  const { invalidateWorkspaceBM25 } = await import('@/lib/bm25-workspace-index')
+  invalidateWorkspaceBM25(targetKey)
 
   return latestUpdatedAt
 }

@@ -49,7 +49,7 @@ async function localPersonalAssets(assertActive: () => void) {
     if (!await exists(path, options)) return
     for (const entry of await readDir(path, options)) {
       assertActive()
-      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name)) continue
+      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name, entry.isDirectory)) continue
       const relative = `${path}/${entry.name}`
       if (entry.isDirectory) await scan(relative)
       else if (entry.isFile) {
@@ -90,7 +90,7 @@ export async function captureSelfHostedSwitchBackup(input: {
     if (!prefix) await ensureWorkspaceDirectory(root)
     for (const entry of await readDir(root)) {
       input.assertActive()
-      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name)) continue
+      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name, entry.isDirectory)) continue
       const relative = await portable(prefix ? `${prefix}/${entry.name}` : entry.name)
       const source = await join(root, entry.name)
       const destination = `${path}/files/${library}/${relative}`

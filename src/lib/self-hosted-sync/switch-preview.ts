@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { readDir, readFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
-import { shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
+import { isBM25CacheFile, shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
 import { getDb } from '@/db'
 import { ensureWorkspaceDirectory } from '@/lib/managed-workspace'
 import { normalizeTagBoolean } from '@/lib/tag-sync'
@@ -195,7 +195,7 @@ export async function inspectSelfHostedSwitch(
     if (!prefix) await ensureWorkspaceDirectory(directory)
     for (const entry of await readDir(directory)) {
       assertActive()
-      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name)) continue
+      if (entry.isSymlink || shouldExcludeSelfHostedWorkspaceEntry(entry.name, entry.isDirectory)) continue
       const path = prefix ? `${prefix}/${entry.name}` : entry.name
       const absolute = await join(directory, entry.name)
       if (!entry.isDirectory && !entry.isFile) continue
@@ -362,7 +362,8 @@ export async function inspectSelfHostedSwitch(
           report({ source: 'remote', module: moduleId, path, current: processed, total })
           // Older clients placed canvases in libraries; those objects are outside
           // the file switch scope and must not be deleted by an overwrite.
-          if (workspace.type === 'library' && !['file', 'asset', 'folder'].includes(domain)) {
+          if (workspace.type === 'library' && (!['file', 'asset', 'folder'].includes(domain)
+            || (domain !== 'folder' && isBM25CacheFile(path)))) {
             report({ source: 'remote', module: moduleId, path, current: ++processed, total })
             continue
           }

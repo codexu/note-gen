@@ -286,37 +286,3 @@ export class BM25Index {
     this.averageDocLength = 0;
   }
 }
-
-/**
- * 全局 BM25 索引实例
- */
-let globalBM25Index: BM25Index | null = null;
-
-/**
- * 初始化全局 BM25 索引
- * @param documents 文档列表
- */
-export function initBM25Index(documents: BM25Document[]): BM25Index {
-  if (!globalBM25Index) {
-    globalBM25Index = new BM25Index();
-  }
-  globalBM25Index.index(documents);
-  return globalBM25Index;
-}
-
-/**
- * 获取全局 BM25 索引
- */
-export function getBM25Index(): BM25Index | null {
-  return globalBM25Index;
-}
-
-/**
- * 清空全局 BM25 索引
- */
-export function clearBM25Index(): void {
-  if (globalBM25Index) {
-    globalBM25Index.clear();
-    globalBM25Index = null;
-  }
-}

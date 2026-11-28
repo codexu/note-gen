@@ -46,6 +46,7 @@ import { canOpenInEditorWindow, openEditorWindow } from '@/lib/editor-windows'
 import { useFileDeletion } from './use-file-deletion'
 import useFileDeletionStore, { isFileDeletionPending } from '@/stores/file-deletion'
 import { PluginFileMenuItems } from '@/components/plugins/plugin-file-menu-items'
+import { isBM25CacheFile } from '@/config/sync-exclusions'
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
@@ -143,7 +144,7 @@ export function FileItem({
   })))
   const { setClipboardItem, clipboardItem, clipboardItems, clipboardOperation } = useClipboardStore()
   const { fileManagerTextSize, workspacePath, primaryBackupMethod } = useSettingStore()
-  const supportsManualUpload = primaryBackupMethod !== 'selfHosted'
+  const supportsManualUpload = primaryBackupMethod !== 'selfHosted' && !isBM25CacheFile(item.name)
   const deleteEntries = useFileDeletion()
   const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
   const t = useTranslations('article.file')

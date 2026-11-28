@@ -3,6 +3,7 @@ import { BaseDirectory, exists, lstat, mkdir, readFile, readTextFile, writeFile 
 import { join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb } from '@/db'
+import { isBM25CacheFile } from '@/config/sync-exclusions'
 import { SelfHostedApiError } from './client'
 import {
   authenticatedClient, isSelfHostedAuthenticationError, isSelfHostedSecureStorageError, reconcilePersonalWorkspaceObjects,
@@ -75,6 +76,8 @@ interface Binding {
 interface OutboxRow {
   commandId: string
   effectiveKind: string | null
+  mappingPath: string | null
+  sourcePath: string | null
   sourceChangeIds: string
   payload: string
   attemptCount: number
@@ -753,7 +756,7 @@ async function hasAmbiguousTombstonedLibraryFile(binding: Binding) {
     [binding.workspaceId],
   )
   for (const row of rows) {
-    if (await exists(await join(binding.localRoot, row.relativePath))) return true
+    if (!isBM25CacheFile(row.relativePath) && await exists(await join(binding.localRoot, row.relativePath))) return true
   }
   return false
 }
@@ -779,7 +782,7 @@ async function recoverUncoveredTombstonedPortableFiles(
     [binding.workspaceId],
   )
   for (const row of rows) {
-    if (authoritativeObjectIds.has(row.objectId)) continue
+    if (authoritativeObjectIds.has(row.objectId) || (row.kind !== 'folder' && isBM25CacheFile(row.relativePath))) continue
     if (!await exists(await join(binding.localRoot, row.relativePath))) continue
     // A tombstone omitted from the authoritative snapshot has been garbage
     // collected remotely. Treat the still-present local path as an explicit
@@ -924,7 +927,9 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
        union select c.command_id, refs.value from candidates c join json_each(c.payload, '$.objectResolution.blobRefs') refs
        union select c.command_id, refs.value from candidates c join json_each(c.payload, '$.resolution.blobRefs') refs
      )
-     select command_id as commandId, source_change_ids as sourceChangeIds, effectiveKind,
+     select command_id as commandId, source_change_ids as sourceChangeIds, effectiveKind, mappingPath,
+       (select c.local_key from self_hosted_local_changes c where c.id = json_extract(o.source_change_ids, '$[0]')
+          and c.domain in ('file', 'asset')) as sourcePath,
        payload, attempt_count as attemptCount, restore_local_snapshot as restoreLocalSnapshot
      from candidates o
      where ($5 = 'library' or (
@@ -968,6 +973,17 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
   const commands: Record<string, unknown>[] = []
   const official = profile !== null && isOfficialSyncOrigin(profile.serverUrl)
   for (const row of rows) {
+    if (binding.workspaceType === 'library' && row.effectiveKind !== 'folder'
+      && ((row.sourcePath && isBM25CacheFile(row.sourcePath)) || (row.mappingPath && isBM25CacheFile(row.mappingPath)))) {
+      const now = Date.now()
+      await executeRecordTransaction([
+        { sql: "update self_hosted_local_changes set state='superseded',updated_at=$1 where state='queued' and id in (select value from json_each($2))",
+          values: [now, row.sourceChangeIds] },
+        { sql: "update self_hosted_outbox set state='superseded',updated_at=$1 where command_id=$2",
+          values: [now, row.commandId] },
+      ])
+      continue
+    }
     const { command, changed } = parseOutboxCommand(row.payload)
     if (official && row.effectiveKind === 'setting') {
       const replacement = await replaceUnsafeOfficialSettingsCommand(binding.workspaceId, row, command)
@@ -988,6 +1004,7 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
       )
     }
   }
+  if (commands.length === 0) return rows.length === session.limits.maxCommandsPerBatch
   const { client } = await authenticatedClient(binding.profileId)
   const response = await client.pushCommands(
     binding.workspaceId, commands, session.syncEpoch,
@@ -1750,6 +1767,7 @@ async function applyRemoteEventRaw(binding: Binding, event: SyncEvent, beforeStr
   }
   if (binding.workspaceType === 'library' && payload.domain === 'canvas') return
   if (binding.workspaceType === 'library' && typeof payload.relativePath === 'string') {
+    if (payload.domain !== 'folder' && isBM25CacheFile(payload.relativePath)) return
     await assertNoPendingPathMove(binding, payload.relativePath)
   }
   if (payload.domain === 'file' && binding.localRoot) {
@@ -1831,6 +1849,7 @@ async function resolveRemoteDeleteTarget(binding: Binding, event: SyncEvent) {
   const domain = String(payload.domain ?? '')
   const localKey = String(payload.relativePath ?? payload.localKey ?? '')
   if (!domain || !localKey) return event.objectId!
+  if (domain !== 'folder' && isBM25CacheFile(localKey)) return event.objectId!
   const portable = ['file', 'asset', 'folder'].includes(domain)
     ? await invoke<PortableMappingPath>('self_hosted_portable_path', { relativePath: localKey })
     : null
@@ -1879,7 +1898,7 @@ async function moveMappedRemoteFile(
     [binding.workspaceId, objectId, kind],
   )
   const source = mapping?.relativePath
-  if (!source || source === target.normalized) return false
+  if (!source || source === target.normalized || isBM25CacheFile(source)) return false
   await assertNoPendingPathMove(binding, source)
   await assertNoPendingPathMove(binding, target.normalized)
   assertNoIsolatedNoteConflictAtPath(binding, mapping?.pathCasefold ?? source.toLowerCase())
@@ -2326,6 +2345,7 @@ async function applyRemoteDelete(binding: Binding, objectId: string) {
   )
   const mapping = mappings[0]
   if (mapping?.relativePath && binding.localRoot) {
+    if (mapping.kind !== 'folder' && isBM25CacheFile(mapping.relativePath)) return
     assertNoIsolatedNoteConflictAtPath(binding, mapping.pathCasefold ?? mapping.relativePath.toLowerCase(), true)
     await assertNoPendingPathMove(binding, mapping.relativePath)
     const absolutePath = await join(binding.localRoot, mapping.relativePath)

@@ -1,5 +1,6 @@
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { mkdir, readDir } from '@tauri-apps/plugin-fs'
+import { isBM25CacheFile } from '@/config/sync-exclusions'
 
 import {
   androidCloudFolderWorkspaceList,
@@ -49,7 +50,8 @@ export async function prepareOneDriveWorkspace(
     readDir(path),
     androidCloudFolderWorkspaceList(config),
   ])
-  const hasLocalFiles = entries.some(entry => !entry.name.startsWith('.') && !entry.isSymlink)
+  const hasLocalFiles = entries.some(entry => !entry.name.startsWith('.') && !entry.isSymlink
+    && !(entry.isFile && isBM25CacheFile(entry.name)))
 
   if (strategy === 'remote') {
     return {

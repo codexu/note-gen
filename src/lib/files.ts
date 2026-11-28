@@ -82,7 +82,7 @@ export async function collectMarkdownFiles(folderPath: string): Promise<Array<{p
  * 获取工作区中所有Markdown文件（平铺所有文件夹）
  * @param includeMetadata 是否包含文件元数据（如修改时间），默认 false
  */
-export async function getAllMarkdownFiles(includeMetadata: boolean = false): Promise<MarkdownFile[]> {
+export async function getAllMarkdownFiles(includeMetadata: boolean = false, skipSymlinks = false): Promise<MarkdownFile[]> {
   const workspace = await getWorkspacePath();
 
 
@@ -101,7 +101,7 @@ export async function getAllMarkdownFiles(includeMetadata: boolean = false): Pro
 
       for (const entry of entries) {
         // 跳过隐藏文件和文件夹
-        if (entry.name === '.DS_Store' || entry.name.startsWith('.')) {
+        if (entry.name.startsWith('.') || (skipSymlinks && entry.isSymlink)) {
           continue;
         }
 

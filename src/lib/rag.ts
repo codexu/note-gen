@@ -13,16 +13,16 @@ import { deleteKnowledgeSource, upsertKnowledgeSource, updateKnowledgeSourceInde
 import { createKnowledgeSourceKey, parseKnowledgeSourceKey } from '@/types/knowledge';
 import { invoke } from "@tauri-apps/api/core";
 import {
-  BM25Document,
   createBM25ChunkKey,
-  initBM25Index,
-  getBM25Index,
   parseBM25ChunkKey
 } from "./bm25";
+import { ensureWorkspaceBM25Index, invalidateWorkspaceBM25 } from './bm25-workspace-index';
+import { collectMarkdownFiles } from './files';
+import { captureWikiWorkspaceGuard } from './wiki/context';
 
 // 重新导出initVectorDb，使其可在其他模块中导入
 export { initVectorDb };
-import { getFilePathOptions, getWorkspacePath } from "./workspace";
+import { getFilePathOptions, getWorkspacePath, isAbsoluteFsPath, toWorkspaceRelativePath } from "./workspace";
 import { DirTree } from "@/stores/article";
 import { toast } from "@/hooks/use-toast";
 import { join } from "@tauri-apps/api/path";
@@ -291,41 +291,15 @@ export function chunkText(
   return chunks.filter(Boolean);
 }
 
-/**
- * 初始化 BM25 索引
- * 从工作区的 Markdown 文件构建 BM25 索引
- */
-export async function initBM25Search(): Promise<void> {
-  try {
-    const items = await collectMarkdownContents();
-    const { collectCanvasKnowledgeDocuments, collectRecordKnowledgeDocuments } = await import('@/lib/knowledge-content');
-    const structuredDocuments = [
-      ...await collectRecordKnowledgeDocuments(),
-      ...await collectCanvasKnowledgeDocuments(),
-    ];
-    const store = await Store.load('store.json');
-    const chunkSize = await store.get<number>('ragChunkSize');
-    const chunkOverlap = await store.get<number>('ragChunkOverlap');
-    const documents: BM25Document[] = items.flatMap(item => {
-      const filename = createKnowledgeSourceKey('article', getVectorDocumentKey(item.id || item.title || 'unknown'));
-      return chunkText(item.article || '', chunkSize, chunkOverlap)
-        .filter(content => content.trim().length > 0)
-        .map((content, chunkId) => ({
-          id: createBM25ChunkKey(filename, chunkId),
-          content
-        }));
-    });
-    documents.push(...structuredDocuments.flatMap(document => (
-      document.chunks.map((chunk, chunkId) => ({
-        id: createBM25ChunkKey(document.sourceKey, chunkId),
-        content: chunk.content,
-      }))
-    )));
-
-    initBM25Index(documents);
-  } catch (error) {
+export function ensureBM25Search() {
+  return ensureWorkspaceBM25Index().catch(error => {
     console.error('初始化 BM25 索引失败:', error);
-  }
+    return null;
+  });
+}
+
+export async function initBM25Search(): Promise<boolean> {
+  return (await ensureWorkspaceBM25Index({ rebuild: true })) !== null;
 }
 
 /**
@@ -465,25 +439,6 @@ async function expandWithSentenceWindow(
 }
 
 /**
- * BM25 搜索辅助函数
- * @param query 查询文本
- * @param limit 返回结果数量
- * @returns BM25 检索结果
- */
-async function searchWithBM25(query: string, limit: number = 10): Promise<Array<{id: string, score: number, content: string}>> {
-  const index = getBM25Index();
-  if (!index) {
-    console.warn('BM25 索引未初始化，跳过 BM25 搜索');
-    return [];
-  }
-
-  return index.search(query, limit).flatMap(result => {
-    const content = index.getDocument(result.id);
-    return content === undefined ? [] : [{ ...result, content }];
-  });
-}
-
-/**
  * 处理单个Markdown文件，计算向量并存储到数据库
  */
 export async function processMarkdownFile(
@@ -514,7 +469,6 @@ export async function processMarkdownFile(
       if (legacyFilename !== vectorDocumentKey) {
         await deleteVectorDocumentsByFilename(legacyFilename);
       }
-      getBM25Index()?.deleteByFilename(vectorDocumentKey);
       await deleteKnowledgeSource(vectorDocumentKey);
       return true;
     }
@@ -542,7 +496,6 @@ export async function processMarkdownFile(
       if (legacyFilename !== vectorDocumentKey) {
         await deleteVectorDocumentsByFilename(legacyFilename);
       }
-      getBM25Index()?.deleteByFilename(vectorDocumentKey);
       return true;
     }
     const scope = await resolveRetrievalScope({}, store);
@@ -551,12 +504,11 @@ export async function processMarkdownFile(
       if (legacyFilename !== vectorDocumentKey) {
         await deleteVectorDocumentsByFilename(legacyFilename);
       }
-      getBM25Index()?.deleteByFilename(vectorDocumentKey);
       return true;
     }
 
-    // 字面检索始终使用最新正文，即使后续 Embedding 暂时失败。
-    getBM25Index()?.replaceByFilename(vectorDocumentKey, chunks);
+    // 下次词法检索会同步最新正文，即使后续 Embedding 失败。
+    invalidateWorkspaceBM25(vectorDocumentKey);
 
     const existingDocuments = await getVectorDocumentsByFilename(vectorDocumentKey);
     const existingChunks = existingDocuments
@@ -566,7 +518,6 @@ export async function processMarkdownFile(
       existingChunks.length === chunks.length
       && generateContentHash(existingChunks.join('\u0000')) === generateContentHash(chunks.join('\u0000'))
     ) {
-      getBM25Index()?.replaceByFilename(vectorDocumentKey, chunks);
       await updateKnowledgeSourceIndexState(vectorDocumentKey, {
         status: 'ready',
         indexedHash: contentHash,
@@ -608,14 +559,6 @@ export async function processMarkdownFile(
       })
     );
 
-    const bm25Index = getBM25Index();
-    if (bm25Index) {
-      bm25Index.replaceByFilename(
-        vectorDocumentKey,
-        chunks
-      );
-    }
-
     await updateKnowledgeSourceIndexState(vectorDocumentKey, {
       status: 'ready',
       indexedHash: contentHash,
@@ -636,13 +579,9 @@ async function getWorkspaceFiles(): Promise<DirTree[]> {
   
   // 递归处理目录的辅助函数
   async function processDirectory(dirPath: string, useCustomPath: boolean): Promise<DirTree[]> {
-    let entries: DirEntry[];
-    
-    if (useCustomPath) {
-      entries = await readDir(dirPath);
-    } else {
-      entries = await readDir(dirPath, { baseDir: BaseDirectory.AppData });
-    }
+    const entries: DirEntry[] = useCustomPath
+      ? await readDir(dirPath)
+      : await readDir(dirPath, { baseDir: BaseDirectory.AppData });
     
     const result: DirTree[] = [];
     
@@ -833,62 +772,6 @@ interface FuzzySearchResult {
 }
 
 /**
- * 从工作区中收集所有Markdown文件内容，用于模糊搜索
- */
-async function collectMarkdownContents(scope: RetrievalScope = {}): Promise<SearchItem[]> {
-  try {
-    // 获取工作区中的所有文件
-    const fileTree = await getWorkspaceFiles();
-    const items: SearchItem[] = [];
-    const resolvedScope = await resolveRetrievalScope(scope);
-    
-    // 递归处理文件树
-    async function processTree(tree: DirTree[]): Promise<void> {
-      for (const item of tree) {
-        if (item.isFile && item.name.endsWith('.md')) {
-          // 获取完整路径
-          const filePath = await getFilePath(item);
-          if (!isPathAllowedForRag(filePath, resolvedScope)) continue;
-          
-          try {
-            // 读取文件内容
-            let content = '';
-            const workspace = await getWorkspacePath();
-            if (workspace.isCustom) {
-              content = await readTextFile(filePath);
-            } else {
-              const { path, baseDir } = await getFilePathOptions(filePath);
-              content = await readTextFile(path, { baseDir });
-            }
-            
-            // 创建搜索项
-            items.push({
-              id: filePath,
-              title: item.name,
-              article: content,
-              search_type: 'markdown'
-            });
-          } catch (error) {
-            console.error(`读取文件 ${filePath} 内容失败:`, error);
-          }
-        }
-        
-        // 递归处理子目录
-        if (item.children && item.children.length > 0) {
-          await processTree(item.children);
-        }
-      }
-    }
-    
-    await processTree(fileTree);
-    return items;
-  } catch (error) {
-    console.error('收集Markdown内容失败:', error);
-    return [];
-  }
-}
-
-/**
  * 检索结果类型定义
  */
 interface SearchResult {
@@ -911,14 +794,20 @@ function createChunkStableId(filename: string, chunkId: number): string {
 
 async function resolveSnippetToChunk(
   filepath: string,
-  snippet: string
+  snippet: string,
+  legacyPath?: string,
 ): Promise<{ stableId: string; filename: string; content: string }> {
-  const filename = normalizeVectorDocumentKey(getVectorDocumentKey(filepath));
-  const chunks = await getVectorDocumentsByFilename(filename);
+  const canonicalKey = normalizeVectorDocumentKey(filepath);
+  let filename = canonicalKey;
+  let chunks = await getVectorDocumentsByFilename(filename);
+  if (!chunks.length && legacyPath) {
+    filename = normalizeVectorDocumentKey(legacyPath);
+    chunks = await getVectorDocumentsByFilename(filename);
+  }
   if (chunks.length === 0) {
     return {
-      stableId: `${filename}::content::${generateContentHash(snippet)}`,
-      filename,
+      stableId: `${canonicalKey}::content::${generateContentHash(snippet)}`,
+      filename: canonicalKey,
       content: snippet
     };
   }
@@ -929,7 +818,7 @@ async function resolveSnippetToChunk(
       : best
   );
   return {
-    stableId: createChunkStableId(filename, bestChunk.chunk_id),
+    stableId: createChunkStableId(canonicalKey, bestChunk.chunk_id),
     filename,
     content: bestChunk.content
   };
@@ -974,6 +863,71 @@ function buildFuzzyQueries(query: string, strategy: RetrievalStrategy): LexicalQ
     .map(text => ({ text, weight: 1 }));
 }
 
+/** Rank each fuzzy query globally, but release the native response and full texts after every batch. */
+async function searchArticleText(
+  files: { path: string; name: string }[],
+  queries: LexicalQuery[],
+  threshold: number,
+  isCurrent: () => boolean,
+  legacyPaths: ReadonlyMap<string, string>,
+): Promise<SearchResult[]> {
+  if (!queries.length) return [];
+  const groups = queries.map(query => ({ query, hits: [] as { path: string; snippet: string; score: number }[] }));
+  let items: SearchItem[] = [];
+  let characters = 0;
+
+  async function searchBatch() {
+    for (const { query, hits } of groups) {
+      if (!isCurrent()) return;
+      const matches = await invoke<FuzzySearchResult[]>('fuzzy_search', {
+        items, query: query.text, keys: ['title', 'article'], threshold, includeScore: true, includeMatches: true,
+      });
+      for (const hit of matches) {
+        if (hit.score <= 0 || !hit.item.id) continue;
+        const match = hit.matches.find(m => m.key === 'article');
+        const content = match?.value || hit.item.article || '';
+        const firstMatch = match?.indices[0];
+        const start = firstMatch ? Math.max(0, firstMatch[0] - 250) : 0;
+        const end = firstMatch ? firstMatch[1] + 250 : 500;
+        // Detach short excerpts from WebKit's potentially shared backing strings.
+        const snippet = content.trim() ? Array.from(content.slice(start, end)).join('') : '';
+        hits.push({ path: hit.item.id, score: hit.score, snippet });
+      }
+    }
+    items = [];
+    characters = 0;
+  }
+
+  for (const file of files) {
+    if (!isCurrent()) return [];
+    try {
+      const { path, baseDir } = await getFilePathOptions(file.path);
+      const article = await readTextFile(path, { baseDir });
+      items.push({ id: file.path, title: file.name, article, search_type: 'markdown' });
+      characters += article.length;
+    } catch (error) {
+      console.warn(`读取文件 ${file.path} 失败:`, error);
+    }
+    if (items.length >= 8 || characters >= 1024 * 1024) await searchBatch();
+  }
+  if (items.length) await searchBatch();
+
+  const results: SearchResult[] = [];
+  for (const { query, hits } of groups) {
+    hits.sort((left, right) => right.score - left.score);
+    for (const [index, hit] of hits.entries()) {
+      if (!isCurrent()) return [];
+      if (!hit.snippet) continue;
+      const chunk = await resolveSnippetToChunk(hit.path, hit.snippet, legacyPaths.get(hit.path));
+      results.push({
+        ...chunk, filepath: hit.path, rawScore: hit.score, normalizedScore: 0, rank: index + 1,
+        queryWeight: query.weight, keyword: query.text, type: 'fuzzy',
+      });
+    }
+  }
+  return results;
+}
+
 /**
  * RAG 来源详情类型定义
  */
@@ -1003,10 +957,14 @@ export interface RagSearchResponse {
  * @param query 用户的完整查询，用于保留语义意图的向量检索和统一重排
  * @returns 包含上下文文本和引用文件名的对象
  */
-export async function getContextForQuery(
-  query: string,
-  scope: RetrievalScope = {}
-): Promise<RagSearchResponse> {
+export function getContextForQuery(query: string, scope: RetrievalScope = {}): Promise<RagSearchResponse> {
+  return searchArticles(query, scope);
+}
+
+async function searchArticles(query: string, scope: RetrievalScope, folderPath = ''): Promise<RagSearchResponse> {
+  const empty: RagSearchResponse = { context: '', sources: [], sourceDetails: [], diagnostics: [] };
+  if (!query.trim()) return empty;
+  const workspaceIsCurrent = captureWikiWorkspaceGuard();
   try {
     const store = await Store.load('store.json');
     const resultCount = await store.get<number>('ragResultCount') ?? 5;
@@ -1027,12 +985,7 @@ export async function getContextForQuery(
     const resolvedScope = await resolveRetrievalScope(scope, store);
 
     // 存储所有检索结果（使用新的 SearchResult 类型）
-    const allResults: SearchResult[] = [];
-
-    // 完整查询为空时无法执行语义检索
-    if (!query.trim()) {
-      return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
-    }
+    let allResults: SearchResult[] = [];
 
     // 读取查询扩展配置
     const enableQueryExpansion = await store.get<boolean>('ragEnableQueryExpansion') ?? true;
@@ -1040,69 +993,35 @@ export async function getContextForQuery(
 
     const lexicalQueries = buildLexicalQueries(query, enableQueryExpansion, maxQueryVariations);
     const fuzzyQueries = buildFuzzyQueries(query, strategy);
-    const items = await collectMarkdownContents(resolvedScope);
-    const allowedVectorKeys = new Set(items.map(item => (
-      createKnowledgeSourceKey('article', getVectorDocumentKey(item.id || item.title || ''))
-    )));
-
-    // 1. 短查询和明确标识符使用模糊搜索
-    try {
-      if (items.length > 0) {
-        // 限制补充查询数量，避免对长问题逐词扫描全文
-        for (const keyword of fuzzyQueries) {
-          // 短查询或标识符单独补充召回。
-          const fuzzyResults: FuzzySearchResult[] = await invoke('fuzzy_search', {
-            items,
-            query: keyword.text,
-            keys: ['title', 'article'],
-            threshold: strategy.fuzzyThreshold,
-            includeScore: true,
-            includeMatches: true
-          });
-
-          // 处理模糊搜索结果
-          for (const [resultIndex, result] of fuzzyResults.entries()) {
-            if (result.score > 0) {
-              const item = result.item;
-              // 提取匹配的文本片段作为上下文
-              const match = result.matches.find(m => m.key === 'article');
-              const content = match?.value || item.article || '';
-              if (content.trim()) {
-                // 正文命中截取邻近上下文；仅标题命中时取正文开头。
-                let startIdx = 0;
-                let endIdx = Math.min(content.length, 500);
-                if (match && match.indices.length > 0) {
-                  const firstMatch = match.indices[0];
-                  startIdx = Math.max(0, firstMatch[0] - 250);
-                  endIdx = Math.min(content.length, firstMatch[1] + 250);
-                }
-
-                const contextSnippet = content.substring(startIdx, endIdx);
-                const filepath = item.id || item.title || '未命名文件';
-                const resolvedChunk = await resolveSnippetToChunk(filepath, contextSnippet);
-
-                allResults.push({
-                  stableId: resolvedChunk.stableId,
-                  filename: resolvedChunk.filename,
-                  filepath,
-                  content: resolvedChunk.content,
-                  rawScore: result.score,
-                  normalizedScore: 0, // 稍后计算
-                  rank: resultIndex + 1,
-                  queryWeight: keyword.weight,
-                  keyword: keyword.text,
-                  type: 'fuzzy'
-                });
-              }
-            }
-          }
-        }
+    const workspace = await getWorkspacePath();
+    const root = workspace.isCustom ? getVectorDocumentKey(workspace.path).replace(/\/+$/, '') : '';
+    const relativeFolder = folderPath ? await toWorkspaceRelativePath(folderPath.replaceAll('\\', '/')) : '';
+    if (isAbsoluteFsPath(relativeFolder) || relativeFolder.split('/').includes('..')) return empty;
+    const files = (await collectMarkdownFiles(relativeFolder.replace(/\/+$/, '')))
+      .filter(file => isPathAllowedForRag(root ? `${root}/${file.path}` : file.path, resolvedScope));
+    if (!files.length || !workspaceIsCurrent()) return empty;
+    const allowedBM25Keys = new Set(files.map(file => createKnowledgeSourceKey('article', file.path)));
+    // Earlier vector indexes in custom workspaces used absolute filenames.
+    const allowedVectorKeys = new Set(allowedBM25Keys);
+    const legacyPaths = new Map<string, string>();
+    const relativeByVectorKey = new Map<string, string>();
+    if (workspace.isCustom) {
+      for (const file of files) {
+        const absolute = `${root}/${file.path}`;
+        const key = createKnowledgeSourceKey('article', absolute);
+        legacyPaths.set(file.path, absolute);
+        allowedVectorKeys.add(key);
+        relativeByVectorKey.set(key, file.path);
       }
+    }
+
+    try {
+      allResults = await searchArticleText(files, fuzzyQueries, strategy.fuzzyThreshold, workspaceIsCurrent, legacyPaths);
     } catch (error) {
       handleRAGError(error, '模糊搜索失败', false);
     }
 
-    // 2. 使用完整问题进行一次向量搜索，保留查询的完整语义和关系
+    if (!workspaceIsCurrent()) return empty;
     try {
       const queryEmbedding = await getQueryEmbedding(query);
 
@@ -1117,9 +1036,9 @@ export async function getContextForQuery(
 
         for (const [docIndex, doc] of similarDocs.entries()) {
           allResults.push({
-            stableId: createChunkStableId(doc.filename, doc.chunk_id),
+            stableId: createChunkStableId(normalizeVectorDocumentKey(relativeByVectorKey.get(doc.filename) || doc.filename), doc.chunk_id),
             filename: doc.filename,
-            filepath: articlePathFromSourceKey(doc.filename),
+            filepath: relativeByVectorKey.get(doc.filename) || articlePathFromSourceKey(doc.filename),
             content: doc.content,
             rawScore: doc.similarity || 0,
             normalizedScore: 0,
@@ -1134,16 +1053,20 @@ export async function getContextForQuery(
     }
 
     // 3. 使用 BM25 搜索找到相关文档
+    if (!workspaceIsCurrent()) return empty;
     try {
+      const index = getLexicalTerms(query).length ? await ensureBM25Search() : null;
+      if (!workspaceIsCurrent()) return empty;
       for (const lexicalQuery of lexicalQueries) {
-        const bm25Results = await searchWithBM25(
+        const bm25Results = index ? await index.search(
           lexicalQuery.text,
-          Math.max(resultCount * strategy.lexicalCandidateMultiplier, 20)
-        );
+          Math.max(resultCount * strategy.lexicalCandidateMultiplier, 20),
+          allowedBM25Keys
+        ) : [];
 
         for (const [resultIndex, result] of bm25Results.entries()) {
           const chunkKey = parseBM25ChunkKey(result.id);
-          if (!chunkKey || !allowedVectorKeys.has(chunkKey.filename)) continue;
+          if (!chunkKey) continue;
           allResults.push({
             stableId: result.id,
             filename: chunkKey.filename,
@@ -1163,15 +1086,15 @@ export async function getContextForQuery(
     }
 
     // 如果没有找到任何相关上下文，返回空结果
-    if (allResults.length === 0) {
-      return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
-    }
+    if (allResults.length === 0) return empty;
 
     const windowSize = await store.get<number>('ragWindowSize') ?? 2;
-    return await finalizeSearchResults(query, allResults, strategy, resultCount, windowSize);
+    if (!workspaceIsCurrent()) return empty;
+    const result = await finalizeSearchResults(query, allResults, strategy, resultCount, windowSize);
+    return workspaceIsCurrent() ? result : empty;
   } catch (error) {
     handleRAGError(error, '获取查询上下文失败', false);
-    return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
+    return empty;
   }
 }
 
@@ -1333,7 +1256,7 @@ async function finalizeSearchResults(
       if (mergedIndices.has(j)) continue;
 
       const other = mergedResults[j];
-      if (other.filename !== current.filename) continue;
+      if (other.filepath !== current.filepath) continue;
 
       if (calculateContentOverlap(current.content, other.content) > 0.7) {
         mergedIndices.add(j);
@@ -1496,252 +1419,7 @@ export function showVectorProcessingToast(message: string) {
   });
 }
 
-/**
- * 从指定文件夹中收集Markdown文件内容
- */
-async function collectMarkdownContentsInFolder(
-  folderPath: string,
-  scope: RetrievalScope = {}
-): Promise<SearchItem[]> {
-  try {
-    const workspace = await getWorkspacePath();
-    const items: SearchItem[] = [];
-    const resolvedScope = await resolveRetrievalScope(scope);
-
-    // 构建文件夹完整路径
-    let fullFolderPath: string;
-    if (workspace.isCustom) {
-      fullFolderPath = await join(workspace.path, folderPath);
-    } else {
-      fullFolderPath = folderPath;
-    }
-
-    // 递归读取文件夹内容
-    async function processTree(dirPath: string, relativePath: string): Promise<void> {
-      let currentEntries: DirEntry[];
-
-      if (workspace.isCustom) {
-        currentEntries = await readDir(dirPath);
-      } else {
-        const { path, baseDir } = await getFilePathOptions(relativePath);
-        currentEntries = await readDir(path, { baseDir });
-      }
-
-      for (const entry of currentEntries) {
-        if (entry.name.startsWith('.')) continue;
-
-        const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-        const ragPath = workspace.isCustom ? await join(dirPath, entry.name) : entryRelativePath;
-        if (!isPathAllowedForRag(ragPath, resolvedScope)) continue;
-
-        if (entry.isDirectory) {
-          const entryFullPath = workspace.isCustom
-            ? await join(dirPath, entry.name)
-            : entryRelativePath;
-          await processTree(entryFullPath, entryRelativePath);
-        } else if (entry.name.endsWith('.md')) {
-          // 读取文件内容并添加到 items
-          try {
-            let content = '';
-            const entryFullPath = workspace.isCustom
-              ? await join(dirPath, entry.name)
-              : entryRelativePath;
-
-            if (workspace.isCustom) {
-              content = await readTextFile(entryFullPath);
-            } else {
-              const { path, baseDir } = await getFilePathOptions(entryRelativePath);
-              content = await readTextFile(path, { baseDir });
-            }
-
-            items.push({
-              id: workspace.isCustom ? entryFullPath : entryRelativePath,
-              title: entry.name,
-              article: content,
-              search_type: 'markdown'
-            });
-          } catch (error) {
-            console.error(`读取文件 ${entryRelativePath} 失败:`, error);
-          }
-        }
-      }
-    }
-
-    await processTree(fullFolderPath, folderPath);
-    return items;
-  } catch (error) {
-    console.error('收集文件夹Markdown内容失败:', error);
-    return [];
-  }
-}
-
-/**
- * 在指定文件夹范围内获取相关上下文
- * @param query 用户的完整查询
- * @param folderPath 文件夹相对路径
- * @returns 包含上下文文本和引用文件名的对象
- */
-export async function getContextForQueryInFolder(
-  query: string,
-  folderPath: string
-): Promise<RagSearchResponse> {
-  try {
-    const store = await Store.load('store.json');
-    const resultCount = await store.get<number>('ragResultCount') ?? 5;
-    const similarityThreshold = await store.get<number>('ragSimilarityThreshold') ?? 0.25;
-    const rerankThreshold = await store.get<number>('ragRerankThreshold') ?? 0.1;
-
-    // 读取权重配置
-    const fuzzyWeight = await store.get<number>('ragFuzzyWeight') ?? 0.2;
-    const vectorWeight = await store.get<number>('ragVectorWeight') ?? 0.7;
-    const bm25Weight = await store.get<number>('ragBm25Weight') ?? 0.1;
-
-    const baseWeights = {
-      fuzzyWeight,
-      vectorWeight,
-      bm25Weight
-    };
-    const strategy = createRetrievalStrategy(query, baseWeights, rerankThreshold);
-
-    const allResults: SearchResult[] = [];
-
-    if (!query.trim()) {
-      return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
-    }
-
-    // 读取查询扩展配置
-    const enableQueryExpansion = await store.get<boolean>('ragEnableQueryExpansion') ?? true;
-    const maxQueryVariations = await store.get<number>('ragMaxQueryVariations') ?? 3;
-
-    const lexicalQueries = buildLexicalQueries(query, enableQueryExpansion, maxQueryVariations);
-    const fuzzyQueries = buildFuzzyQueries(query, strategy);
-
-    // 收集文件夹范围内的文件
-    const items = await collectMarkdownContentsInFolder(folderPath);
-    const folderVectorKeys = new Set(items.map(item => (
-      createKnowledgeSourceKey('article', getVectorDocumentKey(item.id || item.title || ''))
-    )));
-
-    // 1. 模糊搜索（限定到文件夹）
-    try {
-      if (items.length > 0) {
-        for (const keyword of fuzzyQueries) {
-          const fuzzyResults: FuzzySearchResult[] = await invoke('fuzzy_search', {
-            items,
-            query: keyword.text,
-            keys: ['title', 'article'],
-            threshold: strategy.fuzzyThreshold,
-            includeScore: true,
-            includeMatches: true
-          });
-
-          for (const [resultIndex, result] of fuzzyResults.entries()) {
-            if (result.score > 0) {
-              const item = result.item;
-              const match = result.matches.find(m => m.key === 'article');
-              const content = match?.value || item.article || '';
-              if (content.trim()) {
-                let startIdx = 0;
-                let endIdx = Math.min(content.length, 500);
-                if (match && match.indices.length > 0) {
-                  const firstMatch = match.indices[0];
-                  startIdx = Math.max(0, firstMatch[0] - 250);
-                  endIdx = Math.min(content.length, firstMatch[1] + 250);
-                }
-
-                const contextSnippet = content.substring(startIdx, endIdx);
-                const filepath = item.id || item.title || '未命名文件';
-                const resolvedChunk = await resolveSnippetToChunk(filepath, contextSnippet);
-
-                allResults.push({
-                  stableId: resolvedChunk.stableId,
-                  filename: resolvedChunk.filename,
-                  filepath,
-                  content: resolvedChunk.content,
-                  rawScore: result.score,
-                  normalizedScore: 0,
-                  rank: resultIndex + 1,
-                  queryWeight: keyword.weight,
-                  keyword: keyword.text,
-                  type: 'fuzzy'
-                });
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      handleRAGError(error, '模糊搜索失败', false);
-    }
-
-    // 2. 使用完整问题执行一次向量搜索，并过滤到文件夹范围
-    try {
-      const queryEmbedding = await getQueryEmbedding(query);
-      if (queryEmbedding) {
-        const vectorCandidateCount = Math.max(resultCount * strategy.vectorCandidateMultiplier, 20);
-        const similarDocs = (await getSimilarDocuments(
-          queryEmbedding,
-          vectorCandidateCount,
-          similarityThreshold,
-          folderVectorKeys
-        ));
-
-        for (const [docIndex, doc] of similarDocs.entries()) {
-          allResults.push({
-            stableId: createChunkStableId(doc.filename, doc.chunk_id),
-            filename: doc.filename,
-            filepath: articlePathFromSourceKey(doc.filename),
-            content: doc.content,
-            rawScore: doc.similarity || 0,
-            normalizedScore: 0,
-            rank: docIndex + 1,
-            queryWeight: 1,
-            type: 'vector'
-          });
-        }
-      }
-    } catch (error) {
-      handleRAGError(error, '向量搜索失败', false);
-    }
-
-    // 3. 使用 BM25 搜索找到相关文档（限定到文件夹范围）
-    try {
-      for (const lexicalQuery of lexicalQueries) {
-        const bm25Results = await searchWithBM25(
-          lexicalQuery.text,
-          Math.max(resultCount * strategy.lexicalCandidateMultiplier, 20)
-        );
-
-        for (const [resultIndex, result] of bm25Results.entries()) {
-          const chunkKey = parseBM25ChunkKey(result.id);
-          if (!chunkKey || !folderVectorKeys.has(chunkKey.filename)) continue;
-          allResults.push({
-            stableId: result.id,
-            filename: chunkKey.filename,
-            filepath: articlePathFromSourceKey(chunkKey.filename),
-            content: result.content,
-            rawScore: result.score,
-            normalizedScore: 0,
-            rank: resultIndex + 1,
-            queryWeight: lexicalQuery.weight,
-            keyword: lexicalQuery.text,
-            type: 'bm25'
-          });
-        }
-      }
-    } catch (error) {
-      handleRAGError(error, 'BM25 搜索失败', false);
-    }
-
-    // 如果没有找到任何相关上下文，返回空结果
-    if (allResults.length === 0) {
-      return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
-    }
-
-    const windowSize = await store.get<number>('ragWindowSize') ?? 2;
-    return await finalizeSearchResults(query, allResults, strategy, resultCount, windowSize);
-  } catch (error) {
-    handleRAGError(error, '获取文件夹查询上下文失败', false);
-    return { context: '', sources: [], sourceDetails: [], diagnostics: [] };
-  }
+/** 目录检索沿用混合排序，只枚举选定目录。 */
+export function getContextForQueryInFolder(query: string, folderPath: string): Promise<RagSearchResponse> {
+  return searchArticles(query, {}, folderPath);
 }

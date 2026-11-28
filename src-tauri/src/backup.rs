@@ -11,6 +11,14 @@ use zip::ZipWriter;
 
 pub(crate) const PRIVATE_SYNC_CREDENTIALS_DIRECTORY: &str = ".notegen-sync-credentials";
 
+pub(crate) fn is_bm25_cache_file(path: &Path) -> bool {
+    path.file_name().and_then(|name| name.to_str()).is_some_and(|name| {
+        ["bm25.db", "bm25.db-wal", "bm25.db-shm", "bm25.db-journal"]
+            .iter()
+            .any(|cache_name| name.eq_ignore_ascii_case(cache_name))
+    })
+}
+
 pub(crate) fn is_sync_credential_path(path: &Path) -> bool {
     path.iter().filter_map(|component| component.to_str()).any(|name| {
         name.eq_ignore_ascii_case(PRIVATE_SYNC_CREDENTIALS_DIRECTORY)

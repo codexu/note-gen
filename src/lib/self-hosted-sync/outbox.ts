@@ -3,7 +3,7 @@ import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb, type RecordStatement } from '@/db'
-import { filterSyncData } from '@/config/sync-exclusions'
+import { filterSyncData, isBM25CacheFile } from '@/config/sync-exclusions'
 import { normalizeTagBoolean } from '@/lib/tag-sync'
 import { decryptPackedJson, encryptJson, loadWorkspaceKey, objectAssociatedData, structuredObjectId } from './crypto'
 import type { SyncObjectKind, WorkspaceType } from './protocol'
@@ -45,6 +45,7 @@ export async function enqueueFileSnapshot(
   workspaceId?: string,
   identityMode: 'import' | 'new' = 'new',
 ) {
+  if (isBM25CacheFile(relativePath)) return
   const database = await getDb()
   const resolvedWorkspaceId = workspaceId ?? await activeLibraryWorkspaceId()
   if (!resolvedWorkspaceId) return
@@ -95,6 +96,7 @@ export async function enqueueAssetSnapshot(
   workspaceId?: string,
   identityMode: 'import' | 'new' = 'new',
 ) {
+  if (isBM25CacheFile(relativePath)) return
   const database = await getDb()
   const resolvedWorkspaceId = workspaceId ?? await activeLibraryWorkspaceId()
   if (!resolvedWorkspaceId) return
@@ -167,6 +169,7 @@ export async function enqueuePathMove(oldPath: string, newPath: string) {
     const relativePath = mapping.relativePath === oldPath
       ? newPath
       : `${newPath}${mapping.relativePath.slice(oldPath.length)}`
+    if (mapping.kind !== 'folder' && (isBM25CacheFile(mapping.relativePath) || isBM25CacheFile(relativePath))) continue
     const portable = await invoke<{ normalized: string; caseFolded: string }>(
       'self_hosted_portable_path', { relativePath },
     )
@@ -434,6 +437,10 @@ async function materializeOutboxRaw(
     if (sourceIds.length === 0) continue
     processedChanges++
     try {
+      if (workspaceType === 'library' && change.domain !== 'folder' && isBM25CacheFile(change.localKey)) {
+        await markChanges(sourceIds.map(item => item.id), 'superseded')
+        continue
+      }
       if (
         workspaceType === 'library'
         && change.operation === 'upsert'

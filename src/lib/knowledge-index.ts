@@ -13,7 +13,7 @@ import {
   replaceVectorDocumentsByFilename,
 } from '@/db/vector'
 import { fetchEmbeddings } from '@/lib/ai'
-import { getBM25Index } from '@/lib/bm25'
+import { invalidateWorkspaceBM25 } from '@/lib/bm25-workspace-index'
 import {
   collectCanvasKnowledgeDocuments,
   collectRecordKnowledgeDocuments,
@@ -47,10 +47,7 @@ async function registerDocument(document: KnowledgeSourceDocument) {
     status: unchanged ? 'ready' : 'pending',
     error: null,
   })
-  getBM25Index()?.replaceByFilename(
-    document.sourceKey,
-    document.chunks.map(chunk => chunk.content)
-  )
+  if (existing?.contentHash !== document.contentHash) invalidateWorkspaceBM25(document.sourceKey)
   return !unchanged
 }
 
@@ -83,10 +80,6 @@ export async function indexKnowledgeDocument(document: KnowledgeSourceDocument):
         updated_at: document.updatedAt,
         }] : []
       })
-    )
-    getBM25Index()?.replaceByFilename(
-      document.sourceKey,
-      document.chunks.map(chunk => chunk.content)
     )
     await updateKnowledgeSourceIndexState(document.sourceKey, {
       status: 'ready',

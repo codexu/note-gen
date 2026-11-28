@@ -20,13 +20,23 @@ export const DEFAULT_SYNC_EXCLUDE_PATTERNS: SyncExcludePattern[] = [
 
 const PRIVATE_SYNC_CREDENTIALS_DIRECTORY = '.notegen-sync-credentials'
 
-export function shouldExcludeSelfHostedWorkspaceEntry(name: string): boolean {
+export function isBM25CacheFile(path: string): boolean {
+  return /(?:^|[/\\])bm25\.db(?:-(?:wal|shm|journal))?$/i.test(path)
+}
+
+export function assertSyncableWorkspaceFile(path: string): void {
+  if (isBM25CacheFile(path)) throw new Error('The local BM25 cache is excluded from synchronization')
+}
+
+export function shouldExcludeSelfHostedWorkspaceEntry(name: string, isDirectory = false): boolean {
   return name === '.notegen' || name === '.DS_Store' || name.endsWith('.tmp')
     || name.toLowerCase() === PRIVATE_SYNC_CREDENTIALS_DIRECTORY
+    || (!isDirectory && isBM25CacheFile(name))
 }
 
 // 检查路径是否应该排除在同步之外
 export function shouldExclude(path: string): boolean {
+  if (isBM25CacheFile(path)) return true
   const excludePatterns = getExcludePatterns()
 
   for (const pattern of excludePatterns) {

@@ -1,5 +1,5 @@
 import { db } from './index';
-import { getBM25Index } from '@/lib/bm25';
+import { clearWorkspaceBM25Index, getWorkspaceBM25Stats, invalidateWorkspaceBM25 } from '@/lib/bm25-workspace-index';
 import { createKnowledgeSourceKey, parseKnowledgeSourceKey } from '@/types/knowledge';
 
 export function normalizeVectorDocumentKey(value: string): string {
@@ -224,12 +224,12 @@ export async function getVectorIndexStats(): Promise<VectorIndexStats> {
       max(updated_at) as last_updated_at
     from vector_documents
   `);
-  const bm25Stats = getBM25Index()?.getStats();
+  const bm25Stats = await getWorkspaceBM25Stats();
   return {
     documentCount: Number(rows[0]?.document_count || 0),
     chunkCount: Number(rows[0]?.chunk_count || 0),
-    bm25DocumentCount: bm25Stats?.documentCount || 0,
-    bm25ChunkCount: bm25Stats?.chunkCount || 0,
+    bm25DocumentCount: bm25Stats.documentCount,
+    bm25ChunkCount: bm25Stats.chunkCount,
     lastUpdatedAt: rows[0]?.last_updated_at ? Number(rows[0].last_updated_at) : null
   };
 }
@@ -354,7 +354,7 @@ export async function deleteVectorDocumentsByFilename(filename: string) {
 
   // 从缓存中删除
   vectorCache.deleteByFilename(normalizedFilename);
-  getBM25Index()?.deleteByFilename(normalizedFilename);
+  invalidateWorkspaceBM25(normalizedFilename);
 }
 
 export async function renameVectorDocumentsByFilename(oldFilename: string, newFilename: string) {
@@ -366,7 +366,8 @@ export async function renameVectorDocumentsByFilename(oldFilename: string, newFi
     'update vector_documents set filename = $1, updated_at = $2 where filename = $3',
     [normalizedNewFilename, Date.now(), normalizedOldFilename]
   );
-  getBM25Index()?.renameFilename(normalizedOldFilename, normalizedNewFilename);
+  invalidateWorkspaceBM25(normalizedOldFilename);
+  invalidateWorkspaceBM25(normalizedNewFilename);
   await vectorCache.update();
 }
 
@@ -376,7 +377,7 @@ export async function deleteVectorDocumentsByPrefix(prefix: string) {
     'delete from vector_documents where filename = $1 or filename like $2',
     [normalizedPrefix, `${normalizedPrefix}/%`]
   );
-  getBM25Index()?.deleteByFilenamePrefix(normalizedPrefix);
+  invalidateWorkspaceBM25(normalizedPrefix);
   await vectorCache.update();
 }
 
@@ -397,7 +398,8 @@ export async function renameVectorDocumentsByPrefix(oldPrefix: string, newPrefix
       [nextFilename, Date.now(), filename]
     );
   }
-  getBM25Index()?.renameFilenamePrefix(normalizedOldPrefix, normalizedNewPrefix);
+  invalidateWorkspaceBM25(normalizedOldPrefix);
+  invalidateWorkspaceBM25(normalizedNewPrefix);
   await vectorCache.update();
 }
 
@@ -480,7 +482,7 @@ export async function clearVectorDb() {
 
   // 清空缓存
   await vectorCache.update();
-  getBM25Index()?.clear();
+  await clearWorkspaceBM25Index();
 }
 
 // 获取所有向量文档的文件名列表

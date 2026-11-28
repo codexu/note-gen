@@ -103,7 +103,7 @@ export function Settings() {
       await consentStore.set('ragStructuredKnowledgeConsent', true)
       if (hasEmbeddingModel) await processAllDocuments()
       else {
-        await initBM25Search()
+        if (!await initBM25Search()) return
         await markIndexClean()
         const builtAt = Date.now()
         const store = await Store.load('store.json')
@@ -113,6 +113,8 @@ export function Settings() {
       }
       await refreshIndexStats()
       await refreshKnowledgeStats()
+    } catch (error) {
+      toast.error(t('unknownIndexError'), { description: String(error) })
     } finally { setRebuildRequested(false) }
   }
 
@@ -145,6 +147,7 @@ export function Settings() {
       const result = await getContextForQuery(query)
       setDiagnosticResults(result.diagnostics)
       setDiagnosticCompleted(true)
+      await refreshIndexStats()
     } catch (error) {
       console.error('知识库检索测试失败:', error)
       toast.error(t('diagnosticFailed'))

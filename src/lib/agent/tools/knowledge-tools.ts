@@ -94,7 +94,7 @@ const knowledgeSearchTool: AgentTool = {
     required: ['query'],
     additionalProperties: false,
   },
-  execute: async input => {
+  execute: async (input, context) => {
     const query = typeof input.query === 'string' ? input.query.trim() : ''
     if (!query) return { ok: false, message: 'query 不能为空。', error: 'EMPTY_QUERY' }
     const sourceTypes = strings(input.sourceTypes).filter(isKnowledgeSourceType)
@@ -109,7 +109,7 @@ const knowledgeSearchTool: AgentTool = {
       tagId: typeof input.tagId === 'number' && Number.isInteger(input.tagId) && input.tagId > 0
         ? input.tagId
         : undefined,
-    })
+    }, { signal: context?.signal })
     return {
       ok: true,
       message: `找到 ${results.wikiPages.length} 个 Wiki 页面和 ${results.sources.length} 个文章、记录或画布候选。`,

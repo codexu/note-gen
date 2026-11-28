@@ -24,7 +24,7 @@ import { BaseDirectory, exists, mkdir, readFile, remove, writeFile } from '@taur
 import { dirname, join } from '@tauri-apps/api/path'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { decodeSyncText, isBinaryFilePath, syncContentBytes } from './file-content'
-import { shouldExclude } from '@/config/sync-exclusions'
+import { isBM25CacheFile, shouldExclude } from '@/config/sync-exclusions'
 import emitter from '@/lib/emitter'
 import {
   getEditorPathMutationRevision,
@@ -271,6 +271,7 @@ export class SyncManager {
     initialEditorMutationRevision = getEditorPathMutationRevision(path),
     localGuard?: { expectedHash?: string; expectedMissing?: boolean },
   ): Promise<SyncResult> {
+    if (isBM25CacheFile(path)) return { success: true, action: 'none', message: '文件被排除在同步之外' }
     const proofWorkspaceIsCurrent = captureFileSyncWorkspaceGuard()
     if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
     try {
@@ -501,6 +502,7 @@ export class SyncManager {
   async syncFile(path: string, options: {
     onConflict?: (local: string, remote: string) => Promise<'local' | 'remote' | 'cancel'>
   } = {}): Promise<SyncResult> {
+    if (isBM25CacheFile(path)) return { success: true, action: 'none', message: '文件被排除在同步之外' }
     if (isFileDeletionPending(path)) return { success: true, action: 'none', message: '文件正在删除' }
     if (await this.getCurrentPlatform() === 'selfHosted') {
       const [{ enqueueFileSnapshot }, { getSelfHostedSyncRuntime }] = await Promise.all([

@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { exists, mkdir, readDir, readFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { Store } from '@tauri-apps/plugin-store'
-import { shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
+import { isBM25CacheFile, shouldExcludeSelfHostedWorkspaceEntry } from '@/config/sync-exclusions'
 import { executeRecordTransaction, getDb, initAllDatabases } from '@/db'
 import { decryptText } from './crypto'
 import { SelfHostedApiError } from './client'
@@ -531,7 +531,8 @@ async function reconcileLibraryFilesRaw(
      where workspace_id = $1 and relative_path is not null and deleted_at is null`,
     [workspaceId]
   )
-  const mappedByPath = new Map(mapped.map(item => [item.relativePath, item]))
+  const mappedByPath = new Map(mapped.filter(item => item.kind === 'folder' || !isBM25CacheFile(item.relativePath))
+    .map(item => [item.relativePath, item]))
   const localPaths = new Set(entries.map(entry => entry.relativePath))
   const pendingMoveOwnsPath = (path: string, folder = false) => pendingMoves.some(move => (
     [move.source, move.target].some(root => path === root || path.startsWith(`${root}/`)
@@ -702,7 +703,7 @@ async function scanPortableEntries(root: string, workspaceId: string) {
         await recordIgnoredSymlink(workspaceId, relative)
         continue
       }
-      if (shouldExcludeSelfHostedWorkspaceEntry(entry.name)) continue
+      if (shouldExcludeSelfHostedWorkspaceEntry(entry.name, entry.isDirectory)) continue
       if (entry.isDirectory) {
         const portable = await portablePath(relative, caseFoldedPaths)
         result.push({ relativePath: portable, kind: 'folder' })

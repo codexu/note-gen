@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { Store } from '@tauri-apps/plugin-store'
 import { executeRecordTransaction, getDb, type RecordStatement } from '@/db'
+import { isBM25CacheFile } from '@/config/sync-exclusions'
 import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace'
 import { authenticatedClient } from './profile'
 import { decryptPackedJson, encryptJson, loadWorkspaceKey, objectAssociatedData } from './crypto'
@@ -149,6 +150,8 @@ export async function moveSelfHostedRemotePath(
   if (source === target || targetCasefold.startsWith(`${sourceCasefold}/`) || sourceCasefold.startsWith(`${targetCasefold}/`)) {
     throw new Error('自托管重命名源路径和目标路径无效或互相包含')
   }
+  const excludedFile = (kind: string, path: string) => kind !== 'folder'
+    && (isBM25CacheFile(path) || (within(source, path) && isBM25CacheFile(target + path.slice(source.length))))
   const touchesMove = (path: string) => [sourceCasefold, targetCasefold].some(root => (
     within(root, path) || within(path, root)
   ))
@@ -200,6 +203,7 @@ export async function moveSelfHostedRemotePath(
           if (payload.domain !== domain(object.kind as PathKind) || typeof payload.relativePath !== 'string') {
             throw new Error('自托管远端路径载荷无效')
           }
+          if (excludedFile(object.kind, payload.relativePath)) continue
           const path = await invoke<string>('self_hosted_move_source_path', { relativePath: payload.relativePath })
           const casefold = path.toLowerCase()
           // An existing collision in another subtree cannot affect the object
@@ -218,6 +222,10 @@ export async function moveSelfHostedRemotePath(
     })
   }
   let snapshot = expected === undefined ? undefined : readSnapshot(expected, context, source, target)
+  if (snapshot) {
+    snapshot.entries = snapshot.entries.filter(entry => !excludedFile(entry.kind, entry.source ?? entry.target))
+    if (!snapshot.entries.length) return { status: 'missing' }
+  }
   const prepareMove = async (): Promise<'missing' | 'moved' | 'queued'> => {
     await current()
     const mappings = await database.select<Mapping[]>(
@@ -227,7 +235,8 @@ export async function moveSelfHostedRemotePath(
     )
     const remoteState = await loadRemote()
     const movedIds = new Set([
-      ...mappings.filter(row => row.relativePath && within(source, row.relativePath)).map(row => row.objectId),
+      ...mappings.filter(row => row.relativePath && within(source, row.relativePath)
+        && !excludedFile(row.kind, row.relativePath)).map(row => row.objectId),
       ...(snapshot?.entries.map(entry => entry.objectId) || []),
       // The native local-move journal may already have rebased the mappings
       // through several offline moves. Remote object IDs still identify any

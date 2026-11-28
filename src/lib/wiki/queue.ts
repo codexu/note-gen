@@ -1,5 +1,6 @@
 import { getKnowledgeSource, registerArticleKnowledgeSource } from '@/db/knowledge'
 import { getAllMarkdownFiles } from '@/lib/files'
+import { getKnowledgeArticleImportRevision } from '@/lib/knowledge-article-import'
 import { estimateTokens } from '@/lib/ai/token-counter'
 import {
   commitWikiSourceRevision, getWikiJob, getWikiMeta, getWikiPage, getWikiRevision, getWikiRevisionInput, getWikiSourceState,
@@ -33,7 +34,22 @@ let stopped = false
 let pausedLocally = false
 let runningWorkspaceCurrent: (() => boolean) | null = null
 let controlRevision = 0
-let scanCache: { contextId: string; articles: Map<string, WikiArticleScan> } | null = null
+let discoveryRevision = 0
+let uncompiledArticles: {
+  contextId: string
+  version: string
+  isCurrent: () => boolean
+  paths: Promise<string[]>
+  sources: Map<string, Promise<WikiArticleScan | null>>
+} | undefined
+let scanCache: {
+  contextId: string
+  articles: Map<string, WikiArticleScan>
+  discoveryRevision: number
+  importRevision: number
+  verified: boolean
+  isCurrent: () => boolean
+} | null = null
 
 function isWikiContextChanged(error: unknown) {
   return error instanceof Error && (error.message === 'WIKI_CONTEXT_CHANGED' || error.message === 'WIKI_SELECTION_CHANGED')
@@ -193,22 +209,61 @@ export async function enqueueWikiSource(sourceKey: string, options: {
   })
 }
 
-export async function reconcileWikiSources(expectedContextId?: string, verifyContents = false) {
+/** A watcher can request a new inventory before its debounced scan starts. */
+export function invalidateWikiSourceInventory() { discoveryRevision++ }
+
+export function reconcileWikiSources(expectedContextId?: string, verifyContents = false) {
+  return scanWikiSources(expectedContextId, verifyContents, false)
+}
+
+/** Wait for source registration only. Compilation runs on the Wiki worker. */
+export async function ensureAgentWikiSourcesReady(contextId: string) {
+  const workspaceCurrent = captureWikiWorkspaceGuard()
+  for (;;) {
+    const revision = discoveryRevision
+    const importRevision = getKnowledgeArticleImportRevision()
+    await scanWikiSources(contextId, false, true)
+    assertWorkspaceCurrent(workspaceCurrent)
+    if (revision === discoveryRevision && importRevision === getKnowledgeArticleImportRevision()) return
+  }
+}
+
+function captureArticleDiscoveryGuard() {
   const workspaceCurrent = captureWikiWorkspaceGuard()
   const assertSelection = captureWikiSelectionGuard()
-  const revision = controlRevision
-  const isCurrent = () => {
+  return () => {
     assertSelection()
-    return workspaceCurrent() && revision === controlRevision
+    return workspaceCurrent()
   }
+}
+
+function scanStillCurrent(isCurrent: () => boolean) {
+  try { return isCurrent() } catch (error) {
+    if (!isWikiContextChanged(error)) throw error
+    return false
+  }
+}
+
+function scanWikiSources(expectedContextId: string | undefined, verifyContents: boolean, forSearch: boolean) {
+  const discoveryCurrent = captureArticleDiscoveryGuard()
+  const revision = controlRevision
+  const isCurrent = () => discoveryCurrent() && revision === controlRevision
+  const previousScan = scanCache
   return serializeMutation(async () => {
     const context = await operationContext(isCurrent, expectedContextId)
     const settings = await getWikiSettings(context.id)
     if (!settings.enabled || !settings.started || settings.paused) return
+    const sourceRevision = discoveryRevision
+    const importRevision = getKnowledgeArticleImportRevision()
+    // The mutation queue puts us after any in-flight scan and pending file registrations.
+    if (scanCache?.contextId === context.id && (forSearch || scanCache !== previousScan)
+      && scanCache.discoveryRevision === sourceRevision && scanCache.importRevision === importRevision
+      && (!verifyContents || scanCache.verified) && scanStillCurrent(scanCache.isCurrent)) return
     const policy = await getWikiSourcePolicy(context.id, settings)
-    const previous = !verifyContents && scanCache?.contextId === context.id ? scanCache.articles : null
+    const previous = !verifyContents && scanCache?.contextId === context.id && scanCache.importRevision === importRevision
+      ? scanCache.articles : null
     const articles = new Map<string, WikiArticleScan>()
-    for (const file of await getAllMarkdownFiles()) {
+    for (const file of await getAllMarkdownFiles(false, true)) {
       assertWorkspaceCurrent(isCurrent)
       const path = normalizeWikiScopeId(file.relativePath)
       if (!isWikiArticlePathSelected(path, settings) || !policy.allowsArticle(path)) continue
@@ -237,9 +292,62 @@ export async function reconcileWikiSources(expectedContextId?: string, verifyCon
       }
     }
     await assertOperationCurrent(context, isCurrent)
-    scanCache = { contextId: context.id, articles }
+    scanCache = {
+      contextId: context.id, articles, discoveryRevision: sourceRevision, importRevision,
+      verified: !previous, isCurrent: discoveryCurrent,
+    }
     wakeWikiQueue()
   })
+}
+
+async function listSelectedArticlePaths(contextId: string, settings: WikiSettings, isCurrent: () => boolean) {
+  const policy = await getWikiSourcePolicy(contextId, settings)
+  assertWorkspaceCurrent(isCurrent)
+  const files = await getAllMarkdownFiles(false, true)
+  assertWorkspaceCurrent(isCurrent)
+  return files.map(file => normalizeWikiScopeId(file.relativePath))
+    .filter(path => isWikiArticlePathSelected(path, settings) && policy.allowsArticle(path))
+}
+
+/** Selected originals remain readable before compilation starts and while it is paused. */
+export async function listUncompiledAgentWikiArticles(contextId: string, settings: WikiSettings): Promise<WikiSourceReference[]> {
+  if (!settings.enabled || settings.semanticSearchEnabled || (settings.started && !settings.paused)) return []
+  const isCurrent = captureArticleDiscoveryGuard()
+  const { getWikiFileCacheRevision } = await import('./files')
+  const currentVersion = () => `${discoveryRevision}:${getKnowledgeArticleImportRevision()}:${getWikiFileCacheRevision(contextId)}`
+  for (;;) {
+    await operationContext(isCurrent, contextId)
+    const version = currentVersion()
+    if (uncompiledArticles?.contextId !== contextId || uncompiledArticles.version !== version
+      || !scanStillCurrent(uncompiledArticles.isCurrent)) {
+      uncompiledArticles = { contextId, version, isCurrent, paths: listSelectedArticlePaths(contextId, settings, isCurrent), sources: new Map() }
+    }
+    const scan = uncompiledArticles
+    const sources: WikiSourceReference[] = []
+    try {
+      const [paths, states] = await Promise.all([scan.paths, listWikiSourceStates(contextId)])
+      const known = new Set(states.map(state => state.sourceKey))
+      for (const path of paths) {
+        assertWorkspaceCurrent(isCurrent)
+        if (known.has(`article:${path}`)) continue
+        let pending = scan.sources.get(path)
+        if (!pending) {
+          pending = scanWikiArticle(path)
+          scan.sources.set(path, pending)
+        }
+        const article = await pending
+        if (article && !article.metadata.derived) sources.push(article.metadata.source)
+      }
+    } catch (error) {
+      if (uncompiledArticles === scan) uncompiledArticles = undefined
+      throw error
+    }
+    assertWorkspaceCurrent(isCurrent)
+    // Reading newly imported originals can overlap a remote deletion or exclusion.
+    const knownNow = new Set(sources.length ? (await listWikiSourceStates(contextId)).map(state => state.sourceKey) : [])
+    await operationContext(isCurrent, contextId)
+    if (version === currentVersion()) return sources.filter(source => !knownNow.has(source.sourceKey))
+  }
 }
 
 class WikiTopicSourcesPendingError extends Error {

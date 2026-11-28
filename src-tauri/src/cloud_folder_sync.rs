@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use tauri::Manager;
 use uuid::Uuid;
 
-use crate::backup::is_sync_credential_path;
+use crate::backup::{is_bm25_cache_file, is_sync_credential_path};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -227,6 +227,7 @@ fn collect_workspace_copy_plan(
             .map_err(|error| format!("Failed to resolve workspace entry: {error}"))?;
         if is_sync_credential_path(relative)
             || (relative.components().count() == 1 && entry.file_name() == ".notegen")
+            || (is_bm25_cache_file(relative) && !source_path.is_dir())
         {
             continue;
         }

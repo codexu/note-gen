@@ -2,7 +2,7 @@ import emitter, { type Events } from '@/lib/emitter'
 import { getWorkspacePath, getDefaultArticleAbsolutePath } from '@/lib/workspace'
 import { getWikiSettings } from './settings'
 import {
-  enqueueWikiSource, reconcileWikiSources, removeWikiSource, moveWikiArticleSources,
+  enqueueWikiSource, invalidateWikiSourceInventory, reconcileWikiSources, removeWikiSource, moveWikiArticleSources,
   resumeWikiQueue, stopWikiQueue,
 } from './queue'
 import { initWikiSyncRuntime } from './sync'
@@ -68,6 +68,10 @@ export async function initWikiRuntime(): Promise<() => void> {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => { timer = null; reconcile() }, 250)
   }
+  const scheduleSourceScan = () => {
+    invalidateWikiSourceInventory()
+    scheduleReconcile()
+  }
   const belongsToWorkspace = async (root?: string) => {
     if (!root) return true
     const workspace = await getWorkspacePath()
@@ -109,7 +113,7 @@ export async function initWikiRuntime(): Promise<() => void> {
       // Moving a generated page out of Wiki does not make it an original:
       // enqueueWikiSource still applies its derived-document metadata guard.
       if (/\.md$/i.test(newPath)) onArticle({ path: newPath })
-      else scheduleReconcile()
+      else scheduleSourceScan()
       return
     }
     void moveWikiArticleSources(oldPath, newPath, true).catch(report)
@@ -127,7 +131,7 @@ export async function initWikiRuntime(): Promise<() => void> {
       if (isWikiFolderPath(event.path)) return
       if (event.kind === 'rescan') {
         verifyContents = true
-        scheduleReconcile()
+        scheduleSourceScan()
         return
       }
       const context = await getWikiContext()
@@ -144,7 +148,7 @@ export async function initWikiRuntime(): Promise<() => void> {
           await enqueueWikiSource(`article:${event.path}`, { expectedContextId: context.id })
           if (!disposed && isCurrent()) await resumeWikiQueue({ expectedContextId: context.id })
         } else {
-          scheduleReconcile()
+          scheduleSourceScan()
         }
       } else if (event.kind === 'deleted') {
         onDelete({ path: event.path, isFolder: true, workspaceRoot: event.workspaceRoot })
@@ -153,7 +157,7 @@ export async function initWikiRuntime(): Promise<() => void> {
       }
     })().catch(report)
   }
-  const onVisibility = () => { if (document.visibilityState === 'visible') scheduleReconcile() }
+  const onVisibility = () => { if (document.visibilityState === 'visible') scheduleSourceScan() }
   const contextKeys = ['primaryBackupMethod', 'workspacePath', 'githubCustomSyncRepo', 'giteeCustomSyncRepo',
     'gitlabCustomSyncRepo', 'giteaCustomSyncRepo', 'githubUsername', 'gitlabUsername', 'giteaUsername',
     'gitlabCustomUrl', 'giteaCustomUrl', 's3SyncConfig', 'webdavSyncConfig', 'cloudFolderSyncConfig']
@@ -181,7 +185,7 @@ export async function initWikiRuntime(): Promise<() => void> {
   emitter.on('editor-navigation-path-deleted', onDelete)
   emitter.on('editor-navigation-path-moved', onMove)
   emitter.on('editor-file-path-changed', onMove)
-  emitter.on('sync-engine-completed', scheduleReconcile)
+  emitter.on('sync-engine-completed', scheduleSourceScan)
   window.addEventListener('wiki-settings-changed', scheduleReconcile)
   window.addEventListener('wiki-synced', scheduleReconcile)
   document.addEventListener('visibilitychange', onVisibility)
@@ -199,7 +203,7 @@ export async function initWikiRuntime(): Promise<() => void> {
     emitter.off('editor-navigation-path-deleted', onDelete)
     emitter.off('editor-navigation-path-moved', onMove)
     emitter.off('editor-file-path-changed', onMove)
-    emitter.off('sync-engine-completed', scheduleReconcile)
+    emitter.off('sync-engine-completed', scheduleSourceScan)
     window.removeEventListener('wiki-settings-changed', scheduleReconcile)
     window.removeEventListener('wiki-synced', scheduleReconcile)
     document.removeEventListener('visibilitychange', onVisibility)

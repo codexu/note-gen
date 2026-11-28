@@ -2,7 +2,7 @@ import { invalidateKnowledgeLexicalCache } from '@/lib/knowledge-lexical-cache'
 import { exists, mkdir, readTextFile, remove, stat, writeTextFile } from '@tauri-apps/plugin-fs'
 import {
   cacheWikiMarkdownConflict, cacheWikiMarkdownDocument, findWikiRevision, getWikiMeta, getWikiPage, getWikiRevision, listWikiPages,
-  getActiveWikiRevisions, listWikiJobs, listWikiSourceStates, removeWikiJob, removeWikiMarkdownCache,
+  getActiveWikiRevisions, listWikiFilePageEntries, listWikiJobs, listWikiPageEntries, listWikiSourceStates, removeWikiJob, removeWikiMarkdownCache,
   recoverWikiMarkdownJob, setWikiMeta, upsertWikiJob, WIKI_METADATA_CONFLICT,
 } from '@/db/wiki'
 import emitter from '@/lib/emitter'
@@ -16,52 +16,81 @@ import {
 import { getFilePathOptions } from '@/lib/workspace'
 import { deleteSelfHostedWorkspacePath, writeSelfHostedWorkspaceText } from '@/lib/self-hosted-sync/files'
 import { WIKI_ROOT_FOLDER, wikiPageVersion, type WikiContext, type WikiPage, type WikiSharedSettings, type WikiSourceRevision, type WikiTopicCitation } from '@/types/wiki'
-import { captureWikiWorkspaceGuard, getWikiContext, getWikiWorkspaceRevision } from './context'
+import { captureWikiWorkspaceGuard, getWikiContext, subscribeWikiWorkspaceChanges } from './context'
 import { ensureWikiWorkspaceRelativePath } from './path'
 import { getWikiSettings, mergeWikiSyncedSettings } from './settings'
 import { compareWikiKeys, resolveWikiSourceReference, wikiHash } from './sources'
-import { parseWikiMarkdown, preserveWikiFrontmatter, preserveWikiMarkdownBody, refreshWikiNavigation, serializeWikiIndexFile, serializeWikiPageFile } from './file-format'
+import { parseWikiMarkdown, preserveWikiFrontmatter, preserveWikiMarkdownBody, refreshWikiNavigation, serializeWikiIndexFile, serializeWikiPageFile, type WikiPageLinkTarget } from './file-format'
 
 export { WIKI_ROOT_FOLDER } from '@/types/wiki'
 const DEFAULT_INDEX_PATH = `${WIKI_ROOT_FOLDER}/索引.md`
 const CATALOG_KEY = 'markdown-catalog'
 interface WikiFileEntry { id: string; path: string; inputHash: string; hash: string; conflicted?: boolean }
-let fileOperations: Promise<unknown> = Promise.resolve()
+let fileOperations: Promise<void> = Promise.resolve()
 let treeRefresh: ReturnType<typeof setTimeout> | null = null
 interface FileInventory { paths: Set<string>; checkedAt: number; wholeWorkspace: boolean }
+interface PageIdentity {
+  id: string
+  title: string
+  filePath?: string
+  hash: string
+  status: WikiPage['status']
+  revisionSourceId?: string
+}
 interface FileSnapshot {
   signature: string | null
-  text: string | null
-  document: NonNullable<ReturnType<typeof parseWikiMarkdown>> | null
+  page?: PageIdentity
+  indexSettings?: WikiSharedSettings
   invalidOrigin?: string
-  hash?: string
   projectedHash?: string
   sourceVersion?: number
   originalSignature?: string | null
 }
-const discoveredPaths = new Map<string, FileInventory>()
-const fileSnapshots = new Map<string, Map<string, FileSnapshot>>()
-const missingIndexPaths = new Map<string, string>()
-const fileCacheRevisions = new Map<string, number>()
-const navigationDirty = new Set<string>()
-const changedFilePaths = new Map<string, number>()
-let hintWorkspaceRevision = -1
+interface WorkspaceFileCache {
+  snapshots: Map<string, FileSnapshot>
+  changedPaths: Map<string, number>
+  inventory?: FileInventory
+  missingIndexPath?: string
+  navigationDirty?: boolean
+  contextId?: string
+  projectionRevision: number
+}
+let workspaceFiles: WorkspaceFileCache | undefined
+let observingWorkspace = false
 let fileEventRevision = 0
 let structureRevision = 0
 const DISCOVERY_INTERVAL = 60_000
 
-export function getWikiFileCacheRevision(contextId: string): number {
-  return (fileCacheRevisions.get(contextId) ?? 0) + fileEventRevision
+function resetFileCache() {
+  fileEventRevision += 1 + (workspaceFiles?.projectionRevision ?? 0)
+  workspaceFiles = undefined
+  if (treeRefresh) {
+    clearTimeout(treeRefresh)
+    treeRefresh = null
+  }
+  structureRevision++
 }
 
-function bumpFileCacheRevision(contextId: string) {
-  fileCacheRevisions.set(contextId, (fileCacheRevisions.get(contextId) ?? 0) + 1)
+function currentFileCache(contextId?: string): WorkspaceFileCache {
+  if (!observingWorkspace) {
+    observingWorkspace = true
+    subscribeWikiWorkspaceChanges(resetFileCache)
+  }
+  if (contextId && workspaceFiles?.contextId && workspaceFiles.contextId !== contextId) resetFileCache()
+  const cache: WorkspaceFileCache = workspaceFiles ??= { snapshots: new Map(), changedPaths: new Map(), projectionRevision: 0 }
+  if (contextId) cache.contextId = contextId
+  return cache
+}
+
+export function getWikiFileCacheRevision(contextId: string): number {
+  const cache = currentFileCache()
+  return fileEventRevision + (cache.contextId === contextId ? cache.projectionRevision : 0)
 }
 
 /** Structural events invalidate discovery, including Wiki files moved outside Wiki/. */
 export function noteWikiFileStructureChanged(path = '', previousPath?: string) {
   if (!/\.md$/i.test(path) || (previousPath && !/\.md$/i.test(previousPath))) {
-    discoveredPaths.clear()
+    currentFileCache().inventory = undefined
     invalidateKnowledgeLexicalCache()
     structureRevision++
     fileEventRevision++
@@ -75,11 +104,8 @@ export function noteWikiMarkdownFileChanged(path: string) {
   if (!/\.md$/i.test(path)) return
   try {
     const safePath = ensureWikiWorkspaceRelativePath(path)
-    const revision = getWikiWorkspaceRevision()
-    if (hintWorkspaceRevision !== revision) changedFilePaths.clear()
-    hintWorkspaceRevision = revision
     invalidateKnowledgeLexicalCache(`article:${safePath}`)
-    changedFilePaths.set(safePath, ++fileEventRevision)
+    currentFileCache().changedPaths.set(safePath, ++fileEventRevision)
   } catch { /* Invalid paths never reach disk. */ }
 }
 
@@ -94,7 +120,7 @@ export async function getWikiArticleFileSignature(path: string): Promise<string 
 
 function serialize<T>(operation: () => Promise<T>): Promise<T> {
   const next = fileOperations.then(operation, operation)
-  fileOperations = next.catch(() => {})
+  fileOperations = next.then(() => {}, () => {})
   return next
 }
 
@@ -209,7 +235,7 @@ function safeTitle(title: string) {
   return title.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').replace(/[. ]+$/, '').slice(0, 70) || 'Wiki'
 }
 
-function defaultPagePath(page: WikiPage) {
+function defaultPagePath(page: Pick<WikiPage, 'id' | 'kind' | 'title'>) {
   return `${WIKI_ROOT_FOLDER}/${page.kind === 'source' ? '来源摘要' : '主题'}/${safeTitle(page.title)}-${wikiHash(page.id).slice(0, 10)}.md`
 }
 
@@ -291,16 +317,13 @@ async function writePage(page: WikiPage, revision?: WikiSourceRevision): Promise
     const state = (await listWikiSourceStates(page.contextId)).find(item => next.sourceRefs.some(ref => ref.stableId === item.stableId))
     if (state?.revisionId) revision = await getWikiRevision(page.contextId, state.revisionId) ?? undefined
   }
-  const pages = await listWikiPages(page.contextId)
-  const knownPages = [...pages.filter(item => item.id !== next.id), next]
+  const pages = await listWikiPageEntries(page.contextId)
+  const knownPages: WikiPageLinkTarget[] = [...pages.filter(item => item.id !== next.id), next]
   // Reserve topic filenames before they are compiled so source pages can link to them.
   for (const contribution of revision?.contributions ?? []) {
     const id = `topic:${contribution.topicKey}`
     if (!knownPages.some(item => item.id === id)) knownPages.push({
-      id, contextId: page.contextId, kind: 'topic', title: contribution.title,
-      aliases: contribution.aliases, body: '', sourceRefs: [], inputHash: page.inputHash,
-      outputHash: wikiHash(''), updatedAt: page.updatedAt, status: 'stale', relatedPageIds: [],
-      topicKey: contribution.topicKey,
+      id, kind: 'topic', title: contribution.title, sourceRefs: [],
     })
   }
   const allPages = knownPages.map(item => ({ ...item,
@@ -340,11 +363,12 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
   const assertCurrent = () => { if (!isCurrent()) throw new Error('WIKI_CONTEXT_CHANGED') }
   await assertContext(context.id)
   assertCurrent()
+  const cache = currentFileCache(context.id)
   const initialStructure = structureRevision
   const [catalog, settings] = await Promise.all([getCatalog(context.id), getWikiSettings(context.id)])
   const catalogById = new Map(catalog.map(entry => [entry.id, entry]))
   const catalogPaths = new Set(catalog.map(entry => `${entry.id}\0${entry.path}`))
-  const inventory = discoveredPaths.get(context.id)
+  const inventory = cache.inventory
   const wholeWorkspace = findMoved || (settings.enabled && settings.started)
   const discover = findMoved || !inventory || inventory.wholeWorkspace !== wholeWorkspace || Date.now() - inventory.checkedAt >= DISCOVERY_INTERVAL
   const paths = discover ? new Set<string>() : inventory.paths
@@ -359,9 +383,8 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
     }
   }
   assertCurrent()
-  const hints = hintWorkspaceRevision === getWikiWorkspaceRevision() ? new Map(changedFilePaths) : new Map<string, number>()
-  const snapshots = fileSnapshots.get(context.id) ?? new Map<string, FileSnapshot>()
-  fileSnapshots.set(context.id, snapshots)
+  const hints = new Map(cache.changedPaths)
+  const snapshots = cache.snapshots
   const candidates = new Set([...paths].filter(path => !snapshots.has(path) || path.startsWith(`${WIKI_ROOT_FOLDER}/`) || hints.has(path)))
   // A periodic stat also discovers externally edited notes if their watcher event was missed.
   if (discover) for (const path of paths) candidates.add(path)
@@ -369,17 +392,17 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
   for (const entry of catalog) candidates.add(entry.path)
   const indexPath = await getWikiMeta<string>(context.id, 'markdown-index-path')
   if (indexPath) candidates.add(indexPath)
-  const [cachedPages, sourceStates] = await Promise.all([listWikiPages(context.id), listWikiSourceStates(context.id)])
+  const [cachedPages, sourceStates] = await Promise.all([listWikiFilePageEntries(context.id), listWikiSourceStates(context.id)])
   const pagesById = new Map(cachedPages.map(page => [page.id, page]))
   const sourcesById = new Map(sourceStates.map(source => [source.stableId, source]))
   assertCurrent()
   const entries: WikiFileEntry[] = []
   const changedTopics = new Set<string>()
   const updatedNoteTopics = new Set<string>()
-  let repairNavigation = navigationDirty.has(context.id)
+  let repairNavigation = cache.navigationDirty ?? false
   const found = new Set<string>()
   const settingsFiles: Array<{ path: string; settings: WikiSharedSettings }> = []
-  const documents: Array<{ path: string; text: string; document: NonNullable<ReturnType<typeof parseWikiMarkdown>>; snapshot: FileSnapshot; changed: boolean }> = []
+  const pageFiles: Array<{ path: string; page: PageIdentity; snapshot: FileSnapshot }> = []
   // Deterministic path order also resolves duplicate copies without merging prose.
   for (const path of [...candidates].sort(compareWikiKeys)) {
     assertCurrent()
@@ -390,24 +413,25 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
       const text = signature === '!non-file' || signature === 'missing' ? null : await readFile(path)
       assertCurrent()
       const document = text && /^notegen-wiki-data:/m.test(text) ? parseWikiMarkdown(text, context.id) : null
-      snapshot = { signature, text: document ? text : null, document,
+      // Parsed titles and IDs can be substring views that retain the entire Markdown buffer.
+      snapshot = structuredClone({
+        signature, indexSettings: document?.kind === 'index' ? document.settings : undefined,
+        page: document?.kind === 'page' && text ? {
+          id: document.page.id, title: document.page.title, filePath: document.page.filePath,
+          hash: wikiHash(text), status: document.page.status, revisionSourceId: document.revision?.source.stableId,
+        } : undefined,
         invalidOrigin: !document && text ? readDamagedPageOrigin(text) : undefined,
-        hash: document && text ? wikiHash(text) : undefined, sourceVersion: previous?.sourceVersion,
-        originalSignature: previous?.originalSignature, projectedHash: previous?.projectedHash }
+        sourceVersion: previous?.sourceVersion,
+        originalSignature: previous?.originalSignature, projectedHash: previous?.projectedHash,
+      })
       snapshots.set(path, snapshot)
     }
-    if (snapshot?.text && snapshot.document) {
-      const entry = snapshot.document.kind === 'page' ? catalogById.get(snapshot.document.page.id) : undefined
-      documents.push({ path, text: snapshot.text, document: snapshot.document, snapshot,
-        changed: Boolean(entry?.conflicted) || snapshot.projectedHash !== snapshot.hash || entry?.path !== path || entry?.hash !== snapshot.hash })
-    }
+    if (snapshot?.page) pageFiles.push({ path, page: snapshot.page, snapshot })
+    if (snapshot?.indexSettings) settingsFiles.push({ path, settings: snapshot.indexSettings })
   }
-  for (const { path, document } of documents) if (document.kind === 'index') {
-    settingsFiles.push({ path, settings: document.settings })
-  }
-  const scannedIds = new Set(documents.flatMap(({ document }) => document.kind === 'page' ? [document.page.id] : []))
+  const scannedIds = new Set(pageFiles.map(file => file.page.id))
   const indexMissing = indexPath && !settingsFiles.length && snapshots.get(indexPath)?.signature === 'missing'
-  const recoverIndex = indexMissing && missingIndexPaths.get(context.id) !== indexPath
+  const recoverIndex = indexMissing && cache.missingIndexPath !== indexPath
   assertCurrent()
   if (initialStructure !== structureRevision) return reconcileFiles(context, findMoved)
   if (!(discover && wholeWorkspace) && (recoverIndex || catalog.some(entry => !scannedIds.has(entry.id)
@@ -416,47 +440,59 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
     // once before writing tombstones, even if compilation is currently disabled.
     return reconcileFiles(context, true)
   }
-  if (indexMissing && indexPath) missingIndexPaths.set(context.id, indexPath)
-  else missingIndexPaths.delete(context.id)
+  cache.missingIndexPath = indexMissing && indexPath ? indexPath : undefined
   for (const file of settingsFiles) await mergeWikiSyncedSettings(context.id, file.settings)
   if (settingsFiles.length) {
     const path = settingsFiles.find(file => file.path === indexPath)?.path || settingsFiles[0].path
     if (path !== indexPath) await setWikiMeta(context.id, 'markdown-index-path', path)
   }
-  documents.sort((left, right) => {
-    const leftId = left.document.kind === 'page' ? left.document.page.id : null
-    const rightId = right.document.kind === 'page' ? right.document.page.id : null
-    const leftKnown = catalogPaths.has(`${leftId}\0${left.path}`)
-    const rightKnown = catalogPaths.has(`${rightId}\0${right.path}`)
+  pageFiles.sort((left, right) => {
+    const leftKnown = catalogPaths.has(`${left.page.id}\0${left.path}`)
+    const rightKnown = catalogPaths.has(`${right.page.id}\0${right.path}`)
     return Number(rightKnown) - Number(leftKnown) || compareWikiKeys(left.path, right.path)
   })
   let jobsAdded = false
-  for (const { path, text, document, snapshot, changed } of documents) {
+  for (const { path, page: identity, snapshot } of pageFiles) {
     assertCurrent()
-    if (document.kind !== 'page' || found.has(document.page.id)) continue
-    found.add(document.page.id)
-    const page = { ...document.page, contextId: context.id, filePath: path }
-    let revision = document.revision
-    const beforeState = revision ? sourcesById.get(revision.source.stableId) : undefined
-    const oldPage = pagesById.get(page.id)
-    const oldEntry = catalogById.get(page.id)
-    if (oldEntry && (oldEntry.conflicted || (oldPage?.status === 'archived' && !oldPage.body && page.status !== 'archived'))) {
-      repairNavigation = true
-      if (page.sourceRefs.every(source => source.sourceType === 'article')
-        && await recoverWikiMarkdownJob(page, oldEntry.inputHash)) jobsAdded = true
-    }
-    if (oldPage?.filePath !== path || oldPage?.title !== page.title || document.page.filePath !== path) repairNavigation = true
-    const entry = { id: page.id, path, inputHash: page.inputHash, hash: snapshot.hash ?? wikiHash(text) }
-    const sourceHint = revision?.source.sourceType === 'article' ? revision.source.stableId.slice('article:'.length) : undefined
+    if (found.has(identity.id)) continue
+    found.add(identity.id)
+    const oldPage = pagesById.get(identity.id)
+    const oldEntry = catalogById.get(identity.id)
+    const beforeState = identity.revisionSourceId ? sourcesById.get(identity.revisionSourceId) : undefined
+    const sourceHint = identity.revisionSourceId?.startsWith('article:')
+      ? identity.revisionSourceId.slice('article:'.length) : undefined
     const originalSignature = sourceHint ? await getWikiArticleFileSignature(sourceHint) : undefined
+    assertCurrent()
     const originalChanged = sourceHint
       ? !originalSignature || snapshot.originalSignature !== originalSignature || hints.has(sourceHint)
       : discover
-    if (sourceHint && originalChanged) bumpFileCacheRevision(context.id)
-    if (!changed && oldPage?.filePath === path && (!revision || (snapshot.sourceVersion === beforeState?.version
-      && !originalChanged))) {
-      entries.push(entry)
+    if (sourceHint && originalChanged) cache.projectionRevision++
+    if (oldPage?.filePath !== path || oldPage?.title !== identity.title || identity.filePath !== path) repairNavigation = true
+    const changed = !oldEntry || oldEntry.conflicted || oldEntry.path !== path || oldEntry.hash !== identity.hash
+      || snapshot.projectedHash !== identity.hash
+    const needsRecovery = oldPage?.status === 'archived' && !oldPage.hasBody && identity.status !== 'archived'
+    if (oldEntry && !changed && oldPage?.filePath === path && !needsRecovery
+      && (!identity.revisionSourceId || (snapshot.sourceVersion === beforeState?.version && !originalChanged))) {
+      entries.push({ ...oldEntry })
       continue
+    }
+
+    // The signature cache owns no Markdown bodies. Import only the selected copy, from disk.
+    const text = await readFile(path)
+    assertCurrent()
+    if (!text || wikiHash(text) !== identity.hash) {
+      snapshots.delete(path)
+      throw new Error('WIKI_FILE_EDITED')
+    }
+    const document = parseWikiMarkdown(text, context.id)
+    if (document?.kind !== 'page' || document.page.id !== identity.id) throw new Error('WIKI_FILE_EDITED')
+    const page = { ...document.page, contextId: context.id, filePath: path }
+    let revision = document.revision
+    const entry = { id: page.id, path, inputHash: page.inputHash, hash: identity.hash }
+    if (oldEntry && (oldEntry.conflicted || needsRecovery)) {
+      repairNavigation = true
+      if (page.sourceRefs.every(source => source.sourceType === 'article')
+        && await recoverWikiMarkdownJob(page, oldEntry.inputHash)) jobsAdded = true
     }
     let originalAvailable = true
     if (revision) {
@@ -471,15 +507,18 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
     }
     // Availability and local record IDs may change even when this file does not.
     assertCurrent()
-    const afterState = await cacheWikiMarkdownDocument(page, revision, originalAvailable)
+    const { sourceState: afterState, pageChanged } = await cacheWikiMarkdownDocument(page, revision, originalAvailable)
     if (afterState) sourcesById.set(afterState.stableId, afterState)
     snapshot.sourceVersion = afterState?.version
     snapshot.originalSignature = originalSignature
-    snapshot.projectedHash = snapshot.hash
-    if (changed || JSON.stringify(oldPage) !== JSON.stringify(page) || beforeState?.version !== afterState?.version) {
-      bumpFileCacheRevision(context.id)
+    snapshot.projectedHash = identity.hash
+    if (changed || pageChanged || beforeState?.version !== afterState?.version) {
+      cache.projectionRevision++
     }
-    pagesById.set(page.id, page)
+    pagesById.set(identity.id, structuredClone({
+      id: page.id, kind: page.kind, title: page.title, filePath: page.filePath, status: page.status,
+      sourceRefs: page.sourceRefs, inputHash: page.inputHash, outputHash: page.outputHash, hasBody: Boolean(page.body),
+    }))
     const activated = afterState?.status === 'ready' && (beforeState?.revisionId !== afterState.revisionId || beforeState?.status !== 'ready')
     if (revision?.source.sourceType === 'article' && (oldPage?.outputHash !== page.outputHash || activated)) {
       const oldRevision = beforeState?.revisionId ? await getWikiRevision(context.id, beforeState.revisionId) : null
@@ -497,7 +536,7 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
   for (const old of catalog) if (!found.has(old.id)) {
     if (snapshots.get(old.path)?.invalidOrigin === old.id) {
       assertCurrent()
-      let page = pagesById.get(old.id)
+      let page = await getWikiPage(context.id, old.id)
       const missingProjection = !page
       if (!page) {
         // A crash can leave a filename reservation committed ahead of its SQLite page.
@@ -512,7 +551,7 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
         }
       }
       const changed = page && await cacheWikiMarkdownConflict(page, missingProjection)
-      if (!old.conflicted || changed) bumpFileCacheRevision(context.id)
+      if (!old.conflicted || changed) cache.projectionRevision++
       if (!old.conflicted) repairNavigation = true
       entries.push({ ...old, conflicted: true })
       delete deleted[old.id]
@@ -537,34 +576,41 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
     }
     if (page?.kind === 'topic') await removeWikiJob(context.id, page.id, page.inputHash)
     pagesById.delete(old.id)
-    bumpFileCacheRevision(context.id)
+    cache.projectionRevision++
   }
   for (const id of found) delete deleted[id]
   for (const entry of entries) deletedPaths.delete(entry.path)
   if (repairNavigation) {
-    navigationDirty.delete(context.id)
+    cache.navigationDirty = false
     const livePages = [...pagesById.values()].filter(page => found.has(page.id))
     for (const entry of entries) {
       assertCurrent()
       const snapshot = snapshots.get(entry.path)
-      if (!snapshot?.text || snapshot.document?.kind !== 'page') continue
-      const next = refreshWikiNavigation(snapshot.text, entry.path, livePages)
-      if (next === snapshot.text) continue
+      if (snapshot?.page?.id !== entry.id) continue
+      const text = await readFile(entry.path)
+      assertCurrent()
+      if (!text || wikiHash(text) !== entry.hash) {
+        snapshots.delete(entry.path)
+        cache.navigationDirty = true
+        continue
+      }
+      const next = refreshWikiNavigation(text, entry.path, livePages)
+      if (next === text) continue
       try {
-        await writeFile(context.id, entry.path, next, snapshot.text)
-        snapshot.text = next
-        snapshot.document = parseWikiMarkdown(next, context.id)
+        await writeFile(context.id, entry.path, next, text)
+        snapshot.page.filePath = entry.path
         snapshot.signature = await getWikiArticleFileSignature(entry.path)
         entry.hash = wikiHash(next)
-        snapshot.hash = entry.hash
+        snapshot.page.hash = entry.hash
       } catch (error) {
         if (!(error instanceof Error) || !['WIKI_FILE_EDITED', 'WIKI_FILE_DELETED'].includes(error.message)) throw error
         // An active editor owns its prose; retry only this managed block later.
-        navigationDirty.add(context.id)
+        cache.navigationDirty = true
       }
     }
   }
   await assertContext(context.id)
+  assertCurrent()
   if (JSON.stringify(catalog) !== JSON.stringify(entries)) await setWikiMeta(context.id, CATALOG_KEY, entries)
   if (JSON.stringify(deleted) !== JSON.stringify(previousDeleted)) await setWikiMeta(context.id, 'markdown-deleted', deleted)
   const sortedDeletedPaths = [...deletedPaths].sort(compareWikiKeys)
@@ -604,8 +650,8 @@ async function reconcileFiles(context: WikiContext, findMoved = false): Promise<
     }
   }
   assertCurrent()
-  if (discover && initialStructure === structureRevision) discoveredPaths.set(context.id, { paths, checkedAt: Date.now(), wholeWorkspace })
-  for (const [path, event] of hints) if (changedFilePaths.get(path) === event) changedFilePaths.delete(path)
+  if (discover && initialStructure === structureRevision) cache.inventory = { paths, checkedAt: Date.now(), wholeWorkspace }
+  for (const [path, event] of hints) if (cache.changedPaths.get(path) === event) cache.changedPaths.delete(path)
   return jobsAdded
 }
 
@@ -644,8 +690,8 @@ async function ensureIndex(contextId: string, explicit = false): Promise<string>
     let suffix = 1
     do { path = `${WIKI_ROOT_FOLDER}/索引-${suffix++}.md`; previous = await readFile(path) } while (previous !== null)
   }
-  const pages = (await listWikiPages(contextId)).filter(page => page.status !== 'archived' && page.filePath)
-  const link = (page: WikiPage) => {
+  const pages = (await listWikiPageEntries(contextId)).filter(page => page.status !== 'archived' && page.filePath)
+  const link = (page: WikiPageLinkTarget) => {
     const title = page.title.replace(/[\r\n]+/g, ' ').replace(/([\\[\]*_`])/g, '\\$1')
     return `- [${title}](<${createRelativeMarkdownHref(path, page.filePath!)}>)`
   }

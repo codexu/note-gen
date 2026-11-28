@@ -5,6 +5,8 @@ import type {
   WikiContribution, WikiEvidence, WikiPage, WikiSharedSettings, WikiSourceReference, WikiSourceRevision,
 } from '@/types/wiki'
 
+export type WikiPageLinkTarget = Pick<WikiPage, 'id' | 'kind' | 'title' | 'sourceRefs' | 'filePath'>
+
 export type WikiMarkdownDocument = {
   kind: 'page'
   page: WikiPage
@@ -211,7 +213,7 @@ function restoreDisplayTitle(title: string | null, stored: string, fallback = ''
   return title === (stored || fallback).replace(/[\r\n]+/g, ' ') ? stored : title || stored
 }
 
-function sourceLinks(page: WikiPage, filePath: string, allPages: WikiPage[], chinese: boolean) {
+function sourceLinks(page: WikiPage, filePath: string, allPages: WikiPageLinkTarget[], chinese: boolean) {
   const links = page.sourceRefs.map((source, index) => {
     const label = plainHeading(source.title || source.stableId)
     if (source.sourceType === 'article' && source.locator.filePath && safeRelativePath(source.locator.filePath)) {
@@ -246,7 +248,7 @@ function pageMetadata(page: WikiPage, filePath: string) {
 
 export function serializeWikiPageFile(
   page: WikiPage, revision: WikiSourceRevision | undefined, filePath: string,
-  allPages: WikiPage[], generatedBodyHash?: string,
+  allPages: WikiPageLinkTarget[], generatedBodyHash?: string,
 ): string {
   const token = hash(`${page.id}:${page.outputHash}:markdown-2`)
   const chinese = zhLanguage(revision?.language)
@@ -474,7 +476,7 @@ export function parseWikiMarkdown(text: string, contextId: string): WikiMarkdown
 }
 
 /** Relocate managed navigation without regenerating or normalizing authored prose. */
-export function refreshWikiNavigation(text: string, filePath: string, allPages: WikiPage[]): string {
+export function refreshWikiNavigation(text: string, filePath: string, allPages: WikiPageLinkTarget[]): string {
   const parsed = readEnvelope(text)
   if (!parsed || parsed.envelope.kind !== 'page' || !safeRelativePath(filePath)) return text
   const { envelope } = parsed

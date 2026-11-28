@@ -141,6 +141,25 @@ export async function getWikiRevision(contextId: string, id: string) {
     'select payload from wiki_revisions where context_id=$1 and id=$2', [contextId, id]))[0] ?? null
 }
 
+export async function getWikiRevisionInput(contextId: string, revisionId: string | null | undefined) {
+  if (!revisionId) return null
+  await initWikiDb()
+  const rows = await db.select<Array<{ generation: number | null; inputHash: string | null }>>(
+    `select json_extract(payload,'$.generation') as generation, json_extract(payload,'$.inputHash') as inputHash
+     from wiki_revisions where context_id=$1 and id=$2 and json_valid(payload)`, [contextId, revisionId])
+  return rows[0] ?? null
+}
+
+export async function hasReadyWikiSourcePage(contextId: string, pageId: string, stableId: string, inputHash: string) {
+  await initWikiDb()
+  const rows = await db.select<Array<{ ready: number }>>(`select 1 as ready from wiki_pages
+    where context_id=$1 and id=$2 and json_valid(payload)
+      and json_extract(payload,'$.kind')='source' and json_extract(payload,'$.status')='ready'
+      and json_extract(payload,'$.inputHash')=$3 and json_array_length(payload,'$.sourceRefs')=1
+      and json_extract(payload,'$.sourceRefs[0].stableId')=$4`, [contextId, pageId, inputHash, stableId])
+  return rows.length > 0
+}
+
 export async function findWikiRevision(contextId: string, inputHash: string) {
   return (await readPayloads<WikiSourceRevision>(`select payload from wiki_revisions
     where context_id=$1 and input_hash=$2 order by output_hash asc limit 1`, [contextId, inputHash]))[0] ?? null
@@ -197,6 +216,25 @@ export function listWikiPages(contextId: string) {
   return readPayloads<WikiPage>('select payload from wiki_pages where context_id=$1', [contextId])
 }
 
+export type WikiPageListEntry = Pick<WikiPage, 'id' | 'kind' | 'title' | 'filePath' | 'status' | 'updatedAt' | 'sourceRefs'>
+
+/** Lists and progress controls have no use for the generated Markdown body. */
+const pageListQuery = `select json_remove(payload,'$.body','$.aliases','$.relatedPageIds','$.inputHash','$.outputHash') as payload
+  from wiki_pages where context_id=$1 and json_valid(payload)`
+
+export function listWikiPageEntries(contextId: string) {
+  return readPayloads<WikiPageListEntry>(pageListQuery, [contextId])
+}
+
+type WikiFilePageEntry = Pick<WikiPage, 'id' | 'kind' | 'title' | 'filePath' | 'status' | 'sourceRefs' | 'inputHash' | 'outputHash'> & { hasBody: boolean }
+
+export function listWikiFilePageEntries(contextId: string) {
+  return readPayloads<WikiFilePageEntry>(`select json_set(
+    json_remove(payload,'$.body','$.aliases','$.relatedPageIds','$.contextId','$.updatedAt','$.topicKey','$.generation'),
+    '$.hasBody',json(case when json_extract(payload,'$.body')<>'' then 'true' else 'false' end)) as payload
+    from wiki_pages where context_id=$1 and json_valid(payload)`, [contextId])
+}
+
 export async function upsertWikiPage(page: WikiPage) {
   await initWikiDb()
   const { writeWikiPageFile } = await import('@/lib/wiki/files')
@@ -207,6 +245,68 @@ export async function upsertWikiPage(page: WikiPage) {
 
 export function listWikiJobs(contextId: string) {
   return readPayloads<WikiJob>('select payload from wiki_jobs where context_id=$1 order by ready_at', [contextId])
+}
+
+export async function getWikiJob(contextId: string, id: string) {
+  return (await readPayloads<WikiJob>('select payload from wiki_jobs where context_id=$1 and id=$2', [contextId, id]))[0] ?? null
+}
+
+export async function getWikiSettingsProgress(contextId: string, failureLimit: number) {
+  await initWikiDb()
+  // Apply the same article-only eligibility as canRunWikiJob before paging.
+  const rows = await db.select<Array<{ payload: string; groupSize: number }>>(`with visible as (
+    select j.id, j.status, j.ready_at, json_extract(j.payload,'$.updatedAt') as updated_at
+    from wiki_jobs j left join wiki_pages p on p.context_id=j.context_id and p.id=j.id and json_valid(p.payload)
+    where j.context_id=$1 and json_valid(j.payload) and json_extract(j.payload,'$.id')=j.id and (
+      case when json_extract(j.payload,'$.kind')='source'
+        then substr(json_extract(j.payload,'$.sourceKey'),1,8)='article:'
+        when json_extract(j.payload,'$.kind') is not 'topic' then 0
+        when p.id is null then 1
+        when p.kind='source' then json_extract(p.payload,'$.sourceRefs[0].sourceType')='article'
+        else json_array_length(p.payload,'$.sourceRefs')=0 or exists (
+          select 1 from json_each(p.payload,'$.sourceRefs') ref
+          where case when ref.type='object' then json_extract(ref.value,'$.sourceType') end='article')
+      end)
+  ), ranked as (
+    select id, status, count(*) over (partition by status='failed') as groupSize,
+      row_number() over (partition by status='failed' order by
+        case status when 'running' then 0 when 'pending' then 1 when 'paused' then 2 else 3 end,
+        updated_at desc, ready_at, id) as position
+    from visible
+  )
+  select j.payload, ranked.groupSize from ranked join wiki_jobs j on j.context_id=$1 and j.id=ranked.id
+  where position <= case when ranked.status='failed' then $2 else 10 end
+  order by ranked.position`, [contextId, failureLimit])
+  const jobs: WikiJob[] = []
+  let failedCount = 0
+  const sourceIds = new Set<string>()
+  const topicIds: string[] = []
+  const conflictedSources: string[] = []
+  for (const row of rows) {
+    const job: WikiJob = JSON.parse(row.payload)
+    jobs.push(job)
+    if (job.status === 'failed') failedCount = row.groupSize
+    if (job.waitingSourceId) sourceIds.add(job.waitingSourceId)
+    if (job.kind === 'topic') topicIds.push(job.id)
+    else {
+      const sourceId = job.id.slice('source:'.length)
+      sourceIds.add(sourceId)
+      if (job.error === 'WIKI_FILE_EDITED' || job.error === 'WIKI_INVALID_MARKDOWN_METADATA') conflictedSources.push(sourceId)
+    }
+  }
+  const [sources, pages] = await Promise.all([
+    sourceIds.size ? readPayloads<WikiSourceState>(`select payload from wiki_sources where context_id=$1
+      and stable_id in (select value from json_each($2))`, [contextId, JSON.stringify([...sourceIds])]) : [],
+    topicIds.length || conflictedSources.length ? readPayloads<WikiPageListEntry>(`${pageListQuery} and id in (
+      select value from json_each($2)
+      union all
+      select p.id from wiki_pages p where json_array_length($3)>0 and p.context_id=$1 and p.kind='source'
+        and json_valid(p.payload) and exists (select 1 from json_each(p.payload,'$.sourceRefs') ref
+          where case when ref.type='object' then json_extract(ref.value,'$.stableId') end
+            in (select value from json_each($3))))`,
+    [contextId, JSON.stringify(topicIds), JSON.stringify(conflictedSources)]) : [],
+  ])
+  return { jobs, failedCount, sources, pages }
 }
 
 export async function upsertWikiJob(job: WikiJob, previous?: WikiJob): Promise<boolean> {
@@ -225,9 +325,7 @@ export async function upsertWikiJob(job: WikiJob, previous?: WikiJob): Promise<b
 export async function removeWikiJob(contextId: string, id: string, expected?: string | WikiJob) {
   await initWikiDb()
   if (expected !== undefined) {
-    const job = typeof expected === 'string'
-      ? (await readPayloads<WikiJob>('select payload from wiki_jobs where context_id=$1 and id=$2', [contextId, id]))[0]
-      : expected
+    const job = typeof expected === 'string' ? await getWikiJob(contextId, id) : expected
     if (!job || (typeof expected === 'string' && job.inputHash !== expected)) return
     await db.execute('delete from wiki_jobs where context_id=$1 and id=$2 and payload=$3', [contextId, id, JSON.stringify(job)])
   } else await db.execute('delete from wiki_jobs where context_id=$1 and id=$2', [contextId, id])
@@ -249,12 +347,15 @@ let usageQueue: Promise<void> = Promise.resolve()
 export function recordWikiUsage(contextId: string, usage: WikiUsage): Promise<void> {
   const update = async () => {
     const current = await getWikiUsage(contextId)
-    await setWikiMeta(contextId, 'usage', {
+    const total = {
       inputTokens: current.inputTokens + usage.inputTokens,
       outputTokens: current.outputTokens + usage.outputTokens,
       estimated: current.estimated || usage.estimated,
-    })
-    emitWikiUpdated()
+    }
+    await setWikiMeta(contextId, 'usage', total)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('wiki-usage-updated', { detail: { contextId, usage: total } }))
+    }
   }
   usageQueue = usageQueue.then(update, update)
   return usageQueue
@@ -279,12 +380,13 @@ export async function markWikiSynced(contextId: string, expectedVersion?: number
 /** Cache a parsed Markdown document. This must never write back to the file. */
 export async function cacheWikiMarkdownDocument(
   page: WikiPage, revision?: WikiSourceRevision, originalAvailable = true,
-): Promise<WikiSourceState | null> {
+) {
   await initWikiDb()
   const previous = await getWikiPage(page.contextId, page.id)
+  const pageChanged = JSON.stringify(previous) !== JSON.stringify(page)
   const statements: RecordStatement[] = []
   let sourceState: WikiSourceState | null = null
-  if (JSON.stringify(previous) !== JSON.stringify(page)) statements.push(pageStatement(page))
+  if (pageChanged) statements.push(pageStatement(page))
   if (revision) {
     if (!await getWikiRevision(page.contextId, revision.id)) statements.push(revisionStatement(revision))
     const current = await getWikiSourceState(page.contextId, revision.source.stableId)
@@ -320,8 +422,8 @@ export async function cacheWikiMarkdownDocument(
   }
   if (statements.length) await executeRecordTransaction(statements)
   if (revision) sourceState = await getWikiSourceState(page.contextId, revision.source.stableId)
-  if (JSON.stringify(previous) !== JSON.stringify(page)) emitWikiUpdated()
-  return sourceState
+  if (pageChanged) emitWikiUpdated()
+  return { sourceState, pageChanged }
 }
 
 export const WIKI_METADATA_CONFLICT = 'WIKI_INVALID_MARKDOWN_METADATA'

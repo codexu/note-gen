@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { usePathname } from 'next/navigation'
 import { BookOpen, ChevronDown, Pause, Play } from 'lucide-react'
@@ -18,21 +18,52 @@ import { assertWikiContextCurrent } from '@/lib/wiki/context'
 import { pauseWikiQueue, resumeWikiQueue, retryWikiJob } from '@/lib/wiki/queue'
 import { getPluginLanguages } from '@/i18n/config'
 import { cn } from '@/lib/utils'
-import { useWikiData } from './use-wiki-data'
+import { getWikiUsage } from '@/db/wiki'
+import type { WikiUsage } from '@/types/wiki'
+import type { useWikiData } from './use-wiki-data'
 import { useWikiErrorMessage } from './use-wiki-error-message'
 import { WikiTaskList } from './wiki-task-list'
 import { WikiSyncNotice } from './wiki-sync-notice'
 import { KnowledgeSettingCard } from './knowledge-setting-card'
 import { useWikiActionScope } from './use-wiki-action-scope'
 
-export function WikiSettingsPanel() {
+function WikiUsageDetails({ contextId }: { contextId: string }) {
+  const t = useTranslations('wiki')
+  const errorMessage = useWikiErrorMessage()
+  const [usage, setUsage] = useState<WikiUsage | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let awaitingInitial = true
+    const onUsage = (event: Event) => {
+      const detail = (event as CustomEvent<{ contextId: string; usage: WikiUsage }>).detail
+      if (detail.contextId !== contextId) return
+      awaitingInitial = false
+      setUsage(detail.usage)
+      setError(null)
+    }
+    window.addEventListener('wiki-usage-updated', onUsage)
+    void getWikiUsage(contextId).then(total => {
+      if (awaitingInitial) setUsage(total)
+    }).catch(cause => { if (awaitingInitial) setError(errorMessage(cause)) })
+    return () => {
+      awaitingInitial = false
+      window.removeEventListener('wiki-usage-updated', onUsage)
+    }
+  }, [contextId, errorMessage])
+  if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>
+  return <>
+    <dl className="grid grid-cols-2 gap-4"><div><dt className="text-xs text-muted-foreground">{t('inputTokens')}</dt><dd className="font-medium">{usage?.inputTokens.toLocaleString() ?? '…'}</dd></div><div><dt className="text-xs text-muted-foreground">{t('outputTokens')}</dt><dd className="font-medium">{usage?.outputTokens.toLocaleString() ?? '…'}</dd></div></dl>
+    {usage && <p className="text-xs text-muted-foreground">{t(usage.estimated ? 'estimatedUsage' : 'actualUsage')}</p>}
+  </>
+}
+
+export function WikiSettingsPanel({ state, onShowMore }: { state: ReturnType<typeof useWikiData>; onShowMore: () => void }) {
   const t = useTranslations('wiki')
   const mobileRoute = usePathname().startsWith('/mobile')
   const errorMessage = useWikiErrorMessage()
-  const { data, error, loading, refresh } = useWikiData()
+  const { data, error, loading, refresh } = state
   const { busy, beginAction } = useWikiActionScope(data?.context.id ?? 'loading')
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [failureLimit, setFailureLimit] = useState(5)
 
   async function run(action: () => Promise<unknown>) {
     if (!data) return
@@ -54,15 +85,13 @@ export function WikiSettingsPanel() {
     {error ? <Alert variant="destructive"><AlertDescription>{t('loadFailed')}: {errorMessage(error)}</AlertDescription></Alert> : null}
   </KnowledgeSettingCard>
 
-  const { settings, context, usage, jobs } = data
+  const { settings, context, jobs, failedCount } = data
   const languages = [...new Map([
     { value: 'zh', label: '中文' }, { value: 'en', label: 'English' }, ...getPluginLanguages(),
     { value: settings.language, label: settings.language },
   ].reverse().map(language => [language.value, language])).values()].reverse()
-  const failedJobs = jobs.filter(job => job.status === 'failed').sort((left, right) => right.updatedAt - left.updatedAt)
-  const jobPriority = { running: 0, pending: 1, paused: 2, failed: 3 }
-  const activeJobs = jobs.filter(job => job.status !== 'failed').sort((left, right) =>
-    jobPriority[left.status] - jobPriority[right.status] || right.updatedAt - left.updatedAt).slice(0, 10)
+  const failedJobs = jobs.filter(job => job.status === 'failed')
+  const activeJobs = jobs.filter(job => job.status !== 'failed')
   const retry = (job: (typeof jobs)[number]) => run(() => retryWikiJob(job.id, { expectedContextId: context.id }))
   const rebuild = (job: (typeof jobs)[number]) => run(() => retryWikiJob(job.id, { overwriteEdited: true, expectedContextId: context.id }))
   return <KnowledgeSettingCard
@@ -84,9 +113,9 @@ export function WikiSettingsPanel() {
           <p className="text-xs text-muted-foreground">{t('foregroundNotice')}</p>
         </> : null}
         {failedJobs.length > 0 && <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">{t('failedTasks', { count: failedJobs.length })}</h3>
-          <WikiTaskList jobs={failedJobs.slice(0, failureLimit)} data={data} busy={busy} onRetry={retry} onRebuild={rebuild} />
-          {failedJobs.length > failureLimit && <Button variant="ghost" size="sm" onClick={() => setFailureLimit(limit => limit + 10)}>{t('folder.showMore')}</Button>}
+          <h3 className="text-sm font-medium">{t('failedTasks', { count: failedCount })}</h3>
+          <WikiTaskList jobs={failedJobs} data={data} busy={busy} onRetry={retry} onRebuild={rebuild} />
+          {failedCount > failedJobs.length && <Button variant="ghost" size="sm" onClick={onShowMore}>{t('folder.showMore')}</Button>}
         </section>}
       </div>
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="rounded-xl bg-muted/40 p-2">
@@ -102,8 +131,7 @@ export function WikiSettingsPanel() {
               <ItemActions><Select value={settings.language} disabled={busy} onValueChange={language => void run(() => updateWikiSettings({ language }, context.id))}><SelectTrigger aria-label={t('outputLanguage')}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{languages.map(language => <SelectItem key={language.value} value={language.value}>{language.label}</SelectItem>)}</SelectGroup></SelectContent></Select></ItemActions>
             </Item>
           </ItemGroup>
-          <dl className="grid grid-cols-2 gap-4"><div><dt className="text-xs text-muted-foreground">{t('inputTokens')}</dt><dd className="font-medium">{usage.inputTokens.toLocaleString()}</dd></div><div><dt className="text-xs text-muted-foreground">{t('outputTokens')}</dt><dd className="font-medium">{usage.outputTokens.toLocaleString()}</dd></div></dl>
-          <p className="text-xs text-muted-foreground">{usage.estimated ? t('estimatedUsage') : t('actualUsage')}</p>
+          <WikiUsageDetails key={context.id} contextId={context.id} />
           {activeJobs.length ? <WikiTaskList jobs={activeJobs} data={data} busy={busy} onRetry={retry} />
             : !failedJobs.length && <p className="text-sm text-muted-foreground">{t('noTasks')}</p>}
           <p className="text-xs text-muted-foreground">{t('syncNotice')}</p>

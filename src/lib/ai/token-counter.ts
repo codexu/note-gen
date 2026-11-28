@@ -1,15 +1,26 @@
 import type { Chat } from '@/db/chats'
 import { getChatMessageHistoryText } from './history-messages'
 
-/**
- * 简单的 Token 估算（不依赖外部库）
- * 规则：中文约 1.5 字符/token，英文约 4 字符/token
- */
-export function estimateTokens(text: string): number {
+// Twelfths of a token keep the existing 2/3 and 1/4 estimates additive before rounding.
+export const TOKEN_WEIGHT_SCALE = 12
+
+export function tokenWeightOfCodeUnit(code: number): number {
+  return code >= 0x4e00 && code <= 0x9fa5 ? 8 : 3
+}
+
+export function getTokenWeight(text: string): number {
   if (!text) return 0
-  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length
-  const otherChars = text.length - chineseChars
-  return Math.ceil(chineseChars / 1.5 + otherChars / 4)
+  const firstChinese = text.search(/[\u4e00-\u9fa5]/)
+  if (firstChinese < 0) return text.length * 3
+  let weight = firstChinese * 3
+  for (let i = firstChinese; i < text.length; i++) {
+    weight += tokenWeightOfCodeUnit(text.charCodeAt(i))
+  }
+  return weight
+}
+
+export function estimateTokens(text: string): number {
+  return Math.ceil(getTokenWeight(text) / TOKEN_WEIGHT_SCALE)
 }
 
 /**

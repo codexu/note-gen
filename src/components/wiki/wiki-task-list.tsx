@@ -5,7 +5,8 @@ import { useTranslations } from 'next-intl'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item'
-import type { WikiJob, WikiPage, WikiSourceState } from '@/types/wiki'
+import type { WikiJob, WikiSourceState } from '@/types/wiki'
+import type { WikiPageListEntry } from '@/db/wiki'
 import { captureWikiWorkspaceGuard } from '@/lib/wiki/context'
 import { getWikiArticleFileSignature } from '@/lib/wiki/files'
 import { useWikiErrorMessage } from './use-wiki-error-message'
@@ -14,7 +15,7 @@ import { useWikiNavigation } from './use-wiki-navigation'
 interface WikiTaskData {
   context: { id: string }
   settings: { enabled: boolean }
-  pages: WikiPage[]
+  pages: WikiPageListEntry[]
   sources: WikiSourceState[]
 }
 

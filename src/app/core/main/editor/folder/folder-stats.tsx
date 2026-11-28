@@ -25,7 +25,7 @@ import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { assertWikiContextCurrent, captureWikiWorkspaceGuard } from '@/lib/wiki/context'
-import { collectWikiArticleSourceDocuments } from '@/lib/wiki/sources'
+import { getWikiSourcePolicy, visitWikiArticleDocuments } from '@/lib/wiki/sources'
 import emitter from '@/lib/emitter'
 import { useWikiActionScope } from '@/components/wiki/use-wiki-action-scope'
 
@@ -141,10 +141,10 @@ export function FolderStatsView({ folderPath, folderFiles }: FolderStatsViewProp
     const refreshEligible = async () => {
       const current = ++request
       if (!contextId) return
-      const documents = await collectWikiArticleSourceDocuments(candidatePaths, contextId)
-      if (active && isCurrent() && current === request) {
-        setUnregistered({ key: candidateKey, count: documents.length })
-      }
+      const stillCurrent = () => active && isCurrent() && current === request
+      const policy = await getWikiSourcePolicy(contextId)
+      const count = await visitWikiArticleDocuments(candidatePaths, policy, stillCurrent)
+      if (stillCurrent()) setUnregistered({ key: candidateKey, count })
     }
     const update = () => { void refreshEligible().catch(cause => console.error('Failed to read Wiki source eligibility:', cause)) }
     const onFile = ({ path: changedPath }: { path: string }) => {

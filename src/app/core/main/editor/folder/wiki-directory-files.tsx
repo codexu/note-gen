@@ -15,7 +15,8 @@ import { ensureLocalLibraryFile } from '@/lib/sync/remote-library'
 import { assertWikiContextCurrent, captureWikiWorkspaceGuard } from '@/lib/wiki/context'
 import { getFilePathOptions } from '@/lib/workspace'
 import useArticleStore from '@/stores/article'
-import { WIKI_ROOT_FOLDER, type WikiPage } from '@/types/wiki'
+import { WIKI_ROOT_FOLDER } from '@/types/wiki'
+import type { WikiPageListEntry } from '@/db/wiki'
 
 type Entry = { name: string; isDirectory: boolean }
 
@@ -30,7 +31,7 @@ export async function openWikiDirectoryEntry(path: string, isDirectory: boolean,
   })
 }
 
-export function WikiDirectoryFiles({ path, contextId, pages }: { path: string; contextId: string; pages: WikiPage[] }) {
+export function WikiDirectoryFiles({ path, contextId, pages }: { path: string; contextId: string; pages: WikiPageListEntry[] }) {
   const t = useTranslations('wiki.folder')
   const wiki = useTranslations('wiki')
   const errorMessage = useWikiErrorMessage()

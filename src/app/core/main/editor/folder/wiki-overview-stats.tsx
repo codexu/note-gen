@@ -9,11 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '@/components/ui/item'
 import { useWikiNavigation } from '@/components/wiki/use-wiki-navigation'
-import type { WikiPage, WikiSourceState } from '@/types/wiki'
+import type { WikiSourceState } from '@/types/wiki'
+import type { WikiPageListEntry } from '@/db/wiki'
 
 type List = 'summaries' | 'topics' | 'sources'
 
-export function WikiOverviewStats({ contextId, pages, sources }: { contextId: string; pages: WikiPage[]; sources: WikiSourceState[] }) {
+export function WikiOverviewStats({ contextId, pages, sources }: { contextId: string; pages: WikiPageListEntry[]; sources: WikiSourceState[] }) {
   const t = useTranslations('wiki')
   const { openPage } = useWikiNavigation()
   const [list, setList] = useState<List | null>(null)

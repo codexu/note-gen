@@ -4,7 +4,7 @@ import { z } from 'zod'
 import type { AiConfig } from '@/app/core/setting/config'
 import { createOpenAIClient, getAISettingsByModelId, withFastAiRequestOptions } from '@/lib/ai/utils'
 import { resolveModelCapacity, parseContextOverflowError } from '@/lib/ai/model-capacity'
-import { estimateTokens } from '@/lib/ai/token-counter'
+import { estimateTokens, getTokenWeight, TOKEN_WEIGHT_SCALE, tokenWeightOfCodeUnit } from '@/lib/ai/token-counter'
 
 export interface WikiAiUsage {
   inputTokens: number
@@ -62,33 +62,38 @@ export function wikiInputBudget(session: WikiAiSession, instructions = '') {
 /** Split every part, including a single oversized paragraph, without dropping text. */
 export function splitWikiText(text: string, tokenBudget: number): string[] {
   if (!text.trim()) return []
-  const budget = Math.max(128, tokenBudget)
+  const maxWeight = Math.floor(Math.max(128, tokenBudget)) * TOKEN_WEIGHT_SCALE
   const parts = text.split(/(?=^#{1,6}\s)|(?<=\n\n)/m)
   const chunks: string[] = []
   let current = ''
+  let currentWeight = 0
   for (const part of parts) {
-    if (estimateTokens(current + part) <= budget) {
+    const partWeight = getTokenWeight(part)
+    if (currentWeight + partWeight <= maxWeight) {
       current += part
+      currentWeight += partWeight
       continue
     }
     if (current) chunks.push(current)
-    current = ''
-    if (estimateTokens(part) <= budget) {
+    if (partWeight <= maxWeight) {
       current = part
+      currentWeight = partWeight
       continue
     }
-    let remaining = part
-    while (remaining) {
-      let low = 1
-      let high = remaining.length
-      while (low < high) {
-        const middle = Math.ceil((low + high) / 2)
-        if (estimateTokens(remaining.slice(0, middle)) <= budget) low = middle
-        else high = middle - 1
+    current = ''
+    currentWeight = 0
+    let start = 0
+    let weight = 0
+    for (let i = 0; i < part.length; i++) {
+      const next = tokenWeightOfCodeUnit(part.charCodeAt(i))
+      if (i > start && !(weight + next <= maxWeight)) {
+        chunks.push(part.slice(start, i))
+        start = i
+        weight = 0
       }
-      chunks.push(remaining.slice(0, low))
-      remaining = remaining.slice(low)
+      weight += next
     }
+    if (start < part.length) chunks.push(part.slice(start))
   }
   if (current) chunks.push(current)
   return chunks
@@ -99,18 +104,23 @@ export function splitWikiSourceText(text: string, budget: number): string[] {
   if (estimateTokens(text) <= budget) return text.trim() ? [text] : []
   const chunks: string[] = []
   let smallSections = ''
+  let smallSectionsWeight = 0
   for (const section of text.split(/(?=^#{1,6}[ \t]+)/m)) {
     if (!section.trim()) continue
-    if (estimateTokens(section) >= budget / 4) {
+    const sectionWeight = getTokenWeight(section)
+    if (Math.ceil(sectionWeight / TOKEN_WEIGHT_SCALE) >= budget / 4) {
       if (smallSections) chunks.push(smallSections)
       smallSections = ''
-      chunks.push(...splitWikiText(section, budget))
+      smallSectionsWeight = 0
+      for (const chunk of splitWikiText(section, budget)) chunks.push(chunk)
     } else {
-      if (smallSections && estimateTokens(smallSections + section) > budget) {
+      if (smallSections && Math.ceil((smallSectionsWeight + sectionWeight) / TOKEN_WEIGHT_SCALE) > budget) {
         chunks.push(smallSections)
         smallSections = ''
+        smallSectionsWeight = 0
       }
       smallSections += section
+      smallSectionsWeight += sectionWeight
     }
   }
   if (smallSections) chunks.push(smallSections)

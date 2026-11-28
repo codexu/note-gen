@@ -4,17 +4,17 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getWikiContext } from '@/lib/wiki/context'
 import { initAllDatabases } from '@/db'
 import { getWikiSettings } from '@/lib/wiki/settings'
-import { getWikiMeta, getWikiUsage, listWikiJobs, listWikiPages, listWikiSourceStates } from '@/db/wiki'
+import { getWikiMeta, getWikiSettingsProgress, listWikiJobs, listWikiPageEntries, listWikiSourceStates, type WikiPageListEntry } from '@/db/wiki'
 import useSettingStore, { useSettingsHydrationStore } from '@/stores/setting'
-import { canRunWikiJob, type WikiContext, type WikiJob, type WikiPage, type WikiSettings, type WikiSourceState, type WikiUsage } from '@/types/wiki'
+import { canRunWikiJob, type WikiContext, type WikiJob, type WikiSettings, type WikiSourceState } from '@/types/wiki'
 
 interface WikiData {
   context: WikiContext
   settings: WikiSettings
-  pages: WikiPage[]
+  pages: WikiPageListEntry[]
   jobs: WikiJob[]
   sources: WikiSourceState[]
-  usage: WikiUsage
+  failedCount: number
   syncStatus: { phase: 'syncing' | 'idle' | 'failed'; error: string | null; completedAt?: number } | null
 }
 
@@ -34,11 +34,19 @@ function emptyState(scope: WikiDataScope): WikiDataState {
   return { scope, data: null, error: null, loading: true }
 }
 
-export function useWikiData() {
+async function getFolderWikiProgress(contextId: string) {
+  const [pages, jobs, sources] = await Promise.all([
+    listWikiPageEntries(contextId), listWikiJobs(contextId), listWikiSourceStates(contextId),
+  ])
+  const pagesById = new Map(pages.map(page => [page.id, page]))
+  const visibleJobs = jobs.filter(job => canRunWikiJob(job, pagesById.get(job.id)))
+  return { pages, sources, jobs: visibleJobs, failedCount: visibleJobs.filter(job => job.status === 'failed').length }
+}
+
+export function useWikiData(settingsFailureLimit?: number) {
   const workspacePath = useSettingStore(state => state.workspacePath)
   const settingsReady = useSettingsHydrationStore(state => state.status === 'ready')
-  const mounted = useRef(false)
-  const request = useRef(0)
+  const refreshRequest = useRef<() => Promise<void>>(() => Promise.resolve())
   const scopeRef = useRef<WikiDataScope>({ workspacePath, ready: settingsReady })
   const [state, setState] = useState<WikiDataState>(() => emptyState(scopeRef.current))
 
@@ -48,53 +56,14 @@ export function useWikiData() {
     if (scopeRef.current.workspacePath !== path || scopeRef.current.ready !== ready) {
       // Object identity also distinguishes A -> B -> A between React renders.
       scopeRef.current = { workspacePath: path, ready }
-      request.current++
     }
     return scopeRef.current
   }, [])
   const scope = getScope()
 
-  const refresh = useCallback(async () => {
-    const target = getScope()
-    if (!mounted.current || !target.ready) return
-    const current = ++request.current
-    const isCurrent = () => mounted.current && getScope() === target && current === request.current
-    setState(previous => previous.scope === target
-      ? { ...previous, error: null, loading: previous.data === null }
-      : emptyState(target))
-    try {
-      await initAllDatabases()
-      if (!isCurrent()) return
-      const context = await getWikiContext()
-      if (!isCurrent()) return
-      const workspaceKey = target.workspacePath
-        ? `custom:${target.workspacePath.replaceAll('\\', '/').replace(/\/+$/, '')}`
-        : 'default:article'
-      if (context.workspaceKey !== workspaceKey) throw new Error('WIKI_CONTEXT_CHANGED')
-      const [settings, pages, jobs, sources, usage, syncStatus] = await Promise.all([
-        getWikiSettings(context.id), listWikiPages(context.id), listWikiJobs(context.id),
-        listWikiSourceStates(context.id), getWikiUsage(context.id),
-        getWikiMeta<WikiData['syncStatus']>(context.id, 'sync-status'),
-      ])
-      if (!isCurrent()) return
-      const latestContext = await getWikiContext()
-      if (!isCurrent() || latestContext.id !== context.id) return
-      const pagesById = new Map(pages.map(page => [page.id, page]))
-      const visibleJobs = jobs.filter(job => canRunWikiJob(job, pagesById.get(job.id)))
-      setState({ scope: target, data: { context, settings, pages, jobs: visibleJobs, sources, usage, syncStatus },
-        error: null, loading: false })
-    } catch (cause) {
-      if (isCurrent()) {
-        setState(previous => ({ ...(previous.scope === target ? previous : emptyState(target)),
-          error: cause instanceof Error ? cause.message : String(cause), loading: false }))
-      }
-    } finally {
-      if (isCurrent()) setState(previous => previous.scope === target ? { ...previous, loading: false } : previous)
-    }
-  }, [getScope])
+  const refresh = useCallback(() => refreshRequest.current(), [])
 
   useEffect(() => {
-    mounted.current = true
     const invalidateScope = () => {
       const next = getScope()
       setState(previous => previous.scope === next ? previous : emptyState(next))
@@ -105,18 +74,67 @@ export function useWikiData() {
     const unsubscribeHydration = useSettingsHydrationStore.subscribe((next, previous) => {
       if (next.status !== previous.status) invalidateScope()
     })
-    const onUpdate = () => { void refresh() }
-    window.addEventListener('wiki-updated', onUpdate)
     return () => {
-      mounted.current = false
-      request.current++
       unsubscribeSettings()
       unsubscribeHydration()
+    }
+  }, [getScope])
+
+  useEffect(() => {
+    if (!scope.ready) return
+    let disposed = false
+    let running: Promise<void> | null = null
+    let queued: Promise<void> | null = null
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const isCurrent = () => !disposed && getScope() === scope
+    const load = async () => {
+      try {
+        await initAllDatabases()
+        if (!isCurrent()) return
+        const context = await getWikiContext()
+        const workspaceKey = scope.workspacePath
+          ? `custom:${scope.workspacePath.replaceAll('\\', '/').replace(/\/+$/, '')}`
+          : 'default:article'
+        if (context.workspaceKey !== workspaceKey) throw new Error('WIKI_CONTEXT_CHANGED')
+        if (!isCurrent()) return
+        const [settings, progress, syncStatus] = await Promise.all([
+          getWikiSettings(context.id),
+          settingsFailureLimit === undefined ? getFolderWikiProgress(context.id) : getWikiSettingsProgress(context.id, settingsFailureLimit),
+          getWikiMeta<WikiData['syncStatus']>(context.id, 'sync-status'),
+        ])
+        if (isCurrent()) setState({ scope, data: { context, settings, ...progress, syncStatus }, error: null, loading: false })
+      } catch (cause) {
+        if (isCurrent()) setState(previous => ({ ...(previous.scope === scope ? previous : emptyState(scope)),
+          error: cause instanceof Error ? cause.message : String(cause), loading: false }))
+      }
+    }
+    const request = (): Promise<void> => {
+      clearTimeout(timer)
+      timer = undefined
+      if (running) {
+        if (!queued) queued = running.then(() => {
+          queued = null
+          if (isCurrent()) return request()
+        })
+        return queued
+      }
+      running = load().finally(() => { running = null })
+      return running
+    }
+    // A burst of source and queue writes needs one refresh after the writes settle.
+    const onUpdate = () => {
+      if (timer === undefined) timer = setTimeout(() => { void request() }, 200)
+    }
+    refreshRequest.current = request
+    window.addEventListener('wiki-updated', onUpdate)
+    void request()
+    return () => {
+      disposed = true
+      clearTimeout(timer)
+      refreshRequest.current = () => Promise.resolve()
       window.removeEventListener('wiki-updated', onUpdate)
     }
-  }, [getScope, refresh])
-
-  useEffect(() => { void refresh() }, [scope, refresh])
+  }, [getScope, scope, settingsFailureLimit])
 
   const current = settingsReady && scope.ready && scope.workspacePath === workspacePath && state.scope === scope
   return { data: current ? state.data : null, error: current ? state.error : null,

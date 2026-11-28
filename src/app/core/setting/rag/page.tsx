@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { BookOpen, Layers } from 'lucide-react'
 import { toast } from 'sonner'
@@ -20,7 +21,9 @@ export default function KnowledgeSetting() {
   const t = useTranslations('settings.rag')
   const wiki = useTranslations('wiki')
   const errorMessage = useWikiErrorMessage()
-  const { data, refresh } = useWikiData()
+  const [failureLimit, setFailureLimit] = useState(5)
+  const wikiState = useWikiData(failureLimit)
+  const { data, refresh } = wikiState
   const { busy, beginAction } = useWikiActionScope(data?.context.id ?? 'loading')
   const semanticEnabled = data?.settings.semanticSearchEnabled ?? false
 
@@ -38,7 +41,7 @@ export default function KnowledgeSetting() {
   }
 
   return <SettingType id="rag" title={wiki('title')} desc={wiki('description')} icon={<BookOpen />}>
-    <WikiSettingsPanel />
+    <WikiSettingsPanel state={wikiState} onShowMore={() => setFailureLimit(limit => limit + 10)} />
     <KnowledgeSettingCard title={t('ragTitle')} description={t('ragDescription')} icon={Layers} label={wiki('optionalMode')} enabled={semanticEnabled} actions={<Switch aria-label={t('ragTitle')} checked={semanticEnabled} disabled={busy || !data} onCheckedChange={enabled => void toggleSemantic(enabled)} />}>
       {semanticEnabled ? <>
         <ModelSetting kind="embedding" />

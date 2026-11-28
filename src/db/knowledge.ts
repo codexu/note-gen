@@ -117,6 +117,16 @@ export async function upsertKnowledgeSource(source: KnowledgeSource) {
   )
 }
 
+// Wiki discovery only registers an original. Vector indexing owns indexed_hash, status and error.
+export async function registerArticleKnowledgeSource(filePath: string, title: string, contentHash: string, updatedAt: number) {
+  await db.execute(`insert into knowledge_sources
+    (source_key, source_type, source_id, title, locator, content_hash, status, updated_at)
+    values ($1, 'article', $2, $3, $4, $5, 'pending', $6)
+    on conflict(source_key) do update set title=excluded.title, locator=excluded.locator,
+      content_hash=excluded.content_hash, updated_at=excluded.updated_at`,
+  [`article:${filePath}`, filePath, title, JSON.stringify({ filePath }), contentHash, updatedAt])
+}
+
 export async function getKnowledgeSource(sourceKey: string): Promise<KnowledgeSource | null> {
   const rows = await db.select<KnowledgeSourceRow[]>(
     'select * from knowledge_sources where source_key = $1 limit 1',

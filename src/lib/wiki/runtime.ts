@@ -18,9 +18,10 @@ export async function initWikiRuntime(): Promise<() => void> {
   let timer: ReturnType<typeof setTimeout> | null = null
   let reconciling: Promise<void> | null = null
   let requestedAgain = false
+  let verifyContents = true
   let activeContextId: string | null = null
   const report = (error: unknown) => {
-    if (error instanceof Error && error.message === 'WIKI_CONTEXT_CHANGED') return
+    if (error instanceof Error && (error.message === 'WIKI_CONTEXT_CHANGED' || error.message === 'WIKI_SELECTION_CHANGED')) return
     console.error('Wiki runtime:', error)
   }
 
@@ -39,9 +40,16 @@ export async function initWikiRuntime(): Promise<() => void> {
         const settings = await getWikiSettings(context.id)
         if (disposed || !isCurrent()) continue
         if (!settings.enabled || !settings.started || settings.paused) stopWikiQueue()
-        if (settings.enabled && settings.started) await reconcileWikiSources(context.id)
-        if (disposed || !isCurrent()) continue
         if (settings.enabled && settings.started && !settings.paused) {
+          const verify = verifyContents
+          verifyContents = false
+          try {
+            await reconcileWikiSources(context.id, verify)
+          } catch (error) {
+            verifyContents ||= verify
+            throw error
+          }
+          if (disposed || !isCurrent()) continue
           await resumeWikiQueue({ expectedContextId: context.id })
         }
         if (disposed || !isCurrent()) continue
@@ -118,6 +126,7 @@ export async function initWikiRuntime(): Promise<() => void> {
       }
       if (isWikiFolderPath(event.path)) return
       if (event.kind === 'rescan') {
+        verifyContents = true
         scheduleReconcile()
         return
       }

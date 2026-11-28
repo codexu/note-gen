@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { createWikiTopicCatalog } from './topic-catalog'
 import {
   commitWikiSourceRevision, findWikiRevision, getActiveWikiRevisions, getWikiMeta,
-  getWikiPage, getWikiRevision, getWikiSegmentCache, getWikiSourceState,
+  getWikiPage, getWikiRevision, getWikiSegmentCache,
   recordWikiUsage, saveWikiSegmentCache, upsertWikiJob, upsertWikiPage,
 } from '@/db/wiki'
 import {
@@ -68,14 +68,14 @@ export function wikiSourceWithEvidence(source: WikiSourceReference, contribution
   return { ...source, locator: { ...source.locator, nodeIds } }
 }
 
-export async function getWikiSourceGeneration(contextId: string, stableId: string, settings: WikiSettings) {
-  const state = await getWikiSourceState(contextId, stableId)
-  const revision = state?.revisionId ? await getWikiRevision(contextId, state.revisionId) : null
-  return Math.max(settings.generation, revision?.generation ?? 0,
+export async function getWikiSourceGeneration(
+  contextId: string, stableId: string, settings: WikiSettings, revisionGeneration: number | null | undefined,
+) {
+  return Math.max(settings.generation, revisionGeneration ?? 0,
     await getWikiMeta<number>(contextId, `source-generation:${stableId}`) ?? 0)
 }
 
-export function buildWikiSourceInputHash(document: WikiSourceDocument, settings: WikiSettings, generation: number) {
+export function buildWikiSourceInputHash(document: Pick<WikiSourceDocument, 'source'>, settings: WikiSettings, generation: number) {
   return wikiHash(JSON.stringify([WIKI_PIPELINE_VERSION, document.source.stableId,
     document.source.contentHash, generation, settings.language]))
 }
@@ -258,9 +258,9 @@ export async function compileWikiSource(
   state: WikiSourceState, signal?: AbortSignal,
 ): Promise<void> {
   if (document.source.sourceType !== 'article') throw new WikiSourceChangedError()
-  const generation = await getWikiSourceGeneration(context.id, document.source.stableId, settings)
-  const inputHash = buildWikiSourceInputHash(document, settings, generation)
   const previous = state.revisionId ? await getWikiRevision(context.id, state.revisionId) : null
+  const generation = await getWikiSourceGeneration(context.id, document.source.stableId, settings, previous?.generation)
+  const inputHash = buildWikiSourceInputHash(document, settings, generation)
   let revision = await findWikiRevision(context.id, inputHash)
   if (!revision) {
     const session = await createWikiAiSession(settings.modelId, settings.language)

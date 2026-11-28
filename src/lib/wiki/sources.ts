@@ -1,12 +1,11 @@
-import { BaseDirectory, readTextFile } from '@tauri-apps/plugin-fs'
+import { readTextFile, stat, type FileInfo } from '@tauri-apps/plugin-fs'
 import { createHash } from 'crypto'
 import { getMarkById, getRecordLocatorBySourceId, type Mark } from '@/db/marks'
 import { getTags, type Tag } from '@/db/tags'
 import { getCanvasProject } from '@/db/canvases'
-import { getAllMarkdownFiles } from '@/lib/files'
-import { getArticleKnowledgeUpdatedAt, serializeCanvasDocument } from '@/lib/knowledge-content'
+import { hashKnowledgeContent, serializeCanvasDocument } from '@/lib/knowledge-content'
 import { parseKnowledgeSourceKey } from '@/types/knowledge'
-import { getFilePathOptions } from '@/lib/workspace'
+import { getFilePathOptions, isAbsoluteFsPath } from '@/lib/workspace'
 import { recordMatchesTag, recordTagIds } from '@/lib/record-tags'
 import { Store } from '@tauri-apps/plugin-store'
 import { getWikiGeneratedNotes, getWikiSettings, isWikiArticlePathSelected, isWikiSourceSelected, normalizeWikiScopeId } from './settings'
@@ -14,10 +13,15 @@ import { DEFAULT_EXCLUDED_RAG_PATHS, isPathAllowedForRag } from '@/lib/rag-retri
 import { getKnowledgeSettings } from '@/lib/knowledge-settings'
 import { WIKI_ROOT_FOLDER, type WikiSettings, type WikiSourceReference, type WikiSourceRevision, type WikiSyncDomain } from '@/types/wiki'
 
-export interface WikiSourceDocument {
+export interface WikiSourceMetadata {
   source: WikiSourceReference
-  content: string
   derived?: boolean
+  /** The knowledge registry preserves original line endings in its hash. */
+  knowledgeContentHash?: string
+}
+
+export interface WikiSourceDocument extends WikiSourceMetadata {
+  content: string
   /** Source-only evidence lookup; never persisted or sent as independent facts. */
   nodeTexts?: Array<{ id: string; text: string }>
 }
@@ -111,29 +115,69 @@ export async function getWikiSourceDocument(sourceKey: string): Promise<WikiSour
       nodeTexts,
     }
   }
-  const path = parsed.sourceId.replace(/\\/g, '/').replace(/^\.\//, '')
-  if (!path || path.startsWith('/') || path.split('/').some(part => part === '..' || part.startsWith('.'))) return null
+  return (await readWikiArticle(parsed.sourceId))?.document ?? null
+}
+
+type FileOptions = Awaited<ReturnType<typeof getFilePathOptions>>
+
+function fileSignature(info: FileInfo | null) {
+  const modified = info?.mtime?.getTime()
+  if (!info?.isFile || !modified || modified < 0 || !Number.isSafeInteger(info.size) || info.size < 0) return null
+  return [modified, info.size, info.birthtime?.getTime(), info.dev, info.ino].join(':')
+}
+
+function isWikiArticlePath(path: string) {
+  return Boolean(path) && !isAbsoluteFsPath(path) && !path.split('/').some(part => part.startsWith('.'))
+}
+
+async function readWikiArticle(filePath: string, options?: FileOptions) {
+  const path = filePath.replace(/\\/g, '/').replace(/^\.\//, '')
+  if (!isWikiArticlePath(path)) return null
   try {
-    const options = await getFilePathOptions(path)
-    const content = normalizeSourceContent(options.baseDir === undefined
-      ? await readTextFile(options.path)
-      : await readTextFile(options.path, { baseDir: options.baseDir || BaseDirectory.AppData }))
-    return {
+    const file = options ?? await getFilePathOptions(path)
+    const raw = await readTextFile(file.path, { baseDir: file.baseDir })
+    const info = await stat(file.path, { baseDir: file.baseDir }).catch(() => null)
+    const content = normalizeSourceContent(raw)
+    const contentHash = wikiHash(content)
+    const document: WikiSourceDocument = {
       source: {
-        sourceKey: `article:${path}`,
-        stableId: `article:${path}`,
-        sourceType: 'article',
-        title: path.split('/').pop() || path,
-        contentHash: wikiHash(content),
-        updatedAt: await getArticleKnowledgeUpdatedAt(options) || undefined,
-        locator: { filePath: path },
-        syncDomain: 'library',
+        sourceKey: `article:${path}`, stableId: `article:${path}`, sourceType: 'article',
+        title: path.split('/').pop() || path, contentHash,
+        updatedAt: info?.isFile ? Math.max(0, info.mtime?.getTime() || 0) || undefined : undefined,
+        locator: { filePath: path }, syncDomain: 'library',
       },
       content,
+      knowledgeContentHash: raw.includes('\r') ? hashKnowledgeContent(raw) : contentHash,
       derived: /^notegen-wiki-origin\s*:/m.test(content.match(/^---\n([\s\S]*?)\n---(?:\n|$)/)?.[1] || ''),
     }
+    return { document, signature: fileSignature(info) }
   } catch {
     return null
+  }
+}
+
+export interface WikiArticleScan {
+  metadata: WikiSourceMetadata
+  signature: string | null
+  verifyAfter: number
+}
+
+/** Keep only verified local metadata between scans. Never retain the article text. */
+export async function scanWikiArticle(path: string, cached?: WikiArticleScan): Promise<WikiArticleScan | null> {
+  if (!isWikiArticlePath(path)) return null
+  const options = await getFilePathOptions(path).catch(() => null)
+  if (!options) return null
+  const before = fileSignature(await stat(options.path, { baseDir: options.baseDir }).catch(() => null))
+  if (before && cached?.signature === before && performance.now() < cached.verifyAfter) return cached
+  const result = await readWikiArticle(path, options)
+  if (!result) return null
+  const { source, derived, knowledgeContentHash } = result.document
+  return {
+    metadata: { source, derived, knowledgeContentHash },
+    signature: before === result.signature ? before : null,
+    // Periodically verify content even if an external writer preserved both time and size
+    // and its notification was lost. Spread verification across ordinary reconciliations.
+    verifyAfter: performance.now() + (10 + Math.random() * 10) * 60_000,
   }
 }
 
@@ -200,24 +244,24 @@ export async function getWikiSourcePolicy(contextId?: string, currentSettings?: 
   }
 }
 
-/** Shared by source discovery and folder statistics, including derived-document exclusions. */
-export async function collectWikiArticleSourceDocuments(paths: string[], contextId?: string): Promise<WikiSourceDocument[]> {
-  const policy = await getWikiSourcePolicy(contextId)
-  const documents: WikiSourceDocument[] = []
-  for (const filePath of new Set(paths)) {
-    if (!isWikiArticlePathSelected(filePath, policy.settings) || !policy.allowsArticle(filePath)) continue
-    const document = await getWikiSourceDocument(`article:${filePath}`)
-    if (document && !document.derived) documents.push(document)
+export async function visitWikiArticleDocuments(
+  paths: Iterable<string>, policy: Awaited<ReturnType<typeof getWikiSourcePolicy>>, isCurrent: () => boolean,
+  visit?: (document: WikiSourceDocument) => void,
+): Promise<number> {
+  let count = 0
+  for (const path of new Set(paths)) {
+    if (!isCurrent()) break
+    if (!isWikiArticlePathSelected(path, policy.settings) || !policy.allowsArticle(path)) continue
+    const document = await getWikiSourceDocument(`article:${path}`)
+    if (document && !document.derived && isCurrent()) {
+      count++
+      visit?.(document)
+    }
   }
-  return documents
+  return count
 }
 
-export async function collectWikiSourceDocuments(contextId?: string): Promise<WikiSourceDocument[]> {
-  const files = await getAllMarkdownFiles()
-  return collectWikiArticleSourceDocuments(files.map(file => file.relativePath), contextId)
-}
-
-export async function isWikiSourceDocumentAllowed(document: WikiSourceDocument, contextId?: string): Promise<boolean> {
+export async function isWikiSourceDocumentAllowed(document: WikiSourceMetadata, contextId?: string): Promise<boolean> {
   return document.source.sourceType === 'article'
     && (await getWikiSourcePolicy(contextId)).allows(document.source, document.derived)
 }

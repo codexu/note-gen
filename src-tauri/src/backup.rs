@@ -300,6 +300,7 @@ fn add_dir_to_zip<W: Write + Seek>(
 
         if relative_path == Path::new(crate::initial_setup::INITIAL_SETUP_FILE)
             || is_sync_credential_path(relative_path)
+            || (is_bm25_cache_file(relative_path) && !path.is_dir())
             || (entry.file_type().is_ok_and(|kind| kind.is_symlink())
                 && resolves_to_sync_credentials(&path))
         {
@@ -340,10 +341,11 @@ fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
             .by_index(i)
             .map_err(|e| format!("Failed to read file from zip: {}", e))?;
 
-        let outpath = match file.enclosed_name() {
-            Some(path) if !is_sync_credential_path(&path) => dest_dir.join(path),
-            _ => continue,
-        };
+        let Some(path) = file.enclosed_name() else { continue };
+        if is_sync_credential_path(&path) || (!file.is_dir() && is_bm25_cache_file(&path)) {
+            continue;
+        }
+        let outpath = dest_dir.join(path);
 
         if file.name().ends_with('/') {
             fs::create_dir_all(&outpath)

@@ -64,8 +64,11 @@ pub fn self_hosted_structured_object_id(
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TargetSnapshot {
     hash: Option<String>,
+    #[serde(default)]
+    accept_identical: bool,
 }
 
 #[tauri::command]
@@ -89,6 +92,12 @@ pub async fn self_hosted_atomic_write(
     }
     let root = safe_workspace_root(&workspace_root)?;
     let target = safe_target(&root, &normalized)?;
+    if let Some(snapshot) = target_snapshot.as_ref().filter(|snapshot| snapshot.accept_identical) {
+        reject_symlink_path(&root, &target)?;
+        if !guarded_editor_write_needed(&target, snapshot.hash.as_deref(), &expected_hash)? {
+            return Ok(());
+        }
+    }
     let database_path = app_handle
         .path()
         .app_data_dir()
@@ -133,7 +142,19 @@ pub async fn self_hosted_atomic_write(
                 return Ok(false);
             }
         }
-        atomic_replace(&temp, &target)?;
+        if target_snapshot.as_ref().is_some_and(|snapshot| snapshot.hash.is_none()) {
+            match rename_without_overwriting(&temp, &target) {
+                Ok(()) => (),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    fs::remove_file(&temp)
+                        .map_err(|error| format!("Failed to remove interrupted sync temporary file: {error}"))?;
+                    return Ok(false);
+                }
+                Err(error) => return Err(format!("Failed to atomically install file: {error}")),
+            }
+        } else {
+            atomic_replace(&temp, &target)?;
+        }
         if let Some(parent) = target.parent() {
             if let Ok(directory) = fs::File::open(parent) {
                 let _ = directory.sync_all();
@@ -153,6 +174,19 @@ pub async fn self_hosted_atomic_write(
             Err(error)
         }
     }
+}
+
+fn guarded_editor_write_needed(path: &Path, baseline: Option<&str>, desired: &str) -> Result<bool, String> {
+    let current = match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() => Some(file_hash(path)?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(format!("Failed to inspect sync target: {error}")),
+        Ok(_) => return Err("remote_asset_local_activity".to_string()),
+    };
+    let current = current.as_deref();
+    if current == Some(desired) { return Ok(false); }
+    if current != baseline { return Err("remote_asset_local_activity".to_string()); }
+    Ok(true)
 }
 
 #[tauri::command]
@@ -217,6 +251,7 @@ pub async fn self_hosted_create_directory(
     object_id: Option<String>,
     workspace_root: String,
     relative_path: String,
+    previous_relative_path: Option<String>,
 ) -> Result<(), String> {
     let normalized = validate_relative_path(&relative_path)?;
     let root = safe_workspace_root(&workspace_root)?;
@@ -229,11 +264,22 @@ pub async fn self_hosted_create_directory(
         &mut connection, &workspace_id, "mkdir", object_id.as_deref(),
         None, Some(&target), None, None,
     ).await?;
-    match fs::create_dir_all(&target) {
+    let result = (|| -> Result<(), String> {
+        if let Some(previous) = previous_relative_path {
+            let source = safe_target(&root, &self_hosted_move_source_path(previous)?)?;
+            reject_symlink_path(&root, &source)?;
+            if source.is_dir() && case_only_move_state(&source, &target)? == Some(CaseOnlyMove::NeedsRename) {
+                return rename_without_overwriting(&source, &target)
+                    .map_err(|error| format!("Failed to rename synchronized directory: {error}"));
+            }
+        }
+        fs::create_dir_all(&target).map_err(|error| format!("Failed to create synchronized directory: {error}"))
+    })();
+    match result {
         Ok(()) => update_journal(&mut connection, journal_id, "committed", None).await,
         Err(error) => {
             let _ = update_journal(&mut connection, journal_id, "failed", Some("directory_create_failed")).await;
-            Err(format!("Failed to create synchronized directory: {error}"))
+            Err(error)
         }
     }
 }
@@ -246,33 +292,66 @@ pub async fn self_hosted_delete_directory(
     workspace_root: String,
     relative_path: String,
     allow_non_empty: Option<bool>,
+    preserve_relative_path: Option<String>,
 ) -> Result<bool, String> {
     let normalized = validate_relative_path(&relative_path)?;
     let root = safe_workspace_root(&workspace_root)?;
     let target = safe_target(&root, &normalized)?;
     reject_symlink_path(&root, &target)?;
+    let preserve = preserve_relative_path.as_deref()
+        .map(|path| safe_target(&root, &validate_relative_path(path)?))
+        .transpose()?;
+    if let Some(preserve) = &preserve { reject_symlink_path(&root, preserve)?; }
+    if directory_is_preserved(&target, preserve.as_deref())? { return Ok(false); }
     if !target.exists() { return Ok(false); }
     if !target.is_dir() { return Err("Synchronized directory path is not a directory".to_string()); }
-    if allow_non_empty != Some(true)
-        && fs::read_dir(&target).map_err(|error| format!("Failed to inspect directory: {error}"))?.next().is_some() {
-        return Err("Remote directory removal conflicts with local contents".to_string());
-    }
+    let recursive = allow_non_empty == Some(true);
     let database_path = app_handle.path().app_data_dir()
         .map_err(|error| format!("Failed to resolve app data directory: {error}"))?.join("note.db");
     let mut connection = open_database(&database_path).await?;
     let journal_id = insert_journal(
-        &mut connection, &workspace_id, "rmdir", object_id.as_deref(),
+        &mut connection, &workspace_id, if recursive { "rmdir" } else { "guarded-rmdir" }, object_id.as_deref(),
         Some(&target), None, None, None,
     ).await?;
-    match remove_synchronized_directory(&target) {
-        Ok(()) => {
-            update_journal(&mut connection, journal_id, "committed", None).await?;
-            Ok(true)
+    let result = reject_symlink_path(&root, &target).and_then(|()| {
+        if recursive { remove_synchronized_directory(&target).map(|()| true) }
+        else { remove_empty_synchronized_directory(&target, preserve.as_deref()) }
+    });
+    match result {
+        Ok(removed) => {
+            let state = if removed { "committed" } else { "rolled-back" };
+            update_journal(&mut connection, journal_id, state, None).await?;
+            Ok(removed)
+        }
+        Err(error) if !recursive => {
+            // A later inbox pass can re-evaluate a guarded deletion. Retain
+            // local contents and never leave a failed cleanup blocking recovery.
+            update_journal(&mut connection, journal_id, "rolled-back", None).await?;
+            Err(error)
         }
         Err(error) => {
             let _ = update_journal(&mut connection, journal_id, "failed", Some("directory_delete_failed")).await;
             Err(error)
         }
+    }
+}
+
+fn directory_is_preserved(target: &Path, preserve: Option<&Path>) -> Result<bool, String> {
+    match preserve {
+        Some(preserve) => Ok(target == preserve || case_only_move_state(target, preserve)?.is_some()),
+        None => Ok(false),
+    }
+}
+
+fn remove_empty_synchronized_directory(target: &Path, preserve: Option<&Path>) -> Result<bool, String> {
+    if directory_is_preserved(target, preserve)? { return Ok(false); }
+    match fs::remove_dir(target) {
+        Ok(()) => Ok(true),
+        Err(error) => match error.kind() {
+            std::io::ErrorKind::NotFound => Ok(false),
+            std::io::ErrorKind::DirectoryNotEmpty => Err("Remote directory removal conflicts with local contents".to_string()),
+            _ => Err(format!("Failed to remove empty synchronized directory: {error}")),
+        },
     }
 }
 
@@ -307,7 +386,8 @@ pub async fn self_hosted_move_path(
     workspace_root: String,
     source_relative_path: String,
     target_relative_path: String,
-) -> Result<(), String> {
+    remote_object_id: Option<String>,
+) -> Result<bool, String> {
     // Existing macOS/Linux files may predate portable-name enforcement. Allow
     // renaming those sources into a portable target, while retaining traversal
     // and symlink protection. Windows sources still reject alternate streams.
@@ -318,28 +398,173 @@ pub async fn self_hosted_move_path(
     let target = safe_target(&root, &target_relative_path)?;
     reject_symlink_path(&root, &source)?;
     reject_symlink_path(&root, &target)?;
-    if !source.exists() { return Err("Move source does not exist".to_string()); }
-    if target.exists() { return Err("Move target already exists".to_string()); }
     let database_path = app_handle.path().app_data_dir()
         .map_err(|error| format!("Failed to resolve app data directory: {error}"))?.join("note.db");
     let mut connection = open_database(&database_path).await?;
+    let operation = if let Some(object_id) = remote_object_id.as_deref() {
+        // The inbox owns the mapping update. A committed journal row proves
+        // this move already ran even if a user has since reused the old name.
+        let previous = sqlx::query(
+            "select id, state from self_hosted_file_journal
+             where workspace_id = ? and object_id = ? and operation = 'received-move'
+               and source_path = ? and target_path = ? and state in ('prepared', 'committed')
+             order by id desc limit 1",
+        )
+        .bind(&workspace_id)
+        .bind(object_id)
+        .bind(path_string(&source))
+        .bind(path_string(&target))
+        .fetch_optional(&mut connection)
+        .await
+        .map_err(|error| format!("Failed to read move journal: {error}"))?;
+        if let Some(previous) = previous {
+            let state = previous.get::<String, _>("state");
+            if state == "committed" { return Ok(true); }
+            if path_move_completed(&source, &target)? && target.is_file() {
+                update_journal(&mut connection, previous.get("id"), "committed", None).await?;
+                return Ok(true);
+            }
+            update_journal(&mut connection, previous.get("id"), "rolled-back", None).await?;
+        }
+        if target.exists() && case_only_move_state(&source, &target)?.is_none() {
+            return Err("remote_path_move_local_activity".to_string());
+        }
+        if source.exists() && !source.is_file() {
+            return Err("remote_path_move_local_activity".to_string());
+        }
+        "received-move"
+    } else {
+        if !source.exists() { return Err("Move source does not exist".to_string()); }
+        if target.exists() && case_only_move_state(&source, &target)?.is_none() {
+            return Err("Move target already exists".to_string());
+        }
+        "move"
+    };
     let journal_id = insert_journal(
-        &mut connection, &workspace_id, "move", None,
+        &mut connection, &workspace_id, operation, remote_object_id.as_deref(),
         Some(&source), Some(&target), None, None,
     ).await?;
+    if remote_object_id.is_some() && !source.exists() {
+        // The inbox will hydrate the missing source at the new path. Keep its
+        // destination tied to this object until the mapping and snapshot land.
+        update_journal(&mut connection, journal_id, "committed", None).await?;
+        return Ok(false);
+    }
     let result = (|| -> Result<(), String> {
         let parent = target.parent().ok_or_else(|| "Move target has no parent".to_string())?;
         fs::create_dir_all(parent).map_err(|error| format!("Failed to create move target directory: {error}"))?;
         reject_symlink_path(&root, parent)?;
+        let case_move = case_only_move_state(&source, &target)?;
+        if remote_object_id.is_some() {
+            reject_symlink_path(&root, &source)?;
+            if !source.is_file() || (case_move.is_none() && !target_matches_snapshot(&target, None)?) {
+                return Err("remote_path_move_local_activity".to_string());
+            }
+            if case_move == Some(CaseOnlyMove::AlreadyRenamed) { return Ok(()); }
+            return rename_without_overwriting(&source, &target).map_err(|error| {
+                if error.kind() == std::io::ErrorKind::AlreadyExists {
+                    "remote_path_move_local_activity".to_string()
+                } else {
+                    format!("Failed to atomically move synchronized file: {error}")
+                }
+            });
+        }
+        if case_move == Some(CaseOnlyMove::AlreadyRenamed) { return Ok(()); }
+        if case_move == Some(CaseOnlyMove::NeedsRename) {
+            return rename_without_overwriting(&source, &target)
+                .map_err(|error| format!("Failed to atomically move path: {error}"));
+        }
         fs::rename(&source, &target).map_err(|error| format!("Failed to atomically move path: {error}"))
     })();
     match result {
-        Ok(()) => update_journal(&mut connection, journal_id, "committed", None).await,
+        Ok(()) => {
+            for directory in [source.parent(), target.parent()].into_iter().flatten() {
+                if let Ok(directory) = fs::File::open(directory) {
+                    let _ = directory.sync_all();
+                }
+            }
+            update_journal(&mut connection, journal_id, "committed", None).await?;
+            Ok(true)
+        }
+        Err(error) if remote_object_id.is_some() => {
+            update_journal(&mut connection, journal_id, "rolled-back", None).await?;
+            Err(error)
+        }
         Err(error) => {
             let _ = update_journal(&mut connection, journal_id, "failed", Some("path_move_failed")).await;
             Err(error)
         }
     }
+}
+
+#[derive(PartialEq, Eq)]
+enum CaseOnlyMove {
+    NeedsRename,
+    AlreadyRenamed,
+}
+
+fn case_only_move_state(source: &Path, target: &Path) -> Result<Option<CaseOnlyMove>, String> {
+    if source == target || !source.exists() || !target.exists() {
+        return Ok(None);
+    }
+    let (Some(source_parent), Some(target_parent), Some(source_name), Some(target_name)) = (
+        source.parent(), target.parent(), source.file_name(), target.file_name(),
+    ) else { return Ok(None); };
+    let source_name = source_name.to_string_lossy().nfc().collect::<String>();
+    let target_name = target_name.to_string_lossy().nfc().collect::<String>();
+    if source_name.to_lowercase() != target_name.to_lowercase() {
+        return Ok(None);
+    }
+    if source_parent != target_parent {
+        let canonical_parent = |parent: &Path| parent.canonicalize()
+            .map_err(|error| format!("Failed to resolve move parent: {error}"));
+        if canonical_parent(source_parent)? != canonical_parent(target_parent)? {
+            return Ok(None);
+        }
+    }
+    // Filesystem lookups can resolve both spellings to one entry. Inspect the
+    // actual directory entries to distinguish that from two existing paths.
+    let mut has_source = false;
+    let mut has_target = false;
+    let entries = fs::read_dir(target_parent).map_err(|error| format!("Failed to inspect move parent: {error}"))?;
+    for entry in entries {
+        let name = entry.map_err(|error| format!("Failed to inspect move entry: {error}"))?
+            .file_name().to_string_lossy().nfc().collect::<String>();
+        has_source |= name == source_name;
+        has_target |= name == target_name;
+    }
+    Ok(match (has_source, has_target) {
+        (true, false) => Some(CaseOnlyMove::NeedsRename),
+        (false, true) => Some(CaseOnlyMove::AlreadyRenamed),
+        (true, true) if source_name == target_name => Some(CaseOnlyMove::AlreadyRenamed),
+        _ => None,
+    })
+}
+
+fn path_move_completed(source: &Path, target: &Path) -> Result<bool, String> {
+    Ok(target.exists() && (!source.exists()
+        || case_only_move_state(source, target)? == Some(CaseOnlyMove::AlreadyRenamed)))
+}
+
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux", target_os = "android"))]
+fn rename_without_overwriting(source: &Path, target: &Path) -> std::io::Result<()> {
+    use rustix::fs::{renameat_with, RenameFlags, CWD};
+    Ok(renameat_with(CWD, source, CWD, target, RenameFlags::NOREPLACE)?)
+}
+
+#[cfg(target_os = "windows")]
+fn rename_without_overwriting(source: &Path, target: &Path) -> std::io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::{
+        core::PCWSTR,
+        Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH},
+    };
+    let source = source.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
+    let target = target.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
+    unsafe {
+        MoveFileExW(PCWSTR(source.as_ptr()), PCWSTR(target.as_ptr()), MOVEFILE_WRITE_THROUGH)
+    }
+    .map_err(|error| std::io::Error::from_raw_os_error(error.code().0 & 0xffff))
 }
 
 #[tauri::command]
@@ -443,15 +668,17 @@ pub async fn self_hosted_recover_file_journal(app_handle: AppHandle) -> Result<u
             "write" => recover_write(temp.as_deref(), target.as_deref(), expected_hash.as_deref()),
             "guarded-write" => recover_guarded_write(temp.as_deref(), target.as_deref(), expected_hash.as_deref()),
             "mkdir" => Ok(target.as_deref().is_some_and(Path::is_dir)),
-            "delete" | "rmdir" => Ok(source.as_deref().map_or(true, |path| !path.exists())),
-            "move" => Ok(source.as_deref().is_some_and(|path| !path.exists())
-                && target.as_deref().is_some_and(Path::exists)),
+            "delete" | "rmdir" | "guarded-rmdir" => Ok(source.as_deref().map_or(true, |path| !path.exists())),
+            "move" | "received-move" => match (source.as_deref(), target.as_deref()) {
+                (Some(source), Some(target)) => path_move_completed(source, target),
+                _ => Ok(false),
+            },
             _ => Ok(false),
         }?;
         if completed {
             update_journal(&mut connection, id, "committed", None).await?;
             recovered += 1;
-        } else if operation == "guarded-write" {
+        } else if matches!(operation.as_str(), "guarded-write" | "guarded-rmdir" | "received-move") {
             update_journal(&mut connection, id, "rolled-back", None).await?;
         } else {
             update_journal(&mut connection, id, "failed", Some("recovery_required")).await?;

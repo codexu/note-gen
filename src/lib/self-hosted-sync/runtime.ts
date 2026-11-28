@@ -30,15 +30,20 @@ import { applyConversationTombstones, type SelfHostedSnapshotObject } from './sn
 import emitter from '@/lib/emitter'
 import useSyncStore from '@/stores/sync'
 import { withSelfHostedPrepareLock } from './prepare-lock'
+import { queuedObjectId, readLibraryQueueConflicts } from './queue-conflicts'
+import { readReceivedFolderMoves, readReceivedPathMoves } from './received-path-moves'
 import { ensureWorkspaceDirectory } from '@/lib/managed-workspace'
 import type { SwitchOperationProgress } from '@/lib/sync/platform-switch-plan'
 import {
+  editorPathsCouldReferToSameFile,
   editorPathsReferToSameFile,
   getEditorPathMutationRevision,
+  lockEditorPathsForMutation,
   markEditorPathMutation,
   prepareActiveEditorDeactivation,
   prepareActiveEditorPathMutationDurably,
   runEditorPathWriteTransaction,
+  workspaceRootsReferToSameLocation,
 } from '@/lib/editor-deactivation'
 
 class PendingPathMove extends Error {
@@ -47,6 +52,12 @@ class PendingPathMove extends Error {
 
 class PendingLocalChange extends Error {
   constructor() { super('SELF_HOSTED_LOCAL_CHANGES_PENDING') }
+}
+
+const NOTE_REVISION_CONFLICT = 'SELF_HOSTED_REVISION_CONFLICT'
+
+class PendingNoteConflict extends Error {
+  constructor() { super(NOTE_REVISION_CONFLICT) }
 }
 
 interface Binding {
@@ -58,6 +69,7 @@ interface Binding {
   pulledSequence: string
   appliedSequence: string
   bindingState: 'bound' | 'bootstrapping' | 'epoch-changed'
+  isolatedNoteConflicts?: Map<string, string>
 }
 
 interface OutboxRow {
@@ -374,7 +386,10 @@ export class SelfHostedSyncRuntime {
     try {
       session = await client.syncSession(
         binding.workspaceId,
-        binding.appliedSequence,
+        // The inbox may contain all events beyond a held note. Negotiate
+        // retention against the durable pull cursor and ACK only through apply.
+        binding.workspaceType === 'library' && binding.bindingState === 'bound'
+          ? binding.pulledSequence : binding.appliedSequence,
         official || binding.bindingState !== 'epoch-changed' ? binding.syncEpoch ?? undefined : undefined,
       )
     } catch (error) {
@@ -400,6 +415,7 @@ export class SelfHostedSyncRuntime {
       await this.#requireOfficialEpochReview(binding)
     }
     if (official) await prepareBindingRetry(binding, manualRetry)
+    await refreshLibraryQueueConflicts(binding, errors)
     if (!session.protocol.compatible) {
       useSyncStore.getState().setSelfHostedServiceAvailable(false, 'protocol-mismatch')
       await setBindingState(binding.workspaceId, 'protocol-incompatible')
@@ -413,12 +429,13 @@ export class SelfHostedSyncRuntime {
     )
     if (this.#stopped) return null
     if (await recoverPersonalRevisionConflicts(binding, session, errors)) this.#rerun = true
+    const isDocumentSubscribed = (objectId: string) => this.#documentSubscriptions.has(`${binding.workspaceId}\0${objectId}`)
     const pushAvailableOutbox = async (pathMovesOnly = false) => {
       try {
         return await pushOutbox(binding, session, pathMovesOnly, errors)
       } catch (error) {
         if (binding.workspaceType !== 'account-data' || !(error instanceof Error)
-          || error.message !== 'SELF_HOSTED_REVISION_CONFLICT') throw error
+          || error.message !== NOTE_REVISION_CONFLICT) throw error
         // Recover the existing queue as well as a rejection from this round.
         // Retrying uses a fresh command id and a fresh server CAS base.
         if (await recoverPersonalRevisionConflicts(binding, session, errors)) this.#rerun = true
@@ -438,6 +455,18 @@ export class SelfHostedSyncRuntime {
         report('push')
         if (await pushAvailableOutbox(true)) this.#rerun = true
         return session
+      }
+      if (binding.workspaceType === 'library' && binding.syncEpoch === session.syncEpoch
+        && session.cursor.state !== 'ahead' && (await readReceivedPathMoves(binding.workspaceId)).length > 0) {
+        // Complete any already-started disk move through its original inbox
+        // row before a bootstrap snapshot can supersede the intermediate path.
+        report('apply')
+        const recovery = await applyInbox(binding, binding.pulledSequence, profile.deviceId, isDocumentSubscribed)
+        if (this.#stopped) return null
+        if ((await readReceivedPathMoves(binding.workspaceId)).length > 0) {
+          errors.add(recovery.error?.message ?? 'remote_path_move_pending')
+          return session
+        }
       }
       if (binding.workspaceType === 'account-data') {
         // A bootstrap must not replace a row while its local edit or delete
@@ -462,9 +491,19 @@ export class SelfHostedSyncRuntime {
           if (this.#stopped) return null
         } while (hasMore)
       }
-      await setBindingState(binding.workspaceId, 'bootstrapping')
+      // Keep the existing binding available to the editor conflict resolver.
+      if (binding.bindingState !== 'bound' || !binding.isolatedNoteConflicts?.size) {
+        await setBindingState(binding.workspaceId, 'bootstrapping')
+      }
       report('bootstrap')
-      await bootstrapBinding(binding, session, errors, value => report('bootstrap', value))
+      try {
+        await bootstrapBinding(binding, session, errors, value => report('bootstrap', value))
+      } catch (error) {
+        if (!(error instanceof PendingNoteConflict)) throw error
+        errors.add(error.message)
+        await refreshBindingStores(binding)
+        return session
+      }
       report('refresh', { source: 'local' })
       await refreshBindingStores(binding)
       if (this.#stopped) return null
@@ -482,11 +521,13 @@ export class SelfHostedSyncRuntime {
     if (this.#stopped) return null
     if (binding.workspaceType === 'library' && binding.localRoot) {
       report('scanFiles', { source: 'local' })
+      await cleanupMovedFolders(binding)
       await reconcileLibraryFiles(
         binding.workspaceId,
         binding.localRoot,
         session.workspace.capabilities.includes('content.update'),
         value => report('scanFiles', { source: 'local', ...value }),
+        new Set(binding.isolatedNoteConflicts?.values()),
       )
     }
     if (this.#stopped) return null
@@ -513,13 +554,14 @@ export class SelfHostedSyncRuntime {
     if (await pushAvailableOutbox()) this.#rerun = true
     if (this.#stopped) return null
     report('pull')
-    await pullEvents(binding, session, value => report('pull', value))
+    const pulledThrough = await pullEvents(binding, session, value => report('pull', value))
     if (this.#stopped) return null
     report('apply')
     const application = await applyInbox(
       binding,
+      pulledThrough,
       profile.deviceId,
-      objectId => this.#documentSubscriptions.has(`${binding.workspaceId}\0${objectId}`),
+      isDocumentSubscribed,
       value => report('apply', value),
       () => report('refresh', { source: 'local' }),
     )
@@ -541,7 +583,12 @@ export class SelfHostedSyncRuntime {
         ? appliedThrough : session.cursor.acknowledged
       await updateCursor(binding.workspaceId, appliedThrough, acknowledged)
     }
-    if (application.error) throw application.error
+    if (application.error) {
+      if (!(application.error instanceof PendingNoteConflict || application.error instanceof PendingPathMove)) {
+        throw application.error
+      }
+      errors.add(application.error.message)
+    }
     await pruneDurableSyncHistory(binding.workspaceId)
     emitter.emit('self-hosted-binding-ready', { workspaceId: binding.workspaceId })
     return session
@@ -654,14 +701,14 @@ export class SelfHostedSyncRuntime {
 }
 
 async function prepareBindingRetry(binding: Binding, manualRetry: boolean) {
+  if ((manualRetry || binding.workspaceType === 'library') && await releaseAcknowledgedRevisionConflicts(binding)
+    && binding.workspaceType === 'library') {
+    // Refresh the accepted base before scanning the kept local file again.
+    binding.bindingState = 'epoch-changed'
+    await setBindingState(binding.workspaceId, 'epoch-changed')
+  }
   if (manualRetry) {
     const database = await getDb()
-    const acknowledged = await releaseAcknowledgedRevisionConflicts(binding)
-    if (acknowledged && binding.workspaceType === 'library') {
-      // Refresh the accepted base before scanning the kept local file again.
-      binding.bindingState = 'epoch-changed'
-      await setBindingState(binding.workspaceId, 'epoch-changed')
-    }
     await database.execute(
       "update self_hosted_outbox set next_attempt_at = 0 where workspace_id = $1 and state = 'retry'",
       [binding.workspaceId],
@@ -672,7 +719,6 @@ async function prepareBindingRetry(binding: Binding, manualRetry: boolean) {
       [binding.workspaceId, binding.workspaceType],
     )
   }
-  if (binding.workspaceType !== 'account-data') await assertNoUnresolvedRevisionCommands(binding.workspaceId)
 }
 
 async function hasCoveredFailedInbox(binding: Binding) {
@@ -803,6 +849,8 @@ async function pruneDurableSyncHistory(workspaceId: string) {
     `delete from self_hosted_inbox where rowid in (
        select rowid from self_hosted_inbox
        where workspace_id = $1 and state = 'applied'
+         and cast(sequence as integer) <= (select cast(acknowledged_sequence as integer)
+           from self_hosted_cursors where workspace_id = $1)
        order by cast(sequence as integer) limit 2000
      )`,
     [workspaceId],
@@ -851,11 +899,11 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
   // Filter before LIMIT so paused domains cannot occupy the whole batch.
   // Materialized payloads must obey the same dependency and deletion rules
   // as newly captured changes, including nested conflict resolutions.
+  // An earlier note command still owns its place while waiting to retry.
   const rows = await database.select<OutboxRow[]>(
-    `with candidates as (
+    `with outstanding as (
        select o.*, o.rowid as outboxRowId, m.kind as mappingKind, m.relative_path as mappingPath,
-         coalesce(json_extract(o.payload, '$.objectId'), json_extract(o.payload, '$.objectResolution.objectId'),
-           json_extract(o.payload, '$.resolution.objectId'),
+         coalesce(${queuedObjectId('o')},
            (select object_id from self_hosted_conflicts where workspace_id = o.workspace_id
              and id = json_extract(o.payload, '$.conflictId') limit 1)) as effectiveObjectId,
          coalesce(json_extract(o.payload, '$.kind'), json_extract(o.payload, '$.objectResolution.kind'),
@@ -866,10 +914,11 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
        from self_hosted_outbox o
        left join self_hosted_object_mappings m
          on m.workspace_id = o.workspace_id
-        and m.object_id = coalesce(json_extract(o.payload, '$.objectId'),
-          json_extract(o.payload, '$.objectResolution.objectId'), json_extract(o.payload, '$.resolution.objectId'))
-       where o.workspace_id = $1 and o.state in ('pending', 'retry') and o.next_attempt_at <= $2
+        and m.object_id = ${queuedObjectId('o')}
+       where o.workspace_id = $1 and o.state in ('pending', 'retry')
          and ($4 = 0 or o.command_type = 'path-move')
+     ), candidates as (
+       select * from outstanding where next_attempt_at <= $2
      ), commandBlobRefs as (
        select c.command_id, refs.value as blobId from candidates c join json_each(c.payload, '$.blobRefs') refs
        union select c.command_id, refs.value from candidates c join json_each(c.payload, '$.objectResolution.blobRefs') refs
@@ -892,7 +941,14 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
                  and json_extract(asset.value, '$.blobId') = ref.blobId
              )
          ))
-     ))
+     )) and not exists (select 1 from json_each($9) where value = o.effectiveObjectId)
+       and ($5 <> 'library' or not exists (
+         select 1 from outstanding earlier where earlier.effectiveObjectId = o.effectiveObjectId
+           and earlier.effectiveKind = 'note'
+           and json_extract(earlier.payload, '$.type') in ('upsert-object', 'delete-object')
+           and (earlier.created_at < o.created_at
+             or (earlier.created_at = o.created_at and earlier.outboxRowId < o.outboxRowId))
+       ))
      order by
        case when json_extract(o.payload, '$.type') = 'delete-object' and o.mappingKind = 'folder' then 2
             when o.mappingKind = 'folder' then 0 else 1 end,
@@ -903,7 +959,8 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
        o.created_at, o.outboxRowId limit $3`,
     [binding.workspaceId, Date.now(), session.limits.maxCommandsPerBatch, pathMovesOnly ? 1 : 0,
       binding.workspaceType, JSON.stringify(enabledPersonalSyncKinds(domainToggles)),
-      JSON.stringify(enabledPersonalSyncKinds(domainToggles, true)), domainToggles.attachments === false ? 0 : 1]
+      JSON.stringify(enabledPersonalSyncKinds(domainToggles, true)), domainToggles.attachments === false ? 0 : 1,
+      JSON.stringify([...(binding.isolatedNoteConflicts?.keys() ?? [])])]
   )
   if (rows.length === 0) return false
   let activatedCollaborativeObject = false
@@ -963,9 +1020,8 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
         activatedCollaborativeObject = true
         continue
       }
-      // A CAS rejection has not accepted this payload and has no durable
-      // server conflict object. Keep it locally and stop before pulling a
-      // snapshot that could overwrite the only remaining local edit.
+      // A CAS rejection has no durable server conflict object. Save the local
+      // bytes before allowing independent inbox and outbox work to continue.
       await preserveRejectedRevision(binding, row, result.revision)
       revisionConflicted = true
       continue
@@ -1031,7 +1087,8 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
           `update self_hosted_outbox set state = 'pending', updated_at = $1
            where workspace_id = $2 and state = 'blocked'
              and json_extract(payload, '$.objectId') = $3
-             and coalesce(last_error_code, '') != 'revision_conflict'`,
+             and coalesce(last_error_code, '') != 'revision_conflict'
+             and coalesce(last_error_code, '') not like 'editor-resolution:%'`,
           [Date.now(), binding.workspaceId, command.objectId]
         )
         if (command.type === 'upsert-object') activatedCollaborativeObject = true
@@ -1042,6 +1099,7 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
            where workspace_id = $2 and object_id = $3`,
           [Date.now(), binding.workspaceId, command.objectId]
         )
+        if (binding.workspaceType === 'library' && command.kind === 'note') activatedCollaborativeObject = true
       }
       if (result.status === 'applied' && !stalePersonalAck && command.type === 'upsert-object' && command.objectId) {
         await database.execute(
@@ -1095,8 +1153,11 @@ async function pushOutbox(binding: Binding, session: SyncSession, pathMovesOnly 
     }
   }
   if (restoredPersonalSnapshot) await refreshBindingStores(binding)
-  if (revisionConflicted) throw new Error('SELF_HOSTED_REVISION_CONFLICT')
-  return activatedCollaborativeObject
+  if (revisionConflicted) {
+    if (binding.workspaceType === 'account-data') throw new Error(NOTE_REVISION_CONFLICT)
+    await refreshLibraryQueueConflicts(binding, errors)
+  }
+  return activatedCollaborativeObject || rows.length === session.limits.maxCommandsPerBatch
 }
 
 async function personalAckHasNewerRevision(workspaceId: string, objectId: string, revision: string) {
@@ -1210,13 +1271,16 @@ async function restorePersonalSnapshotStillAllowed(input: {
   return newer.length === 0
 }
 
-async function assertNoUnresolvedRevisionCommands(workspaceId: string) {
-  const rows = await (await getDb()).select<Array<{ commandId: string }>>(
-    `select command_id as commandId from self_hosted_outbox where workspace_id = $1 and state = 'blocked'
-       and (last_error_code = 'revision_conflict' or last_error_code like 'editor-resolution:%') limit 1`,
-    [workspaceId],
-  )
-  if (rows.length) throw new Error('SELF_HOSTED_REVISION_CONFLICT')
+async function refreshLibraryQueueConflicts(binding: Binding, errors?: Set<string>) {
+  if (binding.workspaceType !== 'library') return
+  const rows = await readLibraryQueueConflicts(binding.workspaceId)
+  const isolated = new Map<string, string>()
+  for (const row of rows) {
+    if (!row.objectId || !row.pathCasefold) throw new PendingNoteConflict()
+    isolated.set(row.objectId, row.pathCasefold)
+  }
+  binding.isolatedNoteConflicts = isolated
+  if (isolated.size) errors?.add(NOTE_REVISION_CONFLICT)
 }
 
 async function preserveRejectedRevision(binding: Binding, row: OutboxRow, revision?: string) {
@@ -1257,6 +1321,13 @@ async function releaseAcknowledgedRevisionConflicts(binding: Binding) {
      where o.workspace_id=$1 and o.state='blocked' and o.last_error_code='revision_conflict'
        and c.state='resolved-local-kept'`, [binding.workspaceId],
   )
+  if (binding.workspaceType === 'library' && rows.length) {
+    // Releasing a settings acknowledgement requires a library bootstrap. Keep
+    // other notes resolvable in the bound workspace until they are closed.
+    const acknowledged = new Set(rows.map(row => row.commandId))
+    const pending = await readLibraryQueueConflicts(binding.workspaceId)
+    if (pending.some(row => row.pathCasefold && !acknowledged.has(row.commandId))) return false
+  }
   for (const row of rows) {
     if (!row.copyPath || !isRevisionConflictCopyPath(row.copyPath)
       || !await exists(row.copyPath, { baseDir: BaseDirectory.AppData })) throw new Error('SELF_HOSTED_REVISION_CONFLICT')
@@ -1319,18 +1390,20 @@ async function pullEvents(binding: Binding, session: SyncSession, onProgress?: (
     await updatePulledCursor(binding.workspaceId, cursor)
     onProgress?.({ current: received, total: hasMore ? 0 : received })
   }
+  return cursor
 }
 
 async function applyInbox(
   binding: Binding,
+  pulledThrough: string,
   deviceId: string | null,
   isDocumentSubscribed: (objectId: string) => boolean,
   onProgress?: (progress: SyncItemProgress) => void,
   onRefresh?: () => void,
 ): Promise<{ through: string; error?: Error }> {
   const database = await getDb()
-  const rows = await database.select<Array<{ sequence: string; payload: string; state: string }>>(
-    `select sequence, payload, state from self_hosted_inbox
+  const rows = await database.select<Array<{ sequence: string; payload: string; state: string; errorCode: string | null }>>(
+    `select sequence, payload, state, error_code as errorCode from self_hosted_inbox
      where workspace_id = $1 and state in ('pending', 'failed', 'applied')
        and cast(sequence as integer) > cast($2 as integer)
      order by cast(sequence as integer)`,
@@ -1340,6 +1413,9 @@ async function applyInbox(
     ...row,
     event: JSON.parse(row.payload) as SyncEvent,
   }))
+  const unfinishedMoves = new Set(binding.workspaceType === 'library'
+    ? (await readReceivedPathMoves(binding.workspaceId)).map(move => move.objectId)
+    : [])
   // Object upserts and deletes are complete encrypted snapshots. When a device
   // reconnects after a burst of edits, applying every intermediate snapshot
   // causes thousands of redundant fsyncs and can prevent mobile clients from
@@ -1356,31 +1432,41 @@ async function applyInbox(
   let bindingStoresChanged = false
   let applicationError: Error | undefined
   let cursorBlocked = false
+  let stoppedOnError = false
+  let seenThrough = binding.appliedSequence
   const blockedObjects = new Set<string>()
   onProgress?.({ current: 0, total: parsedRows.length })
   for (const [index, row] of parsedRows.entries()) {
     const event = row.event
     const path = event.objectId ?? undefined
     onProgress?.({ path, current: index, total: parsedRows.length })
+    if (BigInt(row.sequence) !== BigInt(seenThrough) + BigInt(1)) break
+    seenThrough = row.sequence
     if (row.state === 'applied') {
       // A suspended/crashed process may have committed this row before it
       // saved the applied cursor. Recover the contiguous applied prefix;
       // pending or failed rows still pass through the normal apply gate.
-      if (!cursorBlocked) through = event.sequence
-      if (isCoalescibleSnapshot(event)) bindingStoresChanged = true
+      if (!cursorBlocked) {
+        through = event.sequence
+        if (isCoalescibleSnapshot(event)) bindingStoresChanged = true
+      }
       onProgress?.({ path, current: index + 1, total: parsedRows.length })
       continue
     }
-    if (event.objectId && blockedObjects.has(event.objectId)) continue
     try {
+      assertNoIsolatedNoteConflict(binding, event.objectId)
+      if (event.objectId && blockedObjects.has(event.objectId)) continue
       const supersededSnapshot = isCoalescibleSnapshot(event)
+        && !unfinishedMoves.has(event.objectId!)
         && latestSnapshotSequence.get(event.objectId!) !== row.sequence
       if (!supersededSnapshot) {
-        if (event.sourceDeviceId !== deviceId) {
+        if (event.sourceDeviceId !== deviceId && !await deferredSnapshotIsStale(binding, event, row.errorCode)) {
           const collaborativeSnapshotEcho = event.type === 'object.upserted'
             && event.objectId !== null
             && event.metadata.kind === 'note'
             && isDocumentSubscribed(event.objectId)
+            && !unfinishedMoves.has(event.objectId)
+            && await selfHostedSnapshotMatchesMappedNotePath(binding, event)
           if (collaborativeSnapshotEcho) {
             console.info('[self-hosted-sync] Deferred remote note snapshot to active collaboration', {
               workspaceId: binding.workspaceId,
@@ -1403,30 +1489,44 @@ async function applyInbox(
       if (!cursorBlocked) through = event.sequence
       onProgress?.({ path, current: index + 1, total: parsedRows.length })
     } catch (error) {
-      if (error instanceof PendingPathMove || error instanceof PendingLocalChange) {
-        await database.execute(
-          "update self_hosted_inbox set state = 'pending', error_code = $1 where workspace_id = $2 and sequence = $3",
-          [error.message, binding.workspaceId, event.sequence],
-        )
+      if (error instanceof PendingPathMove || error instanceof PendingLocalChange || error instanceof PendingNoteConflict) {
+        if (row.state !== 'pending' || row.errorCode !== error.message) {
+          await database.execute(
+            "update self_hosted_inbox set state = 'pending', error_code = $1 where workspace_id = $2 and sequence = $3",
+            [error.message, binding.workspaceId, event.sequence],
+          )
+        }
         applicationError ??= error
         cursorBlocked = true
         if (event.objectId) blockedObjects.add(event.objectId)
-        if (binding.workspaceType === 'account-data') continue
+        if (binding.workspaceType === 'account-data' || (event.objectId
+          && (error instanceof PendingNoteConflict || error instanceof PendingPathMove))) continue
+        applicationError = error
+        stoppedOnError = true
         break
       }
       await database.execute(
         "update self_hosted_inbox set state = 'failed', error_code = $1 where workspace_id = $2 and sequence = $3",
         [String(error instanceof Error ? error.message : error).slice(0, 120), binding.workspaceId, event.sequence]
       )
-      applicationError ??= error instanceof Error ? error : new Error(String(error))
+      const failure = error instanceof Error ? error : new Error(String(error))
+      applicationError ??= failure
       cursorBlocked = true
       if (event.objectId) blockedObjects.add(event.objectId)
       if (binding.workspaceType === 'account-data') continue
+      applicationError = failure
+      stoppedOnError = true
       break
     }
   }
   await cleanupDeletedFolders(binding)
+  await cleanupMovedFolders(binding)
   await updateAppliedCursor(binding.workspaceId, through)
+  if (!stoppedOnError && BigInt(seenThrough) < BigInt(pulledThrough)) {
+    // A missing durable row must be fetched again before it can be ACKed.
+    await updatePulledCursor(binding.workspaceId, seenThrough)
+    applicationError = new Error('remote_inbox_sequence_gap')
+  }
   if (coalesced > 0) {
     console.info('[self-hosted-sync] inbox snapshots coalesced', {
       workspaceId: binding.workspaceId,
@@ -1447,6 +1547,32 @@ function isCoalescibleSnapshot(event: SyncEvent): boolean {
     event.objectId
     && (event.type === 'object.upserted' || event.type === 'object.deleted')
   )
+}
+
+async function deferredSnapshotIsStale(binding: Binding, event: SyncEvent, errorCode: string | null) {
+  const revision = event.metadata.revision
+  if (binding.workspaceType !== 'library' || errorCode !== NOTE_REVISION_CONFLICT
+    || !isCoalescibleSnapshot(event) || typeof revision !== 'string') return false
+  // A local resolution installs its accepted snapshot before releasing the
+  // command. Replaying an older held snapshot must leave that write intact.
+  const rows = await (await getDb()).select<Array<{ found: number }>>(
+    `select 1 as found from self_hosted_revisions where workspace_id = $1 and object_id = $2
+       and cast(revision as integer) > cast($3 as integer)
+       and cast(sequence as integer) >= cast($4 as integer) limit 1`,
+    [binding.workspaceId, event.objectId, revision, event.sequence],
+  )
+  return rows.length > 0
+}
+
+function assertNoIsolatedNoteConflict(binding: Binding, objectId: string | null) {
+  if (objectId && binding.isolatedNoteConflicts?.has(objectId)) throw new PendingNoteConflict()
+}
+
+function assertNoIsolatedNoteConflictAtPath(binding: Binding, pathCasefold: string, overlapsDescendants = false) {
+  for (const path of binding.isolatedNoteConflicts?.values() ?? []) {
+    if (path === pathCasefold || pathCasefold.startsWith(`${path}/`)
+      || (overlapsDescendants && path.startsWith(`${pathCasefold}/`))) throw new PendingNoteConflict()
+  }
 }
 
 async function refreshBindingStores(binding: Binding) {
@@ -1500,6 +1626,21 @@ async function refreshLibraryFileTree(binding: Binding) {
       error,
     })
   }
+}
+
+async function selfHostedSnapshotMatchesMappedNotePath(binding: Binding, event: SyncEvent) {
+  if (!event.objectId || !event.ciphertext || !event.keyVersion) return false
+  const [mapping] = await (await getDb()).select<Array<{ relativePath: string | null }>>(
+    `select relative_path as relativePath from self_hosted_object_mappings
+     where workspace_id = $1 and object_id = $2 and kind = 'note' and deleted_at is null`,
+    [binding.workspaceId, event.objectId],
+  )
+  if (!mapping?.relativePath) return false
+  const key = await loadWorkspaceKey(binding.workspaceId, event.keyVersion)
+  const payload = await decryptPackedJson<Record<string, unknown>>(
+    key, event.ciphertext, objectAssociatedData(binding.workspaceId, event.objectId, 'note'),
+  )
+  return payload.domain === 'file' && payload.relativePath === mapping.relativePath
 }
 
 async function applyRemoteEvent(binding: Binding, event: SyncEvent, beforeStructuredApply?: (payload: Record<string, unknown>) => Promise<void>) {
@@ -1693,6 +1834,7 @@ async function resolveRemoteDeleteTarget(binding: Binding, event: SyncEvent) {
   const portable = ['file', 'asset', 'folder'].includes(domain)
     ? await invoke<PortableMappingPath>('self_hosted_portable_path', { relativePath: localKey })
     : null
+  if (portable) assertNoIsolatedNoteConflictAtPath(binding, portable.caseFolded, true)
   const normalizedLocalKey = portable?.normalized ?? localKey
   const localIdentity = `${domain}:${normalizedLocalKey}`
   const existing = await database.select<Array<{ objectId: string }>>(
@@ -1722,6 +1864,101 @@ interface PortableMappingPath {
   caseFolded: string
 }
 
+async function moveMappedRemoteFile(
+  binding: Binding,
+  objectId: string,
+  kind: 'note' | 'asset',
+  target: PortableMappingPath,
+) {
+  const localRoot = binding.localRoot
+  if (!localRoot) return false
+  const database = await getDb()
+  const [mapping] = await database.select<Array<{ relativePath: string | null; pathCasefold: string | null }>>(
+    `select relative_path as relativePath, path_casefold as pathCasefold from self_hosted_object_mappings
+     where workspace_id = $1 and object_id = $2 and kind = $3 and deleted_at is null`,
+    [binding.workspaceId, objectId, kind],
+  )
+  const source = mapping?.relativePath
+  if (!source || source === target.normalized) return false
+  await assertNoPendingPathMove(binding, source)
+  await assertNoPendingPathMove(binding, target.normalized)
+  assertNoIsolatedNoteConflictAtPath(binding, mapping?.pathCasefold ?? source.toLowerCase())
+  assertNoIsolatedNoteConflictAtPath(binding, target.caseFolded, true)
+  const paths = [source, target.normalized]
+  const replayingMove = (await readReceivedPathMoves(binding.workspaceId)).some(move => (
+    move.objectId === objectId && move.source === source && move.target === target.normalized
+  ))
+  const { default: useArticleStore } = await import('@/stores/article')
+  const isCurrentWorkspace = workspaceRootsReferToSameLocation(localRoot, await getCurrentWorkspaceRoot())
+  const unlock = lockEditorPathsForMutation(paths, localRoot)
+  if (!unlock) throw new PendingLocalChange()
+  let moved = false
+  try {
+    if (isCurrentWorkspace && !await prepareActiveEditorPathMutationDurably(
+      useArticleStore.getState().activeFilePath, paths, localRoot,
+    )) throw new PendingLocalChange()
+
+    const move = async (hasQueuedSave: () => boolean) => {
+      // A different identity at the destination or an unsent path mutation
+      // must be resolved before this object can take over the destination.
+      const [pending] = await database.select<Array<{ present: number }>>(
+        `select 1 as present where exists (
+           select 1 from self_hosted_object_mappings where workspace_id = $1
+             and object_id <> $2 and path_casefold = $3 and deleted_at is null
+         ) or ($6 = 0 and exists (
+           select 1 from self_hosted_local_changes where workspace_id = $1
+             and domain in ('file', 'asset', 'folder') and local_key in ($4, $5)
+             and state in ('pending', 'queued')
+         ))`,
+        [binding.workspaceId, objectId, target.caseFolded, source, target.normalized, replayingMove ? 1 : 0],
+      )
+      if (pending || hasQueuedSave()) return false
+      await assertNoPendingPathMove(binding, source)
+      await assertNoPendingPathMove(binding, target.normalized)
+      if (hasQueuedSave()) return false
+      moved = await invoke<boolean>('self_hosted_move_path', {
+        workspaceId: binding.workspaceId,
+        workspaceRoot: localRoot,
+        sourceRelativePath: source,
+        targetRelativePath: target.normalized,
+        remoteObjectId: objectId,
+      }).catch(error => {
+        if (error === 'remote_path_move_local_activity') throw new PendingLocalChange()
+        throw error
+      })
+      if (moved) {
+        markEditorPathMutation(source, localRoot)
+        markEditorPathMutation(target.normalized, localRoot)
+      }
+      return true
+    }
+
+    const accepted = await runEditorPathWriteTransaction(source, async ({ hasQueuedSave }) => (
+      editorPathsCouldReferToSameFile(source, target.normalized, localRoot)
+        ? move(hasQueuedSave)
+        : runEditorPathWriteTransaction(
+          target.normalized, targetState => move(() => hasQueuedSave() || targetState.hasQueuedSave()), localRoot,
+        )
+    ), localRoot)
+    if (!accepted) throw new PendingLocalChange()
+  } finally {
+    unlock()
+  }
+  if (moved && isCurrentWorkspace) {
+    await useArticleStore.getState().syncOpenTabsForPathChange(source, target.normalized, false)
+    emitter.emit('editor-file-path-changed', { oldPath: source, newPath: target.normalized })
+  }
+  return true
+}
+
+async function clearReceivedMoveJournal(workspaceId: string, objectId: string) {
+  await (await getDb()).execute(
+    `delete from self_hosted_file_journal where workspace_id = $1 and object_id = $2
+       and operation = 'received-move' and state in ('committed', 'rolled-back')`,
+    [workspaceId, objectId],
+  )
+}
+
 async function convergeRemotePortableMapping(
   binding: Binding,
   event: SyncEvent,
@@ -1729,6 +1966,7 @@ async function convergeRemotePortableMapping(
   domain: 'file' | 'asset' | 'folder',
   portable: PortableMappingPath,
 ) {
+  assertNoIsolatedNoteConflictAtPath(binding, portable.caseFolded, kind !== 'folder')
   const database = await getDb()
   const localIdentity = `${domain}:${portable.normalized}`
   const [incomingRows, conflictingRows] = await Promise.all([
@@ -1865,6 +2103,7 @@ async function applyRemoteAsset(binding: Binding, event: SyncEvent, payload: Rec
   const objectId = event.objectId
   if (!objectId || !relativePath || !blobId) throw new Error('remote_asset_invalid')
   const portable = await invoke<PortableMappingPath>('self_hosted_portable_path', { relativePath })
+  assertNoIsolatedNoteConflictAtPath(binding, portable.caseFolded, true)
   const downloaded = await downloadAsset({
     profileId: binding.profileId,
     workspaceId: binding.workspaceId,
@@ -1876,15 +2115,16 @@ async function applyRemoteAsset(binding: Binding, event: SyncEvent, payload: Rec
   if (typeof payload.plaintextHash === 'string' && downloaded.hash !== payload.plaintextHash) {
     throw new Error('blob_plaintext_hash_mismatch')
   }
+  const pathChanged = await moveMappedRemoteFile(binding, objectId, 'asset', portable)
   await assertNoPendingPathMove(binding, portable.normalized)
   const database = await getDb()
   const [baseline] = await database.select<Array<{ contentHash: string | null; writable: number }>>(
     `select m.content_hash as contentHash, b.access_mode = 'read-write' as writable
      from self_hosted_workspace_bindings b
      left join self_hosted_object_mappings m on m.workspace_id = b.workspace_id
-       and m.object_id = $2 and m.path_casefold = $3 and m.deleted_at is null
+       and m.object_id = $2 and (m.path_casefold = $3 or $4 = 1) and m.deleted_at is null
      where b.workspace_id = $1 limit 1`,
-    [binding.workspaceId, objectId, portable.caseFolded]
+    [binding.workspaceId, objectId, portable.caseFolded, pathChanged ? 1 : 0]
   )
   const current = await readLibraryAsset(binding.localRoot!, portable.normalized)
   if (current?.hash !== downloaded.hash) {
@@ -1912,6 +2152,7 @@ async function applyRemoteAsset(binding: Binding, event: SyncEvent, payload: Rec
       portable.caseFolded, downloaded.hash, JSON.stringify([blobId]), Date.now(),
     ]
   )
+  await clearReceivedMoveJournal(binding.workspaceId, objectId)
 }
 
 interface BinarySnapshot {
@@ -1982,26 +2223,76 @@ async function applyRemoteFolder(binding: Binding, event: SyncEvent, payload: Re
   const portable = await invoke<{ normalized: string; caseFolded: string }>(
     'self_hosted_portable_path', { relativePath },
   )
+  assertNoIsolatedNoteConflictAtPath(binding, portable.caseFolded)
+  const database = await getDb()
+  const [previous] = await database.select<Array<{ path: string; caseFolded: string | null }>>(
+    `select relative_path as path, path_casefold as caseFolded from self_hosted_object_mappings
+     where workspace_id = $1 and object_id = $2 and kind = 'folder'
+       and relative_path is not null and deleted_at is null`, [binding.workspaceId, event.objectId],
+  )
+  const source = previous?.path !== portable.normalized ? previous?.path : null
+  const sourceCaseFolded = previous?.caseFolded ?? source?.toLowerCase()
+  if (source && sourceCaseFolded) {
+    await assertNoPendingPathMove(binding, source)
+    assertNoIsolatedNoteConflictAtPath(binding, sourceCaseFolded, true)
+    // Save the old path before remapping. A crash or a partial batch can
+    // leave children to be moved by later inbox events.
+    await database.execute(
+      `insert into self_hosted_received_folder_moves(workspace_id, source_path, target_path) values($1,$2,$3)
+       on conflict(workspace_id, source_path) do update set target_path=excluded.target_path`,
+      [binding.workspaceId, source, portable.normalized],
+    )
+  }
   await invoke('self_hosted_create_directory', {
     workspaceId: binding.workspaceId,
     objectId: event.objectId,
     workspaceRoot: binding.localRoot,
     relativePath: portable.normalized,
+    previousRelativePath: sourceCaseFolded === portable.caseFolded ? source : null,
   })
   await convergeRemotePortableMapping(binding, event, 'folder', 'folder', portable)
-  const database = await getDb()
-  await database.execute(
-    `insert into self_hosted_object_mappings(
-       workspace_id, object_id, kind, local_identity, relative_path, path_casefold, updated_at
-     ) values ($1, $2, 'folder', $3, $4, $5, $6)
-     on conflict(workspace_id, object_id) do update set kind = excluded.kind,
-       local_identity = excluded.local_identity, relative_path = excluded.relative_path,
-       path_casefold = excluded.path_casefold, deleted_at = null, updated_at = excluded.updated_at`,
-    [
-      binding.workspaceId, event.objectId, `folder:${portable.normalized}`,
-      portable.normalized, portable.caseFolded, Date.now(),
-    ]
-  )
+}
+
+async function cleanupMovedFolders(binding: Binding) {
+  if (binding.workspaceType !== 'library' || !binding.localRoot) return
+  await withSelfHostedPrepareLock(binding.workspaceId, async () => {
+    const database = await getDb()
+    for (const { source, target, mappedDescendant } of await readReceivedFolderMoves(binding.workspaceId)) {
+      if (mappedDescendant) continue
+      try {
+        await assertNoPendingPathMove(binding, source)
+        assertNoIsolatedNoteConflictAtPath(binding, source.toLowerCase(), true)
+        const [held] = await database.select<Array<{ present: number }>>(
+          `select 1 as present from self_hosted_local_changes where workspace_id=$1 and state in ('pending','queued')
+           and domain in ('file','asset','folder') and (local_key=$2 or substr(local_key,1,length($2)+1)=$2||'/') limit 1`,
+          [binding.workspaceId, source],
+        )
+        if (held) continue
+        // If the move has not advanced its mapping, or a later remote event
+        // already owns the old name, leave that directory in place.
+        const [active] = await database.select<Array<{ present: number }>>(
+          `select 1 as present from self_hosted_object_mappings where workspace_id=$1 and deleted_at is null
+           and relative_path=$2 limit 1`, [binding.workspaceId, source],
+        )
+        if (!active) {
+          await invoke('self_hosted_delete_directory', {
+            workspaceId: binding.workspaceId, workspaceRoot: binding.localRoot, relativePath: source,
+            preserveRelativePath: target,
+          })
+        }
+        await database.execute(
+          'delete from self_hosted_received_folder_moves where workspace_id=$1 and source_path=$2',
+          [binding.workspaceId, source],
+        )
+      } catch (error) {
+        // Keep unresolved directories discoverable, but only upload actual
+        // local content at the former path, not its empty shell.
+        if (error instanceof PendingPathMove || error instanceof PendingNoteConflict
+          || error === 'Remote directory removal conflicts with local contents') continue
+        console.warn('[self-hosted-sync] Unable to clean up old folder after move', { workspaceId: binding.workspaceId, source, error })
+      }
+    }
+  })
 }
 
 async function hasUnsentPortableUpsert(
@@ -2021,18 +2312,21 @@ async function hasUnsentPortableUpsert(
 }
 
 async function applyRemoteDelete(binding: Binding, objectId: string) {
+  assertNoIsolatedNoteConflict(binding, objectId)
   const database = await getDb()
   const mappings = await database.select<Array<{
     relativePath: string | null
+    pathCasefold: string | null
     contentHash: string | null
     kind: string
   }>>(
-    `select relative_path as relativePath, content_hash as contentHash, kind
+    `select relative_path as relativePath, path_casefold as pathCasefold, content_hash as contentHash, kind
      from self_hosted_object_mappings where workspace_id = $1 and object_id = $2 limit 1`,
     [binding.workspaceId, objectId]
   )
   const mapping = mappings[0]
   if (mapping?.relativePath && binding.localRoot) {
+    assertNoIsolatedNoteConflictAtPath(binding, mapping.pathCasefold ?? mapping.relativePath.toLowerCase(), true)
     await assertNoPendingPathMove(binding, mapping.relativePath)
     const absolutePath = await join(binding.localRoot, mapping.relativePath)
     const pathExists = await exists(absolutePath)
@@ -2123,8 +2417,8 @@ async function preserveRemoteDeleteLocalFile(
 async function cleanupDeletedFolders(binding: Binding) {
   if (!binding.localRoot) return
   const database = await getDb()
-  const folders = await database.select<Array<{ objectId: string; relativePath: string }>>(
-    `select object_id as objectId, relative_path as relativePath
+  const folders = await database.select<Array<{ objectId: string; relativePath: string; pathCasefold: string | null }>>(
+    `select object_id as objectId, relative_path as relativePath, path_casefold as pathCasefold
      from self_hosted_object_mappings where workspace_id = $1 and kind = 'folder'
        and deleted_at is not null and relative_path is not null
      order by length(relative_path) desc`,
@@ -2133,6 +2427,7 @@ async function cleanupDeletedFolders(binding: Binding) {
   const { default: useArticleStore } = await import('@/stores/article')
   for (const folder of folders) {
     try {
+      assertNoIsolatedNoteConflictAtPath(binding, folder.pathCasefold ?? folder.relativePath.toLowerCase(), true)
       await assertNoPendingPathMove(binding, folder.relativePath)
       const articleState = useArticleStore.getState()
       if (!await prepareActiveEditorPathMutationDurably(
@@ -2149,7 +2444,7 @@ async function cleanupDeletedFolders(binding: Binding) {
         relativePath: folder.relativePath,
       })
     } catch (error) {
-      if (error instanceof PendingPathMove) continue
+      if (error instanceof PendingPathMove || error instanceof PendingNoteConflict) continue
       const existing = await database.select<Array<{ id: string }>>(
         `select id from self_hosted_conflicts where workspace_id = $1 and object_id = $2
            and conflict_type = 'remote-delete-local-edit' and state = 'unresolved' limit 1`,
@@ -2180,6 +2475,8 @@ async function applyRemoteFile(binding: Binding, event: SyncEvent, payload: Reco
   }) : null
   const content = downloaded ? new TextDecoder().decode(downloaded.bytes) : String(payload.content ?? '')
   const portable = await invoke<PortableMappingPath>('self_hosted_portable_path', { relativePath })
+  const objectId = event.objectId!
+  await moveMappedRemoteFile(binding, objectId, 'note', portable)
   const database = await getDb()
   const previousMappings = await database.select<Array<{ deletedAt: number | null }>>(
     `select deleted_at as deletedAt from self_hosted_object_mappings
@@ -2297,6 +2594,7 @@ async function applyRemoteFile(binding: Binding, event: SyncEvent, payload: Reco
     // accepted by the server. Updating it early would hide a later conflict.
     await enqueueFileSnapshot(portable.normalized, 'upsert', binding.workspaceId)
   }
+  await clearReceivedMoveJournal(binding.workspaceId, objectId)
 }
 
 async function preserveBootstrapPendingPersonalChanges(
@@ -2392,6 +2690,7 @@ async function bootstrapBinding(
       return (priority[left.kind] ?? 2) - (priority[right.kind] ?? 2)
     })
     let skippedObjects = 0
+    let pendingNoteConflict: PendingNoteConflict | undefined
     const appliedObjectIds: string[] = []
     for (const [index, object] of objects.entries()) {
       onProgress?.({ path: object.objectId, current: index, total: objects.length })
@@ -2413,9 +2712,14 @@ async function bootstrapBinding(
         createdAt: new Date().toISOString(),
       }
       try {
+        assertNoIsolatedNoteConflict(binding, event.objectId)
         await applyRemoteEvent(binding, event, payload => preserveBootstrapPendingPersonalChanges(binding, event, session, payload))
       } catch (error) {
         if (error instanceof PendingPathMove) throw error
+        if (error instanceof PendingNoteConflict) {
+          pendingNoteConflict = error
+          continue
+        }
         if (error instanceof PendingLocalChange) errors.add(error.message)
         skippedObjects += 1
         try {
@@ -2473,6 +2777,7 @@ async function bootstrapBinding(
       )
     }
     if (skippedObjects > 0) throw new Error(`bootstrap_apply_incomplete:${skippedObjects}/${objects.length}`)
+    if (pendingNoteConflict) throw pendingNoteConflict
     // Complete only after every enabled object has been materialized. Resolve
     // stale failures for removed or intentionally paused objects as well.
     await (await getDb()).execute(
@@ -2492,6 +2797,7 @@ async function bootstrapBinding(
       new Set(objects.map(object => object.objectId)),
     )
     await cleanupDeletedFolders(binding)
+    await cleanupMovedFolders(binding)
     await (await getDb()).execute(
       `update self_hosted_inbox set state = 'applied', applied_at = $1, error_code = null
        where workspace_id = $2 and state in ('pending', 'failed')

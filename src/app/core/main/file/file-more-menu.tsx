@@ -66,6 +66,7 @@ export function FileMoreMenu({
   const tSync = useTranslations('settings.sync')
   const { openSettings } = useSettingsDialogStore()
   const assetsPath = useSettingStore(state => state.assetsPath)
+  const supportsManualTransfers = useSettingStore(state => state.primaryBackupMethod !== 'selfHosted')
   const assetsFolderName = getWritingAssetsFolderName(assetsPath)
   const {
     loadFileTree,
@@ -135,7 +136,7 @@ export function FileMoreMenu({
   }
 
   async function handleUploadFiles() {
-    if (!await ensureSyncConfigured()) return
+    if (!supportsManualTransfers || !await ensureSyncConfigured()) return
     const accepted = await confirm(t(syncStaticAssets ? 'uploadFilesWithAssetsWarning' : 'uploadFilesWarning'), {
       title: t('uploadFiles'),
       kind: 'warning',
@@ -182,7 +183,7 @@ export function FileMoreMenu({
   }
 
   async function handleDownloadFiles() {
-    if (!await ensureSyncConfigured()) return
+    if (!supportsManualTransfers || !await ensureSyncConfigured()) return
     const progressToast = toast({
       title: t('operations.pull-files'),
       description: t('preparingFiles'),
@@ -391,14 +392,18 @@ export function FileMoreMenu({
             aria-label={t('syncStaticAssets')}
           />
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void handleUploadFiles()}>
-          <Upload className="mr-2 size-4" />
-          {t('uploadFiles')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void handleDownloadFiles()}>
-          <Download className="mr-2 size-4" />
-          {t('downloadFiles')}
-        </DropdownMenuItem>
+        {supportsManualTransfers && (
+          <>
+            <DropdownMenuItem onSelect={() => void handleUploadFiles()}>
+              <Upload className="mr-2 size-4" />
+              {t('uploadFiles')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void handleDownloadFiles()}>
+              <Download className="mr-2 size-4" />
+              {t('downloadFiles')}
+            </DropdownMenuItem>
+          </>
+        )}
 
         <DropdownMenuSeparator />
         <DropdownMenuLabel>{t('knowledgeBase')}</DropdownMenuLabel>

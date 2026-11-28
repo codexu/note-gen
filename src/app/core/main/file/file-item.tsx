@@ -142,7 +142,8 @@ export function FileItem({
     pendingFileTreeRenames: state.pendingFileTreeRenames,
   })))
   const { setClipboardItem, clipboardItem, clipboardItems, clipboardOperation } = useClipboardStore()
-  const { fileManagerTextSize, workspacePath } = useSettingStore()
+  const { fileManagerTextSize, workspacePath, primaryBackupMethod } = useSettingStore()
+  const supportsManualUpload = primaryBackupMethod !== 'selfHosted'
   const deleteEntries = useFileDeletion()
   const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
   const t = useTranslations('article.file')
@@ -670,7 +671,7 @@ export function FileItem({
   }
 
   async function handleUploadFile() {
-    if (operationPending || item.loading || isUploading || !item.isLocale || item.name === '') return
+    if (!supportsManualUpload || operationPending || item.loading || isUploading || !item.isLocale || item.name === '') return
     const sync = await getSyncConfiguration()
     if (!sync.configured) {
       toast({
@@ -910,10 +911,14 @@ export function FileItem({
                       {t('context.paste')}
                     </MobileMenuItem>
                     <MobileSeparator />
-                    <MobileMenuItem disabled={isUploading || !item.isLocale || item.name === ''} onClick={() => void handleUploadFile()}>
-                      {t('context.uploadFile')}
-                    </MobileMenuItem>
-                    <MobileSeparator />
+                    {supportsManualUpload && (
+                      <>
+                        <MobileMenuItem disabled={isUploading || !item.isLocale || item.name === ''} onClick={() => void handleUploadFile()}>
+                          {t('context.uploadFile')}
+                        </MobileMenuItem>
+                        <MobileSeparator />
+                      </>
+                    )}
                     <MobileMenuItem disabled={!item.isLocale} onClick={handleStartRename}>
                       {t('context.rename')}
                     </MobileMenuItem>
@@ -964,10 +969,14 @@ export function FileItem({
                       {t('context.paste')}
                     </MobileMenuItem>
                     <MobileSeparator />
-                    <MobileMenuItem disabled={isUploading || !item.isLocale || item.name === ''} onClick={() => void handleUploadFile()}>
-                      {t('context.uploadFile')}
-                    </MobileMenuItem>
-                    <MobileSeparator />
+                    {supportsManualUpload && (
+                      <>
+                        <MobileMenuItem disabled={isUploading || !item.isLocale || item.name === ''} onClick={() => void handleUploadFile()}>
+                          {t('context.uploadFile')}
+                        </MobileMenuItem>
+                        <MobileSeparator />
+                      </>
+                    )}
                     <MobileMenuItem disabled={!item.isLocale} onClick={handleStartRename}>
                       {t('context.rename')}
                     </MobileMenuItem>
@@ -1065,18 +1074,22 @@ export function FileItem({
                 </ContextMenuSubContent>
               </ContextMenuSub>
               <ContextMenuSeparator />
-              <ContextMenuItem
-                inset
-                disabled={isUploading || !item.isLocale || item.name === ''}
-                onClick={() => void handleUploadFile()}
-                menuType="file"
-              >
-                {isUploading
-                  ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                  : <FileUp className="mr-2 h-4 w-4" />}
-                {t('context.uploadFile')}
-              </ContextMenuItem>
-              <ContextMenuSeparator />
+              {supportsManualUpload && (
+                <>
+                  <ContextMenuItem
+                    inset
+                    disabled={isUploading || !item.isLocale || item.name === ''}
+                    onClick={() => void handleUploadFile()}
+                    menuType="file"
+                  >
+                    {isUploading
+                      ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                      : <FileUp className="mr-2 h-4 w-4" />}
+                    {t('context.uploadFile')}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                </>
+              )}
               <VectorKnowledgeMenu
                 item={item}
                 hasVector={hasVector}

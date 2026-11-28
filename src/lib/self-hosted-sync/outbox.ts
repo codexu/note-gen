@@ -17,6 +17,8 @@ import { preparePersonalAssetsUpload } from './personal-assets'
 import { hasMarkdownCollaboration, persistedMarkdownMatches } from './markdown-state'
 import { sanitizeOfficialSettingsPayload } from './official-settings'
 import { isOfficialSyncOrigin } from './service-source'
+import { isolatedNoteConflictPredicate, queuedObjectId } from './queue-conflicts'
+import { readReceivedPathMoves } from './received-path-moves'
 
 interface PendingChange {
   id: number
@@ -363,6 +365,14 @@ async function materializeOutboxRaw(
   if (allowedDomains.length === 0) return { errors: [] as string[], hasMore: false }
   const allowedDeleteDomains = workspaceType === 'library' ? allowedDomains
     : allowedDomains.filter(domain => isPersonalSyncKindEnabled(domain, domainToggles, true))
+  const blockedFileKeys = workspaceType === 'library' ? await blockedLibraryFileKeys(database, workspaceId) : []
+  const pendingPathMoves = workspaceType === 'library'
+    && (await (await Store.load('store.json')).get<string>('primaryBackupMethod')) === 'selfHosted'
+    && workspaceId === await activeLibraryWorkspaceId()
+    ? await (await import('@/lib/sync/workspace-path-moves')).getPendingWorkspacePathMoves()
+    : []
+  if (workspaceType === 'library') pendingPathMoves.push(...await readReceivedPathMoves(workspaceId))
+  const heldPaths = pendingPathMoves.flatMap(move => [move.source, move.target])
   const pending = await database.select<PendingChange[]>(
     `select c.id, c.domain, c.local_key as localKey, c.operation, c.reason, c.attempt_count as attemptCount,
        case when exists (
@@ -378,6 +388,13 @@ async function materializeOutboxRaw(
        and (c.operation <> 'delete' or c.domain in (select value from json_each($6)))
        and ((c.workspace_id = $1) or (c.workspace_id is null and $2 = 'account-data'))
        and c.domain in (select value from json_each($4))
+       and (c.domain <> 'file' or c.local_key not in (select value from json_each($8)))
+       and not exists (
+         select 1 from json_each($9) held
+         where c.local_key = held.value
+           or substr(c.local_key, 1, length(held.value) + 1) = held.value || '/'
+           or (c.domain = 'folder' and substr(held.value, 1, length(c.local_key) + 1) = c.local_key || '/')
+       )
        and c.id = (
          select max(latest.id) from self_hosted_local_changes latest
          where latest.state = 'pending' and latest.domain = c.domain and latest.local_key = c.local_key
@@ -394,14 +411,11 @@ async function materializeOutboxRaw(
          else 0 end,
        c.id
      limit $3`,
-    [workspaceId, workspaceType, maxCommands, JSON.stringify(allowedDomains), Date.now(), JSON.stringify(allowedDeleteDomains), attachmentsEnabled ? 1 : 0]
+    [workspaceId, workspaceType, maxCommands, JSON.stringify(allowedDomains), Date.now(),
+      JSON.stringify(allowedDeleteDomains), attachmentsEnabled ? 1 : 0, JSON.stringify(blockedFileKeys),
+      JSON.stringify(heldPaths)]
   )
   const workspaceKey = await loadWorkspaceKey(workspaceId, keyVersion)
-  const pendingPathMoves = workspaceType === 'library'
-    && (await (await Store.load('store.json')).get<string>('primaryBackupMethod')) === 'selfHosted'
-    && workspaceId === await activeLibraryWorkspaceId()
-    ? await (await import('@/lib/sync/workspace-path-moves')).getPendingWorkspacePathMoves()
-    : []
   let processedChanges = 0
   for (const change of pending) {
     if (workspaceType === 'library' && !['file', 'asset', 'folder'].includes(change.domain)) continue
@@ -409,13 +423,6 @@ async function materializeOutboxRaw(
     if (workspaceType === 'account-data' && !isDomainEnabled(change.domain, domainToggles)) continue
     if (workspaceType === 'account-data'
       && !isPersonalSyncKindEnabled(change.domain, domainToggles, change.operation === 'delete')) continue
-    // A path move copies an accepted remote snapshot. Uploading a local edit
-    // first would create the destination or change the frozen base revision.
-    // The dedicated encrypted path-move commands bypass this materializer.
-    if (pendingPathMoves.some(move => [move.source, move.target].some(root => (
-      change.localKey === root || change.localKey.startsWith(`${root}/`)
-      || (change.domain === 'folder' && root.startsWith(`${change.localKey}/`))
-    )))) continue
     if ((change.domain === 'file' || change.domain === 'asset') && !localRoot) continue
     const sourceIds = await database.select<Array<{ id: number }>>(
       `select id from self_hosted_local_changes
@@ -656,6 +663,31 @@ async function materializeOutboxRaw(
     [workspaceId, workspaceType, JSON.stringify(allowedDomains)],
   )
   return { errors: failures.map(failure => failure.code), hasMore: pending.length >= maxCommands && processedChanges > 0 }
+}
+
+async function blockedLibraryFileKeys(database: Awaited<ReturnType<typeof getDb>>, workspaceId: string) {
+  const blocked = await database.select<Array<{ pathCasefold: string }>>(
+    `select distinct mapping.path_casefold as pathCasefold
+     from self_hosted_outbox blocked
+     join self_hosted_object_mappings mapping on mapping.workspace_id = blocked.workspace_id
+       and mapping.object_id = ${queuedObjectId('blocked')}
+     where blocked.workspace_id = $1 and mapping.path_casefold is not null and (${isolatedNoteConflictPredicate})`,
+    [workspaceId],
+  )
+  if (blocked.length === 0) return []
+  const blockedPaths = new Set(blocked.map(row => row.pathCasefold))
+  const pending = await database.select<Array<{ localKey: string }>>(
+    `select distinct local_key as localKey from self_hosted_local_changes
+     where workspace_id = $1 and state = 'pending' and domain = 'file'`,
+    [workspaceId],
+  )
+  // Captured paths may use decomposed Unicode or platform separators. Match
+  // the portable mapping while leaving the original key usable on disk.
+  return pending.filter(({ localKey }) => {
+    const casefold = localKey.normalize('NFC').replaceAll('\\', '/').split('/')
+      .filter(part => part && part !== '.').join('/').toLowerCase()
+    return blockedPaths.has(casefold)
+  }).map(row => row.localKey)
 }
 
 function materializationErrorCode(error: unknown) {

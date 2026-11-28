@@ -15,6 +15,7 @@ import { ensureWorkspaceDirectory, managedWorkspaceLocation, resolveManagedWorks
 import { getWorkspaceFolderName } from '@/lib/workspace-name'
 import { syncStaleError } from '@/lib/sync/sync-stale-error'
 import { withSelfHostedPrepareLock } from './prepare-lock'
+import { readReceivedFolderMoves, readReceivedPathMoves } from './received-path-moves'
 import { normalizeWorkspaceNamePath, useWorkspaceNamesStore } from '@/stores/workspace-names'
 import { isOfficialSyncOrigin } from './service-source'
 import { automaticInitialLibrary, DEFAULT_LIBRARY_IDEMPOTENCY_KEY, findInitialLibraryBinding, getInitialLibraryLocation, isInitialLibraryCandidate, readLibraryBindings } from './initial-library-choice'
@@ -498,14 +499,16 @@ export async function reconcileLibraryFiles(
   localRoot: string,
   writable = true,
   onProgress?: (progress: { path: string; current: number; total: number }) => void,
+  protectedNotePaths: ReadonlySet<string> = new Set(),
 ) {
-  return withSelfHostedPrepareLock(workspaceId, () => reconcileLibraryFilesRaw(workspaceId, localRoot, writable, onProgress))
+  return withSelfHostedPrepareLock(workspaceId, () => reconcileLibraryFilesRaw(workspaceId, localRoot, writable, protectedNotePaths, onProgress))
 }
 
 async function reconcileLibraryFilesRaw(
   workspaceId: string,
   localRoot: string,
   writable: boolean,
+  protectedNotePaths: ReadonlySet<string>,
   onProgress?: (progress: { path: string; current: number; total: number }) => void,
 ) {
   onProgress?.({ path: localRoot, current: 0, total: 0 })
@@ -516,6 +519,10 @@ async function reconcileLibraryFilesRaw(
     && await (await Store.load('store.json')).get<string>('primaryBackupMethod') === 'selfHosted'
     ? await (await import('@/lib/sync/workspace-path-moves')).getPendingWorkspacePathMoves()
     : []
+  pendingMoves.push(...await readReceivedPathMoves(workspaceId))
+  const movedFolders = await readReceivedFolderMoves(workspaceId)
+  pendingMoves.push(...movedFolders.filter(move => move.mappedDescendant))
+  const movedFolderSources = new Set(movedFolders.map(move => move.source))
   const entries = await scanPortableEntries(localRoot, workspaceId)
   onProgress?.({ path: localRoot, current: 0, total: entries.length })
   const mapped = await database.select<Array<{ relativePath: string; contentHash: string | null; kind: string }>>(
@@ -526,15 +533,18 @@ async function reconcileLibraryFilesRaw(
   )
   const mappedByPath = new Map(mapped.map(item => [item.relativePath, item]))
   const localPaths = new Set(entries.map(entry => entry.relativePath))
+  const pendingMoveOwnsPath = (path: string, folder = false) => pendingMoves.some(move => (
+    [move.source, move.target].some(root => path === root || path.startsWith(`${root}/`)
+      || (folder && root.startsWith(`${path}/`)))
+  ))
   for (const [index, entry] of entries.entries()) {
     const absolutePath = await join(localRoot, entry.relativePath)
     onProgress?.({ path: absolutePath, current: index, total: entries.length })
+    if (protectedNotePaths.has(entry.relativePath.toLowerCase())) continue
+    if (entry.kind === 'folder' && movedFolderSources.has(entry.relativePath)) continue
     // A pending remote rename already owns these identities. In particular,
     // do not infer A→C by hash while an offline A→B→C journal is replaying.
-    if (pendingMoves.some(move => [move.source, move.target].some(root => (
-      entry.relativePath === root || entry.relativePath.startsWith(`${root}/`)
-      || (entry.kind === 'folder' && root.startsWith(`${entry.relativePath}/`))
-    )))) continue
+    if (pendingMoveOwnsPath(entry.relativePath, entry.kind === 'folder')) continue
     let content: string | null
     let hash: string | null
     try {
@@ -574,6 +584,9 @@ async function reconcileLibraryFilesRaw(
       const moved = [...mappedByPath.entries()].filter(([oldPath, candidate]) => (
         !localPaths.has(oldPath) && candidate.kind === expectedKind && candidate.contentHash === hash
       ))
+      // Hold a matching candidate while its source identity is reserved by
+      // a conflict or a rename journal.
+      if (moved.some(([oldPath]) => protectedNotePaths.has(oldPath.toLowerCase()) || pendingMoveOwnsPath(oldPath))) continue
       if (moved.length === 1) {
         const [oldPath, candidate] = moved[0]!
         const portable = await invoke<{ normalized: string; caseFolded: string }>(

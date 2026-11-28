@@ -4,18 +4,20 @@ import { BaseDirectory, exists, mkdir, readTextFile, writeFile } from '@tauri-ap
 import { join } from '@tauri-apps/api/path'
 import { executeRecordTransaction, getDb, type RecordStatement } from '@/db'
 import emitter from '@/lib/emitter'
+import { isSyncStaleError } from '@/lib/sync/sync-stale-error'
 import {
   getCurrentEditorWorkspaceRoot, getEditorPathMutationRevision,
   workspaceRootsReferToSameLocation,
 } from '@/lib/editor-deactivation'
 import { authenticatedClient } from './profile'
 import { decryptPackedJson, encryptJson, loadWorkspaceKey, objectAssociatedData } from './crypto'
-import { bytesToBase64Url, downloadAsset, uploadAssetBytes, base64UrlByteLength } from './blob'
-import { pauseSelfHostedDocumentCollaboration, waitForSelfHostedCollaborationIdle } from './collaboration'
+import { bytesToBase64Url, uploadAssetBytes, base64UrlByteLength } from './blob'
+import { pauseSelfHostedDocumentCollaboration, pushDocumentInitialization, waitForSelfHostedCollaborationIdle } from './collaboration'
+import { applyMarkdownText, createMarkdownInitializationUpdate, readMarkdownSnapshot } from './markdown-state'
 import { getSelfHostedSyncRuntime, writeResolvedSelfHostedNoteSnapshot } from './runtime'
+import { readSwitchDocument } from './switch-document'
 import { withSelfHostedPrepareLock } from './prepare-lock'
 import { ensureManagedWorkspaceKeys } from './workspaces'
-import type { SyncBootstrapPage } from './protocol'
 
 export interface SelfHostedNoteConflictSummary {
   id: string
@@ -35,8 +37,6 @@ interface ConflictRow extends SelfHostedNoteConflictSummary {
   localCopyPath: string | null
 }
 
-type RemoteObject = SyncBootstrapPage['objects'][number]
-
 export interface SelfHostedNoteConflictPreview extends SelfHostedNoteConflictSummary {
   objectId: string
   profileId: string
@@ -44,14 +44,12 @@ export interface SelfHostedNoteConflictPreview extends SelfHostedNoteConflictSum
   remoteContent: string
   baseContent: string | null
   remoteRevision: string
-  remoteDocumentSequence: string | null
+  remoteFileContent: string
+  remoteDocument: { id: string; sequence: string; content: string; update: Uint8Array } | null
   localMutationRevision: number
   localFileContent: string | null
   conflictSnapshot: string | null
   syncEpoch: string
-  remoteYjsState: string | null
-  remoteObject: RemoteObject
-  remotePayload: Record<string, unknown>
   maxObjectBytes: number
   keyVersion: number
 }
@@ -59,7 +57,6 @@ export interface SelfHostedNoteConflictPreview extends SelfHostedNoteConflictSum
 const CHANGED = 'SELF_HOSTED_NOTE_CONFLICT_CHANGED'
 const UNAVAILABLE = 'SELF_HOSTED_NOTE_CONFLICT_UNAVAILABLE'
 const UNSUPPORTED = 'SELF_HOSTED_NOTE_CONFLICT_UNSUPPORTED'
-const INITIALIZING = 'SELF_HOSTED_NOTE_CONFLICT_INITIALIZING'
 
 async function conflictRows(id?: string) {
   return (await getDb()).select<ConflictRow[]>(
@@ -97,13 +94,6 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-function decodeUpdate(value: unknown) {
-  const envelope = record(value)
-  if (envelope.format !== 'yjs-v1' || typeof envelope.update !== 'string') throw new Error(UNSUPPORTED)
-  const base64 = envelope.update.replaceAll('-', '+').replaceAll('_', '/')
-  return Uint8Array.from(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')), char => char.charCodeAt(0))
-}
-
 function markdownText(document: Y.Doc) {
   const legacy = document.getText('markdown')
   const legacyV2 = document.getMap<Y.Text>('markdown-v2')
@@ -123,17 +113,6 @@ function createDocument() {
   document.getText('markdown-v3')
   document.getMap('markdown-v3-meta')
   return document
-}
-
-async function payloadText(row: Pick<ConflictRow, 'workspaceId' | 'profileId' | 'relativePath'>, payload: Record<string, unknown>, keyVersion: number) {
-  if (typeof payload.content === 'string') return payload.content
-  if (typeof payload.blobId !== 'string') throw new Error(UNSUPPORTED)
-  const downloaded = await downloadAsset({
-    profileId: row.profileId, workspaceId: row.workspaceId, blobId: payload.blobId,
-    relativePath: row.relativePath, keyVersion,
-    associatedData: typeof payload.associatedData === 'string' ? payload.associatedData : undefined,
-  })
-  return new TextDecoder('utf-8', { fatal: true }).decode(downloaded.bytes)
 }
 
 async function loadRemote(row: ConflictRow) {
@@ -159,41 +138,40 @@ async function loadRemote(row: ConflictRow) {
   const aad = objectAssociatedData(row.workspaceId, row.objectId, 'note')
   const payload = record(await decryptPackedJson<unknown>(await loadWorkspaceKey(row.workspaceId, object.keyVersion), object.ciphertext, aad))
   if (payload.domain !== 'file' || payload.relativePath !== row.relativePath) throw new Error(UNAVAILABLE)
-  let content = await payloadText(row, payload, object.keyVersion)
-  let documentSequence: string | null = null
-  let yjsState: string | null = null
+  const remoteFileContent = await readMarkdownSnapshot(row, payload, object.keyVersion)
+  let remoteContent = remoteFileContent
+  let remoteDocument: SelfHostedNoteConflictPreview['remoteDocument'] = null
   if (object.document) {
-    const document = createDocument()
+    const state = await readSwitchDocument(client, row.workspaceId, object, session.syncEpoch,
+      version => loadWorkspaceKey(row.workspaceId, version)).catch(error => {
+      if (isSyncStaleError(error)) throw new Error(CHANGED)
+      throw error
+    })
+    if (!state) throw new Error(UNAVAILABLE)
     try {
-      let after = '0'
-      let complete = false
-      for (let count = 0; count < 10_000; count++) {
-        const page = await client.documentUpdates(row.workspaceId, object.document.documentId, after, session.syncEpoch)
-        if (page.checkpoint) {
-          if (page.checkpoint.objectId !== row.objectId) throw new Error(UNSUPPORTED)
-          const key = await loadWorkspaceKey(row.workspaceId, page.checkpoint.keyVersion)
-          Y.applyUpdate(document, decodeUpdate(await decryptPackedJson<unknown>(key, page.checkpoint.ciphertext, aad)))
-        }
-        for (const update of page.updates) {
-          const key = await loadWorkspaceKey(row.workspaceId, update.keyVersion)
-          Y.applyUpdate(document, decodeUpdate(await decryptPackedJson<unknown>(key, update.ciphertext, aad)))
-        }
-        const checkpointSequence = page.checkpoint?.documentSequence ?? '0'
-        documentSequence = [documentSequence ?? '0', page.nextDocumentSequence, checkpointSequence]
-          .reduce((latest, value) => BigInt(value) > BigInt(latest) ? value : latest, '0')
-        if (!page.hasMore) { complete = true; break }
-        if (BigInt(page.nextDocumentSequence) <= BigInt(after)) throw new Error(UNSUPPORTED)
-        after = page.nextDocumentSequence
+      if (state.document.store.pendingStructs || state.document.store.pendingDs) throw new Error(UNSUPPORTED)
+      const content = markdownText(state.document).toString()
+      const onlyInitialSeed = state.sequence === '1' && state.document.getMap('markdown-v3-meta').get('initialized') === true
+      remoteDocument = { id: object.document.documentId, sequence: state.sequence, content,
+        update: Y.encodeStateAsUpdate(state.document) }
+      if (row.id.startsWith('setup-conflict:')) {
+        remoteContent = content
+      } else if (!onlyInitialSeed && content !== remoteFileContent) {
+        // A file conflict follows the accepted object revision. A seed alone
+        // is not an edit, and older clients could seed with the rejected file.
+        // Prefer collaboration only when its edits cover or follow that revision.
+        const version = await client.latestObjectVersion(row.workspaceId, row.objectId, session.syncEpoch)
+        if (version?.revision !== object.currentRevision) throw new Error(CHANGED)
+        const currentCheckpoint = object.document.materializedRevision === object.currentRevision
+          && BigInt(object.document.checkpointDocumentSequence) > BigInt(1)
+        const newerEdits = state.latestUpdateEventSequence !== null
+          && BigInt(state.latestUpdateEventSequence) > BigInt(version.sequence)
+        if (currentCheckpoint || newerEdits) remoteContent = content
       }
-      if (!complete) throw new Error(UNSUPPORTED)
-      content = markdownText(document).toString()
-      yjsState = bytesToBase64Url(Y.encodeStateAsUpdate(document))
-    } finally { document.destroy() }
+    } finally { state.document.destroy() }
   }
   return {
-    remoteContent: content, remoteRevision: object.currentRevision,
-    remoteDocumentSequence: documentSequence, remoteYjsState: yjsState,
-    remoteObject: object, remotePayload: payload, syncEpoch: session.syncEpoch,
+    remoteContent, remoteFileContent, remoteRevision: object.currentRevision, remoteDocument, syncEpoch: session.syncEpoch,
     maxObjectBytes: session.limits.maxObjectBytes,
     keyVersion: Math.max(object.keyVersion, ...session.keyVersions.map(key => key.keyVersion)),
   }
@@ -216,7 +194,7 @@ export async function loadSelfHostedNoteConflict(id: string): Promise<SelfHosted
     const payload = record(saved.payload)
     if (command.objectId !== row.objectId || command.kind !== 'note' || payload.domain !== 'file'
       || payload.relativePath !== row.relativePath || typeof command.keyVersion !== 'number') throw new Error(UNSUPPORTED)
-    rejectedContent = await payloadText(row, payload, command.keyVersion)
+    rejectedContent = await readMarkdownSnapshot(row, payload, command.keyVersion)
     localContent = localFileContent ?? rejectedContent
   }
   if (localContent === null) throw new Error(UNSUPPORTED)
@@ -229,21 +207,6 @@ export async function loadSelfHostedNoteConflict(id: string): Promise<SelfHosted
     localContent, baseContent: row.baseSnapshot, localFileContent, localMutationRevision,
     conflictSnapshot: row.localSnapshot, ...remote,
   }
-}
-
-function applyText(document: Y.Doc, content: string) {
-  const text = markdownText(document)
-  const before = text.toString()
-  let prefix = 0
-  while (prefix < Math.min(before.length, content.length) && before[prefix] === content[prefix]) prefix++
-  let suffix = 0
-  while (suffix < Math.min(before.length, content.length) - prefix
-    && before[before.length - 1 - suffix] === content[content.length - 1 - suffix]) suffix++
-  document.transact(() => {
-    if (before.length - prefix - suffix > 0) text.delete(prefix, before.length - prefix - suffix)
-    const inserted = content.slice(prefix, content.length - suffix)
-    if (inserted) text.insert(prefix, inserted)
-  })
 }
 
 async function closeResolutionReports(preview: SelfHostedNoteConflictPreview) {
@@ -289,17 +252,17 @@ export async function resolveSelfHostedNoteConflict(
         const assertCurrent = () => {
           if (!isCurrent() || getEditorPathMutationRevision(preview.relativePath, preview.localRoot) !== preview.localMutationRevision) throw new Error(CHANGED)
         }
+        const assertSameSnapshot = (current: SelfHostedNoteConflictPreview) => {
+          if (current.workspaceId !== preview.workspaceId || current.objectId !== preview.objectId || current.profileId !== preview.profileId
+            || current.relativePath !== preview.relativePath || current.localFileContent !== preview.localFileContent
+            || current.conflictSnapshot !== preview.conflictSnapshot || current.syncEpoch !== preview.syncEpoch
+            || current.remoteRevision !== preview.remoteRevision || current.remoteContent !== preview.remoteContent) throw new Error(CHANGED)
+          assertCurrent()
+        }
+        const isMatchingInitialization = (document: SelfHostedNoteConflictPreview['remoteDocument']) => (
+          document?.id === preview.objectId && document.sequence === '1' && document.content === preview.remoteContent
+        )
         assertCurrent()
-        await closeResolutionReports(preview)
-        const fresh = await loadSelfHostedNoteConflict(preview.id)
-        if (fresh.objectId !== preview.objectId || fresh.localFileContent !== preview.localFileContent
-          || fresh.conflictSnapshot !== preview.conflictSnapshot || fresh.syncEpoch !== preview.syncEpoch
-          || fresh.remoteRevision !== preview.remoteRevision || fresh.remoteDocumentSequence !== preview.remoteDocumentSequence
-          || fresh.remoteContent !== preview.remoteContent) throw new Error(CHANGED)
-        assertCurrent()
-        // Initializing a missing document has no object-revision CAS in the
-        // current protocol. Let the normal editor establish its baseline.
-        if (fresh.remoteYjsState === null) throw new Error(INITIALIZING)
         const database = await getDb()
         const retired = await database.select<Array<{ commandId: string; sourceIds: string; payload: string }>>(
           `select command_id as commandId, source_change_ids as sourceIds, payload from self_hosted_outbox
@@ -315,8 +278,41 @@ export async function resolveSelfHostedNoteConflict(
           version: 1, conflictId: preview.id, workspaceId: preview.workspaceId,
           relativePath: preview.relativePath, localContent: preview.localContent,
           localFileContent: preview.localFileContent, remoteContent: preview.remoteContent,
-          resolvedContent: content, retired,
+          remoteFileContent: preview.remoteFileContent, remoteDocumentContent: preview.remoteDocument?.content ?? null,
+          remoteRevision: preview.remoteRevision, remoteDocumentSequence: preview.remoteDocument?.sequence ?? null,
+          baseContent: preview.baseContent, resolvedContent: content, retired,
         })), { baseDir: BaseDirectory.AppData })
+        await closeResolutionReports(preview)
+        const fresh = await loadSelfHostedNoteConflict(preview.id)
+        assertSameSnapshot(fresh)
+        let remoteDocument = fresh.remoteDocument
+        if (preview.remoteDocument) {
+          if (remoteDocument?.id !== preview.remoteDocument.id || remoteDocument.sequence !== preview.remoteDocument.sequence
+            || remoteDocument.content !== preview.remoteDocument.content) throw new Error(CHANGED)
+        } else if (remoteDocument && !isMatchingInitialization(remoteDocument)) throw new Error(CHANGED)
+
+        const { client } = await authenticatedClient(preview.profileId)
+        if (!remoteDocument) {
+          // Resolve with both revisions protected, even for a note that's
+          // never been opened collaboratively. Seed only the reviewed remote.
+          const version = await client.currentObjectVersion(preview.workspaceId, preview.objectId, fresh.syncEpoch)
+          if (version?.revision !== fresh.remoteRevision) throw new Error(CHANGED)
+          const initialized = await pushDocumentInitialization(client, {
+            workspaceId: preview.workspaceId, objectId: preview.objectId, documentId: preview.objectId,
+            kind: 'note', keyVersion: fresh.keyVersion,
+          }, fresh.syncEpoch, fresh.remoteRevision, createMarkdownInitializationUpdate(fresh.remoteContent), assertCurrent)
+          if (initialized.status === 'applied') {
+            if (initialized.documentSequence !== '1') throw new Error(CHANGED)
+          } else if (initialized.code !== 'document_already_initialized') {
+            throw new Error(initialized.code === 'document_object_inactive' || initialized.code === 'revision_conflict'
+              ? CHANGED : initialized.code ?? UNAVAILABLE)
+          }
+          // Another edit can arrive after the guarded seed is accepted.
+          const seeded = await loadSelfHostedNoteConflict(preview.id)
+          assertSameSnapshot(seeded)
+          remoteDocument = seeded.remoteDocument
+          if (!remoteDocument || !isMatchingInitialization(remoteDocument)) throw new Error(CHANGED)
+        }
         const key = await loadWorkspaceKey(preview.workspaceId, fresh.keyVersion)
         const aad = objectAssociatedData(preview.workspaceId, preview.objectId, 'note')
         let payload: Record<string, unknown> = { version: 1, domain: 'file', relativePath: preview.relativePath, content }
@@ -334,30 +330,27 @@ export async function resolveSelfHostedNoteConflict(
           encrypted = await encryptJson(key, payload, aad)
         }
         const checkpointId = crypto.randomUUID()
-        let resolution: Record<string, unknown> | undefined
-        let checkpoint: Awaited<ReturnType<typeof encryptJson>> | null = null
-        if (fresh.remoteYjsState !== null && fresh.remoteDocumentSequence !== null) {
-          const document = createDocument()
-          try {
-            Y.applyUpdate(document, decodeUpdate({ format: 'yjs-v1', update: fresh.remoteYjsState }))
-            applyText(document, content)
-            checkpoint = await encryptJson(key, { format: 'yjs-v1', update: bytesToBase64Url(Y.encodeStateAsUpdate(document)) }, aad)
-          } finally { document.destroy() }
-          if (base64UrlByteLength(checkpoint.packedCiphertext) > fresh.maxObjectBytes) throw new Error(UNSUPPORTED)
-          resolution = { checkpointId, documentId: fresh.remoteObject.document!.documentId,
-            objectId: preview.objectId, kind: 'note', expectedDocumentSequence: fresh.remoteDocumentSequence,
-            keyVersion: fresh.keyVersion, ciphertext: checkpoint.packedCiphertext, ciphertextHash: checkpoint.packedCiphertextHash }
-        }
+        const document = createDocument()
+        let checkpoint: Awaited<ReturnType<typeof encryptJson>>
+        try {
+          Y.applyUpdate(document, remoteDocument.update)
+          applyMarkdownText(document, markdownText(document), content)
+          if (markdownText(document).toString() !== content) throw new Error(UNSUPPORTED)
+          checkpoint = await encryptJson(key, { format: 'yjs-v1', update: bytesToBase64Url(Y.encodeStateAsUpdate(document)) }, aad)
+        } finally { document.destroy() }
+        if (base64UrlByteLength(checkpoint.packedCiphertext) > fresh.maxObjectBytes) throw new Error(UNSUPPORTED)
+        const resolution = { checkpointId, documentId: remoteDocument.id,
+          objectId: preview.objectId, kind: 'note', expectedDocumentSequence: remoteDocument.sequence,
+          keyVersion: fresh.keyVersion, ciphertext: checkpoint.packedCiphertext, ciphertextHash: checkpoint.packedCiphertextHash }
         const conflictId = crypto.randomUUID()
         const envelope = await encryptJson(key, {
           version: 1, relativePath: preview.relativePath, localConflictId: preview.id,
-          expectedRevision: fresh.remoteRevision, expectedDocumentSequence: fresh.remoteDocumentSequence,
+          expectedRevision: fresh.remoteRevision, expectedDocumentSequence: remoteDocument.sequence,
         }, aad)
-        const { client } = await authenticatedClient(preview.profileId)
         const createCommandId = crypto.randomUUID()
         const create = { commandId: createCommandId, type: 'create-conflict', conflictId,
           objectId: preview.objectId, kind: 'note', conflictType: 'snapshot-diverged',
-          expectedRevision: fresh.remoteRevision, expectedDocumentSequence: fresh.remoteDocumentSequence,
+          expectedRevision: fresh.remoteRevision, expectedDocumentSequence: remoteDocument.sequence,
           keyVersion: fresh.keyVersion, ciphertext: envelope.packedCiphertext, ciphertextHash: envelope.packedCiphertextHash }
         await database.execute(
           `insert into self_hosted_outbox(command_id,workspace_id,source_change_ids,command_type,payload,state,last_error_code,created_at,updated_at)
@@ -371,7 +364,7 @@ export async function resolveSelfHostedNoteConflict(
           expectedCreatedSequence: created.sequence,
           objectResolution: { objectId: preview.objectId, kind: 'note', blobRefs,
             keyVersion: fresh.keyVersion, ciphertext: encrypted.packedCiphertext, ciphertextHash: encrypted.packedCiphertextHash },
-          ...(resolution ? { resolution } : {}) }
+          resolution }
         const now = Date.now()
         // Keep the idempotent resolution command durable before sending it.
         // It remains blocked for editor-led recovery if the response is lost.
@@ -411,10 +404,10 @@ export async function resolveSelfHostedNoteConflict(
             sql: "update self_hosted_local_changes set state='superseded',updated_at=$1 where id=$2 and state='queued'", values: [now, id],
           })
         }
-        if (checkpoint && fresh.remoteDocumentSequence !== null) statements.push({
+        statements.push({
           sql: `insert or replace into self_hosted_yjs_updates(workspace_id,document_id,document_sequence,object_id,key_version,event_type,update_id,payload,applied,created_at)
             values($1,$2,$3,$4,$5,'checkpoint',$6,$7,1,$8)`,
-          values: [preview.workspaceId, fresh.remoteObject.document!.documentId, (BigInt(fresh.remoteDocumentSequence) + BigInt(1)).toString(),
+          values: [preview.workspaceId, remoteDocument.id, (BigInt(remoteDocument.sequence) + BigInt(1)).toString(),
             preview.objectId, fresh.keyVersion, checkpointId, checkpoint.packedCiphertext, now],
         })
         await executeRecordTransaction(statements)

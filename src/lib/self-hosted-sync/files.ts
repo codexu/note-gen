@@ -5,6 +5,7 @@ import { getDefaultArticleAbsolutePath, getWorkspacePath } from '@/lib/workspace
 import { enqueueAssetSnapshot, enqueueFileSnapshot, enqueueFolderSnapshot } from './outbox'
 import { getSelfHostedSyncRuntime } from './runtime'
 import { withSelfHostedPrepareLock } from './prepare-lock'
+import { encodeUtf8Base64Url } from './crypto'
 
 function normalizeSlashes(path: string) {
   return path.normalize('NFC').replaceAll('\\', '/').replace(/\/{2,}/g, '/').replace(/\/$/, '')
@@ -40,28 +41,58 @@ export async function moveSelfHostedWorkspacePath(sourceRelativePath: string, ta
 }
 
 export async function writeSelfHostedWorkspaceText(relativePath: string, content: string) {
+  return await writeBoundWorkspaceText(relativePath, content) === 'written'
+}
+
+export function writeSelfHostedWorkspaceTextGuarded(
+  relativePath: string,
+  content: string,
+  expectedContent: string | null,
+) {
+  return writeBoundWorkspaceText(relativePath, content, expectedContent)
+}
+
+async function writeBoundWorkspaceText(
+  relativePath: string,
+  content: string,
+  expectedContent?: string | null,
+): Promise<'written' | 'not-bound' | 'conflict'> {
   const binding = await activeBinding()
-  if (!binding) return false
+  if (!binding) return 'not-bound'
   const normalizedPath = workspaceRelativePath(relativePath, binding.workspaceRoot)
-  if (!normalizedPath) return false
+  if (!normalizedPath) return 'not-bound'
   const database = await getDb()
   const mappings = await database.select<Array<{ objectId: string }>>(
     `select object_id as objectId from self_hosted_object_mappings
      where workspace_id = $1 and relative_path = $2 and deleted_at is null limit 1`,
     [binding.workspaceId, normalizedPath]
   )
-  const bytes = new TextEncoder().encode(content)
-  let binary = ''
-  bytes.forEach(byte => { binary += String.fromCharCode(byte) })
-  await invoke('self_hosted_atomic_write', {
-    workspaceId: binding.workspaceId,
-    objectId: mappings[0]?.objectId ?? null,
-    workspaceRoot: binding.workspaceRoot,
-    relativePath: normalizedPath,
-    contents: btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, ''),
-    expectedHash: await invoke<string>('self_hosted_sha256', { value: content }),
-  })
-  return true
+  const tryWrite = async (next: string, previous?: string | null): Promise<'written' | 'conflict'> => {
+    const targetSnapshot = previous === undefined ? undefined : {
+      hash: previous === null ? null : await invoke<string>('self_hosted_sha256', { value: previous }),
+      acceptIdentical: true,
+    }
+    try {
+      await invoke('self_hosted_atomic_write', {
+        workspaceId: binding.workspaceId,
+        objectId: mappings[0]?.objectId ?? null,
+        workspaceRoot: binding.workspaceRoot,
+        relativePath: normalizedPath,
+        contents: encodeUtf8Base64Url(next),
+        expectedHash: await invoke<string>('self_hosted_sha256', { value: next }),
+        targetSnapshot,
+      })
+      return 'written'
+    } catch (error) {
+      if (targetSnapshot && error === 'remote_asset_local_activity') return 'conflict'
+      throw error
+    }
+  }
+  const result = await tryWrite(content, expectedContent)
+  // The filesystem text reader removes a UTF-8 BOM when opening a note.
+  if (result !== 'conflict' || expectedContent == null || expectedContent.startsWith('\uFEFF')) return result
+  const withBom = '\uFEFF' + expectedContent
+  return tryWrite(content === expectedContent ? withBom : content, withBom)
 }
 
 export async function deleteSelfHostedWorkspacePath(

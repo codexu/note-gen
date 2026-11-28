@@ -12,6 +12,7 @@ import { toast } from '@/hooks/use-toast'
 import useArticleStore from '@/stores/article'
 import type { SortDirection, SortType } from '@/stores/article'
 import useCloudLibraryStore from '@/stores/cloud-library'
+import useSettingStore from '@/stores/setting'
 import useVectorStore from '@/stores/vector'
 import { cn } from '@/lib/utils'
 import { getSyncConfiguration } from './file-tree-action-policy'
@@ -38,6 +39,7 @@ export function CloudLibraryMenu({
   const tToolbar = useTranslations('article.file.toolbar')
   const tSync = useTranslations('settings.sync')
   const router = useRouter()
+  const supportsManualTransfers = useSettingStore(state => state.primaryBackupMethod !== 'selfHosted')
   const {
     loadFileTree,
     loadRemoteSyncFiles,
@@ -84,7 +86,7 @@ export function CloudLibraryMenu({
   }
 
   async function handlePullAll() {
-    if (!await ensureSyncConfigured()) return
+    if (!supportsManualTransfers || !await ensureSyncConfigured()) return
     try {
       const result = await pullAllFiles(undefined, { includeStaticAssets: true })
       await loadFileTree()
@@ -107,7 +109,7 @@ export function CloudLibraryMenu({
   }
 
   async function handleUploadAll() {
-    if (!await ensureSyncConfigured()) return
+    if (!supportsManualTransfers || !await ensureSyncConfigured()) return
     const accepted = await confirm(t(syncStaticAssets ? 'uploadFilesWithAssetsWarning' : 'uploadFilesWarning'), {
       title: t('uploadFiles'),
       kind: 'warning',
@@ -287,7 +289,7 @@ export function CloudLibraryMenu({
           icon: sortOptions.direction === 'asc' ? <SortDesc /> : <SortAsc />,
           onSelect: () => sortOptions.setDirection(sortOptions.direction === 'asc' ? 'desc' : 'asc'),
         }] : []),
-        {
+        ...(supportsManualTransfers ? [{
           key: 'upload-files',
           label: t('uploadFiles'),
           icon: <Upload />,
@@ -296,7 +298,7 @@ export function CloudLibraryMenu({
           onSelect: handleUploadAll,
           disabled: busy,
         },
-        { key: 'download-files', label: t('downloadFiles'), icon: <Download />, onSelect: handlePullAll, disabled: busy },
+        { key: 'download-files', label: t('downloadFiles'), icon: <Download />, onSelect: handlePullAll, disabled: busy }] : []),
         {
           key: 'auto-vector',
           label: t('autoUpdate'),

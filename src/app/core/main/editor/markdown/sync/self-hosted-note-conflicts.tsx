@@ -151,9 +151,9 @@ export function SelfHostedNoteConflicts({
     if (requested) void loadConflict(requested)
   }, [activeFilePath, busy, conflicts, disabled, isActive, loadConflict, requestedId])
 
-  const resolve = useCallback(async (content: string) => {
+  const resolve = useCallback(async (visiblePreview: SelfHostedNoteConflictPreview | null, content: string) => {
     const loaded = loadedRef.current
-    if (!loaded || busyRef.current || !loaded.isScopeCurrent()) return
+    if (!loaded || loaded.preview !== visiblePreview || busyRef.current || !loaded.isScopeCurrent()) return
     const isCurrent = () => loaded.isScopeCurrent()
       && scopeRef.current.getMarkdown() === loaded.liveMarkdown
     busyRef.current = true
@@ -217,7 +217,7 @@ export function SelfHostedNoteConflicts({
       busy={busy}
       error={error}
       onRefresh={() => { if (selected) void loadConflict(selected) }}
-      onResolve={resolve}
+      onResolve={content => resolve(preview, content)}
     />
   </>
 }

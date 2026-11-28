@@ -35,7 +35,8 @@ import { CloudLibraryMenu } from '@/app/core/main/file/cloud-library-menu'
 import { pullRemoteLibraryFolder, uploadLocalLibraryFile, uploadLocalLibraryFolder } from '@/lib/sync/remote-library'
 import useClipboardStore from '@/stores/clipboard'
 import { generateCopyFilename, generateCopyFoldername } from '@/lib/default-filename'
-import { getFileTreeSyncStatus, getSyncConfiguration } from '@/app/core/main/file/file-tree-action-policy'
+import { buildFileTreeSyncStatusMap, getSyncConfiguration } from '@/app/core/main/file/file-tree-action-policy'
+import { useSelfHostedFileTreeStatus } from '@/hooks/use-self-hosted-file-tree-status'
 import {
   prepareActiveEditorDeactivationDurably,
   prepareActiveEditorPathMutationDurably,
@@ -106,6 +107,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
   } = useArticleStore()
   const assetsPath = useSettingStore(state => state.assetsPath)
   const workspacePath = useSettingStore(state => state.workspacePath)
+  const officialFileStatus = useSelfHostedFileTreeStatus()
   const pendingDeletionPaths = useFileDeletionStore(state => state.pendingPaths)
   const deleteEntries = useFileDeletion()
   const assetsFolderName = getWritingAssetsFolderName(assetsPath)
@@ -197,6 +199,11 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
       })
   }, [displayTree, currentDir, sortDirection, sortType, syncStaticAssets])
 
+  const syncStatusByPath = useMemo(
+    () => buildFileTreeSyncStatusMap(fileTree, officialFileStatus),
+    [fileTree, officialFileStatus],
+  )
+
   const visibleEntries = useMemo(() => {
     const mapped: BrowserEntry[] = rawEntries.map((node) => {
       const relativePath = currentDir ? `${currentDir}/${node.name}` : node.name
@@ -215,7 +222,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
         size: (node as any).size,
         fileCount,
         folderCount,
-        syncStatus: getFileTreeSyncStatus(node),
+        syncStatus: syncStatusByPath.get(relativePath) ?? 'local-only',
       }
     })
 
@@ -227,7 +234,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
         entry.relativePath.toLowerCase().includes(query)
       )
     })
-  }, [rawEntries, currentDir, searchQuery])
+  }, [rawEntries, currentDir, searchQuery, syncStatusByPath])
 
   useEffect(() => {
     if (!active) return
@@ -318,8 +325,8 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
 
     if (entry.type === 'file') {
       const parts = [formatDateTime(modifiedAt), formatSize(size)].filter(Boolean)
-      if (entry.syncStatus === 'local-only') {
-        return [tSyncStatus('local-only'), ...parts].join(' · ')
+      if (officialFileStatus || entry.syncStatus === 'local-only') {
+        return [tSyncStatus(entry.syncStatus), ...parts].join(' · ')
       }
       return parts.length > 0 ? parts.join(' · ') : tMobile('file')
     }
@@ -332,11 +339,11 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
       : tMobile('folder')
 
     const parts = [folderSummary, formatDateTime(modifiedAt)].filter(Boolean)
-    if (entry.syncStatus === 'local-only') {
-      parts.unshift(tSyncStatus('local-only'))
+    if (officialFileStatus || entry.syncStatus === 'local-only') {
+      parts.unshift(tSyncStatus(entry.syncStatus))
     }
     return parts.join(' · ')
-  }, [entryMetaMap, formatDateTime, formatSize, tMobile, tSyncStatus])
+  }, [entryMetaMap, formatDateTime, formatSize, officialFileStatus, tMobile, tSyncStatus])
 
   const isBrowserRefreshing = fileTreeLoading || folderLoading || isRefreshing || !!currentFolderNode?.loading
   const showBrowserLoading = isBrowserRefreshing && visibleEntries.length === 0
@@ -1156,7 +1163,7 @@ export function MobileFileBrowser({ active, onOpenFile }: MobileFileBrowserProps
                             disabled: !entry.isLocale,
                             variant: 'outline' as const,
                           }] : []),
-                          ...(entry.type === 'file' ? [{
+                          ...(officialFileStatus ? [] : entry.type === 'file' ? [{
                             key: 'upload',
                             label: tContext('uploadFile'),
                             icon: <FileUp className="size-4" />,

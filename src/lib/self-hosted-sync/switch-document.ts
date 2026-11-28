@@ -10,6 +10,7 @@ type SwitchObject = SyncBootstrapPage['objects'][number]
 export interface SwitchDocumentState {
   document: Y.Doc
   sequence: string
+  latestUpdateEventSequence: string | null
 }
 
 function staleDocument(object: SwitchObject) {
@@ -62,6 +63,7 @@ export async function readSwitchDocument(
   initializeRoots(document, object.kind)
   const expected = BigInt(object.document.latestDocumentSequence)
   let through = BigInt(0)
+  let latestUpdateEventSequence: string | null = null
   let after = '0'
   const aad = objectAssociatedData(workspaceId, object.objectId, object.kind)
   const apply = async (ciphertext: string, keyVersion: number) => {
@@ -88,6 +90,7 @@ export async function readSwitchDocument(
         if (checkpoint.objectId !== object.objectId || BigInt(checkpoint.documentSequence) > expected) throw staleDocument(object)
         await apply(checkpoint.ciphertext, checkpoint.keyVersion)
         through = BigInt(checkpoint.documentSequence)
+        latestUpdateEventSequence = null
         reportProgress(true)
       }
       for (const update of page.updates) {
@@ -97,6 +100,7 @@ export async function readSwitchDocument(
         if (sequence !== through + BigInt(1)) throw staleDocument(object)
         await apply(update.ciphertext, update.keyVersion)
         through = sequence
+        latestUpdateEventSequence = update.eventSequence
         reportProgress()
       }
       reportProgress(true)
@@ -108,7 +112,7 @@ export async function readSwitchDocument(
     }
     if (through !== expected) throw staleDocument(object)
     reportProgress(true)
-    return { document, sequence: through.toString() }
+    return { document, sequence: through.toString(), latestUpdateEventSequence }
   } catch (error) {
     document.destroy()
     throw error

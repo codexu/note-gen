@@ -139,12 +139,19 @@ function readSnapshot(value: unknown, context: string, source: string, target: s
 export async function moveSelfHostedRemotePath(
   source: string, target: string, { expected, rememberSource, assertCurrent }: PathMoveOptions,
 ): Promise<{ status: 'moved' | 'missing' }> {
-  if (!validPath(source) || !validPath(target) || source === target
-    || within(source.toLowerCase(), target.toLowerCase()) || within(target.toLowerCase(), source.toLowerCase())) {
+  if (!validPath(source) || !validPath(target)) {
     throw new Error('自托管重命名源路径和目标路径无效或互相包含')
   }
   source = await invoke<string>('self_hosted_move_source_path', { relativePath: source })
   target = (await invoke<{ normalized: string }>('self_hosted_portable_path', { relativePath: target })).normalized
+  const sourceCasefold = source.toLowerCase()
+  const targetCasefold = target.toLowerCase()
+  if (source === target || targetCasefold.startsWith(`${sourceCasefold}/`) || sourceCasefold.startsWith(`${targetCasefold}/`)) {
+    throw new Error('自托管重命名源路径和目标路径无效或互相包含')
+  }
+  const touchesMove = (path: string) => [sourceCasefold, targetCasefold].some(root => (
+    within(root, path) || within(path, root)
+  ))
   const binding = await activeBinding()
   if (!binding) throw new Error('自托管工作区未绑定或已断开')
   const context = identity(binding)
@@ -195,8 +202,12 @@ export async function moveSelfHostedRemotePath(
           }
           const path = await invoke<string>('self_hosted_move_source_path', { relativePath: payload.relativePath })
           const casefold = path.toLowerCase()
-          if (paths.has(casefold)) throw new Error('自托管远端路径存在大小写冲突')
-          paths.add(casefold)
+          // An existing collision in another subtree cannot affect the object
+          // identities or parents involved in this move.
+          if (touchesMove(casefold)) {
+            if (paths.has(casefold)) throw new Error('自托管远端路径存在大小写冲突')
+            paths.add(casefold)
+          }
           remote.push({ ...object, path, casefold, payload })
         }
         if (!page.hasMore) return { remote, keyVersion: Math.max(1, ...session.keyVersions.map(key => key.keyVersion)) }
@@ -234,10 +245,15 @@ export async function moveSelfHostedRemotePath(
       )
       if (outstanding.some(row => movedIds.has(row.objectId))) throw new ExistingUploadPending()
     }
+    const knownTargets = new Map(snapshot?.entries.map(entry => [entry.objectId, entry.target]))
+    if (remoteState.remote.some(object => within(sourceCasefold, object.casefold)
+      && !within(source, object.path) && knownTargets.get(object.objectId) !== object.path)) {
+      throw new Error('自托管远端路径存在大小写冲突')
+    }
     if (!snapshot) {
       const entries = remoteState.remote.filter(object => within(source, object.path))
       const unrelated = remoteState.remote.filter(object => !within(source, object.path))
-      if (unrelated.some(object => within(target.toLowerCase(), object.casefold))) throw new Error('自托管远端目标已存在，未覆盖任何内容')
+      if (unrelated.some(object => within(targetCasefold, object.casefold))) throw new Error('自托管远端目标已存在，未覆盖任何内容')
       if (!entries.length) return 'missing'
       snapshot = {
         provider: 'selfHosted', context, operationId: crypto.randomUUID(), syncEpoch,
@@ -307,6 +323,11 @@ export async function moveSelfHostedRemotePath(
     const originalIds = new Set(snapshot.entries.filter(entry => entry.source !== null).map(entry => entry.objectId))
     if (remoteState.remote.some(object => within(source, object.path) && !originalIds.has(object.objectId))) {
       throw new Error('自托管旧目录出现新的远端对象，未覆盖或删除新内容，重命名待办已保留')
+    }
+    const targetIds = new Map(snapshot.entries.map(entry => [entry.targetCasefold, entry.objectId]))
+    if (remoteState.remote.some(object => (targetIds.has(object.casefold) || within(targetCasefold, object.casefold))
+      && targetIds.get(object.casefold) !== object.objectId)) {
+      throw new Error('自托管远端目标已存在，未覆盖任何内容')
     }
     const remoteById = () => new Map(remoteState.remote.map(object => [object.objectId, object]))
     const completed = () => {

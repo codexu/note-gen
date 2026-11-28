@@ -4,10 +4,12 @@ import { Store } from '@tauri-apps/plugin-store'
 import { encryptJson, decryptPackedJson, encodeUtf8Base64Url, loadWorkspaceKey, objectAssociatedData } from './crypto'
 import { getSelfHostedSyncRuntime } from './runtime'
 import { authenticatedClient, getProfile } from './profile'
+import type { SelfHostedClient } from './client'
 import { enqueueFileSnapshot, ensureLibraryObjectMapping } from './outbox'
 import { isPersonalSyncKindEnabled } from './domains'
+import { readLibraryQueueConflicts } from './queue-conflicts'
 import emitter from '@/lib/emitter'
-import { trackMarkdownCollaboration } from './markdown-state'
+import { createMarkdownInitializationUpdate, readMarkdownSnapshot, trackMarkdownCollaboration } from './markdown-state'
 
 interface DocumentBinding {
   workspaceId: string
@@ -97,6 +99,7 @@ export async function openCollaborativeDocument(localRoot: string, relativePath:
     await assertCollaborationEntry()
     assertActive()
     const binding = await resolveDocument(localRoot, relativePath, assertActive)
+    if (await hasQueuedNoteConflict(binding)) throw new Error('SELF_HOSTED_NOTE_CONFLICT_INITIALIZING')
     assertActive()
     return openCollaborativeBinding(binding, isActive)
   })
@@ -192,9 +195,9 @@ async function openCollaborativeBinding(binding: DocumentBinding, generationActi
   return {
     ...binding,
     isActive,
-    initialize: (update: Uint8Array) => trackOperation(async () => {
+    initializeMarkdown: (relativePath: string, markdown: string) => trackOperation(async () => {
       assertActive()
-      return initializeYjsDocument(binding, update, assertActive)
+      await initializeMarkdownDocument(binding, relativePath, markdown, assertActive)
     }),
     appendUpdate: (update: Uint8Array) => {
       // Capture the bytes and register the operation synchronously at the Yjs
@@ -249,13 +252,16 @@ async function openCollaborativeBinding(binding: DocumentBinding, generationActi
     consume: async (apply: (update: Uint8Array, checkpoint: boolean) => void) => {
       if (!isActive()) return
       return trackOperation(async () => {
+        if (await hasQueuedNoteConflict(binding) || !isActive()) return
         let pullError: unknown = null
         try {
           await pullDocumentUpdates(binding, assertActive)
         } catch (error) {
           pullError = error
         }
-        if (!isActive()) return
+        // A failed pull normally falls back to the durable cache. A conflict
+        // also holds cached remote updates until the note is resolved.
+        if (await hasQueuedNoteConflict(binding) || !isActive()) return
         consumedThrough = await consumeYjsUpdates(binding, apply, consumedThrough, consumedLocalCommands, assertActive)
         if (pullError) throw pullError
       })
@@ -310,7 +316,15 @@ async function openCollaborativeBinding(binding: DocumentBinding, generationActi
   }
 }
 
-async function initializeYjsDocument(binding: DocumentBinding, update: Uint8Array, assertActive: () => void) {
+async function hasQueuedNoteConflict(binding: DocumentBinding) {
+  return binding.kind === 'note' && (await readLibraryQueueConflicts(binding.workspaceId)).some(
+    conflict => conflict.objectId === binding.objectId && conflict.pathCasefold !== null,
+  )
+}
+
+async function initializeMarkdownDocument(
+  binding: DocumentBinding, relativePath: string, initialMarkdown: string, assertActive: () => void,
+) {
   const database = await getDb()
   const bindings = await database.select<Array<{ profileId: string; syncEpoch: string | null }>>(
     `select profile_id as profileId, sync_epoch as syncEpoch
@@ -322,14 +336,44 @@ async function initializeYjsDocument(binding: DocumentBinding, update: Uint8Arra
     throw new Error('自托管同步工作区尚未完成初始化')
   }
 
+  const { profileId, syncEpoch } = localBinding
+  const { client } = await authenticatedClient(profileId)
+  await assertBindingEnabled(binding, true)
+  assertActive()
+  // The encrypted file may already carry another device's accepted revision.
+  // Keep a divergent disk file on the file-sync path until it can be resolved.
+  // This endpoint also establishes that the server supports guarded initialization.
+  const remote = await client.currentObjectVersion(binding.workspaceId, binding.objectId, syncEpoch)
+  if (!remote || remote.deleted || remote.kind !== 'note') throw new Error('SELF_HOSTED_NOTE_CONFLICT_INITIALIZING')
+  const payload = await decryptPackedJson<Record<string, unknown>>(
+    await loadWorkspaceKey(binding.workspaceId, remote.keyVersion), remote.ciphertext,
+    objectAssociatedData(binding.workspaceId, binding.objectId, 'note'),
+  )
+  if (payload.domain !== 'file' || payload.relativePath !== relativePath
+    || await readMarkdownSnapshot({ profileId, workspaceId: binding.workspaceId, relativePath }, payload, remote.keyVersion) !== initialMarkdown) {
+    throw new Error('SELF_HOSTED_NOTE_CONFLICT_INITIALIZING')
+  }
+  if (await hasQueuedNoteConflict(binding)) throw new Error('SELF_HOSTED_NOTE_CONFLICT_INITIALIZING')
+  const result = await pushDocumentInitialization(client, binding, syncEpoch, remote.revision,
+    createMarkdownInitializationUpdate(initialMarkdown), assertActive)
+  if (result.status !== 'applied' && result.code !== 'document_already_initialized') {
+    throw new Error(`协作文档初始化失败：${result.code ?? 'missing_command_result'}`)
+  }
+  assertActive()
+  const current = await client.currentObjectVersion(binding.workspaceId, binding.objectId, syncEpoch)
+  if (current?.revision !== remote.revision) throw new Error('SELF_HOSTED_NOTE_CONFLICT_INITIALIZING')
+}
+
+export async function pushDocumentInitialization(
+  client: SelfHostedClient, binding: DocumentBinding, syncEpoch: string,
+  expectedObjectRevision: string, update: Uint8Array, assertActive: () => void,
+) {
   const commandId = crypto.randomUUID()
   const updateId = crypto.randomUUID()
   const key = await loadWorkspaceKey(binding.workspaceId, binding.keyVersion)
   const encrypted = await encryptJson(key, {
     format: 'yjs-v1', update: bytesToBase64Url(update),
   } satisfies YjsEnvelope, objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind))
-  const { client } = await authenticatedClient(localBinding.profileId)
-  await assertBindingEnabled(binding, true)
   assertActive()
   const response = await client.pushCommands(binding.workspaceId, [{
     commandId,
@@ -338,14 +382,16 @@ async function initializeYjsDocument(binding: DocumentBinding, update: Uint8Arra
     documentId: binding.documentId,
     objectId: binding.objectId,
     kind: binding.kind,
+    expectedObjectRevision,
     keyVersion: binding.keyVersion,
     ciphertext: encrypted.packedCiphertext,
     ciphertextHash: encrypted.packedCiphertextHash,
-  }], localBinding.syncEpoch)
+  }], syncEpoch)
   const result = response.results[0]
-  if (result?.status === 'applied') return 'applied' as const
-  if (result?.code === 'document_already_initialized') return 'already-initialized' as const
-  throw new Error(`协作文档初始化失败：${result?.code ?? 'missing_command_result'}`)
+  if (response.syncEpoch !== syncEpoch || response.results.length !== 1 || result?.commandId !== commandId) {
+    throw new Error('invalid_document_initialization_result')
+  }
+  return result
 }
 
 async function pullDocumentUpdates(binding: DocumentBinding, assertActive: () => void) {
@@ -380,6 +426,7 @@ async function pullDocumentUpdates(binding: DocumentBinding, assertActive: () =>
       after,
       localBinding.syncEpoch,
     )
+    if (await hasQueuedNoteConflict(binding)) return
     assertActive()
     if (
       page.checkpoint
@@ -537,6 +584,7 @@ async function consumeYjsUpdates(
         objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind),
       )
       await assertBindingEnabled(binding)
+      if (await hasQueuedNoteConflict(binding)) return consumedThrough
       assertActive()
       apply(base64UrlToBytes(value.update), true)
       consumedThrough = checkpoint.sequence
@@ -560,6 +608,7 @@ async function consumeYjsUpdates(
       key, row.payload, objectAssociatedData(binding.workspaceId, binding.objectId, binding.kind),
     )
     await assertBindingEnabled(binding)
+    if (await hasQueuedNoteConflict(binding)) return consumedThrough
     assertActive()
     apply(base64UrlToBytes(value.update), row.eventType === 'checkpoint')
     assertActive()

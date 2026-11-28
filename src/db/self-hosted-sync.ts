@@ -196,6 +196,16 @@ const SYNC_TABLES = `
   create index if not exists idx_self_hosted_file_journal_recovery
     on self_hosted_file_journal(state, created_at);
 
+  create index if not exists idx_self_hosted_file_journal_received_move
+    on self_hosted_file_journal(workspace_id, object_id) where operation = 'received-move';
+
+  create table if not exists self_hosted_received_folder_moves (
+    workspace_id text not null,
+    source_path text not null,
+    target_path text not null,
+    primary key(workspace_id, source_path)
+  );
+
   create table if not exists self_hosted_remote_objects (
     workspace_id text not null,
     object_id text not null,

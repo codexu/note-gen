@@ -3,6 +3,7 @@ import {
   openCollaborativeDocument,
   type PresenceCoordinateSpace,
 } from './collaboration'
+import { applyMarkdownText } from './markdown-state'
 
 const LOCAL_ORIGIN = Symbol('notegen-local-editor')
 const REMOTE_ORIGIN = Symbol('notegen-remote-sync')
@@ -146,16 +147,7 @@ export async function openMarkdownCollaboration(
   try {
     const hasRemoteBaseline = await consumeRemoteUpdates(true)
     if (!hasRemoteBaseline) {
-      // Build the first v3 state in an isolated document. It must not enter the
-      // live Y.Doc until the server's compare-and-set command has accepted it;
-      // a concurrent loser discards this candidate and pulls the winner.
-      const seed = new Y.Doc()
-      const seedText = seed.getText('markdown-v3')
-      if (initialMarkdown) seedText.insert(0, initialMarkdown)
-      seed.getMap('markdown-v3-meta').set('initialized', true)
-      const initializationUpdate = Y.encodeStateAsUpdate(seed)
-      seed.destroy()
-      await transport.initialize(initializationUpdate)
+      await transport.initializeMarkdown(relativePath, initialMarkdown)
       const receivedAuthoritativeBaseline = await consumeRemoteUpdates(true)
       if (!receivedAuthoritativeBaseline || !isV3Initialized()) {
         throw new Error('协作文档初始化后未能读取服务端权威基线')
@@ -182,17 +174,7 @@ export async function openMarkdownCollaboration(
         // Local edits are already visible. Compare future remote batches with
         // this version, including a legitimate empty authoritative document.
         publishedMarkdown = markdown
-        const shared = sharedText()
-        if (markdown === shared.toString()) return
-        const previous = shared.toString()
-        const prefix = commonPrefix(previous, markdown)
-        const suffix = commonSuffix(previous, markdown, prefix)
-        document.transact(() => {
-          const removed = previous.length - prefix - suffix
-          if (removed > 0) shared.delete(prefix, removed)
-          const inserted = markdown.slice(prefix, markdown.length - suffix)
-          if (inserted) shared.insert(prefix, inserted)
-        }, LOCAL_ORIGIN)
+        applyMarkdownText(document, sharedText(), markdown, LOCAL_ORIGIN)
       },
       updatePresence: transport.updatePresence,
       clearPresence: transport.clearPresence,
@@ -239,18 +221,4 @@ export async function openMarkdownCollaboration(
     document.destroy()
     throw error
   }
-}
-
-function commonPrefix(left: string, right: string) {
-  const limit = Math.min(left.length, right.length)
-  let index = 0
-  while (index < limit && left[index] === right[index]) index++
-  return index
-}
-
-function commonSuffix(left: string, right: string, prefix: number) {
-  const limit = Math.min(left.length, right.length) - prefix
-  let index = 0
-  while (index < limit && left[left.length - 1 - index] === right[right.length - 1 - index]) index++
-  return index
 }

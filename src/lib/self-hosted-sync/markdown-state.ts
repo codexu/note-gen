@@ -1,5 +1,6 @@
 import * as Y from 'yjs'
 import { getDb } from '@/db'
+import { downloadAsset } from './blob'
 import { decryptPackedJson, loadWorkspaceKey, objectAssociatedData } from './crypto'
 
 const activeDocuments = new Map<string, number>()
@@ -16,6 +17,59 @@ export function trackMarkdownCollaboration(workspaceId: string, objectId: string
 
 export function hasMarkdownCollaboration(workspaceId: string, objectId: string): boolean {
   return activeDocuments.has(`${workspaceId}\0${objectId}`)
+}
+
+export function createMarkdownInitializationUpdate(markdown: string): Uint8Array {
+  const document = new Y.Doc()
+  try {
+    if (markdown) document.getText('markdown-v3').insert(0, markdown)
+    document.getMap('markdown-v3-meta').set('initialized', true)
+    return Y.encodeStateAsUpdate(document)
+  } finally {
+    document.destroy()
+  }
+}
+
+export function applyMarkdownText(document: Y.Doc, text: Y.Text, content: string, origin?: unknown) {
+  const previous = text.toString()
+  if (previous === content) return
+  const sharedLength = Math.min(previous.length, content.length)
+  let prefix = 0
+  while (prefix < sharedLength && previous[prefix] === content[prefix]) prefix++
+  if (splitsSurrogatePair(previous, prefix) || splitsSurrogatePair(content, prefix)) prefix--
+
+  let suffix = 0
+  while (suffix < sharedLength - prefix
+    && previous[previous.length - 1 - suffix] === content[content.length - 1 - suffix]) suffix++
+  if (splitsSurrogatePair(previous, previous.length - suffix)
+    || splitsSurrogatePair(content, content.length - suffix)) suffix--
+
+  document.transact(() => {
+    const removed = previous.length - prefix - suffix
+    if (removed > 0) text.delete(prefix, removed)
+    const inserted = content.slice(prefix, content.length - suffix)
+    if (inserted) text.insert(prefix, inserted)
+  }, origin)
+}
+
+function splitsSurrogatePair(text: string, offset: number) {
+  const lead = text.charCodeAt(offset - 1)
+  const trail = text.charCodeAt(offset)
+  return lead >= 0xd800 && lead <= 0xdbff && trail >= 0xdc00 && trail <= 0xdfff
+}
+
+export async function readMarkdownSnapshot(
+  { profileId, workspaceId, relativePath }: { profileId: string; workspaceId: string; relativePath: string },
+  payload: Record<string, unknown>,
+  keyVersion: number,
+): Promise<string> {
+  if (typeof payload.content === 'string') return payload.content
+  if (typeof payload.blobId !== 'string') throw new Error('SELF_HOSTED_NOTE_CONFLICT_UNSUPPORTED')
+  const downloaded = await downloadAsset({
+    profileId, workspaceId, relativePath, blobId: payload.blobId, keyVersion,
+    associatedData: typeof payload.associatedData === 'string' ? payload.associatedData : undefined,
+  })
+  return new TextDecoder('utf-8', { fatal: true }).decode(downloaded.bytes)
 }
 
 // Only durable CRDT bytes can justify discarding a rejected file snapshot.

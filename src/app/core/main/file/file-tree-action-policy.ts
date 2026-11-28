@@ -2,6 +2,7 @@ import { Store } from '@tauri-apps/plugin-store'
 
 import { getGiteaConnection } from '@/lib/sync/gitea-connection'
 import { getOptionalSyncRepoName } from '@/lib/sync/repo-utils'
+import type { SelfHostedFileStatus } from '@/lib/self-hosted-sync/file-tree-status'
 import type { DirTree } from '@/stores/article'
 import {
   SYNC_PLATFORMS,
@@ -26,8 +27,22 @@ export function validateFileTreeName(name: string): 'empty' | 'invalid' | null {
 }
 
 export function getFileTreeSyncStatus(item: DirTree): FileTreeSyncStatus {
-  const childStatuses = item.children?.map(getFileTreeSyncStatus) ?? []
+  return resolveFileTreeSyncStatus(item, item.children?.map(getFileTreeSyncStatus) ?? [])
+}
+
+function resolveFileTreeSyncStatus(
+  item: DirTree,
+  childStatuses: FileTreeSyncStatus[],
+  official?: { status: SelfHostedFileStatus | undefined },
+): FileTreeSyncStatus {
   if (item.loading) return 'loading'
+  if (official) {
+    if (official.status === 'error' || childStatuses.includes('error')) return 'error'
+    if (official.status === 'dirty' || childStatuses.includes('dirty')) return 'dirty'
+    if (!item.isLocale) return 'remote-only'
+    if (official.status === 'synced' || childStatuses.includes('synced')) return 'synced'
+    return 'local-only'
+  }
   if (item.syncError || childStatuses.includes('error')) return 'error'
   if (
     (item.isLocale && item.sha && item.syncDirty)
@@ -41,29 +56,15 @@ export function getFileTreeSyncStatus(item: DirTree): FileTreeSyncStatus {
   return 'remote-only'
 }
 
-export function buildFileTreeSyncStatusMap(tree: DirTree[]) {
+export function buildFileTreeSyncStatusMap(tree: DirTree[], official?: ReadonlyMap<string, SelfHostedFileStatus>) {
   const statuses = new Map<string, FileTreeSyncStatus>()
 
   function visit(item: DirTree, parentPath = ''): FileTreeSyncStatus {
     const path = parentPath ? `${parentPath}/${item.name}` : item.name
     const childStatuses = (item.children ?? []).map(child => visit(child, path))
-    let status: FileTreeSyncStatus
-
-    if (item.loading) status = 'loading'
-    else if (item.syncError || childStatuses.includes('error')) status = 'error'
-    else if (
-      (item.isLocale && item.sha && item.syncDirty)
-      || childStatuses.includes('dirty')
-    ) status = 'dirty'
-    else if (
-      item.isLocale
-      && (Boolean(item.sha) || childStatuses.some(childStatus => (
-        childStatus === 'synced' || childStatus === 'remote-only'
-      )))
-    ) status = 'synced'
-    else if (item.isLocale) status = 'local-only'
-    else status = 'remote-only'
-
+    const status = resolveFileTreeSyncStatus(item, childStatuses, official && {
+      status: official.get(path.normalize('NFC')),
+    })
     statuses.set(path, status)
     return status
   }

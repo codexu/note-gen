@@ -9,14 +9,16 @@ import { MobileMenuItem } from '../mobile-action-menu'
 import { computedParentPath } from '@/lib/path'
 import { getSyncConfiguration } from '../file-tree-action-policy'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
+import useSettingStore from '@/stores/setting'
 
 export function UploadFolder({ item, mobile = false }: { item: DirTree; mobile?: boolean }) {
   const t = useTranslations('article.file.context')
   const [isUploading, setIsUploading] = useState(false)
+  const platform = useSettingStore(state => state.primaryBackupMethod)
   const { loadFileTree, loadRemoteSyncFiles, markFileRemote, setEntryLoading, setEntrySyncError } = useArticleStore()
 
   async function handleUploadFolder() {
-    if (isUploading || !item.isLocale || !item.isDirectory) return
+    if (platform === 'selfHosted' || isUploading || !item.isLocale || !item.isDirectory) return
     const sync = await getSyncConfiguration()
     if (!sync.configured) {
       toast({
@@ -73,6 +75,8 @@ export function UploadFolder({ item, mobile = false }: { item: DirTree; mobile?:
       setIsUploading(false)
     }
   }
+
+  if (platform === 'selfHosted') return null
 
   if (mobile) {
     return (

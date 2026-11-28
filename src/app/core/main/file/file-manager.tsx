@@ -54,6 +54,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { useMarkdownImport } from './use-markdown-import'
+import { useSelfHostedFileTreeStatus } from '@/hooks/use-self-hosted-file-tree-status'
 import { useShallow } from 'zustand/react/shallow'
 import {
   InputGroup,
@@ -836,9 +837,10 @@ export function FileManager({
     }),
     [assetsFolderName, fileTree, showAssetsFolders, showCloudFiles, pendingDeletionPaths, workspacePath]
   )
+  const officialFileStatus = useSelfHostedFileTreeStatus()
   const syncStatusByPath = useMemo(
-    () => buildFileTreeSyncStatusMap(fileTree),
-    [fileTree]
+    () => buildFileTreeSyncStatusMap(fileTree, officialFileStatus),
+    [fileTree, officialFileStatus]
   )
   const searchIndex = useMemo(
     () => buildFileTreeSearchIndex(filteredFileTree),

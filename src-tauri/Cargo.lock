@@ -4119,6 +4119,7 @@ dependencies = [
  "reqwest 0.12.22",
  "reqwest_dav",
  "ring",
+ "rustix 1.0.8",
  "semver",
  "serde",
  "serde_json",

@@ -12,6 +12,15 @@ export interface NormalizedServerUrl {
   local: boolean
 }
 
+interface SyncObjectVersion {
+  kind: string
+  revision: string
+  sequence: string
+  deleted: boolean
+  keyVersion: number
+  ciphertext: string
+}
+
 export class SelfHostedApiError extends Error {
   constructor(readonly body: ApiErrorBody, readonly status: number) {
     super(formatApiErrorMessage(body))
@@ -328,6 +337,24 @@ export class SelfHostedClient {
   events(workspaceId: string, after: string, limit: number, expectedSyncEpoch: string) {
     const query = new URLSearchParams({ after, limit: String(limit), expectedSyncEpoch })
     return this.request<SyncEventsPage>(`/v1/workspaces/${workspaceId}/sync/events?${query}`)
+  }
+
+  async latestObjectVersion(workspaceId: string, objectId: string, expectedSyncEpoch: string) {
+    const query = new URLSearchParams({ limit: '1', expectedSyncEpoch })
+    const page = await this.request<{ versions: SyncObjectVersion[]; syncEpoch: string }>(
+      `/v1/workspaces/${workspaceId}/sync/objects/${encodeURIComponent(objectId)}/versions?${query}`,
+    )
+    if (page.syncEpoch !== expectedSyncEpoch) throw new Error('SELF_HOSTED_SYNC_EPOCH_REVIEW_REQUIRED')
+    return page.versions[0] ?? null
+  }
+
+  async currentObjectVersion(workspaceId: string, objectId: string, expectedSyncEpoch: string) {
+    const query = new URLSearchParams({ expectedSyncEpoch })
+    const response = await this.request<{ object: SyncObjectVersion | null; syncEpoch: string }>(
+      `/v1/workspaces/${workspaceId}/sync/objects/${encodeURIComponent(objectId)}/current?${query}`,
+    )
+    if (response.syncEpoch !== expectedSyncEpoch) throw new Error('SELF_HOSTED_SYNC_EPOCH_REVIEW_REQUIRED')
+    return response.object
   }
 
   acknowledge(workspaceId: string, through: string, expectedSyncEpoch: string) {

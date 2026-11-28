@@ -1407,6 +1407,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
         await store.set('openTabs', [])
         await store.set('activeTabId', '')
         await store.set('activeFilePath', '')
+        await store.save()
         set({
           workspacePath: path,
           githubCustomSyncRepo: workspaceRepos.github || '',

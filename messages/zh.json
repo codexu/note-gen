@@ -6390,6 +6390,11 @@
       "collapse": "折叠此标题内容"
     },
     "tableHorizontalScrollbar": "表格横向滚动条",
+    "externalSave": {
+      "title": "此笔记已在磁盘上发生变化",
+      "description": "你的编辑已另存为 {fileName}。",
+      "failed": "无法保存笔记。编辑内容仍在，请检查写入权限后重试。"
+    },
     "tableToolbar": {
       "row": "行",
       "column": "列",

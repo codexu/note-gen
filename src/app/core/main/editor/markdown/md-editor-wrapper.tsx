@@ -7,6 +7,7 @@ import { Outline } from './outline'
 import { useDesktopEditorOutline } from './use-desktop-editor-outline'
 import { Loader2, Download } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { toast } from 'sonner'
 import emitter, { type Events } from '@/lib/emitter'
 import { useShallow } from 'zustand/react/shallow'
 import useSettingStore from '@/stores/setting'
@@ -17,6 +18,7 @@ import {
   workspaceRootsReferToSameLocation,
 } from '@/lib/editor-deactivation'
 import { writeSelfHostedWorkspaceText } from '@/lib/self-hosted-sync/files'
+import type { EditorTextSaveState } from '@/lib/editor-text-save'
 
 interface MdEditorProps {
   tabContentsRef: RefObject<Record<string, string>>
@@ -58,6 +60,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
   const contentInitializedRef = useRef(false)
   // Bug fix: Track expected content to detect if editor is behind
   const expectedContentRef = useRef<string | null>(null)
+  const diskStateRef = useRef<EditorTextSaveState | null>(null)
   const savePathRef = useRef(filePath)
   // State for editor instance (to trigger re-render when ready)
   const [editorInstance, setEditorInstance] = useState<any>(null)
@@ -78,6 +81,27 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     emitter.on('editor-navigation-path-moved', handlePathMoved)
     return () => emitter.off('editor-navigation-path-moved', handlePathMoved)
   }, [filePath])
+
+  useEffect(() => {
+    const notify = ({ path, fileName }: Events['editor-external-change-preserved']) => {
+      if (path === savePathRef.current) {
+        toast.warning(tEditor('externalSave.title'), {
+          description: tEditor('externalSave.description', { fileName }),
+          duration: 12000,
+          id: `editor-external-save:${path}`,
+        })
+      }
+    }
+    const notifyFailed = ({ path }: Events['editor-save-failed']) => {
+      if (path === savePathRef.current) toast.error(tEditor('externalSave.failed'), { id: `editor-save-failed:${path}` })
+    }
+    emitter.on('editor-external-change-preserved', notify)
+    emitter.on('editor-save-failed', notifyFailed)
+    return () => {
+      emitter.off('editor-external-change-preserved', notify)
+      emitter.off('editor-save-failed', notifyFailed)
+    }
+  }, [tEditor])
 
   // Bug fix: Listen for file close events to clean up loaded state
   useEffect(() => {
@@ -131,6 +155,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
       }
 
       expectedContentRef.current = event.content
+      diskStateRef.current = { content: event.content }
       contentInitializedRef.current = true
       const targetIsActive = editorPathsReferToSameFile(
         useArticleStore.getState().activeFilePath,
@@ -194,7 +219,9 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
 
     // Bug fix: Check cache first
     if (tabContentsRef.current && tabContentsRef.current[filePath] !== undefined) {
-      setInitialContent(tabContentsRef.current[filePath])
+      const content = tabContentsRef.current[filePath]
+      diskStateRef.current = { content }
+      setInitialContent(content)
       loadedPathsRef.current.add(filePath)
       contentInitializedRef.current = true
       return
@@ -204,6 +231,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
     // can change the live store before this effect runs.
     if (activeFilePath === filePath) {
       if (articleLoading) return
+      diskStateRef.current = { content: currentArticle }
       setInitialContent(currentArticle)
       if (tabContentsRef.current) {
         tabContentsRef.current[filePath] = currentArticle
@@ -222,6 +250,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
         const pathOptions = await getFilePathOptions(filePath)
         const content = await readTextFile(pathOptions.path, { baseDir: pathOptions.baseDir })
         if (disposed || loadedPathsRef.current.has(filePath)) return
+        diskStateRef.current = { content }
         if (tabContentsRef.current) tabContentsRef.current[filePath] = content
         loadedPathsRef.current.add(filePath)
         contentInitializedRef.current = true
@@ -256,6 +285,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
       // Fix cursor jump: Only trigger remote content update if this is a remote pull
       // This prevents unnecessary setContent during local saves
       if (justPulledFile) {
+        diskStateRef.current = { content: currentArticle }
         emitter.emit('editor-content-from-remote', { content: currentArticle })
       }
     } else if (currentArticle === '' && initialContent === '') {
@@ -300,7 +330,7 @@ export function MdEditor({ tabContentsRef, filePath, isActive, disabled = false 
         tab.path === savePath && tab.preview
       ))
       if (previewTab) void setTabDisposition(previewTab.id, 'regular')
-      saveCurrentArticle(content, savePath)
+      void saveCurrentArticle(content, savePath, diskStateRef.current ?? undefined)
     } else if (!isCreatingFileRef.current) {
       // Auto-create untitled file
       isCreatingFileRef.current = true

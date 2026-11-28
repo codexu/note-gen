@@ -6390,6 +6390,11 @@
       "collapse": "Collapse section"
     },
     "tableHorizontalScrollbar": "Table horizontal scrollbar",
+    "externalSave": {
+      "title": "This note changed on disk",
+      "description": "Your edits were saved separately in {fileName}.",
+      "failed": "Unable to save this note. Your edits remain open. Check write access and retry."
+    },
     "tableToolbar": {
       "row": "Row",
       "column": "Column",

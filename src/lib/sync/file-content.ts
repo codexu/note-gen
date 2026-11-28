@@ -1,4 +1,4 @@
-import { isTextDocumentName } from '@/lib/document-parser'
+import { isTextDocumentExtension } from '@/lib/document-parser'
 
 const ADDITIONAL_TEXT_EXTENSIONS = new Set([
   'csv', 'svg', 'ipynb', 'cjs', 'cts', 'astro', 'xsd', 'xsl', 'xslt', 'rels',
@@ -11,7 +11,8 @@ const TEXT_FILENAMES = new Set(['readme', 'license', 'licence', 'makefile', 'doc
 export function isSyncTextPath(path: string): boolean {
   const name = path.replace(/\\/g, '/').split('/').pop()?.toLowerCase() || ''
   const extension = name.split('.').pop() || ''
-  return isTextDocumentName(name) || ADDITIONAL_TEXT_EXTENSIONS.has(extension) || TEXT_FILENAMES.has(name)
+  // These are filesystem paths, where "#" and "%" are literal filename characters.
+  return isTextDocumentExtension(extension) || ADDITIONAL_TEXT_EXTENSIONS.has(extension) || TEXT_FILENAMES.has(name)
 }
 
 export function isBinaryFilePath(path: string): boolean {

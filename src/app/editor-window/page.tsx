@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { platform } from '@tauri-apps/plugin-os'
-import { exists, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readTextFile } from '@tauri-apps/plugin-fs'
 import { Store } from '@tauri-apps/plugin-store'
 import { MoreHorizontal, Pin, PinOff } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
@@ -36,6 +36,7 @@ import {
   type EditorWindowSession,
 } from '@/lib/editor-windows'
 import { prepareActiveEditorDeactivation } from '@/lib/editor-deactivation'
+import { saveEditorText, type EditorTextSaveState } from '@/lib/editor-text-save'
 import { cn } from '@/lib/utils'
 import { setRuntimeWorkspaceRoot } from '@/lib/workspace'
 import { PluginCommandPalette } from '@/components/plugins/plugin-command-palette'
@@ -59,24 +60,25 @@ export default function EditorWindowPage() {
   const sessionRef = useRef<EditorWindowSession | null>(null)
   const contentRef = useRef('')
   const savedContentRef = useRef('')
+  const diskStateRef = useRef<EditorTextSaveState>({ content: '' })
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
   const saveGenerationRef = useRef(0)
 
   const queueSave = useCallback((nextContent: string) => {
     const currentSession = sessionRef.current
-    if (!currentSession || nextContent === savedContentRef.current) return
+    if (!currentSession) return
     const generation = ++saveGenerationRef.current
     setSaving(true)
     saveQueueRef.current = saveQueueRef.current
       .catch(() => undefined)
       .then(async () => {
-        if (!await exists(currentSession.absolutePath)) {
-          throw new Error(t('fileMissing'))
-        }
-        await writeTextFile(currentSession.absolutePath, nextContent)
+        if (nextContent === savedContentRef.current) return
+        const recoveryPath = await saveEditorText({ path: currentSession.absolutePath }, nextContent, diskStateRef.current)
         savedContentRef.current = nextContent
         if (contentRef.current === nextContent) setDirty(false)
-        setError('')
+        setError(recoveryPath
+          ? tEditor('externalSave.description', { fileName: recoveryPath.split(/[\\/]/).pop() || recoveryPath })
+          : '')
       })
       .catch(reason => {
         setError(reason instanceof Error ? reason.message : String(reason))
@@ -84,7 +86,7 @@ export default function EditorWindowPage() {
       .finally(() => {
         if (saveGenerationRef.current === generation) setSaving(false)
       })
-  }, [t])
+  }, [tEditor])
 
   const handleContentChange = useCallback((nextContent: string) => {
     contentRef.current = nextContent
@@ -157,6 +159,7 @@ export default function EditorWindowPage() {
       sessionRef.current = storedSession
       contentRef.current = initialContent
       savedContentRef.current = initialContent
+      diskStateRef.current = { content: initialContent }
       useArticleStore.setState({
         activeFilePath: storedSession.absolutePath,
         currentArticle: initialContent,

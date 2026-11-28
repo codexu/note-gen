@@ -32,6 +32,8 @@ interface Events {
   'editor-mode-changed': string;
   'external-content-update': string;
   'editor-content-from-remote': { content: string };
+  'editor-external-change-preserved': { path: string; fileName: string };
+  'editor-save-failed': { path: string };
   'editor-file-content-updated': { path: string; content: string };
   'editor-file-path-changed': { oldPath: string; newPath: string; content?: string };
   'editor-file-close': { path: string };

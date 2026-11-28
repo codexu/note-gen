@@ -58,7 +58,8 @@ import {
   workspaceRootsReferToSameLocation,
   type EditorPathWriteTransactionContext,
 } from '@/lib/editor-deactivation'
-import { writeSelfHostedWorkspaceText } from '@/lib/self-hosted-sync/files'
+import { writeSelfHostedWorkspaceText, writeSelfHostedWorkspaceTextGuarded } from '@/lib/self-hosted-sync/files'
+import { saveEditorText, type EditorTextSaveState } from '@/lib/editor-text-save'
 import { isFileDeletionPending } from './file-deletion'
 import type { EditorWorkspaceLayout } from '@/app/core/main/editor/editor-group-layout'
 
@@ -74,6 +75,7 @@ let storeInstance: Store | null = null
 type PendingArticleSave = {
   timer: ReturnType<typeof setTimeout> | null
   content: string
+  diskState?: EditorTextSaveState
   commit: () => Promise<void>
 }
 
@@ -1154,7 +1156,7 @@ interface NoteState {
   setSkipSyncOnSave: (skip: boolean) => void
   setAiGeneratingFilePath: (path: string | null) => void
   setAiTerminateFn: (fn: (() => void) | null) => void
-  saveCurrentArticle: (content: string, pathOverride?: string) => Promise<void>
+  saveCurrentArticle: (content: string, pathOverride?: string, diskState?: EditorTextSaveState) => Promise<void>
   flushPendingArticleSave: (path: string) => Promise<void>
   flushPendingArticleSavesForPaths: (
     paths: string[],
@@ -2261,13 +2263,13 @@ const useArticleStore = create<NoteState>((set, get) => ({
       return path
     }
 
-    const queuedSavesToRebase: Array<{ path: string; content: string }> = []
+    const queuedSavesToRebase: Array<Pick<PendingArticleSave, 'content' | 'diskState'> & { path: string }> = []
     for (const [savePath, pendingSave] of pendingArticleSaves) {
       const nextSavePath = mapMovedPath(savePath)
       if (nextSavePath === savePath) continue
       if (pendingSave.timer) clearTimeout(pendingSave.timer)
       pendingArticleSaves.delete(savePath)
-      queuedSavesToRebase.push({ path: nextSavePath, content: pendingSave.content })
+      queuedSavesToRebase.push({ path: nextSavePath, content: pendingSave.content, diskState: pendingSave.diskState })
     }
 
     if (pendingVectorCalculation) {
@@ -2356,7 +2358,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
     await persistencePromise
 
     for (const queuedSave of queuedSavesToRebase) {
-      await get().saveCurrentArticle(queuedSave.content, queuedSave.path)
+      await get().saveCurrentArticle(queuedSave.content, queuedSave.path, queuedSave.diskState)
       await get().flushPendingArticleSave(queuedSave.path)
     }
   },
@@ -3743,13 +3745,43 @@ const useArticleStore = create<NoteState>((set, get) => ({
     }
   },
 
-  saveCurrentArticle: async (content: string, pathOverride?: string) => {
+  saveCurrentArticle: async (content: string, pathOverride?: string, diskState?: EditorTextSaveState) => {
     const path = pathOverride ?? get().activeFilePath
     if (isFileDeletionPending(path)) return
     if (path && !isSyncTextPath(path)) {
       throw new Error('Binary files cannot be saved through the article text editor')
     }
-    const justPulled = get().justPulledFile
+    const justPulled = path === get().activeFilePath && get().justPulledFile
+    const saveLocalEditorText = async (
+      pathOptions: Awaited<ReturnType<typeof getFilePathOptions>>,
+      contents: string,
+      preserveSeparately: boolean,
+    ) => {
+      if (!diskState) {
+        await writeTextFile(pathOptions.path, contents, { baseDir: pathOptions.baseDir })
+        return true
+      }
+      const previousRecoveryPath = diskState.recovery?.path
+      const recoveryPath = await saveEditorText(pathOptions, contents, diskState, preserveSeparately)
+      if (recoveryPath && recoveryPath !== previousRecoveryPath) {
+        const fileName = recoveryPath.split(/[\\/]/).pop() || recoveryPath
+        if (!isAbsoluteFsPath(path)) {
+          const relative = path.replace(/[^\\/]+$/, () => fileName)
+          get().insertLocalEntry(relative, false)
+        }
+        emitter.emit('editor-external-change-preserved', { path, fileName })
+      }
+      return recoveryPath === null
+    }
+    const saveBoundEditorText = async (contents: string) => {
+      if (!diskState) {
+        return await writeSelfHostedWorkspaceText(path, contents) ? 'written' : 'not-bound'
+      }
+      if (diskState.recovery) return 'conflict'
+      const result = await writeSelfHostedWorkspaceTextGuarded(path, contents, diskState.content)
+      if (result === 'written') diskState.content = contents
+      return result
+    }
 
     if (path && content !== undefined && content !== null) {
       // 如果是从远程刚拉取的文件，不触发推送（避免 SHA 不匹配错误）
@@ -3766,12 +3798,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
           if (isFileDeletionPending(path)) return
           // 只保存本地文件，不触发同步推送
           const pathOptions = await getFilePathOptions(path)
-          if (await writeSelfHostedWorkspaceText(path, content)) {
-            // Rust journal already persisted the file.
-          } else if (!pathOptions.baseDir) {
-            await writeTextFile(pathOptions.path, content)
-          } else {
-            await writeTextFile(pathOptions.path, content, { baseDir: pathOptions.baseDir })
+          const write = await saveBoundEditorText(content)
+          if (write !== 'written' && !await saveLocalEditorText(pathOptions, content, write === 'conflict')) {
+            return
           }
           if (get().activeFilePath === path) {
             set({ currentArticle: content })
@@ -3798,6 +3827,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       // 这样可以合并短时间内多次 content change
       const pendingSave: PendingArticleSave = {
         content,
+        diskState,
         timer: null as ReturnType<typeof setTimeout> | null,
         commit: async () => {},
       }
@@ -3813,7 +3843,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
         const previousSave = inFlightArticleSaves.get(path)
         const commitPromise = (async () => {
-          if (previousSave) await previousSave
+          if (previousSave) await previousSave.catch(() => undefined)
           if (isFileDeletionPending(path)) return
 
           // 执行实际保存操作
@@ -3827,8 +3857,8 @@ const useArticleStore = create<NoteState>((set, get) => ({
           } else {
             isLocale = await exists(pathOptions.path, { baseDir: pathOptions.baseDir })
           }
-          const wroteSelfHosted = await writeSelfHostedWorkspaceText(savePath, saveContent)
-          if (!wroteSelfHosted) {
+          const write = await saveBoundEditorText(saveContent)
+          if (write !== 'written') {
             // Ensure the fallback path exists before a regular filesystem write.
             if (savePath.includes('/')) {
               let dir = ''
@@ -3852,11 +3882,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
               }
             }
 
-            if (!pathOptions.baseDir) {
-              await writeTextFile(pathOptions.path, saveContent)
-            } else {
-              await writeTextFile(pathOptions.path, saveContent, { baseDir: pathOptions.baseDir })
-            }
+            if (!await saveLocalEditorText(pathOptions, saveContent, write === 'conflict')) return
           }
           get().markFileDirty(savePath)
 
@@ -3940,6 +3966,12 @@ const useArticleStore = create<NoteState>((set, get) => ({
         inFlightArticleSaves.set(path, commitPromise)
         try {
           await commitPromise
+        } catch (error) {
+          if (!pendingArticleSaves.has(path) && !isFileDeletionPending(path)) {
+            pendingArticleSaves.set(path, pendingSave)
+          }
+          emitter.emit('editor-save-failed', { path })
+          throw error
         } finally {
           if (inFlightArticleSaves.get(path) === commitPromise) {
             inFlightArticleSaves.delete(path)

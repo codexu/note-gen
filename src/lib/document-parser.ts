@@ -68,8 +68,12 @@ export function getDocumentFileName(path: string) {
   return decodedPath.split(/[\\/]/).pop() || decodedPath
 }
 
+export function isTextDocumentExtension(extension: string) {
+  return TEXT_EXTENSIONS.has(extension)
+}
+
 export function isTextDocumentName(name: string) {
-  return TEXT_EXTENSIONS.has(getDocumentExtension(name))
+  return isTextDocumentExtension(getDocumentExtension(name))
 }
 
 export function isAnydocDocumentName(name: string) {

@@ -2,12 +2,14 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { toast } from 'sonner'
 import { TipTapEditor } from '@/app/core/main/editor/markdown/tiptap-editor'
 import type { Editor } from '@tiptap/react'
 import { Loader2 } from 'lucide-react'
 import useArticleStore from '@/stores/article'
 import useSettingStore from '@/stores/setting'
 import emitter, { type Events } from '@/lib/emitter'
+import type { EditorTextSaveState } from '@/lib/editor-text-save'
 import {
   editorPathsReferToSameFile,
   getCurrentEditorWorkspaceRoot,
@@ -41,10 +43,11 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
   const aiStreaming = Boolean(activeFilePath && aiGeneratingFilePath === activeFilePath)
   const [content, setContent] = useState('')
   const [isLoading, setIsLoading] = useState(Boolean(activeFilePath))
-  const [isEditorReady, setIsEditorReady] = useState(false)
 
   const activePathRef = useRef<string>('')
   const contentRef = useRef<string>('')
+  const diskStateRef = useRef<EditorTextSaveState | null>(null)
+  const receivedEditRef = useRef(false)
   const awaitingInitialContentRef = useRef(Boolean(activeFilePath))
   const savePromiseRef = useRef<Promise<void> | null>(null)
 
@@ -52,16 +55,18 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
   useEffect(() => {
     if (activeFilePath && activeFilePath !== activePathRef.current) {
       activePathRef.current = activeFilePath
+      diskStateRef.current = null
+      receivedEditRef.current = false
       awaitingInitialContentRef.current = true
       setIsLoading(true)
-      setIsEditorReady(false)
     } else if (!activeFilePath && activePathRef.current) {
       activePathRef.current = ''
+      diskStateRef.current = null
+      receivedEditRef.current = false
       awaitingInitialContentRef.current = false
       setContent('')
       contentRef.current = ''
       setIsLoading(false)
-      setIsEditorReady(false)
     }
   }, [activeFilePath])
 
@@ -78,6 +83,7 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
     }
 
     awaitingInitialContentRef.current = false
+    diskStateRef.current = { content: currentArticle }
     setContent(currentArticle)
     contentRef.current = currentArticle
     setIsLoading(false)
@@ -124,6 +130,8 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
 
       awaitingInitialContentRef.current = false
       contentRef.current = event.content
+      diskStateRef.current = { content: event.content }
+      receivedEditRef.current = false
       setContent(event.content)
       setIsLoading(false)
       if (editorPathsReferToSameFile(
@@ -141,6 +149,27 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
       emitter.off('sync-content-updated', handleSyncContentUpdated)
     }
   }, [workspacePath])
+
+  useEffect(() => {
+    const notify = ({ path, fileName }: Events['editor-external-change-preserved']) => {
+      if (path === activePathRef.current) {
+        toast.warning(tEditor('externalSave.title'), {
+          description: tEditor('externalSave.description', { fileName }),
+          duration: 12000,
+          id: `editor-external-save:${path}`,
+        })
+      }
+    }
+    const notifyFailed = ({ path }: Events['editor-save-failed']) => {
+      if (path === activePathRef.current) toast.error(tEditor('externalSave.failed'), { id: `editor-save-failed:${path}` })
+    }
+    emitter.on('editor-external-change-preserved', notify)
+    emitter.on('editor-save-failed', notifyFailed)
+    return () => {
+      emitter.off('editor-external-change-preserved', notify)
+      emitter.off('editor-save-failed', notifyFailed)
+    }
+  }, [tEditor])
 
   // External editor replacements suppress TipTap's onChange. Keep the mobile
   // save snapshot current even when a stream arrives before TipTap mounts.
@@ -165,9 +194,10 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
 
     const path = activePathRef.current
     const newContent = contentRef.current
-    if (!path || !isEditorReady) return
+    // Source mode can accept edits before visual parsing completes or after it falls back.
+    if (!path || awaitingInitialContentRef.current) return
 
-    const savePromise = saveCurrentArticle(newContent, path)
+    const savePromise = saveCurrentArticle(newContent, path, diskStateRef.current ?? undefined)
     savePromiseRef.current = savePromise
     try {
       await savePromise
@@ -176,14 +206,14 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
         savePromiseRef.current = null
       }
     }
-  }, [isEditorReady, saveCurrentArticle])
+  }, [saveCurrentArticle])
 
   useImperativeHandle(ref, () => ({
     flushPendingSave: async () => {
       if (savePromiseRef.current) {
         await savePromiseRef.current
       }
-      await doSave()
+      if (receivedEditRef.current) await doSave()
       const path = activePathRef.current
       if (path) await useArticleStore.getState().flushPendingArticleSave(path)
     },
@@ -191,6 +221,8 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
 
   // 处理内容变化
   const handleContentChange = useCallback((newContent: string) => {
+    if (newContent === contentRef.current) return
+    receivedEditRef.current = true
     setContent(newContent)
     contentRef.current = newContent
 
@@ -198,11 +230,6 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
     // Queue there immediately so remote writes can observe or drain it.
     void doSave()
   }, [doSave])
-
-  // 处理编辑器就绪
-  const handleEditorReady = useCallback(() => {
-    setIsEditorReady(true)
-  }, [])
 
   // 清理定时器
   useEffect(() => {
@@ -227,7 +254,6 @@ export const MobileEditor = forwardRef<MobileEditorHandle, MobileEditorProps>(fu
         onChange={handleContentChange}
         placeholder={tEditor('placeholder')}
         activeFilePath={activeFilePath}
-        onReady={handleEditorReady}
         onEditorReady={onEditorReady}
         mobileMode
         applyLayoutPreferences

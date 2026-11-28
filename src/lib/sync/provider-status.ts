@@ -1,4 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store'
+import { getGiteaConnection } from './gitea-connection'
 
 import { SyncStateEnum } from '@/lib/sync/github.types'
 import { getOptionalSyncRepoName } from '@/lib/sync/repo-utils'
@@ -33,11 +34,10 @@ const latestProviderRequests = new Map<SyncPlatform, number>()
 let providerRequestId = 0
 
 async function getProviderCheckTarget(store: Store, platform: GitSyncPlatform): Promise<ProviderCheckTarget> {
-  const tokenKey = platform === 'github' ? 'accessToken' : `${platform}AccessToken`
-  const credentials = await Promise.all([
-    store.get<string>(tokenKey),
-    platform === 'gitlab' || platform === 'gitea' ? store.get<string>(`${platform}InstanceType`) : undefined,
-    platform === 'gitlab' || platform === 'gitea' ? store.get<string>(`${platform}CustomUrl`) : undefined,
+  const credentials = platform === 'gitea' ? [(await getGiteaConnection()).revision] : await Promise.all([
+    store.get<string>(platform === 'github' ? 'accessToken' : `${platform}AccessToken`),
+    platform === 'gitlab' ? store.get<string>('gitlabInstanceType') : undefined,
+    platform === 'gitlab' ? store.get<string>('gitlabCustomUrl') : undefined,
   ])
   return {
     workspacePath: await store.get<string>('workspacePath') || '',
@@ -201,12 +201,12 @@ async function checkGitlabStatus(store: Store, isActive: () => boolean) {
 
 async function checkGiteaStatus(store: Store, isActive: () => boolean) {
   const syncStore = useSyncStore.getState()
-  const accessToken = await store.get<string>('giteaAccessToken')
+  const { token, revision } = await getGiteaConnection()
   const target = await getProviderCheckTarget(store, 'gitea')
   if (!await isProviderCheckTargetCurrent(store, 'gitea', target, isActive)) return
 
   syncStore.setGiteaSyncRepoInfo(undefined)
-  if (!accessToken) {
+  if (!token) {
     syncStore.setGiteaSyncRepoState(SyncStateEnum.fail)
     return
   }
@@ -215,16 +215,16 @@ async function checkGiteaStatus(store: Store, isActive: () => boolean) {
   try {
     const { checkSyncRepoState, getUserInfo } = await import('@/lib/sync/gitea')
     if (!isActive()) return
-    const userInfo = await getUserInfo()
-    if (!isActive()) return
-    syncStore.setGiteaUserInfo(userInfo)
+    const userInfo = await getUserInfo(revision)
+    await import('@/stores/setting').then(module => module.default.getState().refreshGiteaConnection())
     if (!await isProviderCheckTargetCurrent(store, 'gitea', target, isActive)) return
+    syncStore.setGiteaUserInfo(userInfo)
 
     if (!target.repo) {
       syncStore.setGiteaSyncRepoState(SyncStateEnum.fail)
       return
     }
-    const repo = await checkSyncRepoState(target.repo)
+    const repo = await checkSyncRepoState(target.repo, revision)
     if (!await isProviderCheckTargetCurrent(store, 'gitea', target, isActive)) return
     syncStore.setGiteaSyncRepoInfo(repo ?? undefined)
     syncStore.setGiteaSyncRepoState(repo ? SyncStateEnum.success : SyncStateEnum.fail)

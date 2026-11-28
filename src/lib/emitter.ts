@@ -101,6 +101,7 @@ interface Events {
     workspacePath: string
     localSha?: string
     remoteSha?: string
+    remoteSnapshot?: { version: string | null; metadataKey: string }
     force?: boolean
   };
   'revertChat': unknown;

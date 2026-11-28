@@ -18,7 +18,9 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { isMobileDevice } from '@/lib/check'
 import { Download, FileJson, Upload } from 'lucide-react'
+import { giteaConnectionStoreKeys, importGiteaConnection } from '@/lib/sync/gitea-connection'
 import { withPrimaryPlatformLock } from '@/lib/sync/platform-switch-recovery'
+import useSettingStore from '@/stores/setting'
 import { usePlatformSwitchStore } from '@/stores/sync-platform-switch'
 
 export function ConfigFileActions() {
@@ -35,19 +37,21 @@ export function ConfigFileActions() {
       if (!imported || typeof imported !== 'object' || Array.isArray(imported)) {
         throw new Error(t('importConfigInvalid'))
       }
+      const settings = imported as Record<string, unknown>
       await withPrimaryPlatformLock(async () => {
         const store = await Store.load('store.json')
         if (usePlatformSwitchStore.getState().platform || await store.get('platformSwitchRecovery')) {
           throw new Error(switchT('interrupted'))
         }
         const previous = await store.entries()
-        const protectedKeys = new Set(['primaryBackupMethod', 'platformSwitchRecovery'])
+        const protectedKeys = new Set(['primaryBackupMethod', 'platformSwitchRecovery', ...giteaConnectionStoreKeys])
         try {
           for (const [key] of previous) if (!protectedKeys.has(key)) await store.delete(key)
-          for (const [key, value] of Object.entries(imported)) {
+          for (const [key, value] of Object.entries(settings)) {
             if (!protectedKeys.has(key)) await store.set(key, value)
           }
           await store.save()
+          await importGiteaConnection(settings)
         } catch (error) {
           for (const [key] of await store.entries()) if (!protectedKeys.has(key)) await store.delete(key)
           for (const [key, value] of previous) if (!protectedKeys.has(key)) await store.set(key, value)
@@ -57,6 +61,7 @@ export function ConfigFileActions() {
       })
 
       if (isMobileDevice()) {
+        await useSettingStore.getState().refreshGiteaConnection().catch(() => undefined)
         toast({ description: t('importConfigSuccessMobile') })
       } else {
         await relaunch()

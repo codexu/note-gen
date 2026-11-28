@@ -346,7 +346,7 @@ export async function getFileSyncStatus(filePath: string): Promise<{
   const scopedKey = await getSyncMetadataKey(filePath)
   const context = await getCurrentSyncContext()
   const lastSyncTime = syncTimes[scopedKey]
-    ?? (context.workspaceKey === '__default__' ? syncTimes[filePath] : undefined)
+    ?? (context.workspaceKey === '__default__' && context.allowLegacyMetadata ? syncTimes[filePath] : undefined)
   
   return {
     isLocked: !!lockInfo,
@@ -376,7 +376,7 @@ export async function getFileRestoreTime(filePath: string): Promise<number | und
   const scopedKey = await getSyncMetadataKey(filePath)
   const context = await getCurrentSyncContext()
   return restoreTimes[scopedKey]
-    ?? (context.workspaceKey === '__default__' ? restoreTimes[filePath] : undefined)
+    ?? (context.workspaceKey === '__default__' && context.allowLegacyMetadata ? restoreTimes[filePath] : undefined)
 }
 
 /**

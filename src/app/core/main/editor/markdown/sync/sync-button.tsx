@@ -15,7 +15,7 @@ import { getWorkspacePath, getFilePathOptions } from '@/lib/workspace'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { isSyncConfigured } from '@/lib/sync/sync-manager'
 import emitter from '@/lib/emitter'
-import { setLocalRecordedSha } from '@/lib/sync/auto-sync'
+import { getLocalRecordedSha, setLocalRecordedSha } from '@/lib/sync/auto-sync'
 import { debugSyncPerf } from '@/lib/sync/remote-file'
 import { generateGitSyncCommitMessage } from '@/lib/sync/commit-message'
 import { uploadRemoteText } from '@/lib/sync/remote-library'
@@ -24,11 +24,13 @@ import {
   flushPendingStaticAssetSync,
 } from '@/lib/sync/static-asset-sync-queue'
 import { collectLocalMarkdownImagePaths } from '@/lib/markdown-media-path'
-import type { S3Config, WebDAVConfig } from '@/types/sync'
+import type { S3Config } from '@/types/sync'
 import { useSettingsDialogStore } from '@/stores/settings-dialog'
 import { captureWorkspaceRemoteWriteGuard } from '@/lib/sync/workspace-remote-write-guard'
-import { syncStaleError } from '@/lib/sync/sync-stale-error'
+import { isSyncStaleError, readSyncStaleDetails, syncStaleError } from '@/lib/sync/sync-stale-error'
 import { getSyncMetadataKey } from '@/lib/sync/sync-context'
+import { findMatchingWorkspaceVersion, uploadGuardedWorkspaceFile } from '@/lib/sync/guarded-workspace-upload'
+import { syncContentBytes } from '@/lib/sync/file-content'
 
 type SyncProvider = 'gitee' | 'github' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder'
 
@@ -529,23 +531,12 @@ export function usePushSync({ getMarkdown, prepareExternalAction }: PushSyncOpti
           break
         }
         case 'webdav': {
-          const webdavModule = await import('@/lib/sync/webdav')
-          const webdavConfig = await store.get<WebDAVConfig>('webdavSyncConfig')
-          logPerf('loadProviderModule', { module: 'webdav', hasConfig: Boolean(webdavConfig) })
-          if (!webdavConfig) {
-            throw new Error('WebDAV 配置未找到')
-          }
-          const result = await webdavModule.webdavUpload(webdavConfig, activeFilePath, content, undefined, undefined, undefined, beforeWrite)
-          logPerf('uploadFile', {
-            hasResult: Boolean(result),
-            hasEtag: Boolean(result?.etag),
-          })
-          if (result) {
-            // 更新 ETag 记录
-            useSyncStore.getState().updateWebDAVFileEtag(activeFilePath, result.etag)
-            uploadedSha = result.etag || 'uploaded'
-            success = true
-          }
+          const acceptedVersion = await getLocalRecordedSha(activeFilePath, metadataKey)
+          const matchingVersion = await findMatchingWorkspaceVersion(activeFilePath, syncContentBytes(content), provider)
+          uploadedSha = matchingVersion ?? await uploadGuardedWorkspaceFile(
+            activeFilePath, content, provider, acceptedVersion, commitMessage, metadataKey, beforeWrite,
+          )
+          success = true
           break
         }
       }
@@ -555,6 +546,7 @@ export function usePushSync({ getMarkdown, prepareExternalAction }: PushSyncOpti
         if (uploadedSha) {
           await setLocalRecordedSha(activeFilePath, uploadedSha, metadataKey)
           assertCurrent()
+          if (provider === 'webdav') useSyncStore.getState().updateWebDAVFileEtag(activeFilePath, uploadedSha)
           logPerf('recordLocalSha', {
             hasSha: true,
           })
@@ -569,16 +561,19 @@ export function usePushSync({ getMarkdown, prepareExternalAction }: PushSyncOpti
           success,
           hasSha: Boolean(uploadedSha),
         })
-        throw new Error(provider === 'webdav'
-          ? 'WebDAV upload failed. Check pathPrefix and webdav.uploadFailed logs.'
-          : 'File may not exist on remote')
+        throw new Error('File may not exist on remote')
       }
     } catch (error) {
       logPerf('failed', {
         message: error instanceof Error ? error.message : String(error),
       })
       console.error('Push failed:', error)
-      if (isCurrent()) emitter.emit('sync-push-completed', { path: activeFilePath, success: false })
+      if (isCurrent()) {
+        if (providerForLog === 'webdav' && isSyncStaleError(error) && readSyncStaleDetails(error)?.source === 'remote') {
+          toast({ title: t('syncOverview.document.conflict'), variant: 'destructive' })
+        }
+        emitter.emit('sync-push-completed', { path: activeFilePath, success: false })
+      }
     } finally {
       pushInFlightRef.current = false
       if (isCurrent()) setIsLoading(false)

@@ -1,5 +1,6 @@
 import { Store } from '@tauri-apps/plugin-store'
 
+import { getGiteaConnection } from '@/lib/sync/gitea-connection'
 import { getOptionalSyncRepoName } from '@/lib/sync/repo-utils'
 import type { DirTree } from '@/stores/article'
 import {
@@ -151,17 +152,14 @@ export async function getSyncConfiguration(): Promise<{
     return { platform, configured }
   }
 
-  const credentials: Record<Exclude<SyncPlatform, 'local' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'>, [string, string]> = {
+  const credentials = {
     github: ['accessToken', 'githubUsername'],
     gitee: ['giteeAccessToken', 'giteeUsername'],
     gitlab: ['gitlabAccessToken', 'gitlabUsername'],
-    gitea: ['giteaAccessToken', 'giteaUsername'],
   }
-  const [tokenKey, usernameKey] = credentials[platform]
-  const [token, username] = await Promise.all([
-    store.get<string>(tokenKey),
-    store.get<string>(usernameKey),
-  ])
+  const [token, username] = platform === 'gitea'
+    ? await getGiteaConnection().then(connection => [connection.token, connection.username])
+    : await Promise.all(credentials[platform].map(key => store.get<string>(key)))
 
   if (!token?.trim() || !username?.trim()) {
     return { platform, configured: false, reason: 'missing-credentials' }

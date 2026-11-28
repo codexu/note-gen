@@ -38,6 +38,11 @@ fn has_user_settings(settings: &Value) -> bool {
         return true;
     }
 
+    // A new connection record can contain a default instance without credentials.
+    if ["token", "customUrl"].iter().any(|key| has_value(&settings["giteaConnection"][*key])) {
+        return true;
+    }
+
     // S3's initial form contains a default region even without an account.
     if ["accessKeyId", "secretAccessKey", "bucket", "endpoint", "pathPrefix", "customDomain"]
         .iter().any(|key| has_value(&settings["s3SyncConfig"][*key]))

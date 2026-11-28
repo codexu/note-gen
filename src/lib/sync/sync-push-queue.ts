@@ -3,7 +3,7 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { getFilePathOptions } from '@/lib/workspace'
 import { readFile } from '@tauri-apps/plugin-fs'
-import emitter from '@/lib/emitter'
+import emitter, { type Events } from '@/lib/emitter'
 import { setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
 import { isSyncConfigured } from './sync-manager'
 import useSettingStore from '@/stores/setting'
@@ -21,7 +21,8 @@ import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard
 import { readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
 import { getRemoteFileMetadata } from './remote-library'
 import { normalizeRemoteVersion } from './remote-content-cache'
-import { isSyncStaleError, readSyncStaleDetails } from './sync-stale-error'
+import { isSyncStaleError, readSyncStaleDetails, syncStaleError } from './sync-stale-error'
+import { hasStrongWebDAVEtag } from './webdav'
 import { collectLocalMarkdownImagePaths } from '@/lib/markdown-media-path'
 import {
   enqueueStaticAssetSync,
@@ -382,7 +383,7 @@ class SyncPushQueue {
     }
     await prepareWorkspacePathUpload(path)
     const taskSyncMetadataKey = await getSyncMetadataKey(path)
-    let acceptedVersion = await getLocalRecordedSha(path)
+    let acceptedVersion = await getLocalRecordedSha(path, taskSyncMetadataKey)
     if (!this.isTaskCurrent(task)) return { success: false }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -444,7 +445,7 @@ class SyncPushQueue {
           })
         }
         if (matchingVersion) {
-          if (!this.isTaskCurrent(task)) return { success: false }
+          if (!this.isTaskCurrent(task) || await getSyncMetadataKey(path) !== taskSyncMetadataKey) return { success: false }
           await setLocalRecordedSha(path, matchingVersion, taskSyncMetadataKey)
           if (proofKey && proofIsCurrent() && proofKey === await getFileSyncProofKey(path, provider).catch(() => null)) {
             await recordFileSyncProof(proofKey, content, matchingVersion, proofIsCurrent)
@@ -488,6 +489,9 @@ class SyncPushQueue {
           success = true
           uploadedSha = result.etag
         } else {
+          if (provider === 'webdav' && acceptedVersion === null) {
+            acceptedVersion = await getLocalRecordedSha(path, taskSyncMetadataKey)
+          }
           uploadedSha = await uploadGuardedWorkspaceFile(path, content, provider, acceptedVersion, commitMessage, taskSyncMetadataKey)
           success = true
         }
@@ -555,9 +559,10 @@ class SyncPushQueue {
             if (await getSyncMetadataKey(path) !== taskSyncMetadataKey || !this.isTaskCurrent(task)) return { success: false }
             // 使用文件版本，避免把 GitLab/Gitea 的提交 SHA 与 blob SHA 比较。
             const remoteFile = await getRemoteFileMetadata(path, 'workspace', providerForLog)
-            const latestAcceptedVersion = await getLocalRecordedSha(path)
+            const latestAcceptedVersion = await getLocalRecordedSha(path, taskSyncMetadataKey)
             if (await getSyncMetadataKey(path) !== taskSyncMetadataKey || !this.isTaskCurrent(task)) return { success: false }
-            const remoteVersion = normalizeRemoteVersion(remoteFile?.version)
+            const remoteVersion = providerForLog === 'webdav' && !hasStrongWebDAVEtag(remoteFile?.version)
+              ? null : normalizeRemoteVersion(remoteFile?.version)
             const expectedVersion = normalizeRemoteVersion(acceptedVersion || undefined)
 
             // 查询失败或远端缺少可用版本都不能作为文件冲突的证据。
@@ -574,6 +579,8 @@ class SyncPushQueue {
                   workspacePath: task.workspacePath,
                   localSha: acceptedVersion || undefined,
                   remoteSha: remoteFile?.version || undefined,
+                  remoteSnapshot: providerForLog === 'webdav'
+                    ? { version: remoteFile?.version ?? null, metadataKey: taskSyncMetadataKey } : undefined,
                   force: false,
                 })
                 emitter.emit('sync-push-completed', { path, success: false })
@@ -621,6 +628,7 @@ class SyncPushQueue {
   async forcePush(
     path: string,
     expectedWorkspacePath = useSettingStore.getState().workspacePath,
+    remoteSnapshot?: Events['sync-sha-mismatch']['remoteSnapshot'],
   ): Promise<{ success: boolean; sha?: string }> {
     const proofWorkspaceIsCurrent = captureFileSyncWorkspaceGuard()
     try {
@@ -640,14 +648,20 @@ class SyncPushQueue {
 
       const store = await Store.load('store.json')
       const provider = (await store.get<string>('primaryBackupMethod') || 'github') as SyncProvider
+      if ((provider === 'webdav') !== Boolean(remoteSnapshot)) {
+        throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
+      }
       if (provider === 'selfHosted') {
         await enqueueSelfHostedFile(path)
         return { success: true }
       }
       await prepareWorkspacePathUpload(path)
       const forceMetadataKey = await getSyncMetadataKey(path, provider)
+      if (remoteSnapshot && remoteSnapshot.metadataKey !== forceMetadataKey) {
+        throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
+      }
       const { getWorkspaceOverwriteVersion } = await import('./guarded-workspace-upload')
-      const overwriteVersion = await getWorkspaceOverwriteVersion(path, provider)
+      const overwriteVersion = remoteSnapshot ? remoteSnapshot.version : await getWorkspaceOverwriteVersion(path, provider)
 
       // 从磁盘读取最新内容
       const pathOptions = await getFilePathOptions(path)

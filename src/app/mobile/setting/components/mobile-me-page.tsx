@@ -16,6 +16,7 @@ import { loadActivityCalendarData } from '@/lib/activity'
 import type { ActivityCalendarData, ActivityDaySummary } from '@/lib/activity/types'
 import { SyncStateEnum, type UserInfo } from '@/lib/sync/github.types'
 import { getOptionalSyncRepoName } from '@/lib/sync/repo-utils'
+import { getGiteaConnection } from '@/lib/sync/gitea-connection'
 import { testS3Connection } from '@/lib/sync/s3'
 import { testWebDAVConnection } from '@/lib/sync/webdav'
 import { testCloudFolderConnection } from '@/lib/sync/cloud-folder'
@@ -105,6 +106,7 @@ export function MobileMePage({
     giteeCustomSyncRepo,
     gitlabCustomSyncRepo,
     giteaCustomSyncRepo,
+    giteaConnectionRevision,
   } = useSettingStore()
   const {
     userInfo,
@@ -281,31 +283,26 @@ export function MobileMePage({
             return
           }
           case 'gitea': {
-            const accessToken = await store.get<string>('giteaAccessToken')
-            if (!isCurrent() || !accessToken) return
+            const { token, revision } = await getGiteaConnection()
+            if (!isCurrent() || !token) return
 
             syncState.setGiteaSyncRepoState(SyncStateEnum.checking)
 
-            const [{ getUserInfo, checkSyncRepoState }, repoName] = await Promise.all([
-              import('@/lib/sync/gitea'),
-              getOptionalSyncRepoName('gitea'),
-            ])
+            const { getUserInfo, checkSyncRepoState } = await import('@/lib/sync/gitea')
             if (!isCurrent()) return
-            const user = await getUserInfo()
-            if (!isCurrent()) return
-            if (!cancelled && user) {
-              syncState.setGiteaUserInfo(user)
-              await settingState.setGiteaUsername(user.login)
-            }
-            if (!isCurrent()) return
+            const user = await getUserInfo(revision)
+            await settingState.refreshGiteaConnection()
+            const repoName = await getOptionalSyncRepoName('gitea')
+            if (!isCurrent() || (await getGiteaConnection()).revision !== revision) return
+            syncState.setGiteaUserInfo(user)
 
             if (!repoName) {
               syncState.setGiteaSyncRepoState(SyncStateEnum.fail)
               return
             }
 
-            const repo = await checkSyncRepoState(repoName)
-            if (!isCurrent()) return
+            const repo = await checkSyncRepoState(repoName, revision)
+            if (!isCurrent() || (await getGiteaConnection()).revision !== revision) return
 
             if (repo) {
               syncState.setGiteaSyncRepoInfo(repo)
@@ -393,6 +390,7 @@ export function MobileMePage({
     giteeCustomSyncRepo,
     gitlabCustomSyncRepo,
     giteaCustomSyncRepo,
+    giteaConnectionRevision,
   ])
 
   useLayoutEffect(() => {

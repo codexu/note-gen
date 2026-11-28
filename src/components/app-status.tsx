@@ -115,11 +115,9 @@ export default function AppStatus() {
     accessToken,
     giteeAccessToken,
     gitlabAccessToken,
-    giteaAccessToken,
+    giteaConnectionRevision,
     gitlabInstanceType,
     gitlabCustomUrl,
-    giteaInstanceType,
-    giteaCustomUrl,
     workspacePath,
     githubCustomSyncRepo,
     giteeCustomSyncRepo,
@@ -139,7 +137,7 @@ export default function AppStatus() {
     github: JSON.stringify([accessToken]),
     gitee: JSON.stringify([giteeAccessToken]),
     gitlab: JSON.stringify([gitlabAccessToken, gitlabInstanceType, gitlabCustomUrl]),
-    gitea: JSON.stringify([giteaAccessToken, giteaInstanceType, giteaCustomUrl]),
+    gitea: giteaConnectionRevision,
   }
   const currentRepo = platform ? repos[platform].trim() || (workspacePath ? '' : RepoNames.sync) : ''
   const currentCredentials = platform ? credentials[platform] : ''

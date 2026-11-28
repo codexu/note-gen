@@ -213,6 +213,12 @@ export const ALWAYS_SYNC_EXCLUDED_FIELDS: string[] = [
   'giteeCustomSyncRepo',
   'gitlabCustomSyncRepo',
   'giteaCustomSyncRepo',
+  // Keep the Gitea token and its instance on the device that configured them.
+  'giteaConnection',
+  'giteaInstanceType',
+  'giteaCustomUrl',
+  'giteaAccessToken',
+  'giteaBranch',
   // Refreshed from this device's credentials; not portable user preferences.
   'githubUsername',
   'giteeUsername',

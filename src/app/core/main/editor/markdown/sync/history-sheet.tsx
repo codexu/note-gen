@@ -1,5 +1,6 @@
 'use client'
 
+import { getGiteaConnection, getGiteaEndpoint } from '@/lib/sync/gitea-connection'
 import { History, ExternalLink, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
@@ -16,7 +17,6 @@ import {
   checkSyncRepoState as checkGiteaRepoState,
   getFileCommits as getGiteaFileCommits,
   getFileContentFromCommit as getGiteaFileContentFromCommit,
-  getGiteaApiBaseUrl,
 } from '@/lib/sync/gitea'
 import { buildRepoContentPath } from '@/lib/sync/remote-file'
 import { saveLocalFile } from '@/lib/sync/auto-sync'
@@ -52,7 +52,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
   const [isLoading, setIsLoading] = useState(false)
   const [restoringSha, setRestoringSha] = useState<string | null>(null)
   const [provider, setProvider] = useState<SyncProvider | null>(null)
-  const [repoInfo, setRepoInfo] = useState<{ username?: string; projectId?: string; baseUrl?: string; repo?: string; branch?: string }>({})
+  const [repoInfo, setRepoInfo] = useState<{ username?: string; projectId?: string; baseUrl?: string; repo?: string; branch?: string; giteaRevision?: string }>({})
   const isMobile = isMobileDevice()
 
   // Get the sync provider
@@ -78,6 +78,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
       const provider = await getProvider()
       if (!provider) return
 
+      const gitea = provider === 'gitea' ? await getGiteaConnection() : undefined
       const repo = await getSyncRepoName(provider)
       let commits: any[] = []
       let giteaBranch: string | undefined
@@ -101,8 +102,8 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
         }
         case 'gitea': {
           const [result, repository] = await Promise.all([
-            getGiteaFileCommits({ path: activeFilePath, repo }),
-            checkGiteaRepoState(repo).catch(() => null),
+            getGiteaFileCommits({ path: activeFilePath, repo, expectedRevision: gitea?.revision }),
+            checkGiteaRepoState(repo, gitea?.revision).catch(() => null),
           ])
           // Gitea 返回 { data } 对象，需要从中提取数组
           commits = (result && result.data) ? result.data : []
@@ -129,8 +130,9 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
           gitlabProjectId = await store.get<string>(`gitlab_${repo}_project_id`)
           break
         case 'gitea':
-          giteaUsername = await store.get('giteaUsername')
-          giteaBaseUrl = await getGiteaApiBaseUrl()
+          if (!gitea || (await getGiteaConnection()).revision !== gitea.revision) return
+          giteaUsername = gitea.username
+          giteaBaseUrl = getGiteaEndpoint(gitea) ?? undefined
           break
       }
 
@@ -143,7 +145,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
           case 'gitlab':
             return `https://gitlab.com/${gitlabProjectId?.split('/').pop()}/-/commit/${sha}`
           case 'gitea':
-            return `${giteaBaseUrl?.replace('/api/v1', '')}/${giteaUsername}/${repo}/commit/${sha}`
+            return `${giteaBaseUrl}/${giteaUsername}/${repo}/commit/${sha}`
           default:
             return ''
         }
@@ -168,6 +170,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
         projectId: provider === 'gitlab' ? gitlabProjectId : undefined,
         baseUrl: provider === 'gitea' ? giteaBaseUrl : undefined,
         branch: giteaBranch,
+        giteaRevision: gitea?.revision,
         repo
       })
     } catch (error) {
@@ -226,7 +229,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
         case 'gitea': {
           try {
             // 使用 getFileContentFromCommit 通过 Git tree API 获取特定 commit 的文件内容
-            const fileInfo = await getGiteaFileContentFromCommit({ path: activeFilePath, ref: commitSha, repo })
+            const fileInfo = await getGiteaFileContentFromCommit({ path: activeFilePath, ref: commitSha, repo, expectedRevision: repoInfo.giteaRevision })
             if (fileInfo && fileInfo.content) {
               // Gitea 返回的是 base64 编码内容，需要解码
               content = decodeGiteeBase64(fileInfo.content)
@@ -283,6 +286,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
     getProvider,
     onMarkdownChange,
     prepareExternalAction,
+    repoInfo.giteaRevision,
     restoringSha,
   ])
 
@@ -329,7 +333,7 @@ export function HistorySheet({ editor, prepareExternalAction, onMarkdownChange }
                 case 'gitee': return `https://gitee.com/${repoInfo.username}/${repoInfo.repo}/blob/master/${activeFilePath}`
                 case 'gitlab': return `https://gitlab.com/${repoInfo.projectId?.split('/').pop()}/-/blob/main/${activeFilePath}`
                 case 'gitea': {
-                  const baseUrl = repoInfo.baseUrl?.replace(/\/api\/v1$/, '')
+                  const baseUrl = repoInfo.baseUrl
                   const branch = buildRepoContentPath({ path: repoInfo.branch })
                   const path = buildRepoContentPath({ path: activeFilePath })
                   return `${baseUrl}/${repoInfo.username}/${repoInfo.repo}/src/branch/${branch}/${path}`

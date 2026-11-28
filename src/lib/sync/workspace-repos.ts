@@ -1,11 +1,13 @@
 import { Store } from '@tauri-apps/plugin-store'
+import { getGiteaConnection } from './gitea-connection'
 
 export const SYNC_REPO_PLATFORMS = ['github', 'gitee', 'gitlab', 'gitea'] as const
 
 export type SyncRepoPlatform = typeof SYNC_REPO_PLATFORMS[number]
 export type WorkspaceSyncRepos = Partial<Record<SyncRepoPlatform, string>>
 
-type WorkspaceSyncRepoMap = Record<string, WorkspaceSyncRepos>
+type StoredWorkspaceRepos = WorkspaceSyncRepos & { giteaByConnection?: Record<string, string> }
+type WorkspaceSyncRepoMap = Record<string, StoredWorkspaceRepos>
 
 const WORKSPACE_SYNC_REPOS_KEY = 'workspaceSyncRepos'
 const DEFAULT_WORKSPACE_KEY = '__default__'
@@ -35,8 +37,12 @@ export async function getWorkspaceSyncRepos(workspacePath?: string): Promise<Wor
   const workspaceKey = getWorkspaceKey(currentWorkspacePath)
   const repoMap = await store.get<WorkspaceSyncRepoMap>(WORKSPACE_SYNC_REPOS_KEY) || {}
   const workspaceRepos = repoMap[workspaceKey] || {}
+  const { repositoryScope } = await getGiteaConnection()
 
   const entries = await Promise.all(SYNC_REPO_PLATFORMS.map(async (platform) => {
+    if (platform === 'gitea' && repositoryScope) {
+      return [platform, workspaceRepos.giteaByConnection?.[repositoryScope] || ''] as const
+    }
     const workspaceRepo = workspaceRepos[platform]
     const repo = workspaceRepo === undefined && workspaceKey === DEFAULT_WORKSPACE_KEY
       ? await getLegacyRepo(store, platform)
@@ -59,8 +65,10 @@ export async function setWorkspaceSyncRepo(
   const initialRepoMap = await inspectionStore.get<WorkspaceSyncRepoMap>(WORKSPACE_SYNC_REPOS_KEY) || {}
   const activeWorkspacePath = await inspectionStore.get<string>('workspacePath') ?? ''
   const isActiveWorkspace = getWorkspaceKey(activeWorkspacePath) === workspaceKey
-  const existingRepo = initialRepoMap[workspaceKey]?.[platform]
-    ?? (workspaceKey === DEFAULT_WORKSPACE_KEY ? await getLegacyRepo(inspectionStore, platform) : '')
+  const repositoryScope = platform === 'gitea' ? (await getGiteaConnection()).repositoryScope : ''
+  const existing = initialRepoMap[workspaceKey]
+  const existingRepo = repositoryScope ? existing?.giteaByConnection?.[repositoryScope] || ''
+    : existing?.[platform] ?? (workspaceKey === DEFAULT_WORKSPACE_KEY ? await getLegacyRepo(inspectionStore, platform) : '')
 
   if (existingRepo === repo) return
 
@@ -87,12 +95,12 @@ export async function setWorkspaceSyncRepo(
   const update = async () => {
     const store = await Store.load('store.json')
     const repoMap = await store.get<WorkspaceSyncRepoMap>(WORKSPACE_SYNC_REPOS_KEY) || {}
+    const currentRepos = repoMap[workspaceKey]
     await store.set(WORKSPACE_SYNC_REPOS_KEY, {
       ...repoMap,
-      [workspaceKey]: {
-        ...repoMap[workspaceKey],
-        [platform]: repo,
-      },
+      [workspaceKey]: repositoryScope
+        ? { ...currentRepos, giteaByConnection: { ...currentRepos?.giteaByConnection, [repositoryScope]: repo } }
+        : { ...currentRepos, [platform]: repo },
     })
     await store.save()
   }

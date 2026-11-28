@@ -5,6 +5,9 @@ import { getVersion } from '@tauri-apps/api/app'
 import { AiConfig } from '@/app/core/setting/config'
 import { GitlabInstanceType } from '@/lib/sync/gitlab.types'
 import { GiteaInstanceType } from '@/lib/sync/gitea.types'
+import { getGiteaConnection, giteaLegacyConnectionKeys, setGiteaEndpoint, setGiteaToken, type GiteaConnection } from '@/lib/sync/gitea-connection'
+import { SyncStateEnum } from '@/lib/sync/github.types'
+import useSyncStore from './sync'
 import { noteGenDefaultModels, noteGenModelKeys } from '@/app/model-config'
 import { CustomThemeColors } from '@/types/theme'
 import { applyThemeColors, removeThemeColors } from '@/lib/theme-utils'
@@ -288,13 +291,15 @@ interface SettingState {
   setGiteaCustomUrl: (customUrl: string) => Promise<void>
 
   giteaAccessToken: string
-  setGiteaAccessToken: (giteaAccessToken: string) => void
+  setGiteaAccessToken: (giteaAccessToken: string, endpoint: string, repositoryScope: string) => Promise<void>
+  giteaConnectionRevision: string
+  giteaRepositoryScope: string
+  refreshGiteaConnection: () => Promise<void>
 
   giteaAutoSync: string
   setGiteaAutoSync: (giteaAutoSync: string) => Promise<void>
 
   giteaUsername: string
-  setGiteaUsername: (giteaUsername: string) => Promise<void>
 
   // 主要备份方式设置
   primaryBackupMethod: 'local' | 'github' | 'gitee' | 'gitlab' | 'gitea' | 's3' | 'webdav' | 'cloudFolder' | 'selfHosted'
@@ -468,6 +473,20 @@ let pendingSettingPersistState: SettingState | null = null
 const pendingSettingPersistKeys = new Set<string>()
 const pendingSettingSyncKeys = new Set<string>()
 let settingPersistQueue = Promise.resolve()
+const giteaSettingsViewKeys = new Set<string>([
+  ...giteaLegacyConnectionKeys, 'giteaConnectionRevision', 'giteaRepositoryScope', 'giteaCustomSyncRepo',
+])
+
+function giteaSettingsView(connection: GiteaConnection) {
+  return {
+    giteaInstanceType: connection.instanceType,
+    giteaCustomUrl: connection.customUrl,
+    giteaAccessToken: connection.token,
+    giteaUsername: connection.username,
+    giteaConnectionRevision: connection.revision,
+    giteaRepositoryScope: connection.repositoryScope,
+  }
+}
 
 function getChangedSettingKeys(current: SettingState, previous: SettingState): string[] {
   const currentRecord = current as unknown as Record<string, unknown>
@@ -476,7 +495,7 @@ function getChangedSettingKeys(current: SettingState, previous: SettingState): s
   return Object.keys(currentRecord).filter((key) => {
     // Primary selection is persisted only by its final-commit action. A stale
     // debounced settings snapshot must never overwrite a newer selection.
-    if (key === 'primaryBackupMethod' || typeof currentRecord[key] === 'function') {
+    if (key === 'primaryBackupMethod' || giteaSettingsViewKeys.has(key) || typeof currentRecord[key] === 'function') {
       return false
     }
 
@@ -604,7 +623,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
       const current = get() as unknown as Record<string, unknown>
       const hydrated: Record<string, unknown> = {}
       for (const [key, value] of await store.entries()) {
-        if (key in current && typeof current[key] !== 'function' && key !== 'version') hydrated[key] = value
+        if (key in current && !giteaSettingsViewKeys.has(key) && typeof current[key] !== 'function' && key !== 'version') hydrated[key] = value
       }
       const extension = await store.get<string>('agentSystemPromptExtension')
       if (typeof extension === 'string') hydrated.systemPrompt = extension
@@ -612,7 +631,10 @@ const useSettingStore = create<SettingState>((set, get) => ({
         hydrated.primaryBackupMethod = await store.get('primaryBackupMethod') || get().primaryBackupMethod
         const wasReady = settingAutoSyncReady
         settingAutoSyncReady = false
-        try { set(hydrated as Partial<SettingState>) }
+        try {
+          set(hydrated as Partial<SettingState>)
+          await get().refreshGiteaConnection()
+        }
         finally { settingAutoSyncReady = wasReady }
       })
       initSettingAutoSyncSubscription()
@@ -953,7 +975,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
     hydratedSettings.systemPrompt = promptExtension
 
     await Promise.all(Object.entries(get()).map(async ([key, value]) => {
-      if (key === 'systemPrompt') return
+      if (key === 'systemPrompt' || giteaSettingsViewKeys.has(key)) return
       const res = await store.get(key)
 
       if (typeof value === 'function') return
@@ -1010,6 +1032,7 @@ const useSettingStore = create<SettingState>((set, get) => ({
         gitlabCustomSyncRepo: workspaceRepos.gitlab || '',
         giteaCustomSyncRepo: workspaceRepos.gitea || '',
       } as Partial<SettingState>)
+      await get().refreshGiteaConnection()
     })
 
     initSettingAutoSyncSubscription()
@@ -1499,23 +1522,34 @@ const useSettingStore = create<SettingState>((set, get) => ({
   // Gitea 相关实现
   giteaInstanceType: GiteaInstanceType.OFFICIAL,
   setGiteaInstanceType: async (instanceType: GiteaInstanceType) => {
-    const store = await Store.load('store.json')
-    await store.set('giteaInstanceType', instanceType)
-    await store.save()
-    set({ giteaInstanceType: instanceType })
+    await setGiteaEndpoint({ instanceType }).finally(get().refreshGiteaConnection)
   },
 
   giteaCustomUrl: '',
   setGiteaCustomUrl: async (customUrl: string) => {
-    const store = await Store.load('store.json')
-    await store.set('giteaCustomUrl', customUrl)
-    await store.save()
-    set({ giteaCustomUrl: customUrl })
+    await setGiteaEndpoint({ customUrl }).finally(get().refreshGiteaConnection)
   },
 
   giteaAccessToken: '',
-  setGiteaAccessToken: (giteaAccessToken: string) => {
-    set({ giteaAccessToken })
+  setGiteaAccessToken: async (token, endpoint, repositoryScope) => {
+    await setGiteaToken(token, endpoint, repositoryScope).finally(get().refreshGiteaConnection)
+  },
+  giteaConnectionRevision: '',
+  giteaRepositoryScope: '',
+  refreshGiteaConnection: async () => {
+    const workspacePath = get().workspacePath
+    const connection = await getGiteaConnection()
+    const repos = await getWorkspaceSyncRepos(workspacePath)
+    const current = await getGiteaConnection()
+    if (connection.revision !== current.revision || connection.repositoryScope !== current.repositoryScope
+      || workspacePath !== get().workspacePath) return
+    if (current.revision !== get().giteaConnectionRevision) {
+      const sync = useSyncStore.getState()
+      sync.setGiteaUserInfo(undefined)
+      sync.setGiteaSyncRepoInfo(undefined)
+      sync.setGiteaSyncRepoState(SyncStateEnum.fail)
+    }
+    set({ ...giteaSettingsView(current), giteaCustomSyncRepo: repos.gitea || '' })
   },
 
   giteaAutoSync: 'disabled',
@@ -1527,17 +1561,11 @@ const useSettingStore = create<SettingState>((set, get) => ({
   },
 
   giteaUsername: '',
-  setGiteaUsername: async (giteaUsername: string) => {
-    const store = await Store.load('store.json')
-    await store.set('giteaUsername', giteaUsername)
-    await store.save()
-    set({ giteaUsername })
-  },
 
   giteaCustomSyncRepo: '',
   setGiteaCustomSyncRepo: async (repo: string, workspacePath = get().workspacePath) => {
     await setWorkspaceSyncRepo('gitea', repo, workspacePath)
-    if (workspacePath === get().workspacePath) set({ giteaCustomSyncRepo: repo })
+    if (workspacePath === get().workspacePath) await get().refreshGiteaConnection()
   },
 
   // 默认使用 GitHub 作为主要备份方式

@@ -4,7 +4,8 @@ import type useSettingStore from '@/stores/setting'
 import { RepoNames, SyncStateEnum, type GithubRepoInfo, type UserInfo } from './github.types'
 import type { GiteeRepoInfo } from './gitee'
 import { GitlabInstanceType, type GitlabProjectInfo, type GitlabUserInfo } from './gitlab.types'
-import { GiteaInstanceType, type GiteaRepositoryInfo, type GiteaUserInfo } from './gitea.types'
+import type { GiteaRepositoryInfo, GiteaUserInfo } from './gitea.types'
+import { getGiteaConnection } from './gitea-connection'
 import { getOptionalSyncRepoName } from './repo-utils'
 import { SYNC_REPO_PLATFORMS, type SyncRepoPlatform } from './workspace-repos'
 
@@ -26,6 +27,7 @@ export interface RepositoryCheckSnapshot {
 interface CheckContext {
   platform: SyncRepoPlatform
   token: string
+  revision?: string
   key: string
 }
 
@@ -48,11 +50,10 @@ interface GitProviderTarget {
   context: CheckContext
 }
 
-const TOKEN_KEYS: Record<SyncRepoPlatform, string> = {
+const TOKEN_KEYS: Record<Exclude<SyncRepoPlatform, 'gitea'>, string> = {
   github: 'accessToken',
   gitee: 'giteeAccessToken',
   gitlab: 'gitlabAccessToken',
-  gitea: 'giteaAccessToken',
 }
 
 const repositoryChecks = new Map<string, CheckEntry>()
@@ -74,12 +75,13 @@ function getSettingsProviderTarget(platform: SyncRepoPlatform, settings: ReturnT
     gitea: settings.giteaAccessToken,
   }
   const token = tokens[platform].trim()
-  const instanceType = platform === 'gitlab' ? settings.gitlabInstanceType : platform === 'gitea' ? settings.giteaInstanceType : ''
-  const customUrl = platform === 'gitlab' ? settings.gitlabCustomUrl : platform === 'gitea' ? settings.giteaCustomUrl : ''
+  const instanceType = platform === 'gitlab' ? settings.gitlabInstanceType : ''
+  const customUrl = platform === 'gitlab' ? settings.gitlabCustomUrl : ''
   return {
     workspacePath: settings.workspacePath,
     repo: repos[platform].trim() || (settings.workspacePath ? '' : RepoNames.sync),
-    context: { platform, token, key: JSON.stringify([platform, token, instanceType, customUrl.trim()]) },
+    context: platform === 'gitea' ? giteaContext(token, settings.giteaConnectionRevision)
+      : { platform, token, key: JSON.stringify([platform, token, instanceType, customUrl.trim()]) },
   }
 }
 
@@ -96,12 +98,20 @@ function notifyRepositoryChecks() {
   listeners.forEach(listener => listener())
 }
 
+function giteaContext(token: string, revision: string): CheckContext {
+  return { platform: 'gitea', token, revision, key: JSON.stringify(['gitea', revision]) }
+}
+
 async function getCheckContext(platform: SyncRepoPlatform): Promise<CheckContext> {
+  if (platform === 'gitea') {
+    const { token, revision } = await getGiteaConnection()
+    return giteaContext(token, revision)
+  }
   const store = await Store.load('store.json')
   const [token, instanceType, customUrl] = await Promise.all([
     store.get<string>(TOKEN_KEYS[platform]),
-    platform === 'gitlab' || platform === 'gitea' ? store.get<string>(`${platform}InstanceType`) : undefined,
-    platform === 'gitlab' || platform === 'gitea' ? store.get<string>(`${platform}CustomUrl`) : undefined,
+    platform === 'gitlab' ? store.get<string>(`${platform}InstanceType`) : undefined,
+    platform === 'gitlab' ? store.get<string>(`${platform}CustomUrl`) : undefined,
   ])
   return {
     platform,
@@ -109,7 +119,7 @@ async function getCheckContext(platform: SyncRepoPlatform): Promise<CheckContext
     key: JSON.stringify([
       platform,
       token?.trim() || '',
-      instanceType || (platform === 'gitlab' ? GitlabInstanceType.OFFICIAL : platform === 'gitea' ? GiteaInstanceType.OFFICIAL : ''),
+      instanceType || (platform === 'gitlab' ? GitlabInstanceType.OFFICIAL : ''),
       customUrl?.trim() || '',
     ]),
   }
@@ -149,7 +159,12 @@ async function inspectAccount(context: CheckContext, isActive: () => boolean): P
       case 'gitea': {
         const { getUserInfo } = await import('./gitea')
         assertCheckActive(isActive)
-        return { result: 'success', gitea: { userInfo: await getUserInfo(context.token) } }
+        const userInfo = await getUserInfo(context.revision)
+        await import('@/stores/setting').then(module => module.default.getState().refreshGiteaConnection())
+        if ((await getGiteaConnection()).revision !== context.revision) {
+          throw new RepositoryCheckCancelled('Gitea connection changed')
+        }
+        return { result: 'success', gitea: { userInfo } }
       }
     }
   } catch (error) {
@@ -245,7 +260,7 @@ async function inspectRepository(context: CheckContext, repo: string, force: boo
       case 'gitea': {
         const { checkSyncRepoState } = await import('./gitea')
         assertCheckActive(isActive)
-        const repoInfo = await checkSyncRepoState(repo)
+        const repoInfo = await checkSyncRepoState(repo, context.revision)
         return { ...account, result: repoInfo ? 'success' : 'not-found', gitea: { ...account.gitea, repoInfo: repoInfo || undefined } }
       }
     }
@@ -354,7 +369,6 @@ async function applySnapshot(
       break
     case 'gitea':
       useSyncStore.setState({ giteaUserInfo: snapshot?.gitea?.userInfo, giteaSyncRepoInfo: snapshot?.gitea?.repoInfo, giteaSyncRepoState: state, providerChecks })
-      if (snapshot?.gitea?.userInfo) useSettingStore.setState({ giteaUsername: snapshot.gitea.userInfo.login })
       break
   }
 }
@@ -404,9 +418,10 @@ export async function refreshGitSyncProviderStatus(platform: SyncRepoPlatform, o
 export async function createRepository(platform: SyncRepoPlatform, repo: string): Promise<RepositoryCreateResult> {
   const context = await getCheckContext(platform)
   if (!context.token) return 'missing-token'
-  const account = await checkAccount(context)
 
   try {
+    const account = await checkAccount(context)
+    if (platform === 'gitea' && account.result !== 'success') return 'create-error'
     let snapshot: RepositoryCheckSnapshot
     switch (platform) {
       case 'github': {
@@ -432,7 +447,7 @@ export async function createRepository(platform: SyncRepoPlatform, repo: string)
       }
       case 'gitea': {
         const { createSyncRepo } = await import('./gitea')
-        const repoInfo = await createSyncRepo(repo, true)
+        const repoInfo = await createSyncRepo(repo, true, context.revision)
         if (!repoInfo) return 'create-error'
         snapshot = { ...account, result: 'success', gitea: { ...account.gitea, repoInfo } }
         break
@@ -451,9 +466,8 @@ export async function createRepository(platform: SyncRepoPlatform, repo: string)
 export async function listRepositories(
   platform: SyncRepoPlatform,
 ): Promise<RepositoryListResult> {
-  const store = await Store.load('store.json')
-  const token = await store.get<string>(TOKEN_KEYS[platform])
-  if (!token?.trim()) return { status: 'missing-token', repositories: [] }
+  const context = await getCheckContext(platform)
+  if (!context.token) return { status: 'missing-token', repositories: [] }
 
   try {
     let repositories: string[] = []
@@ -475,7 +489,8 @@ export async function listRepositories(
       }
       case 'gitea': {
         const { listUserRepositories } = await import('./gitea')
-        repositories = await listUserRepositories()
+        repositories = await listUserRepositories(context.revision)
+        if ((await getCheckContext(platform)).key !== context.key) return { status: 'error', repositories: [] }
         break
       }
     }

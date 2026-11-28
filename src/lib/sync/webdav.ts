@@ -31,8 +31,8 @@ function roundMs(value: number) {
   return Math.round(value)
 }
 
-function hasStrongWebDAVEtag(value: string): boolean {
-  return /^"[\x21\x23-\x7e\x80-\xff]*"$/.test(value)
+export function hasStrongWebDAVEtag(value: string | null | undefined): value is string {
+  return typeof value === 'string' && /^"[\x21\x23-\x7e\x80-\xff]*"$/.test(value)
 }
 
 function sameWebDAVBytes(left: Uint8Array, right: Uint8Array): boolean {

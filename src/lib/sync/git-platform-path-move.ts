@@ -1,7 +1,7 @@
 import { fetch, type Proxy } from '@tauri-apps/plugin-http'
 import { Store } from '@tauri-apps/plugin-store'
 import { GITLAB_INSTANCES, GitlabInstanceType } from './gitlab.types'
-import { GITEA_INSTANCES, GiteaInstanceType } from './gitea.types'
+import { getGiteaConnection, getGiteaEndpoint } from './gitea-connection'
 import { remoteRecord } from './directory-listing'
 import { decodeBase64ToBytes, encodeRemoteFileContent, readSyncResponseJson } from './remote-file'
 import { gitBlobVersion } from './remote-content-cache'
@@ -51,6 +51,7 @@ interface PlatformConfig {
   projectId: string
   token: string
   configuredBranch: string
+  revision?: string
   proxy?: Proxy
 }
 interface TreeEntry { path: string; sha: string; type: string; mode: string }
@@ -92,6 +93,18 @@ export function isGitPlatformPathSnapshot(value: unknown): value is GitPlatformP
 
 async function config(provider: GitMoveProvider): Promise<PlatformConfig | null> {
   const store = await Store.load('store.json')
+  if (provider === 'gitea') {
+    const connection = await getGiteaConnection()
+    const endpoint = getGiteaEndpoint(connection)
+    const repo = await getOptionalSyncRepoName(provider)
+    const proxyUrl = await store.get<string>('proxy')
+    if (!endpoint || !connection.username || !repo || connection.revision !== (await getGiteaConnection()).revision) return null
+    return {
+      api: `${endpoint}/api/v1`, username: connection.username, repo, projectId: '',
+      token: connection.token, configuredBranch: connection.branch, revision: connection.revision,
+      proxy: proxyUrl ? { all: proxyUrl } : undefined,
+    }
+  }
   const [username, repo, token, proxyUrl] = await Promise.all([
     store.get<string>(`${provider}Username`), getOptionalSyncRepoName(provider),
     store.get<string>(`${provider}AccessToken`), store.get<string>('proxy'),
@@ -109,14 +122,6 @@ async function config(provider: GitMoveProvider): Promise<PlatformConfig | null>
     api = `${origin}/api/v4`
     projectId = String(await store.get<string | number>(`gitlab_${repo}_project_id`) || '')
     if (!projectId) return null
-  } else if (provider === 'gitea') {
-    const instance = await store.get<GiteaInstanceType>('giteaInstanceType') || GiteaInstanceType.OFFICIAL
-    let origin = instance === GiteaInstanceType.SELF_HOSTED
-      ? (await store.get<string>('giteaCustomUrl') || '').trim().replace(/\/+$/, '')
-      : GITEA_INSTANCES[instance]?.baseUrl
-    if (!origin) return null
-    if (!/^https?:\/\//.test(origin)) origin = `http://${origin}`
-    api = `${origin}/api/v1`
   }
   const configuredBranch = (await store.get<string>(`${provider}Branch`) || '').trim()
   return { api, username, repo, projectId, token: token || '', configuredBranch, proxy: proxyUrl ? { all: proxyUrl } : undefined }
@@ -141,10 +146,13 @@ export async function moveGitPlatformPath(
     || (expected !== undefined && (!isGitPlatformPathSnapshot(expected) || expected.provider !== provider))) {
     throw failure('校验记录', '路径或持久迁移快照无效')
   }
-  const current = async () => {
-    if (!await assertCurrent()) throw failure('校验上下文', '工作区、平台或迁移状态已变化，记录已保留')
-  }
   const captured = await config(provider)
+  const current = async () => {
+    if (!await assertCurrent() || (captured?.revision !== undefined
+      && captured.revision !== (await getGiteaConnection()).revision)) {
+      throw failure('校验上下文', '工作区、平台或迁移状态已变化，记录已保留')
+    }
+  }
   await current()
   if (!captured?.token) throw failure('读取配置', '同步未配置完整')
   if (provider === 'gitee') return moveGiteePath({
@@ -158,6 +166,7 @@ export async function moveGitPlatformPath(
     if (provider === 'gitlab') headers['PRIVATE-TOKEN'] = token
     else headers.Authorization = `token ${token}`
     const request = async (resource: string, stage: string, method = 'GET', body?: Record<string, unknown>): Promise<unknown> => {
+      if (provider === 'gitea') await current()
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 15_000)
       try {

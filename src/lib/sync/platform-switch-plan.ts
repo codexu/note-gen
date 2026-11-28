@@ -1,4 +1,5 @@
 import { normalizeSettingsSnapshot } from './settings-snapshot'
+import { getGiteaConnection, getGiteaEndpoint } from './gitea-connection'
 import { openSwitchJournal, readSwitchJournal, assertSwitchBackupPath, type SwitchJournalOperation } from './platform-switch-journal'
 import { acquireActiveSwitchBackup } from './platform-switch-backup-retention'
 import type { RemoteWriteCondition } from './write-condition'
@@ -366,6 +367,11 @@ export async function targetIdentity(platform: SyncPlatform) {
     const git = platform as 'github' | 'gitee' | 'gitlab' | 'gitea'
     const workspaceRepo = await getSyncRepoName(git)
     const dataRepo = await getDataSyncRepoName(git)
+    if (git === 'gitea') {
+      const connection = await getGiteaConnection()
+      return JSON.stringify([git, getGiteaEndpoint(connection), connection.username, workspaceRepo,
+        dataRepo, connection.branch, connection.revision])
+    }
     return JSON.stringify([platform, await store.get(`${platform}Username`), workspaceRepo, dataRepo,
       await store.get(`${platform}CustomUrl`), await store.get(`${platform}InstanceType`),
       await store.get(`${platform}Branch`), await store.get(`gitlab_${workspaceRepo}_project_id`), await store.get(`gitlab_${dataRepo}_project_id`),
@@ -379,7 +385,8 @@ async function targetLabel(platform: SyncPlatform) {
   if (['github', 'gitee', 'gitlab', 'gitea'].includes(platform)) {
     const { getSyncRepoName, getDataSyncRepoName } = await import('./repo-utils')
     const git = platform as 'github' | 'gitee' | 'gitlab' | 'gitea'
-    return `${await store.get<string>(`${platform}Username`) || ''}/${await getSyncRepoName(git)} · .data: ${await getDataSyncRepoName(git)}`
+    const username = git === 'gitea' ? (await getGiteaConnection()).username : await store.get<string>(`${platform}Username`) || ''
+    return `${username}/${await getSyncRepoName(git)} · .data: ${await getDataSyncRepoName(git)}`
   }
   const config = await store.get<Record<string, unknown>>(`${platform}SyncConfig`) || {}
   let address = String(config.url || config.endpoint || config.path || '')

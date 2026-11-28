@@ -2,6 +2,7 @@ import type { RemoteDirectoryEntry } from '@/lib/sync/directory-listing'
 import { getDirectoryFiles as getGithubFiles } from '@/lib/sync/github'
 import { getDirectoryFiles as getGiteeFiles } from '@/lib/sync/gitee'
 import { getDirectoryFiles as getGiteaFiles } from '@/lib/sync/gitea'
+import { getGiteaConnection } from '@/lib/sync/gitea-connection'
 import { getDirectoryFiles as getGitlabFiles } from '@/lib/sync/gitlab'
 import { getSyncRepoName } from '@/lib/sync/repo-utils'
 import { s3ListObjects } from '@/lib/sync/s3'
@@ -2654,7 +2655,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
           return
         }
       } else if (primaryBackupMethod === 'gitea') {
-        const giteaAccessToken = await store.get<string>('giteaAccessToken')
+        const { token: giteaAccessToken } = await getGiteaConnection()
         if (!giteaAccessToken) {
           return
         }
@@ -2928,7 +2929,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       const gitlabAccessToken = await store.get<string>('gitlabAccessToken')
       if (!gitlabAccessToken) return
     } else if (primaryBackupMethod === 'gitea') {
-      const giteaAccessToken = await store.get<string>('giteaAccessToken')
+      const { token: giteaAccessToken } = await getGiteaConnection()
       if (!giteaAccessToken) return
     } else if (primaryBackupMethod === 's3') {
       const s3Config = await store.get<S3Config>('s3SyncConfig')

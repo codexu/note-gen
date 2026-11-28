@@ -32,7 +32,7 @@ import { useSyncConfirmStore } from '@/stores/sync-confirm'
 import useSettingStore from '@/stores/setting'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { isMobileDevice as checkIsMobileDevice } from '@/lib/check'
-import emitter from '@/lib/emitter'
+import emitter, { type Events } from '@/lib/emitter'
 import { getSyncPushQueue } from '@/lib/sync/sync-push-queue'
 import { normalizeRemoteVersion } from '@/lib/sync/remote-content-cache'
 import { useEffect } from 'react'
@@ -61,12 +61,7 @@ export function SyncConfirmDialog() {
 
   // 监听 SHA 不匹配事件，显示确认对话框
   useEffect(() => {
-    const handleShaMismatch = async (data: {
-      path: string
-      workspacePath: string
-      localSha?: string
-      remoteSha?: string
-    }) => {
+    const handleShaMismatch = async (data: Events['sync-sha-mismatch']) => {
       if (data.workspacePath !== useSettingStore.getState().workspacePath) return
       const fileName = data.path.split('/').pop() || data.path
       const syncPushQueue = getSyncPushQueue()
@@ -77,7 +72,7 @@ export function SyncConfirmDialog() {
         remoteSha: data.remoteSha,
         onForceUpload: async () => {
           // 用户确认强制上传
-          await syncPushQueue.forcePush(data.path, data.workspacePath)
+          await syncPushQueue.forcePush(data.path, data.workspacePath, data.remoteSnapshot)
         },
         onCancel: () => {
           // 用户取消，不做任何操作

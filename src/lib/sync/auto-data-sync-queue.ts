@@ -4,6 +4,7 @@ import type { RemoteWriteCondition } from './write-condition'
 import { normalizeMemorySyncRecord } from '@/lib/memory/sync-record'
 
 import { Store } from '@tauri-apps/plugin-store'
+import { getGiteaConnection } from './gitea-connection'
 import emitter from '@/lib/emitter'
 import { decodeBase64ToString, getRemoteFileContent, parseSyncJson, syncDataError } from '@/lib/sync/remote-file'
 import type { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
@@ -208,13 +209,15 @@ async function getAutoDataSyncStateKey(baseKey: string, target?: AutoDataSyncPro
     : provider === 's3' || provider === 'webdav'
       ? ''
       : await getDataSyncRepoName(provider)
-  return `${baseKey}:${JSON.stringify([provider, repo])}`
+  const scope = provider === 'gitea' ? (await getGiteaConnection()).repositoryScope : ''
+  return `${baseKey}:${JSON.stringify(scope ? [provider, repo, scope] : [provider, repo])}`
 }
 
 async function getAutoDataSyncStateValue<T>(store: Store, baseKey: string) {
-  const scopedValue = await store.get<T>(await getAutoDataSyncStateKey(baseKey))
+  const provider = await getAutoDataSyncProvider(store)
+  const scopedValue = await store.get<T>(await getAutoDataSyncStateKey(baseKey, provider))
   if (scopedValue !== undefined && scopedValue !== null) return scopedValue
-
+  if (provider === 'gitea' && (await getGiteaConnection()).repositoryScope) return undefined
   return await store.get<T>(baseKey)
 }
 
@@ -1410,12 +1413,10 @@ export async function isAutoDataSyncProviderConfigured(): Promise<boolean> {
         return false
       }
     }
-    case 'gitea':
-      return Boolean(
-        await store.get<string>('giteaAccessToken')
-        && await store.get<string>('giteaUsername')
-        && await getConfiguredGitRepository('gitea')
-      )
+    case 'gitea': {
+      const { token, username } = await getGiteaConnection()
+      return Boolean(token && username && await getConfiguredGitRepository('gitea'))
+    }
     case 's3': {
       const config = await store.get<S3Config>('s3SyncConfig')
       return Boolean(config?.accessKeyId && config.secretAccessKey && config.region && config.bucket)
@@ -2917,7 +2918,9 @@ async function getAutoDataSyncMetaCacheKey(
     const config = await store.get<WebDAVConfig>('webdavSyncConfig')
     return JSON.stringify([provider, config?.url || '', config?.pathPrefix || ''])
   }
-  return JSON.stringify([provider, await getDataSyncRepoName(provider)])
+  const repo = await getDataSyncRepoName(provider)
+  const scope = provider === 'gitea' ? (await getGiteaConnection()).repositoryScope : ''
+  return JSON.stringify(scope ? [provider, repo, scope] : [provider, repo])
 }
 
 async function cacheAutoDataSyncMeta(

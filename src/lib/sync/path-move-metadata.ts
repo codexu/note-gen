@@ -20,6 +20,7 @@ interface MetadataContext {
   provider?: PathMoveProvider
   owner?: string
   identity?: string
+  allowLegacyMetadata?: boolean
 }
 
 export interface PathMoveMetadata {
@@ -58,6 +59,12 @@ function metadataKey(context: MetadataContext, path: string): string {
   return JSON.stringify([context.workspaceKey, context.provider || 'github', context.repo, path])
 }
 
+function usesUnscopedMetadata(context: MetadataContext): boolean {
+  return context.workspaceKey === '__default__'
+    && (context.provider !== 'webdav' || context.repo === '')
+    && context.allowLegacyMetadata !== false
+}
+
 function scopedPath(key: string, context: MetadataContext): string | null {
   try {
     const parts: unknown = JSON.parse(key)
@@ -86,7 +93,7 @@ function captureValues(
       : typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`同步元数据无效：${path}`)
     result[path] = value
   }
-  if (context.workspaceKey === '__default__') {
+  if (usesUnscopedMetadata(context)) {
     for (const [key, value] of Object.entries(values)) {
       if (validPath(key) && includesPath(root, key)) add(key, value)
     }
@@ -111,6 +118,7 @@ function validateMetadata(metadata: PathMoveMetadata): void {
     || includesPath(metadata.source, metadata.target) || includesPath(metadata.target, metadata.source)
     || !context || typeof context.workspaceKey !== 'string' || !context.workspaceKey
     || typeof context.repo !== 'string' || !metadata.stores
+    || (context.allowLegacyMetadata !== undefined && typeof context.allowLegacyMetadata !== 'boolean')
     || (context.provider !== undefined && context.provider !== 'github'
       ? !['gitee', 'gitlab', 'gitea', 's3', 'webdav', 'cloudFolder', 'selfHosted'].includes(context.provider)
         || typeof context.identity !== 'string' || !context.identity
@@ -133,11 +141,15 @@ function validateMetadata(metadata: PathMoveMetadata): void {
   }
 }
 
-async function assertContext(store: Store, metadata: PathMoveMetadata): Promise<void> {
+async function assertContext(store: Store, metadata: PathMoveMetadata): Promise<MetadataContext> {
   const current = await getCurrentSyncContext()
   const context = metadata.context
   const provider = context.provider || 'github'
-  if (current.provider !== provider || current.workspaceKey !== context.workspaceKey || current.repo !== context.repo
+  // Existing WebDAV journals already bind their original endpoint via identity.
+  const legacyWebDAVJournal = provider === 'webdav' && context.repo === ''
+  if (current.provider !== provider || current.workspaceKey !== context.workspaceKey
+    || (!legacyWebDAVJournal && current.repo !== context.repo)
+    || (provider === 'gitea' && current.allowLegacyMetadata !== (context.allowLegacyMetadata !== false))
     || await store.get('platformSwitchRecovery')) throw syncStaleError({ stage: 'apply', check: 'configuration' })
   if (context.provider !== undefined && context.provider !== 'github') {
     const configuration = await getPathMoveConfiguration()
@@ -147,6 +159,7 @@ async function assertContext(store: Store, metadata: PathMoveMetadata): Promise<
   } else if (await store.get<string>('githubUsername') !== context.owner) {
     throw syncStaleError({ stage: 'apply', check: 'configuration' })
   }
+  return legacyWebDAVJournal ? { ...context, repo: current.repo } : context
 }
 
 /** Capture before moving locally. Never accept a newly observed remote version. */
@@ -161,6 +174,7 @@ export async function capturePathMoveMetadata(source: string, target: string): P
   const context: MetadataContext = configuration.provider === 'github'
     ? { provider: 'github', workspaceKey: current.workspaceKey, repo: current.repo, owner: configuration.owner! }
     : { provider: configuration.provider, workspaceKey: current.workspaceKey, repo: current.repo, identity: configuration.identity }
+  if (!current.allowLegacyMetadata) context.allowLegacyMetadata = false
 
   const metadata: PathMoveMetadata = {
     version: 1, source, target, context,
@@ -227,7 +241,7 @@ export async function applyPathMoveMetadata(metadata: PathMoveMetadata): Promise
       && (!sameValues(sourceValues, before.source) || !sameValues(targetValues, before.target))) continue
     for (const key of Object.keys(values)) {
       const path = scopedPath(key, metadata.context)
-        ?? (metadata.context.workspaceKey === '__default__' && validPath(key) ? key : null)
+        ?? (usesUnscopedMetadata(metadata.context) && validPath(key) ? key : null)
       if (path && (includesPath(metadata.source, path) || includesPath(metadata.target, path))) delete values[key]
     }
     for (const [path, value] of Object.entries(desired)) values[metadataKey(metadata.context, path)] = value
@@ -246,7 +260,7 @@ export async function rebindPathMoveMetadata(
   validateMetadata(metadata)
   if (!validPath(finalTarget)) throw new Error('路径迁移元数据无效')
   const store = await Store.load('store.json')
-  await assertContext(store, metadata)
+  const activeContext = await assertContext(store, metadata)
   const values = readValues(await store.get('syncedFileShas'), 'syncedFileShas')
   const changes: Record<string, string> = Object.create(null)
   const seen = new Set<string>()
@@ -262,9 +276,11 @@ export async function rebindPathMoveMetadata(
     const sourceVersion = normalizeRemoteVersion(entry.sourceVersion)
     const targetVersion = normalizeRemoteVersion(entry.targetVersion)
     const target = entry.localTarget ?? `${finalTarget}${entry.source.slice(metadata.source.length)}`
-    const key = metadataKey(metadata.context, target)
-    const current = Object.prototype.hasOwnProperty.call(values, key) ? values[key]
-      : metadata.context.workspaceKey === '__default__' ? values[target] : undefined
+    // Legacy WebDAV journals may read their old entry. Once a baseline is
+    // recorded for the active endpoint, that entry takes precedence.
+    const current = values[metadataKey(activeContext, target)]
+      ?? values[metadataKey(metadata.context, target)]
+      ?? (usesUnscopedMetadata(metadata.context) ? values[target] : undefined)
     // A remote-only child or an unaccepted remote update never gains authority
     // to overwrite local content merely because the directory was renamed.
     if (typeof captured !== 'string' || !normalizeRemoteVersion(captured)
@@ -274,7 +290,7 @@ export async function rebindPathMoveMetadata(
   }
   if (!Object.keys(changes).length) return
   await assertContext(store, metadata)
-  for (const [path, version] of Object.entries(changes)) values[metadataKey(metadata.context, path)] = version
+  for (const [path, version] of Object.entries(changes)) values[metadataKey(activeContext, path)] = version
   await store.set('syncedFileShas', values)
   await store.save()
   if (metadata.context.provider === 's3' || metadata.context.provider === 'webdav') {

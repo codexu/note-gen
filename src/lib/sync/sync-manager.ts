@@ -1,7 +1,9 @@
 import { Store } from '@tauri-apps/plugin-store'
+import { getGiteaConnection, getGiteaEndpoint } from './gitea-connection'
 import { getSyncMetadataKey } from './sync-context'
+import { syncStaleError } from './sync-stale-error'
 import { captureFileSyncWorkspaceGuard, getFileSyncProofKey, recordFileSyncProof } from './file-sync-proof'
-import { getWorkspaceOverwriteVersion, readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
+import { findMatchingWorkspaceVersion, getWorkspaceOverwriteVersion, readVersionedWorkspaceFile, uploadGuardedWorkspaceFile } from './guarded-workspace-upload'
 import { prepareWorkspacePathUpload, retryWorkspacePathMoves, runWorkspacePathPullWrite } from './workspace-path-moves'
 import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
 import { calculateFileSha, getLocalFileMetadata, getRemoteFileInfo, compareFileVersions, pullRemoteFile, setLocalRecordedSha, getLocalRecordedSha } from './auto-sync'
@@ -21,7 +23,7 @@ import { toast } from '@/hooks/use-toast'
 import { BaseDirectory, exists, mkdir, readFile, remove, writeFile } from '@tauri-apps/plugin-fs'
 import { dirname, join } from '@tauri-apps/api/path'
 import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
-import { decodeSyncText, isBinaryFilePath, sameFileBytes, syncContentBytes } from './file-content'
+import { decodeSyncText, isBinaryFilePath, syncContentBytes } from './file-content'
 import { shouldExclude } from '@/config/sync-exclusions'
 import emitter from '@/lib/emitter'
 import {
@@ -223,7 +225,7 @@ export class SyncManager {
         ? await getFileSyncProofKey(path, platform).catch(() => null) : null
       const acceptedVersion = overwrite
         ? await getWorkspaceOverwriteVersion(path, platform)
-        : await getLocalRecordedSha(path)
+        : await getLocalRecordedSha(path, metadataKey)
       const message = `Sync: ${path} - ${new Date().toLocaleString('zh-CN')}`
       let version: string
       const config = platform === 'cloudFolder' ? await getCloudFolderWorkspaceConfig() : null
@@ -233,16 +235,14 @@ export class SyncManager {
         const result = await androidCloudFolderWorkspaceUpload(config, path, content, undefined, beforeWrite)
         version = result.etag
       } else {
-        // An idempotent manual retry must also accept the version attached to
-        // the downloaded bytes, rather than a separate, newer metadata read.
-        let matchingVersion: string | undefined
-        try {
-          const remoteFile = await readVersionedWorkspaceFile(path, platform)
-          if (sameFileBytes(remoteFile.content, bytes)) matchingVersion = remoteFile.version
-        } catch { /* Missing/unreadable remote: the conditional write remains authoritative. */ }
+        const matchingVersion = await findMatchingWorkspaceVersion(path, bytes, platform)
         version = matchingVersion || await uploadGuardedWorkspaceFile(path, content, platform, acceptedVersion, message, metadataKey)
       }
       if (version) {
+        if (platform === 'webdav' && (!proofWorkspaceIsCurrent() || await this.getCurrentPlatform() !== platform
+          || await getSyncMetadataKey(path, platform) !== metadataKey)) {
+          throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
+        }
         await setLocalRecordedSha(path, version, metadataKey)
         if (proofKey && proofWorkspaceIsCurrent() && proofKey === await getFileSyncProofKey(path, platform).catch(() => null)) {
           await recordFileSyncProof(proofKey, bytes, version, proofWorkspaceIsCurrent).catch(error => console.warn('Unable to record accepted upload:', error))
@@ -647,7 +647,8 @@ export class SyncManager {
     if (shouldExclude(path)) {
       return null
     }
-    if (await this.getCurrentPlatform() === 'selfHosted') {
+    const platform = await this.getCurrentPlatform()
+    if (platform === 'selfHosted') {
       const { getSelfHostedSyncRuntime } = await import('@/lib/self-hosted-sync/runtime')
       await getSelfHostedSyncRuntime().wake('foreground')
       return null
@@ -663,8 +664,8 @@ export class SyncManager {
       return { updated: result.success }
     }
 
-    // 处理冲突情况：远程文件较新但 SHA 不同（可能是同步过的）
-    if (syncResult.action === 'conflict') {
+    // WebDAV conflicts require an explicit choice before either copy is replaced.
+    if (syncResult.action === 'conflict' && platform !== 'webdav') {
       const result = await this.pullFile(path, initialEditorMutationRevision)
       if (result.success && result.action === 'pull') {
         return { updated: true, content: result.content }
@@ -872,17 +873,9 @@ export async function isSyncConfigured(
           instanceConfigured
       }
       case 'gitea': {
-        const giteaToken = await store.get<string>('giteaAccessToken')
-        const giteaUsername = await store.get<string>('giteaUsername')
-        const repo = await getOptionalSyncRepoName('gitea')
-        const instanceType = await store.get<string>('giteaInstanceType')
-        const customUrl = await store.get<string>('giteaCustomUrl')
-        const instanceConfigured = instanceType !== 'self-hosted' || hasConfiguredText(customUrl)
-
-        return hasConfiguredText(giteaToken) &&
-          hasConfiguredText(giteaUsername) &&
-          hasConfiguredText(repo) &&
-          instanceConfigured
+        const connection = await getGiteaConnection()
+        return Boolean(getGiteaEndpoint(connection) && connection.token && connection.username
+          && await getOptionalSyncRepoName('gitea'))
       }
       case 's3': {
         const s3Config = await store.get<S3Config>('s3SyncConfig')

@@ -5,7 +5,8 @@ import { getFilePathOptions, getWorkspacePath } from '@/lib/workspace'
 import { collectMarkdownFiles } from '@/lib/files'
 import { RepoNames } from './github.types'
 import { getSyncRepoName } from './repo-utils'
-import { getGiteaApiBaseUrl } from './gitea'
+import { getDirectoryFiles as getGiteaDirectoryFiles } from './gitea'
+import { getGiteaConnection } from './gitea-connection'
 import { s3Upload } from './s3'
 import { webdavUpload } from './webdav'
 import { S3Config, WebDAVConfig, type SyncPlatform } from '@/types/sync'
@@ -344,59 +345,18 @@ export class FolderSync {
    * 获取 Gitea 仓库中所有文件的 SHA（递归获取子目录）
    */
   async _getGiteaFiles(repo: string, path: string = ''): Promise<Record<string, { sha: string }>> {
-    const store = await Store.load('store.json')
-    const giteaAccessToken = await store.get<string>('giteaAccessToken')
-    const giteaUsername = await store.get<string>('giteaUsername')
-    const proxyUrl = await store.get<string>('proxy')
-    const proxy: Proxy | undefined = proxyUrl ? { all: proxyUrl } : undefined
-
-    if (!giteaAccessToken || !giteaUsername) {
-      console.error('[Gitea] 缺少 accessToken 或 username')
-      return {}
-    }
-
-    let giteaUrl: string
     try {
-      giteaUrl = await getGiteaApiBaseUrl()
-    } catch {
-      return {}
-    }
-
-    const apiBaseUrl = giteaUrl.endsWith('/') ? giteaUrl.slice(0, -1) : giteaUrl
-
-    const headers = new Headers()
-    headers.append('Authorization', `Bearer ${giteaAccessToken}`)
-
-      const encodedPath = buildRepoContentPath({ path })
-      debugSyncPath('folderSync.gitea.listFiles', {
-        inputPath: path,
-        encodedPath,
-      })
-    const url = `${apiBaseUrl}/repos/${giteaUsername}/${repo}/contents${encodedPath ? '/' + encodedPath : ''}`
-
-    try {
-      const response = await fetch(url, { method: 'GET', headers, proxy })
-
-      if (!response.ok) {
-        console.error('[Gitea] 获取文件列表失败:', response.status)
-        return {}
-      }
-
-      const data = await response.json()
+      const { revision, token, username } = await getGiteaConnection()
+      if (!token || !username) return {}
       const result: Record<string, { sha: string }> = {}
-
-      if (Array.isArray(data)) {
-        for (const item of data) {
-          if (item.type === 'file' && item.path && item.sha) {
-            result[item.path] = { sha: item.sha }
-          } else if (item.type === 'dir' && item.path) {
-            // 递归获取子目录
-            const subFiles = await this._getGiteaFiles(repo, item.path)
-            Object.assign(result, subFiles)
-          }
+      const visit = async (directory: string) => {
+        const entries = await getGiteaDirectoryFiles({ path: directory, repo, expectedRevision: revision })
+        for (const entry of entries) {
+          if (entry.type === 'file' && entry.path && entry.sha) result[entry.path] = { sha: entry.sha }
+          else if (entry.type === 'dir' && entry.path) await visit(entry.path)
         }
       }
-
+      await visit(path)
       return result
     } catch (error) {
       console.error('[Gitea] 获取文件列表异常:', error)

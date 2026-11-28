@@ -1,13 +1,15 @@
-import { retryWorkspacePathMoves } from './workspace-path-moves'
+import { getWorkspacePathMoveContext, retryWorkspacePathMoves, runWorkspacePathPullWrite } from './workspace-path-moves'
+import { readVersionedWorkspaceFile } from './guarded-workspace-upload'
 import { normalizeRemoteVersion } from './remote-content-cache'
 import { Store } from '@tauri-apps/plugin-store'
 import { fetch, Proxy } from '@tauri-apps/plugin-http'
 import { getFiles as getGithubFiles, getFileCommits as getGithubFileCommits } from '@/lib/sync/github'
 import { getFiles as getGiteeFiles, getFileCommits as getGiteeFileCommits } from '@/lib/sync/gitee'
 import { getFileContent as getGitlabFileContent, getFileCommits as getGitlabFileCommits, getGitlabApiBaseUrl } from '@/lib/sync/gitlab'
-import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaApiBaseUrl } from '@/lib/sync/gitea'
+import { getFileContent as getGiteaFileContent, getFileCommits as getGiteaFileCommits, getGiteaRequestConfig } from '@/lib/sync/gitea'
+import { getGiteaConnection } from './gitea-connection'
 import { s3HeadObject, s3DownloadBytes } from './s3'
-import { webdavHeadObject, webdavDownloadBytes } from './webdav'
+import { hasStrongWebDAVEtag, webdavHeadObject, webdavDownloadBytes } from './webdav'
 import { decodeBase64ToBytes } from './remote-file'
 import { decodeSyncText, isBinaryFilePath, syncContentBytes } from './file-content'
 import { CloudFolderConfig, S3Config, WebDAVConfig } from '@/types/sync'
@@ -44,6 +46,7 @@ import {
 
 // Store 实例缓存
 let storeInstance: Store | null = null
+let recordedShaWrite: Promise<void> = Promise.resolve()
 
 /**
  * 获取 Store 实例
@@ -66,22 +69,18 @@ async function getGitlabBranch(): Promise<string> {
 /**
  * 获取 Gitea 分支配置
  */
-async function getGiteaBranch(): Promise<string | undefined> {
-  const store = await getStore()
-  return (await store.get<string>('giteaBranch'))?.trim() || undefined
-}
-
 /**
  * 从 store 获取本地记录的远程 SHA
  */
-export async function getLocalRecordedSha(filePath: string): Promise<string | null> {
+export async function getLocalRecordedSha(filePath: string, scopedKey?: string): Promise<string | null> {
   const store = await getStore()
   const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
-  const scopedKey = await getSyncMetadataKey(filePath)
-  if (Object.prototype.hasOwnProperty.call(syncedShas, scopedKey)) return syncedShas[scopedKey] || null
+  const key = scopedKey ?? await getSyncMetadataKey(filePath)
+  if (Object.prototype.hasOwnProperty.call(syncedShas, key)) return syncedShas[key] || null
 
   const context = await getCurrentSyncContext()
-  return context.workspaceKey === '__default__' ? syncedShas[filePath] || null : null
+  return context.workspaceKey === '__default__' && context.provider !== 'webdav' && context.allowLegacyMetadata
+    ? syncedShas[filePath] || null : null
 }
 
 /**
@@ -91,12 +90,19 @@ export async function setLocalRecordedSha(
   filePath: string,
   sha: string,
   scopedKey?: string,
+  expectedSha?: string | null,
 ): Promise<void> {
-  const store = await getStore()
-  const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
-  syncedShas[scopedKey || await getSyncMetadataKey(filePath)] = sha
-  await store.set('syncedFileShas', syncedShas)
-  await store.save()
+  const key = scopedKey ?? await getSyncMetadataKey(filePath)
+  const operation = recordedShaWrite.then(async () => {
+    if (expectedSha !== undefined && await getLocalRecordedSha(filePath, key) !== expectedSha) return
+    const store = await getStore()
+    const syncedShas = await store.get<Record<string, string>>('syncedFileShas') || {}
+    syncedShas[key] = sha
+    await store.set('syncedFileShas', syncedShas)
+    await store.save()
+  })
+  recordedShaWrite = operation.catch(() => undefined)
+  await operation
 }
 
 export interface FileMetadata {
@@ -238,11 +244,11 @@ export async function getRemoteFileInfo(path: string): Promise<{ sha?: string; l
       }
 
       case 'gitea': {
+        const { branch, revision } = await getGiteaConnection()
         const giteaRepo = await getSyncRepoName('gitea')
-        const giteaBranch = await getGiteaBranch()
-        const giteaFile = await getGiteaFileContent({ path, ref: giteaBranch, repo: giteaRepo })
+        const giteaFile = await getGiteaFileContent({ path, ref: branch || undefined, repo: giteaRepo, expectedRevision: revision })
         if (!giteaFile) break
-        const commits = await getGiteaFileCommits({ path, repo: giteaRepo, ref: giteaBranch })
+        const commits = await getGiteaFileCommits({ path, repo: giteaRepo, ref: branch || undefined, expectedRevision: revision })
         const commitDate = commits ? commits.data?.[0]?.commit?.committer?.date : undefined
         return { sha: giteaFile.sha, lastModified: commitDate ? new Date(commitDate).getTime() : undefined }
       }
@@ -483,9 +489,9 @@ export async function pullRemoteFile(path: string): Promise<string> {
       }
 
       case 'gitea': {
+        const { branch, revision } = await getGiteaConnection()
         const giteaRepo = await getSyncRepoName('gitea')
-        const giteaBranch = await getGiteaBranch()
-        file = await getGiteaFileContent({ path, ref: giteaBranch, repo: giteaRepo })
+        file = await getGiteaFileContent({ path, ref: branch || undefined, repo: giteaRepo, expectedRevision: revision })
         if (file && typeof file.content === 'string') {
           return requireSyncText(path, decodeBase64ToBytes(file.content))
         }
@@ -996,15 +1002,16 @@ export async function hasNetworkConnection(): Promise<boolean> {
           proxy = { all: gitlabProxyUrl }
         }
         break
-      case 'gitea':
-        token = await store.get<string>('giteaAccessToken') || ''
-        url = `${await getGiteaApiBaseUrl()}/user`
-        // Gitea 自建实例可能需要代理
-        const giteaProxyUrl = await store.get<string>('proxy')
-        if (giteaProxyUrl) {
-          proxy = { all: giteaProxyUrl }
+      case 'gitea': {
+        try {
+          const { baseUrl, headers, proxy } = await getGiteaRequestConfig()
+          return (await fetch(`${baseUrl}/user`, {
+            method: 'GET', signal: controller.signal, headers, proxy, maxRedirections: 0,
+          })).ok
+        } finally {
+          clearTimeout(timeoutId)
         }
-        break
+      }
       case 'cloudFolder': {
         clearTimeout(timeoutId)
         const config = await store.get<CloudFolderConfig>('cloudFolderSyncConfig')
@@ -1180,8 +1187,8 @@ export async function compareS3FileVersions(path: string): Promise<SyncResult> {
  * 使用 ETag 进行比较
  */
 export async function compareWebDAVFileVersions(path: string): Promise<SyncResult> {
-  // 获取 WebDAV 配置
   const store = await getStore()
+  const context = await getWorkspacePathMoveContext()
   const config = await store.get<WebDAVConfig>('webdavSyncConfig')
   if (!config) {
     return { shouldUpdate: false, action: 'none', reason: 'WebDAV 未配置' }
@@ -1191,11 +1198,9 @@ export async function compareWebDAVFileVersions(path: string): Promise<SyncResul
   const proxyUrl = await store.get<string>('proxy')
   const proxy = proxyUrl ? { all: proxyUrl } : undefined
 
-  // 获取本地文件的元数据
+  const metadataKey = await getSyncMetadataKey(path, 'webdav')
   const localMeta = await getLocalFileMetadata(path)
-
-  // Use the durable baseline so a restart or rename does not forget it.
-  const localRecordedEtag = normalizeRemoteVersion(await getLocalRecordedSha(path) || undefined)
+  const recordedEtag = await getLocalRecordedSha(path, metadataKey)
 
   // 获取远程文件的 ETag
   const remoteInfo = await webdavHeadObject(config, path, proxy)
@@ -1221,41 +1226,31 @@ export async function compareWebDAVFileVersions(path: string): Promise<SyncResul
     }
   }
 
-  const remoteEtag = normalizeRemoteVersion(remoteInfo.etag)
-  // 比较 ETag
-  if (localRecordedEtag && remoteEtag && localRecordedEtag !== remoteEtag) {
-    return {
-      shouldUpdate: true,
-      action: 'pull',
-      reason: '远程文件已更新（ETag 不匹配），需要拉取更新'
-    }
+  const hasBaseline = hasStrongWebDAVEtag(recordedEtag)
+  const remoteSnapshot = hasBaseline && hasStrongWebDAVEtag(remoteInfo.etag)
+    ? null : await readVersionedWorkspaceFile(path, 'webdav').catch(() => null)
+  const remoteEtag = remoteSnapshot?.version ?? remoteInfo.etag
+  if (hasBaseline && hasStrongWebDAVEtag(remoteEtag)) {
+    return recordedEtag === remoteEtag
+      ? { shouldUpdate: false, action: 'none', reason: 'ETag 匹配，文件已同步' }
+      : { shouldUpdate: true, action: 'pull', reason: '远程文件已更新（ETag 不匹配），需要拉取更新' }
   }
 
-  // ETag 匹配
-  if (localRecordedEtag && localRecordedEtag === remoteEtag) {
-    return {
-      shouldUpdate: false,
-      action: 'none',
-      reason: 'ETag 匹配，文件已同步'
-    }
-  }
-
-  // 没有本地记录的 ETag，记录并检查时间
-  // 使用修改时间比较
-  const localTime = localMeta.lastModified || 0
-  const remoteTime = remoteInfo.lastModified ? new Date(remoteInfo.lastModified).getTime() : 0
-
-  if (localTime > remoteTime) {
-    return {
-      shouldUpdate: true,
-      action: 'push',
-      reason: '本地文件较新，需要推送'
-    }
+  // Adopt a baseline only from a GET whose bytes match the local snapshot.
+  if (context && remoteSnapshot && await calculateFileSha(remoteSnapshot.content) === localMeta.localSha) {
+    return runWorkspacePathPullWrite<SyncResult>(async () => {
+      if (await store.get('platformSwitchRecovery') || isFileDeletionPending(path)
+        || await getWorkspacePathMoveContext() !== context || await getSyncMetadataKey(path, 'webdav') !== metadataKey) {
+        return { shouldUpdate: false, action: 'none' }
+      }
+      await setLocalRecordedSha(path, remoteSnapshot.version, metadataKey, recordedEtag)
+      return { shouldUpdate: false, action: 'none', reason: '文件内容匹配，已确认远端版本' }
+    })
   }
 
   return {
     shouldUpdate: true,
-    action: 'pull',
-    reason: '远程文件较新，需要拉取'
+    action: 'conflict',
+    reason: '无法确认本地内容对应的 WebDAV 版本，需要手动处理'
   }
 }

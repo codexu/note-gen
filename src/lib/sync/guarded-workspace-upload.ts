@@ -5,7 +5,9 @@ import { gitBlobVersion, normalizeRemoteVersion } from './remote-content-cache'
 import { getSyncMetadataKey } from './sync-context'
 import { syncStaleError, withSyncStaleContext, type SyncStaleDetails } from './sync-stale-error'
 import { prepareWorkspacePathUpload } from './workspace-path-moves'
-import { syncContentBytes } from './file-content'
+import { sameFileBytes, syncContentBytes } from './file-content'
+import { hasStrongWebDAVEtag } from './webdav'
+import { captureWorkspaceRemoteWriteGuard } from './workspace-remote-write-guard'
 
 export type WorkspaceRemotePlatform = Exclude<SyncPlatform, 'local' | 'selfHosted'>
 
@@ -13,7 +15,9 @@ export type WorkspaceRemotePlatform = Exclude<SyncPlatform, 'local' | 'selfHoste
 export async function getWorkspaceOverwriteVersion(path: string, platform: WorkspaceRemotePlatform): Promise<string | null> {
   const metadata = await getRemoteFileMetadata(path, 'workspace', platform)
   if (!metadata) return null
-  if (normalizeRemoteVersion(metadata.version)) return metadata.version
+  if (platform === 'webdav' ? hasStrongWebDAVEtag(metadata.version) : normalizeRemoteVersion(metadata.version)) {
+    return metadata.version
+  }
   return (await readVersionedWorkspaceFile(path, platform)).version
 }
 
@@ -37,8 +41,15 @@ export async function readVersionedWorkspaceFile(path: string, platform: Workspa
     })
     return { content: file.content, version }
   }
-  if (!normalizeRemoteVersion(file.version)) throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
+  if (!(platform === 'webdav' ? hasStrongWebDAVEtag(file.version) : normalizeRemoteVersion(file.version))) {
+    throw new Error('SYNC_SWITCH_CONDITIONAL_UNSUPPORTED')
+  }
   return { content: file.content, version: file.version! }
+}
+
+export async function findMatchingWorkspaceVersion(path: string, content: Uint8Array, platform: WorkspaceRemotePlatform) {
+  const remote = await readVersionedWorkspaceFile(path, platform).catch(() => null)
+  if (remote && sameFileBytes(remote.content, content)) return remote.version
 }
 
 /** Normal writes use the last accepted version; explicit overwrites pass a
@@ -55,9 +66,15 @@ export async function uploadGuardedWorkspaceFile(
     || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) {
     throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
   }
-  if (expectedVersion === 'uploaded' || expectedVersion?.startsWith('uploaded:')) throw syncStaleError({ stage: 'apply', path, source: 'remote', check: 'version', expected: { sha: expectedVersion } })
+  if (expectedVersion === 'uploaded' || expectedVersion?.startsWith('uploaded:')
+    || (platform === 'webdav' && expectedVersion !== null && !hasStrongWebDAVEtag(expectedVersion))) {
+    throw syncStaleError({ stage: 'apply', path, source: 'remote', check: 'version', expected: { sha: expectedVersion } })
+  }
+  const webdavLocalGuard = platform === 'webdav' && !beforeWrite
+    ? await captureWorkspaceRemoteWriteGuard(path, platform, true, content) : undefined
   const assertBeforeWrite = async () => {
     await beforeWrite?.()
+    await webdavLocalGuard?.()
     if (await store.get('primaryBackupMethod') !== platform || await store.get('platformSwitchRecovery')
       || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) {
       throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
@@ -67,11 +84,16 @@ export async function uploadGuardedWorkspaceFile(
   await assertBeforeWrite()
   const bytes = syncContentBytes(content)
   let uploadedVersion: string
-  try { uploadedVersion = await uploadRemoteBytes(path, bytes, message, getRemoteContentType(path), 'workspace', { version: expectedVersion }, platform, beforeWrite ? assertBeforeWrite : undefined) }
+  try {
+    uploadedVersion = await uploadRemoteBytes(
+      path, bytes, message, getRemoteContentType(path), 'workspace',
+      { version: expectedVersion }, platform, beforeWrite || platform === 'webdav' ? assertBeforeWrite : undefined,
+    )
+  }
   catch (error) { throw withSyncStaleContext(error, { stage: 'apply', path, source: 'remote', check: 'version', expected: { sha: expectedVersion, exists: expectedVersion !== null } }) }
   // A version returned by the conditional write is already bound to our bytes.
   // Keep it even if another writer advances the remote immediately afterwards.
-  if (normalizeRemoteVersion(uploadedVersion) && uploadedVersion !== 'uploaded'
+  if ((platform === 'webdav' ? hasStrongWebDAVEtag(uploadedVersion) : normalizeRemoteVersion(uploadedVersion)) && uploadedVersion !== 'uploaded'
     && uploadedVersion !== expectedVersion) {
     if (await store.get('primaryBackupMethod') !== platform
       || (expectedMetadataKey && await getSyncMetadataKey(path, platform) !== expectedMetadataKey)) throw syncStaleError({ stage: 'apply', path, check: 'configuration' })
@@ -80,7 +102,7 @@ export async function uploadGuardedWorkspaceFile(
   // Some WebDAV servers omit ETag on PUT. Verify the bytes and bind their GET
   // version instead of recording a placeholder or accepting another writer's HEAD.
   const accepted = await readVersionedWorkspaceFile(path, platform, 'verify')
-  if (accepted.content.length !== bytes.length || accepted.content.some((value, index) => value !== bytes[index])) {
+  if (!sameFileBytes(accepted.content, bytes)) {
     throw syncStaleError({
       stage: 'verify', path, source: 'remote', check: 'content',
       expected: { sha: await gitBlobVersion(bytes), size: bytes.length },

@@ -86,6 +86,8 @@ let pendingVectorCalculation: { path: string; content: string } | null = null
 let inFlightVectorCalculation: { path: string; promise: Promise<void> } | null = null
 let fileTabOpenRequestSequence = 0
 let fileActivationIntentSequence = 0
+let allArticlesReadSequence = 0
+let indexedArticleWorkspace: string | null = null
 const EDITOR_WORKSPACE_LAYOUT_STORE_KEY = 'editorWorkspaceLayout:main'
 let persistedEditorNavigationQueue: Promise<void> = Promise.resolve()
 
@@ -4305,16 +4307,26 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   allArticle: [],
   loadAllArticle: async () => {
+    const readSequence = ++allArticlesReadSequence
     const workspace = await getWorkspacePath()
+    if (readSequence !== allArticlesReadSequence) return
+    const workspaceKey = workspace.isCustom ? workspace.path : ''
+    if (indexedArticleWorkspace !== workspaceKey) {
+      indexedArticleWorkspace = workspaceKey
+      set({ allArticle: [] })
+    }
     let allArticle: Article[] = []
     
     const readDirRecursively = async (dirPath: string, basePath: string, isCustomWorkspace: boolean): Promise<Article[]> => {
       let allArticles: Article[] = []
       
       // 读取当前目录内容
-      const res = isCustomWorkspace 
-        ? await readDir(dirPath)
-        : await readDir(dirPath, { baseDir: BaseDirectory.AppData })
+      const options = isCustomWorkspace ? undefined : { baseDir: BaseDirectory.AppData }
+      // Entries can disappear during a sync move or become unreadable while scanning.
+      const res = await readDir(dirPath, options).catch((error: unknown) => {
+        if (!basePath) console.warn('Unable to scan the workspace folder for search:', error)
+        return []
+      })
       
       // 过滤文件
       const files = res.filter(file => 
@@ -4330,15 +4342,9 @@ const useArticleStore = create<NoteState>((set, get) => ({
         const relativePath = await join(basePath, file.name)
         
         // 读取文件内容
-        let article = ''
-        if (isCustomWorkspace) {
-          const fullPath = await join(dirPath, file.name)
-          article = await readTextFile(fullPath)
-        } else {
-          article = await readTextFile(`${dirPath}/${file.name}`, { baseDir: BaseDirectory.AppData })
-        }
-        
-        allArticles.push({ article, path: relativePath })
+        const fullPath = await join(dirPath, file.name)
+        const article = await readTextFile(fullPath, options).catch(() => null)
+        if (article !== null) allArticles.push({ article, path: relativePath })
       }
       
       // 递归处理子目录
@@ -4365,7 +4371,7 @@ const useArticleStore = create<NoteState>((set, get) => ({
       allArticle = await readDirRecursively('article', '', false)
     }
 
-    set({ allArticle })
+    if (readSequence === allArticlesReadSequence) set({ allArticle })
   }
 }))
 

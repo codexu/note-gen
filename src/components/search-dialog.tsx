@@ -25,6 +25,7 @@ import useArticleStore, {
 } from '@/stores/article'
 import useMarkStore from '@/stores/mark'
 import useTagStore from '@/stores/tag'
+import useSettingStore from '@/stores/setting'
 import { useSidebarStore } from '@/stores/sidebar'
 import { usePathname, useRouter } from 'next/navigation'
 import emitter from '@/lib/emitter'
@@ -76,6 +77,7 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
   const [indexCoverage, setIndexCoverage] = useState<{ ready: number; total: number } | null>(null)
   const [searchFilter, setSearchFilter] = useState<SearchFilter>('all')
   const { allArticle, loadAllArticle, addTab, setActiveFilePath, setMatchPosition, setPendingSearchKeyword, setCollapsibleList } = useArticleStore()
+  const workspacePath = useSettingStore(state => state.workspacePath)
   const { allMarks, fetchAllMarks, setPendingScrollMarkId } = useMarkStore()
   const { tags, fetchTags, setCurrentTagId } = useTagStore()
   const { setLeftSidebarTab } = useSidebarStore()
@@ -468,8 +470,29 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
   }
 
   useEffect(() => {
+    if (!open) return
+    const refresh = () => {
+      void loadAllArticle().catch(error => console.warn('Failed to refresh workspace search:', error))
+    }
+    const scheduleRefresh = debounce(refresh, 250)
+    const unsubscribe = useArticleStore.subscribe((state, previous) => {
+      if (state.fileTree !== previous.fileTree) scheduleRefresh()
+    })
+    emitter.on('workspace-file-changed', scheduleRefresh)
+    emitter.on('article-saved', scheduleRefresh)
+    emitter.on('sync-content-updated', scheduleRefresh)
+    refresh()
+    return () => {
+      unsubscribe()
+      emitter.off('workspace-file-changed', scheduleRefresh)
+      emitter.off('article-saved', scheduleRefresh)
+      emitter.off('sync-content-updated', scheduleRefresh)
+      scheduleRefresh.cancel()
+    }
+  }, [loadAllArticle, open, workspacePath])
+
+  useEffect(() => {
     if (open) {
-      loadAllArticle()
       fetchAllMarks()
       fetchTags()
       void loadCanvasProjects()
@@ -483,7 +506,7 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
         })
       }
     }
-  }, [fetchAllMarks, fetchTags, isMobileRoute, loadAllArticle, loadCanvasProjects, open])
+  }, [fetchAllMarks, fetchTags, isMobileRoute, loadCanvasProjects, open])
 
   useEffect(() => {
     const loadSearchFilter = async () => {
@@ -507,8 +530,10 @@ export function SearchDialog({ open, onOpenChange, mobile = false }: SearchDialo
   }, [searchFilter])
 
   useEffect(() => {
+    if (!open) return
     debouncedSearch(searchValue)
-  }, [searchValue, debouncedSearch])
+    return () => debouncedSearch.cancel()
+  }, [searchValue, debouncedSearch, open])
 
   useEffect(() => {
     semanticRequestRef.current += 1

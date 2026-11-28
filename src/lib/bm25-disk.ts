@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import Database from '@tauri-apps/plugin-sql'
 import { createBM25ChunkKey } from './bm25'
 import { tokenizeLexicalText } from './lexical-tokenizer'
@@ -36,33 +37,8 @@ async function openIndex() {
     DELETE FROM sources WHERE workspace = NEW.id;
   END`)
 
-  // The plugin uses a connection pool. A single statement and its trigger are one SQLite transaction.
-  await db.execute(`CREATE VIEW IF NOT EXISTS source_write (
-    workspace_name, generation, source_name, expected_signature, signature, chunks, length
-  ) AS SELECT NULL, NULL, NULL, NULL, NULL, NULL, NULL WHERE 0`)
   const workspaceId = '(SELECT id FROM workspaces WHERE name = NEW.workspace_name)'
-  const sourceId = `(SELECT id FROM sources WHERE workspace = ${workspaceId} AND name = NEW.source_name)`
   const staleGeneration = '(SELECT generation FROM workspaces WHERE name = NEW.workspace_name) IS NOT NEW.generation'
-  await db.execute(`CREATE TRIGGER IF NOT EXISTS replace_source INSTEAD OF INSERT ON source_write BEGIN
-    SELECT CASE WHEN ${staleGeneration} OR
-      (SELECT signature FROM sources WHERE id = ${sourceId}) IS NOT NEW.expected_signature
-      THEN RAISE(ABORT, '${writeConflict}') END;
-
-    DELETE FROM sources WHERE id = ${sourceId};
-    INSERT INTO sources(workspace, name, signature, chunk_count, term_count)
-      VALUES(${workspaceId}, NEW.source_name, NEW.signature, json_array_length(NEW.chunks), NEW.length);
-    INSERT INTO chunks(source, ordinal, length)
-      SELECT ${sourceId}, d.key, json_extract(d.value, '$.length') FROM json_each(NEW.chunks) AS d;
-    INSERT INTO bodies(chunk, content)
-      SELECT c.id, json_extract(d.value, '$.content') FROM json_each(NEW.chunks) AS d
-      CROSS JOIN chunks AS c WHERE c.source = ${sourceId} AND c.ordinal = d.key;
-    INSERT INTO postings(workspace, term, chunk, frequency)
-      SELECT ${workspaceId}, t.key, c.id, t.value FROM json_each(NEW.chunks) AS d
-      CROSS JOIN chunks AS c CROSS JOIN json_each(d.value, '$.terms') AS t
-      WHERE c.source = ${sourceId} AND c.ordinal = d.key;
-    UPDATE workspaces SET revision = revision + 1 WHERE id = ${workspaceId};
-  END`)
-
   await db.execute(`CREATE VIEW IF NOT EXISTS source_removal(workspace_name, generation, signatures)
     AS SELECT NULL, NULL, NULL WHERE 0`)
   await db.execute(`CREATE TRIGGER IF NOT EXISTS remove_sources INSTEAD OF INSERT ON source_removal BEGIN
@@ -117,16 +93,23 @@ export async function replaceBM25Source(
   workspace: string, generation: number, sourceKey: string, signature: string,
   chunks: readonly string[], expectedSignature: string | null,
 ): Promise<boolean> {
-  let length = 0
-  const encoded = chunks.map(content => {
+  const unique = new Map<string, number>()
+  const definitions: { content: string; length: number; terms: Record<string, number> }[] = []
+  const ordinals = chunks.map(content => {
+    const existing = unique.get(content)
+    if (existing !== undefined) return existing
+    const id = definitions.length
     const tokens = tokenizeLexicalText(content)
     const terms: Record<string, number> = Object.create(null)
     for (const token of tokens) terms[token] = (terms[token] ?? 0) + 1
-    length += tokens.length
-    return { content, length: tokens.length, terms }
+    definitions.push({ content, length: tokens.length, terms })
+    unique.set(content, id)
+    return id
   })
-  return applySourceChange('INSERT INTO source_write VALUES ($1, $2, $3, $4, $5, $6, $7)',
-    [workspace, generation, sourceKey, expectedSignature, signature, JSON.stringify(encoded), length])
+  await database()
+  return invoke<boolean>('replace_bm25_source', {
+    workspace, generation, sourceKey, expectedSignature, signature, definitions, ordinals,
+  })
 }
 
 export async function removeBM25Sources(

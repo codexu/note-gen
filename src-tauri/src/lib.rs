@@ -1,11 +1,13 @@
 mod ai;
 mod analytics;
+mod article_search;
 #[cfg(target_os = "android")]
 mod android_cloud_folder;
 #[cfg(target_os = "android")]
 mod android_ocr;
 mod backup;
 mod backup_manager;
+mod bm25_index;
 mod cloud_folder_sync;
 mod database_recovery;
 #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -148,6 +150,10 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             system_permissions::request_screen_capture_permission,
             record_transaction::execute_record_transaction,
+            bm25_index::replace_bm25_source,
+            article_search::search_article_fuzzy,
+            vector_search::read_vector_documents,
+            vector_search::write_vector_documents,
             vector_search::search_vector_documents,
             #[cfg(any(target_os = "android", target_os = "ios"))]
             record_file::open_record_file,

@@ -3,11 +3,11 @@ import { fetchEmbedding, fetchEmbeddings, rerankDocuments } from "./ai";
 import {
   deleteVectorDocumentsByFilename,
   getSimilarDocuments,
-  getVectorDocumentsByFilename,
+  getVectorChunksByFilename,
   replaceVectorDocumentsByFilename,
   initVectorDb,
   normalizeVectorDocumentKey,
-  VectorDocument
+  VectorChunk
 } from "@/db/vector";
 import { deleteKnowledgeSource, upsertKnowledgeSource, updateKnowledgeSourceIndexState } from '@/db/knowledge';
 import { createKnowledgeSourceKey, parseKnowledgeSourceKey } from '@/types/knowledge';
@@ -384,10 +384,10 @@ async function expandWithSentenceWindow(
   for (const [filename, fileResults] of resultsByFile.entries()) {
     try {
       // 获取该文件的所有向量文档（按 chunk_id 排序）
-      const allChunks = await getVectorDocumentsByFilename(filename);
+      const allChunks = await getVectorChunksByFilename(filename);
 
       // 创建 chunk_id 到文档的映射
-      const chunkMap = new Map<number, VectorDocument>();
+      const chunkMap = new Map<number, VectorChunk>();
       for (const chunk of allChunks) {
         chunkMap.set(chunk.chunk_id, chunk);
       }
@@ -510,7 +510,7 @@ export async function processMarkdownFile(
     // 下次词法检索会同步最新正文，即使后续 Embedding 失败。
     invalidateWorkspaceBM25(vectorDocumentKey);
 
-    const existingDocuments = await getVectorDocumentsByFilename(vectorDocumentKey);
+    const existingDocuments = await getVectorChunksByFilename(vectorDocumentKey);
     const existingChunks = existingDocuments
       .sort((a, b) => a.chunk_id - b.chunk_id)
       .map(document => document.content);
@@ -740,38 +740,6 @@ async function getFilePath(item: DirTree): Promise<string> {
 }
 
 /**
- * 为fuzzy_search准备的搜索项结构
- */
-interface SearchItem {
-  id?: string;
-  desc?: string;
-  title?: string;
-  article?: string;
-  url?: string;
-  search_type?: string;
-  score?: number;
-  matches?: {
-    key: string;
-    indices: [number, number][];
-    value: string;
-  }[];
-}
-
-/**
- * fuzzy_search返回的结果结构
- */
-interface FuzzySearchResult {
-  item: SearchItem;
-  refindex: number;
-  score: number;
-  matches: {
-    key: string;
-    indices: [number, number][];
-    value: string;
-  }[];
-}
-
-/**
  * 检索结果类型定义
  */
 interface SearchResult {
@@ -799,10 +767,10 @@ async function resolveSnippetToChunk(
 ): Promise<{ stableId: string; filename: string; content: string }> {
   const canonicalKey = normalizeVectorDocumentKey(filepath);
   let filename = canonicalKey;
-  let chunks = await getVectorDocumentsByFilename(filename);
+  let chunks = await getVectorChunksByFilename(filename);
   if (!chunks.length && legacyPath) {
     filename = normalizeVectorDocumentKey(legacyPath);
-    chunks = await getVectorDocumentsByFilename(filename);
+    chunks = await getVectorChunksByFilename(filename);
   }
   if (chunks.length === 0) {
     return {
@@ -863,64 +831,33 @@ function buildFuzzyQueries(query: string, strategy: RetrievalStrategy): LexicalQ
     .map(text => ({ text, weight: 1 }));
 }
 
-/** Rank each fuzzy query globally, but release the native response and full texts after every batch. */
+/** Keep full note bodies on the filesystem side of the Tauri bridge. */
 async function searchArticleText(
   files: { path: string; name: string }[],
   queries: LexicalQuery[],
   threshold: number,
   isCurrent: () => boolean,
   legacyPaths: ReadonlyMap<string, string>,
+  workspace: { path: string; isCustom: boolean },
 ): Promise<SearchResult[]> {
-  if (!queries.length) return [];
-  const groups = queries.map(query => ({ query, hits: [] as { path: string; snippet: string; score: number }[] }));
-  let items: SearchItem[] = [];
-  let characters = 0;
-
-  async function searchBatch() {
-    for (const { query, hits } of groups) {
-      if (!isCurrent()) return;
-      const matches = await invoke<FuzzySearchResult[]>('fuzzy_search', {
-        items, query: query.text, keys: ['title', 'article'], threshold, includeScore: true, includeMatches: true,
-      });
-      for (const hit of matches) {
-        if (hit.score <= 0 || !hit.item.id) continue;
-        const match = hit.matches.find(m => m.key === 'article');
-        const content = match?.value || hit.item.article || '';
-        const firstMatch = match?.indices[0];
-        const start = firstMatch ? Math.max(0, firstMatch[0] - 250) : 0;
-        const end = firstMatch ? firstMatch[1] + 250 : 500;
-        // Detach short excerpts from WebKit's potentially shared backing strings.
-        const snippet = content.trim() ? Array.from(content.slice(start, end)).join('') : '';
-        hits.push({ path: hit.item.id, score: hit.score, snippet });
-      }
-    }
-    items = [];
-    characters = 0;
-  }
-
-  for (const file of files) {
-    if (!isCurrent()) return [];
-    try {
-      const { path, baseDir } = await getFilePathOptions(file.path);
-      const article = await readTextFile(path, { baseDir });
-      items.push({ id: file.path, title: file.name, article, search_type: 'markdown' });
-      characters += article.length;
-    } catch (error) {
-      console.warn(`读取文件 ${file.path} 失败:`, error);
-    }
-    if (items.length >= 8 || characters >= 1024 * 1024) await searchBatch();
-  }
-  if (items.length) await searchBatch();
-
+  if (!queries.length || !isCurrent()) return [];
+  const groups = await invoke<{ file: number; score: number; snippet: string | number[] }[][]>('search_article_fuzzy', {
+    root: workspace.isCustom ? workspace.path : null,
+    paths: files.map(file => file.path),
+    queries: queries.map(query => query.text),
+    threshold,
+  });
   const results: SearchResult[] = [];
-  for (const { query, hits } of groups) {
-    hits.sort((left, right) => right.score - left.score);
+  for (const [groupIndex, hits] of groups.entries()) {
+    const query = queries[groupIndex];
     for (const [index, hit] of hits.entries()) {
       if (!isCurrent()) return [];
-      if (!hit.snippet) continue;
-      const chunk = await resolveSnippetToChunk(hit.path, hit.snippet, legacyPaths.get(hit.path));
+      const snippet = typeof hit.snippet === 'string' ? hit.snippet : String.fromCharCode(...hit.snippet);
+      if (!snippet) continue;
+      const path = files[hit.file].path;
+      const chunk = await resolveSnippetToChunk(path, snippet, legacyPaths.get(path));
       results.push({
-        ...chunk, filepath: hit.path, rawScore: hit.score, normalizedScore: 0, rank: index + 1,
+        ...chunk, filepath: path, rawScore: hit.score, normalizedScore: 0, rank: index + 1,
         queryWeight: query.weight, keyword: query.text, type: 'fuzzy',
       });
     }
@@ -1016,7 +953,7 @@ async function searchArticles(query: string, scope: RetrievalScope, folderPath =
     }
 
     try {
-      allResults = await searchArticleText(files, fuzzyQueries, strategy.fuzzyThreshold, workspaceIsCurrent, legacyPaths);
+      allResults = await searchArticleText(files, fuzzyQueries, strategy.fuzzyThreshold, workspaceIsCurrent, legacyPaths, workspace);
     } catch (error) {
       handleRAGError(error, '模糊搜索失败', false);
     }

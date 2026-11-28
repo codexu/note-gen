@@ -210,6 +210,12 @@ async function searchOriginalKnowledge(
   const allowedTypes = Object.keys(shares).filter(isKnowledgeSourceType)
   const sources: KnowledgeSource[] = []
   const { dateRange, ...scope } = options
+  const structured = allowedTypes.filter(type => type !== 'article' && settings.enabledSourceTypes.includes(type)
+    && !options.folderPath && (!options.tagId || type === 'record'))
+  if (structured.length) {
+    const { refreshChangedKnowledgeRegistry } = await import('./knowledge-index')
+    await refreshChangedKnowledgeRegistry(structured, assertCurrent)
+  }
   const registeredSources = await getKnowledgeSources({ sourceTypes: allowedTypes })
   const scoped = (localArticles ? withLocalArticles(registeredSources, localArticles) : registeredSources)
     .filter(source => (

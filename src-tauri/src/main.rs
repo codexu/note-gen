@@ -3,6 +3,7 @@
 
 mod ai;
 mod analytics;
+mod article_search;
 #[cfg(target_os = "android")]
 mod android_ocr;
 mod app_setup;
@@ -10,6 +11,7 @@ mod app_setup;
 mod apple_sync_credentials;
 mod backup;
 mod backup_manager;
+mod bm25_index;
 mod browser;
 mod cloud_folder_sync;
 mod database_recovery;
@@ -201,6 +203,10 @@ fn main() {
             #[cfg(target_os = "macos")]
             system_permissions::request_screen_capture_permission,
             record_transaction::execute_record_transaction,
+            bm25_index::replace_bm25_source,
+            article_search::search_article_fuzzy,
+            vector_search::read_vector_documents,
+            vector_search::write_vector_documents,
             vector_search::search_vector_documents,
             quick_record::remember_quick_record_foreground,
             quick_record::hide_quick_record_window,

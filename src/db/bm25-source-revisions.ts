@@ -1,6 +1,6 @@
 import { initCanvasesDb } from './canvases'
 import { db, executeRecordTransaction } from './index'
-import type { Tag } from './tags'
+import { initTagsDb, type Tag } from './tags'
 
 interface RecordRevision {
   id: number
@@ -47,7 +47,7 @@ export async function ensureSourceRevisions() {
 }
 
 export async function getBM25StructuredSourceRevisions() {
-  await ensureSourceRevisions()
+  await Promise.all([ensureSourceRevisions(), initTagsDb()])
   const [records, canvases, tags] = await Promise.all([
     db.select<RecordRevision[]>(`
       select m.id, m.tagId, t.tagIds, r.revision from marks m

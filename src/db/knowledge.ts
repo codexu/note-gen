@@ -1,5 +1,7 @@
-import { db, executeRecordTransaction } from './index'
+import { db, executeRecordTransaction, getDb } from './index'
+import { initVectorDb } from './vector'
 import { ensureSourceRevisions } from './bm25-source-revisions'
+import { initTagsDb } from './tags'
 import type {
   KnowledgeIndexStatus,
   KnowledgeLocator,
@@ -41,7 +43,24 @@ function rowToSource(row: KnowledgeSourceRow): KnowledgeSource {
   }
 }
 
+type KnowledgeDatabase = Awaited<ReturnType<typeof getDb>>
+const knowledgeSchemas = new WeakMap<KnowledgeDatabase, Promise<void>>()
+
 export async function initKnowledgeDb() {
+  const connection = await getDb()
+  let ready = knowledgeSchemas.get(connection)
+  if (!ready) {
+    ready = initializeKnowledgeSchema(connection).catch(error => {
+      knowledgeSchemas.delete(connection)
+      throw error
+    })
+    knowledgeSchemas.set(connection, ready)
+  }
+  return ready
+}
+
+async function initializeKnowledgeSchema(db: KnowledgeDatabase) {
+  await initVectorDb()
   await db.execute(`
     create table if not exists knowledge_sources (
       source_key text primary key,
@@ -65,6 +84,36 @@ export async function initKnowledgeDb() {
   await db.execute(`create table if not exists canvas_knowledge_checkpoints (
     source_key text primary key references knowledge_sources(source_key) on delete cascade,
     revision text not null, content_hash text not null)`)
+
+  await Promise.all([ensureSourceRevisions(), initTagsDb()])
+  const journal = await db.select<{ name: string }[]>(
+    "select name from sqlite_master where type = 'trigger' and name = 'knowledge_tag_renamed_v1'",
+  )
+  if (!journal.length) {
+    // Persist one entry per changed source. Triggers share the source write's
+    // transaction across windows, including writes made by imports and plugins.
+    const statements = ['create table if not exists knowledge_source_changes (source_key text primary key, revision text not null)']
+    for (const action of ['insert', 'update', 'delete']) {
+      const row = action === 'delete' ? 'old' : 'new'
+      const revision = action === 'delete' ? 'hex(randomblob(16))' : 'new.revision'
+      statements.push(`create trigger if not exists knowledge_revision_${action} after ${action} on bm25_source_revisions begin
+        insert into knowledge_source_changes (source_key, revision) values (${row}.source_key, ${revision})
+        on conflict(source_key) do update set revision = excluded.revision; end`)
+    }
+    // A tag name contributes to record content and determines its ancestor tag scopes.
+    statements.push(`create trigger if not exists knowledge_tag_renamed_v1 after update of name on tags
+      when old.name <> new.name begin
+        update bm25_source_revisions set revision = hex(randomblob(16)) where source_key in (
+          select 'record:' || id from marks where tagId = new.id and deleted = 0
+          union all select 'record:' || t.markId from record_tag_metadata t
+            where exists (select 1 from json_each(t.tagIds) where value = new.id)
+        );
+      end`)
+    statements.push(`insert or ignore into knowledge_source_changes (source_key, revision)
+      select r.source_key, r.revision from bm25_source_revisions r
+      where not exists (select 1 from knowledge_sources k where k.source_key = r.source_key)`)
+    await executeRecordTransaction(statements.map(sql => ({ sql, values: [] })))
+  }
 
   const legacyArticles = await db.select<Array<{ filename: string; updated_at: number }>>(`
     select filename, max(updated_at) as updated_at
@@ -92,13 +141,16 @@ export async function initKnowledgeDb() {
   }
 }
 
-export async function upsertKnowledgeSource(source: KnowledgeSource, canvasRevision?: string) {
-  // A canvas can be edited or deleted while its body is being hashed.
-  const current = `exists (select 1 from bm25_source_revisions r join canvases c on c.id = $3
-    where r.source_key = $1 and r.revision = $11 and c.updatedAt = $10 and c.deletedAt is null)`
+export async function upsertKnowledgeSource(source: KnowledgeSource, sourceRevision?: string) {
+  // Comparing the durable revision in the write prevents a slower read from
+  // publishing an earlier edit or resurrecting a source deleted in another window.
+  const live = source.sourceType === 'record'
+    ? 'exists (select 1 from marks where id = $3 and deleted = 0)'
+    : 'exists (select 1 from canvases where id = $3 and updatedAt = $10 and deletedAt is null)'
+  const current = `exists (select 1 from bm25_source_revisions where source_key = $1 and revision = $11) and ${live}`
   const sql = `insert into knowledge_sources
       (source_key, source_type, source_id, title, locator, content_hash, indexed_hash, status, error, updated_at)
-     select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ${canvasRevision ? `where ${current}` : ''}
+     select $1, $2, $3, $4, $5, $6, $7, $8, $9, $10 ${sourceRevision ? `where ${current}` : ''}
      on conflict(source_key) do update set
        source_type = excluded.source_type,
        source_id = excluded.source_id,
@@ -121,18 +173,48 @@ export async function upsertKnowledgeSource(source: KnowledgeSource, canvasRevis
     source.error || null,
     source.updatedAt,
   ]
-  if (!canvasRevision) {
+  if (!sourceRevision) {
     await db.execute(sql, values)
     return
   }
   await executeRecordTransaction([
-    { sql, values: [...values, canvasRevision] },
-    { sql: `insert into canvas_knowledge_checkpoints (source_key, revision, content_hash)
+    { sql, values: [...values, sourceRevision] },
+    { sql: `delete from knowledge_source_changes where source_key = $1 and revision = $11 and ${current}`,
+      values: [...values, sourceRevision] },
+    ...(source.sourceType === 'canvas' ? [{ sql: `insert into canvas_knowledge_checkpoints (source_key, revision, content_hash)
         select r.source_key, r.revision, k.content_hash from bm25_source_revisions r
         join knowledge_sources k on k.source_key = r.source_key join canvases c on c.id = k.source_id
         where r.source_key = $1 and r.revision = $2 and k.content_hash = $3 and c.updatedAt = $4 and c.deletedAt is null
         on conflict(source_key) do update set revision = excluded.revision, content_hash = excluded.content_hash`,
-      values: [source.sourceKey, canvasRevision, source.contentHash, source.updatedAt] },
+      values: [source.sourceKey, sourceRevision, source.contentHash, source.updatedAt] }] : []),
+  ])
+}
+
+export async function listStructuredKnowledgeChanges(types: readonly KnowledgeSourceType[]) {
+  const predicates = []
+  if (types.includes('record')) predicates.push("source_key glob 'record:*'")
+  if (types.includes('canvas')) predicates.push("source_key glob 'canvas:*'")
+  if (!predicates.length) return []
+  await initKnowledgeDb()
+  return db.select<Array<{ sourceKey: string; revision: string }>>(
+    `select source_key as sourceKey, revision from knowledge_source_changes where ${predicates.join(' or ')}`,
+  )
+}
+
+export async function acknowledgeStructuredKnowledgeChange(sourceKey: string, revision: string) {
+  await db.execute('delete from knowledge_source_changes where source_key = $1 and revision = $2', [sourceKey, revision])
+}
+
+/** A delayed delete must not erase a concurrently restored or re-created source. */
+export async function removeDeletedStructuredKnowledgeSource(sourceKey: string) {
+  const record = sourceKey.startsWith('record:')
+  const sourceId = sourceKey.slice(sourceKey.indexOf(':') + 1)
+  const absent = record
+    ? 'not exists (select 1 from marks where id = $2 and deleted = 0)'
+    : 'not exists (select 1 from canvases where id = $2 and deletedAt is null)'
+  await executeRecordTransaction([
+    { sql: `delete from vector_documents where filename = $1 and ${absent}`, values: [sourceKey, sourceId] },
+    { sql: `delete from knowledge_sources where source_key = $1 and ${absent}`, values: [sourceKey, sourceId] },
   ])
 }
 
@@ -160,6 +242,7 @@ export async function registerArticleKnowledgeSource(filePath: string, title: st
 }
 
 export async function getKnowledgeSource(sourceKey: string): Promise<KnowledgeSource | null> {
+  await initKnowledgeDb()
   const rows = await db.select<KnowledgeSourceRow[]>(
     'select * from knowledge_sources where source_key = $1 limit 1',
     [sourceKey]
@@ -171,6 +254,7 @@ export async function getKnowledgeSources(options: {
   sourceTypes?: readonly KnowledgeSourceType[]
   statuses?: readonly KnowledgeIndexStatus[]
 } = {}): Promise<KnowledgeSource[]> {
+  await initKnowledgeDb()
   const clauses: string[] = []
   const values: string[] = []
   if (options.sourceTypes?.length) {

@@ -1,7 +1,10 @@
 import { invalidateKnowledgeLexicalCache } from '@/lib/knowledge-lexical-cache'
 import { Store } from '@tauri-apps/plugin-store'
 import {
+  acknowledgeStructuredKnowledgeChange,
   deleteKnowledgeSource,
+  listStructuredKnowledgeChanges,
+  removeDeletedStructuredKnowledgeSource,
   getCanvasRegistryInventory,
   getKnowledgeSource,
   getKnowledgeSources,
@@ -10,7 +13,7 @@ import {
 } from '@/db/knowledge'
 import {
   deleteVectorDocumentsByFilename,
-  getVectorDocumentsByFilename,
+  checkVectorDocumentExists,
   replaceVectorDocumentsByFilename,
 } from '@/db/vector'
 import { fetchEmbeddings } from '@/lib/ai'
@@ -37,7 +40,7 @@ async function hasStructuredIndexConsent() {
   return await store.get<boolean>('ragStructuredKnowledgeConsent') ?? false
 }
 
-async function registerDocument(document: KnowledgeSourceDocument, canvasRevision?: string) {
+async function registerDocument(document: KnowledgeSourceDocument, sourceRevision?: string) {
   const existing = await getKnowledgeSource(document.sourceKey)
   const unchanged = existing?.contentHash === document.contentHash
     && existing.indexedHash === document.contentHash
@@ -47,9 +50,34 @@ async function registerDocument(document: KnowledgeSourceDocument, canvasRevisio
     indexedHash: unchanged ? existing.indexedHash : null,
     status: unchanged ? 'ready' : 'pending',
     error: null,
-  }, canvasRevision)
+  }, sourceRevision)
   if (existing?.contentHash !== document.contentHash) invalidateWorkspaceBM25(document.sourceKey)
   return !unchanged
+}
+
+/** Refresh only saved changes requested by this search, without starting embeddings. */
+export async function refreshChangedKnowledgeRegistry(types: KnowledgeSourceType[], assertCurrent: () => Promise<void>) {
+  const first = await listStructuredKnowledgeChanges(types)
+  if (!first.length) return
+  const keys = new Set(first.map(change => change.sourceKey))
+  async function refresh(changes: typeof first) {
+    for (const { sourceKey, revision } of changes) {
+      await assertCurrent()
+      const document = await getKnowledgeSourceDocument(sourceKey)
+      await assertCurrent()
+      if (document) await registerDocument(document, revision)
+      else {
+        await removeDeletedStructuredKnowledgeSource(sourceKey)
+        await acknowledgeStructuredKnowledgeChange(sourceKey, revision)
+      }
+      invalidateKnowledgeLexicalCache(sourceKey)
+    }
+  }
+  await refresh(first)
+  // A source edited while being read gets one retry. A continuously changing
+  // document remains queued for the next search without holding up this one.
+  const remaining = await listStructuredKnowledgeChanges(types)
+  await refresh(remaining.filter(change => keys.has(change.sourceKey)))
 }
 
 export async function indexKnowledgeDocument(document: KnowledgeSourceDocument): Promise<boolean> {
@@ -108,8 +136,12 @@ async function drainQueue() {
       pendingKeys.delete(sourceKey)
       const document = await getKnowledgeSourceDocument(sourceKey)
       if (!document) {
-        await deleteVectorDocumentsByFilename(sourceKey)
-        await deleteKnowledgeSource(sourceKey)
+        if (sourceKey.startsWith('article:')) {
+          await deleteVectorDocumentsByFilename(sourceKey)
+          await deleteKnowledgeSource(sourceKey)
+        } else {
+          await removeDeletedStructuredKnowledgeSource(sourceKey)
+        }
         continue
       }
       if (!isKnowledgeSourceEnabled(document, settings)) {
@@ -137,8 +169,7 @@ export async function removeKnowledgeSourceIndex(sourceKey: string, wikiStableId
   pendingKeys.delete(sourceKey)
   const { removeWikiSource } = await import('@/lib/wiki/queue')
   await removeWikiSource(sourceKey, 'deleted', undefined, wikiStableId)
-  await deleteVectorDocumentsByFilename(sourceKey)
-  await deleteKnowledgeSource(sourceKey)
+  await removeDeletedStructuredKnowledgeSource(sourceKey)
 }
 
 export async function resumeKnowledgeIndexQueue() {
@@ -248,8 +279,7 @@ export async function getReadyKnowledgeVectorKeys(sourceTypes?: readonly Knowled
 export async function hydrateArticleKnowledgeRegistry() {
   const sources = await getKnowledgeSources({ sourceTypes: ['article'] })
   for (const source of sources) {
-    const docs = await getVectorDocumentsByFilename(source.sourceKey)
-    if (docs.length === 0 && source.status === 'ready') {
+    if (source.status === 'ready' && !await checkVectorDocumentExists(source.sourceKey)) {
       await updateKnowledgeSourceIndexState(source.sourceKey, { status: 'pending', indexedHash: null })
     }
   }

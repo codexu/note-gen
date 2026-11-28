@@ -19,9 +19,23 @@ function enqueueRecordsAutoSync(reason: string) {
   emitter.emit('plugin-records-changed')
 }
 
-// 创建 tags 表
+type TagDatabase = Awaited<ReturnType<typeof getDb>>
+const tagSchemas = new WeakMap<TagDatabase, Promise<void>>()
+
 export async function initTagsDb() {
   const db = await getDb()
+  let ready = tagSchemas.get(db)
+  if (!ready) {
+    ready = initializeTagSchema(db).catch(error => {
+      tagSchemas.delete(db)
+      throw error
+    })
+    tagSchemas.set(db, ready)
+  }
+  return ready
+}
+
+async function initializeTagSchema(db: TagDatabase) {
   await db.execute(`
     create table if not exists tags (
       id integer primary key autoincrement,
@@ -46,10 +60,10 @@ export async function initTagsDb() {
     }
   }
   
-  const hasDefaultTag = (await db.select<Tag[]>("select * from tags")).length === 0
-  if (hasDefaultTag) {
+  const existing = await db.select<Array<{ id: number }>>("select id from tags limit 1")
+  if (!existing.length) {
     await db.execute(
-      "insert into tags (name, isLocked, isPin) values ($1, $2, $3)",
+      "insert into tags (name, isLocked, isPin) select $1, $2, $3 where not exists (select 1 from tags)",
       ['Idea', true, true]
     )
     const tag = (await db.select<Tag[]>("select * from tags where name = $1", ['Idea']))[0]

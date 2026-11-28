@@ -16,11 +16,13 @@ export interface VectorDocument {
   filename: string;   // 文件名
   chunk_id: number;   // 分块ID
   content: string;    // 分块内容
-  embedding: string;  // 存储为JSON字符串的向量
+  embedding: string;  // 快照和调用方使用的 JSON 向量
   updated_at: number; // 时间戳
 }
 
 export type VectorDocumentSnapshot = Omit<VectorDocument, 'id'>;
+
+export type VectorChunk = Omit<VectorDocument, 'embedding'>;
 
 export interface VectorIndexStats {
   documentCount: number;
@@ -46,7 +48,7 @@ async function initializeVectorSchema(connection: VectorDatabase) {
       filename text not null,
       chunk_id integer not null,
       content text not null,
-      embedding text not null,
+      embedding blob not null,
       updated_at integer not null,
       unique(filename, chunk_id)
     )
@@ -83,11 +85,8 @@ export async function initVectorDb() {
 }
 
 export async function getAllVectorDocuments(): Promise<VectorDocumentSnapshot[]> {
-  return await db.select<VectorDocumentSnapshot[]>(`
-    select filename, chunk_id, content, embedding, updated_at
-    from vector_documents
-    order by filename, chunk_id
-  `);
+  await initVectorDb();
+  return invoke<VectorDocumentSnapshot[]>('read_vector_documents', { filename: null });
 }
 
 export async function getVectorIndexSummaries(): Promise<VectorIndexSummary[]> {
@@ -120,46 +119,41 @@ export async function getVectorIndexStats(): Promise<VectorIndexStats> {
   };
 }
 
-function insertVectorStatements(documents: VectorDocumentSnapshot[], filename?: string) {
-  return documents.map(document => ({
-    sql: 'insert into vector_documents (filename, chunk_id, content, embedding, updated_at) values ($1, $2, $3, $4, $5)',
-    values: [filename ?? normalizeVectorDocumentKey(document.filename), document.chunk_id,
-      document.content, document.embedding, document.updated_at],
-  }));
-}
-
 export async function replaceAllVectorDocuments(documents: VectorDocumentSnapshot[]): Promise<void> {
-  await executeRecordTransaction([
-    { sql: 'delete from vector_documents', values: [] },
-    ...insertVectorStatements(documents),
-  ]);
+  await initVectorDb();
+  await invoke('write_vector_documents', {
+    operation: 'replaceAll',
+    documents: documents.map(doc => ({ ...doc, filename: normalizeVectorDocumentKey(doc.filename) })),
+  });
 }
 
 export async function replaceVectorDocumentsByFilename(
   filename: string,
   documents: VectorDocumentSnapshot[]
 ): Promise<void> {
-  const key = normalizeVectorDocumentKey(filename);
-  await executeRecordTransaction([
-    { sql: 'delete from vector_documents where filename = $1', values: [key] },
-    ...insertVectorStatements(documents, key),
-  ]);
+  await initVectorDb();
+  await invoke('write_vector_documents', { operation: { replaceFile: normalizeVectorDocumentKey(filename) }, documents });
 }
 
-// 插入或更新向量文档
-export async function upsertVectorDocument(doc: Omit<VectorDocument, 'id'>) {
-  const filename = normalizeVectorDocumentKey(doc.filename);
-  await db.execute(
-    "insert into vector_documents (filename, chunk_id, content, embedding, updated_at) values ($1, $2, $3, $4, $5) on conflict(filename, chunk_id) do update set content = excluded.content, embedding = excluded.embedding, updated_at = excluded.updated_at",
-    [filename, doc.chunk_id, doc.content, doc.embedding, doc.updated_at]);
+export async function upsertVectorDocument(doc: VectorDocumentSnapshot) {
+  await initVectorDb();
+  await invoke('write_vector_documents', {
+    operation: 'upsert',
+    documents: [{ ...doc, filename: normalizeVectorDocumentKey(doc.filename) }],
+  });
 }
 
-// 获取指定文件名的所有向量文档
 export async function getVectorDocumentsByFilename(filename: string) {
-  const normalizedFilename = normalizeVectorDocumentKey(filename);
-  return await db.select<VectorDocument[]>(
-    "select * from vector_documents where filename = $1 order by chunk_id",
-    [normalizedFilename]);
+  await initVectorDb();
+  return invoke<VectorDocument[]>('read_vector_documents', { filename: normalizeVectorDocumentKey(filename) });
+}
+
+export async function getVectorChunksByFilename(filename: string) {
+  await initVectorDb();
+  return db.select<VectorChunk[]>(
+    'select id, filename, chunk_id, content, updated_at from vector_documents where filename = $1 order by chunk_id',
+    [normalizeVectorDocumentKey(filename)],
+  );
 }
 
 /** Aggregate only this folder's known notes without loading embedding payloads. */
@@ -180,7 +174,10 @@ export async function getVectorIndexStatsForFiles(filenames: readonly string[]):
     if (!result) continue;
     summary.documentCount += Number(result.documentCount) || 0;
     summary.chunkCount += Number(result.chunkCount) || 0;
-    if (result.lastUpdatedAt !== null) summary.lastUpdatedAt = Math.max(summary.lastUpdatedAt ?? 0, Number(result.lastUpdatedAt));
+    if (result.lastUpdatedAt !== null) {
+      const updatedAt = Number(result.lastUpdatedAt);
+      summary.lastUpdatedAt = summary.lastUpdatedAt === null ? updatedAt : Math.max(summary.lastUpdatedAt, updatedAt);
+    }
   }
   return summary;
 }

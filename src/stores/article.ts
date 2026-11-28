@@ -4211,19 +4211,14 @@ const useArticleStore = create<NoteState>((set, get) => ({
 
   // 检查文件是否已被向量索引
   checkFileVectorIndexed: async (filePath: string) => {
-    const { checkVectorDocumentExists, getVectorDocumentsByFilename } = await import('@/db/vector')
+    const { getVectorIndexStatsForFiles } = await import('@/db/vector')
     const vectorKey = getVectorDocumentKey(filePath)
-    const hasVector = await checkVectorDocumentExists(vectorKey)
-    if (hasVector) {
-      // 获取向量文档记录更新时间
-      const docs = await getVectorDocumentsByFilename(vectorKey)
-      if (docs.length > 0) {
-        const latestTime = Math.max(...docs.map(d => d.updated_at))
-        const newMap = new Map(get().vectorIndexedFiles)
-        newMap.set(vectorKey, latestTime)
-        set({ vectorIndexedFiles: newMap })
-        return true
-      }
+    const { lastUpdatedAt } = await getVectorIndexStatsForFiles([vectorKey])
+    if (lastUpdatedAt !== null) {
+      const newMap = new Map(get().vectorIndexedFiles)
+      newMap.set(vectorKey, lastUpdatedAt)
+      set({ vectorIndexedFiles: newMap })
+      return true
     }
     // 如果没有向量，从映射中移除
     const newMap = new Map(get().vectorIndexedFiles)

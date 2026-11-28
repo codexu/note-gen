@@ -113,9 +113,13 @@ function normalizeCandidate(value: unknown): MemoryCandidate | null {
     scopeType,
     confidence,
     conflictKey: typeof record.conflictKey === 'string'
-      ? record.conflictKey.trim().slice(0, 120) || undefined
+      ? record.conflictKey.trim() || undefined
       : undefined,
   }
+}
+
+function safeConflictKey(conflictKey?: string) {
+  return conflictKey && !containsPotentialSecret(conflictKey) ? conflictKey : undefined
 }
 
 async function extractCandidates(chats: Chat[]): Promise<MemoryCandidate[]> {
@@ -174,26 +178,30 @@ async function consolidateCandidates(
 
   for (const candidate of candidates) {
     const scopeId = candidate.scopeType === 'workspace' ? workspaceId : undefined
-    const sensitive = containsPotentialSecret(candidate.content)
+    const content = redactPotentialSecrets(candidate.content)
+    const safeKey = safeConflictKey(candidate.conflictKey)
+    const sensitive = content !== candidate.content || safeKey !== candidate.conflictKey
+    const conflictKey = safeKey?.slice(0, 120)
     let status: 'active' | 'pending' = candidate.confidence >= AUTO_ACTIVATE_CONFIDENCE && !sensitive
       ? 'active'
       : 'pending'
     let replacedId: string | undefined
     const decision = sensitive
-      ? { action: 'new' as const, conflictKey: candidate.conflictKey }
+      ? { action: 'new' as const, conflictKey }
       : await decideMemoryConsolidation({
-          content: candidate.content,
+          content,
           kind: candidate.kind,
           scopeType: candidate.scopeType,
           scopeId,
-          conflictKey: candidate.conflictKey,
+          conflictKey,
         })
+    const resolvedConflictKey = safeConflictKey(decision.conflictKey)
 
     if (decision.action === 'duplicate') {
       if (decision.existing) {
-        if (decision.conflictKey && !decision.existing.conflictKey) {
+        if (resolvedConflictKey && !decision.existing.conflictKey) {
           await updateMemory(decision.existing.id, {
-            conflictKey: decision.conflictKey,
+            conflictKey: resolvedConflictKey,
           })
         }
         await upsertMemory({
@@ -211,7 +219,7 @@ async function consolidateCandidates(
     }
 
     const result = await upsertMemory({
-      content: candidate.content,
+      content,
       kind: candidate.kind,
       scopeType: candidate.scopeType,
       scopeId,
@@ -219,13 +227,13 @@ async function consolidateCandidates(
       status,
       origin: 'auto_chat',
       confidence: candidate.confidence,
-      conflictKey: decision.conflictKey,
+      conflictKey: resolvedConflictKey,
       sensitivity: sensitive ? 'suspected_sensitive' : 'normal',
     })
     if (replacedId && result.id !== replacedId) {
       await permanentlyDeleteMemory(replacedId)
     }
-    created.push({ id: result.id, content: candidate.content, status })
+    created.push({ id: result.id, content, status })
   }
   return created
 }
@@ -305,7 +313,7 @@ export async function processPendingMemoryJobs() {
         await updateMemoryJob(
           job.id,
           'failed',
-          error instanceof Error ? error.message : String(error)
+          redactPotentialSecrets(error instanceof Error ? error.message : String(error))
         )
       }
     }

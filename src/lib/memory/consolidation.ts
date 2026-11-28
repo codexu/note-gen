@@ -10,6 +10,7 @@ import {
   getAISettings,
   getChatTokenLimitParams,
 } from '@/lib/ai/utils'
+import { containsPotentialSecret } from './safety'
 
 export type MemoryConsolidationAction = 'new' | 'duplicate' | 'replace' | 'review'
 
@@ -224,8 +225,9 @@ Rules:
     const existing = typeof parsed.existingId === 'string'
       ? candidates.find(memory => memory.id === parsed.existingId)
       : undefined
-    const conflictKey = typeof parsed.conflictKey === 'string'
-      ? parsed.conflictKey.trim().slice(0, 120) || undefined
+    const proposedConflictKey = typeof parsed.conflictKey === 'string' ? parsed.conflictKey.trim() : ''
+    const conflictKey = proposedConflictKey && !containsPotentialSecret(proposedConflictKey)
+      ? proposedConflictKey.slice(0, 120)
       : undefined
 
     if (action !== 'new' && !existing) {

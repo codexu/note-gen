@@ -4,7 +4,6 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { BaseDirectory, readFile, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import type { JSONContent } from '@tiptap/core'
 import TaskItem from '@tiptap/extension-task-item'
-import TaskList from '@tiptap/extension-task-list'
 import { MarkdownManager } from '@tiptap/markdown'
 import { WikiMetadata } from './wiki-metadata-extension'
 import StarterKit from '@tiptap/starter-kit'
@@ -16,7 +15,9 @@ import { convertImage, convertImageByWorkspace, isHttpUrl } from '@/lib/utils'
 import { getFilePathOptions } from '@/lib/workspace'
 import { shouldTransformImageSrcToWorkspaceAsset } from './image-src'
 import { GitHubAlertBlockquote } from './github-alert-blockquote'
+import { MarkdownListItem } from './markdown-list-item'
 import { MarkdownOrderedList } from './markdown-ordered-list'
+import { MarkdownTaskList } from './markdown-task-list'
 import { createIsolatedMarkdownLexer } from './markdown-tokenizers'
 
 export type MarkdownExportFormat = 'markdown' | 'html' | 'json' | 'pdf'
@@ -270,9 +271,10 @@ function getMarkdownManager() {
       marked: createIsolatedMarkdownLexer() as unknown as NonNullable<ConstructorParameters<typeof MarkdownManager>[0]>['marked'],
       extensions: [
         GitHubAlertBlockquote,
-        StarterKit.configure({ blockquote: false, orderedList: false }),
+        StarterKit.configure({ blockquote: false, orderedList: false, listItem: false }),
+        MarkdownListItem,
         MarkdownOrderedList,
-        TaskList,
+        MarkdownTaskList,
         TaskItem.configure({ nested: true }),
         WikiMetadata,
       ],

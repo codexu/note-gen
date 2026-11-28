@@ -7,9 +7,9 @@ import StarterKit from '@tiptap/starter-kit'
 import { CurrentNodePlaceholder } from './current-node-placeholder'
 import { PendingEditorUploads, createUploadPlaceholder, trackEditorRange } from './async-editor-operations'
 import Link from '@tiptap/extension-link'
-import TaskList from '@tiptap/extension-task-list'
 import { MarkdownListItem, MarkdownTaskItem } from './markdown-list-item'
 import { MarkdownOrderedList } from './markdown-ordered-list'
+import { MarkdownTaskList } from './markdown-task-list'
 import CharacterCount from '@tiptap/extension-character-count'
 import { ColorHighlight, TextColor, normalizeTextColor } from './color-marks'
 import Underline from '@tiptap/extension-underline'
@@ -2919,7 +2919,7 @@ export function TipTapEditor({
         openOnClick: false,
         protocols: ['file'],
       }),
-      TaskList,
+      MarkdownTaskList,
       MarkdownTaskItem.configure({
         nested: true,
       }),

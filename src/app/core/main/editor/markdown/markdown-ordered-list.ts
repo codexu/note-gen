@@ -1,11 +1,17 @@
 import type { MarkdownLexerConfiguration, MarkdownToken, MarkdownTokenizer } from '@tiptap/core'
 import { OrderedList } from '@tiptap/extension-list'
+import { preserveEscapedTaskMarker } from './markdown-task-list'
 
 interface OrderedItem {
   indent: number
   number: number
   content: string
   raw: string
+}
+
+function trimItemBlock(content: string) {
+  // The final content line may end in an empty task's separator.
+  return content.trimStart().replace(/(?:\n[ \t]*)+$/, '')
 }
 
 function collectItems(lines: string[]): { items: OrderedItem[]; consumed: number } {
@@ -36,7 +42,7 @@ function collectItems(lines: string[]): { items: OrderedItem[]; consumed: number
     items.push({
       indent: indentation.length,
       number: Number(number),
-      content: contentLines.join('\n').trim(),
+      content: trimItemBlock(contentLines.join('\n')),
       raw: itemLines.join('\n'),
     })
   }
@@ -55,8 +61,11 @@ function buildItems(items: OrderedItem[], baseIndent: number, lexer: MarkdownLex
     const contentLines = item.content.split('\n')
     const firstLine = contentLines[0]?.trim() || ''
     const tokens: MarkdownToken[] = []
-    if (firstLine) tokens.push({ type: 'paragraph', raw: firstLine, tokens: lexer.inlineTokens(firstLine) })
-    const remaining = contentLines.slice(1).join('\n').trim()
+    if (firstLine) {
+      const inlineTokens = preserveEscapedTaskMarker(lexer.inlineTokens(firstLine))
+      tokens.push({ type: 'paragraph', raw: firstLine, tokens: inlineTokens })
+    }
+    const remaining = trimItemBlock(contentLines.slice(1).join('\n'))
     if (remaining) tokens.push(...lexer.blockTokens(remaining))
 
     let next = index + 1

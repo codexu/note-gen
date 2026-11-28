@@ -1,10 +1,10 @@
 import { getExtensionField, type AnyExtension, type MarkdownTokenizer } from '@tiptap/core'
 import { ColorHighlight, TextColor } from './color-marks'
-import { TaskList } from '@tiptap/extension-list'
 import { MarkdownOrderedList } from './markdown-ordered-list'
+import { MarkdownTaskList } from './markdown-task-list'
 import Underline from '@tiptap/extension-underline'
 import { wikiMetadataTokenizer } from './wiki-metadata-tokenizer'
-import { Lexer, type Marked, type MarkedOptions, type Token, type TokenizerExtension } from 'marked'
+import { Lexer, Tokenizer, type Marked, type MarkedOptions, type Token, type TokenizerExtension } from 'marked'
 import { createCjkMarkdownLexer } from '@/lib/markdown/cjk-emphasis'
 
 export const inlineMathTokenizer: MarkdownTokenizer = {
@@ -108,7 +108,7 @@ function requireTokenizer(extension: AnyExtension): MarkdownTokenizer {
 // than the priority-sorted schema order. Marked tries later registrations first.
 const markdownTokenizers: readonly MarkdownTokenizer[] = [
   requireTokenizer(MarkdownOrderedList),
-  requireTokenizer(TaskList),
+  requireTokenizer(MarkdownTaskList),
   requireTokenizer(ColorHighlight),
   requireTokenizer(TextColor),
   requireTokenizer(Underline),
@@ -120,8 +120,59 @@ const markdownTokenizers: readonly MarkdownTokenizer[] = [
 
 export const MARKDOWN_TOKENIZER_NAMES = markdownTokenizers.map(tokenizer => tokenizer.name)
 
+const BARE_TASK_MARKER_AT_END = /(?:^|\n)[ \t]*[-+*][ \t]+\[[ xX]\]$/
+const TASK_ITEM_PREFIX = /^[ \t]*[-+*][ \t]+\[[ xX]\][ \t]+/
+const PADDED_NESTED_TASK_AT_END = /\n[ \t]+[-+*][ \t]+\[[ xX]\][ \t]+(?:\n[ \t]*)*$/
+
 export function createIsolatedMarkdownLexer(): Marked {
   const isolated = createCjkMarkdownLexer()
+  isolated.use({
+    tokenizer: {
+      list(source) {
+        const list = Tokenizer.prototype.list.call(this, source)
+        if (!list) return undefined
+
+        // Marked strips the separator from the last line of a regular list.
+        // Restore it before Tiptap classifies an empty task at that boundary.
+        const separator = BARE_TASK_MARKER_AT_END.test(list.raw)
+          ? /^[ \t]+/.exec(source.slice(list.raw.length))?.[0]
+          : undefined
+        const lastItem = list.items.at(-1)
+        if (lastItem && separator) {
+          list.raw += separator
+          lastItem.raw += separator
+        }
+
+        const hasNestedEmptyTask = !list.ordered && list.items.some(item =>
+          TASK_ITEM_PREFIX.test(item.raw) && PADDED_NESTED_TASK_AT_END.test(item.raw)
+        )
+        const firstTask = hasNestedEmptyTask ? list.items.findIndex(item => TASK_ITEM_PREFIX.test(item.raw)) : -1
+        if (firstTask > 0) {
+          // Let the task tokenizer consume the task run directly. Tiptap's
+          // fallback splitting trims the nested source, losing empty tasks.
+          list.items.splice(firstTask)
+          list.raw = list.items.map(item => item.raw).join('')
+        } else if (lastItem && separator) {
+          const nestedList = lastItem.tokens.at(-1)
+          if (nestedList?.type === 'list' && BARE_TASK_MARKER_AT_END.test(nestedList.raw)) {
+            const previous = lastItem.tokens.at(-2)
+            const hasPreviousTaskList = previous?.type === 'taskList'
+            const nestedSource = hasPreviousTaskList ? previous.raw + nestedList.raw : nestedList.raw
+            const trailingTokens = this.lexer.blockTokens(nestedSource + separator)
+            const tokenCount = hasPreviousTaskList ? 2 : 1
+            lastItem.tokens.splice(-tokenCount, tokenCount, ...trailingTokens)
+          }
+        }
+
+        for (const item of list.items) {
+          // Tiptap checks raw text when splitting mixed lists. Escape just its
+          // view of a bare marker so the following newline is not a separator.
+          item.raw = item.raw.replace(/^[ \t]*[-+*][ \t]+\[[ xX]\](?=\n)/, marker => marker.replace('[', '\\['))
+        }
+        return list
+      },
+    },
+  })
   // Tiptap constructs helper lexers without options. They must inherit this
   // isolated instance's extensions, including for nested lists and inline marks.
   isolated.Lexer = class EditorLexer<ParserOutput = string, RendererOutput = string>

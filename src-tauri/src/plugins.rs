@@ -5471,6 +5471,9 @@ pub fn restore_plugin_user_data(app: &AppHandle, source: &Path, recovered_worksp
     }
     let mut document = envelope.get("data").and_then(Value::as_object).cloned()
         .ok_or_else(|| "Missing plugin backup data".to_string())?;
+    if serde_json::to_vec(&document).map_err(|error| error.to_string())?.len() > MAX_PLUGIN_STORAGE_FILE_BYTES {
+        return Err("Persistent plugin data exceeds its file size limit".to_string());
+    }
     let manager = app.state::<PluginManager>();
     let _guard = manager.storage_lock.try_lock()
         .map_err(|_| "Plugin data is busy; retry the restore".to_string())?;

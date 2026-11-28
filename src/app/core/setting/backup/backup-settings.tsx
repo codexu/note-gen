@@ -31,6 +31,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { prepareActiveEditorDeactivationDurably } from '@/lib/editor-deactivation'
+import useArticleStore from '@/stores/article'
 import {
   createManagedBackup,
   listManagedBackups,
@@ -159,14 +161,20 @@ export function BackupSettings() {
   }
 
   async function confirmRestore() {
-    if (!restoreTarget) return
+    if (!restoreTarget || restoring) return
     setRestoring(true)
     try {
-      await createManagedBackup('pre-restore', settings)
+      const article = useArticleStore.getState()
+      if (!await prepareActiveEditorDeactivationDurably(article.activeFilePath)) {
+        toast.error(t('restore.safetyBackupError'))
+        setRestoring(false)
+        return
+      }
+      await article.flushAllPendingArticleSaves()
       const store = await Store.load('store.json')
       const currentWorkspacePath = (await store.get<string>('workspacePath')) ?? ''
-      const { db } = await import('@/db')
-      await db.close()
+      await store.save()
+      await createManagedBackup('pre-restore', settings)
       try {
         await restoreManagedBackup(restoreTarget, currentWorkspacePath)
       } catch (error) {
@@ -174,6 +182,8 @@ export function BackupSettings() {
           title: t('restore.failedTitle'),
           kind: 'error',
         })
+        setRestoring(false)
+        return
       }
       await relaunch()
     } catch (error) {

@@ -149,6 +149,7 @@ fn main() {
         // 核心插件
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(backup_manager::startup_plugin())
         .plugin(tauri_plugin_sql::Builder::default().build())
         // MCP 服务器管理器
         .manage(file_open::PendingOpenFiles::default())

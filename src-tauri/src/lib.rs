@@ -119,6 +119,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(backup_manager::startup_plugin())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .manage(McpServerManager::new())
         .manage(RuntimeInstallManager::new())

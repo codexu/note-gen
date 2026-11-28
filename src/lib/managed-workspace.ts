@@ -12,7 +12,7 @@ export const normalizeManagedWorkspacePath = (path: string) => path
   .replace(/\/+$/, '')
 const uuid = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
 const namedWorkspace = '[^/\\\\]+--[a-f0-9]{8}(?:[a-f0-9]{4}){0,6}'
-const managedLocation = new RegExp(`^(?:article|workspaces/self-hosted/(?:${uuid}|${namedWorkspace})|restored-workspaces/(?:\\d+|self-hosted-\\d+-${uuid}(?:/\\d+)?))$`, 'i')
+const managedLocation = new RegExp(`^(?:article|workspaces/self-hosted/(?:${uuid}|${namedWorkspace})|restored-workspaces/(?:\\d+(?:-${uuid})?|self-hosted-\\d+-${uuid}(?:/\\d+)?))$`, 'i')
 // Match only this app's data-container layout, never a document-provider URL.
 const iosContainer = new RegExp(`^(?:(?:/private)?/var/mobile|/Users/[^/]+/Library/Developer/CoreSimulator/Devices/${uuid}/data)/Containers/Data/Application/${uuid}/(.+)$`, 'i')
 

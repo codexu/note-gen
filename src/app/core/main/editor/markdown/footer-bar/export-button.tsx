@@ -19,7 +19,6 @@ import useArticleStore from '@/stores/article'
 import { toast } from '@/hooks/use-toast'
 import {
   exportMarkdownSource,
-  getMarkdownExportBaseName,
   type MarkdownExportFormat,
 } from '../markdown-export'
 
@@ -54,7 +53,7 @@ export function ExportButton({ editor, markdown, getMarkdown, recordExportName, 
       const exported = await exportMarkdownSource(
         format,
         {
-          baseName: recordExportName ?? getMarkdownExportBaseName(activeFilePath),
+          baseName: recordExportName ?? activeFilePath ?? 'document',
           markdown: isRecord ? readMarkdown() : readMarkdown,
           json: isRecord || getMarkdown || markdown !== undefined ? undefined : () => editor.getJSON(),
           sourcePath: activeFilePath,

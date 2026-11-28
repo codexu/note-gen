@@ -13,7 +13,6 @@ import { isMobileDevice } from '@/lib/check'
 // 搜索替换存储类型
 interface SearchAndReplaceStorage {
   searchTerm: string
-  replaceTerm: string
   results: { from: number; to: number }[]
   resultIndex: number
   caseSensitive: boolean
@@ -40,17 +39,6 @@ function setSearchTerm(editor: Editor, term: string) {
     if (storage) {
       storage.searchTerm = term
       editor.view.dispatch(editor.state.tr)
-    }
-  } catch {
-    // 忽略错误
-  }
-}
-
-function setReplaceTerm(editor: Editor, term: string) {
-  try {
-    const storage = getSearchAndReplaceStorage(editor)
-    if (storage) {
-      storage.replaceTerm = term
     }
   } catch {
     // 忽略错误
@@ -130,42 +118,23 @@ function prevResult(editor: Editor) {
   }
 }
 
-function replaceCurrent(editor: Editor) {
+function replaceCurrent(editor: Editor, replacement: string) {
   if (!editor.isEditable) return
-  try {
-    const storage = getSearchAndReplaceStorage(editor)
-    if (storage && storage.results.length > 0 && storage.replaceTerm) {
-      const { from, to } = storage.results[storage.resultIndex]
-      editor.view.dispatch(
-        editor.state.tr.insertText(storage.replaceTerm, from, to)
-      )
-      storage.searchTerm = storage.searchTerm
-      editor.view.dispatch(editor.state.tr)
-    }
-  } catch {
-    // 忽略错误
-  }
+  const storage = getSearchAndReplaceStorage(editor)
+  const result = storage?.results[storage.resultIndex]
+  if (!result) return
+  editor.view.dispatch(editor.state.tr.insertText(replacement, result.from, result.to))
 }
 
-function replaceAll(editor: Editor) {
+function replaceAll(editor: Editor, replacement: string) {
   if (!editor.isEditable) return
-  try {
-    const storage = getSearchAndReplaceStorage(editor)
-    if (storage && storage.results.length > 0 && storage.replaceTerm) {
-      for (let i = storage.results.length - 1; i >= 0; i--) {
-        const { from, to } = storage.results[i]
-        editor.view.dispatch(
-          editor.state.tr.insertText(storage.replaceTerm, from, to)
-        )
-      }
-      storage.searchTerm = ''
-      storage.results = []
-      storage.resultIndex = 0
-      editor.view.dispatch(editor.state.tr)
-    }
-  } catch {
-    // 忽略错误
+  const storage = getSearchAndReplaceStorage(editor)
+  if (!storage?.results.length) return
+  const transaction = editor.state.tr
+  for (const { from, to } of [...storage.results].reverse()) {
+    transaction.insertText(replacement, from, to)
   }
+  editor.view.dispatch(transaction)
 }
 
 // 直接清除搜索状态
@@ -258,16 +227,16 @@ export function SearchReplacePanel({ editor, readOnly = false, open, focusReques
   // 替换当前
   const handleReplace = useCallback(() => {
     if (!editor) return
-    replaceCurrent(editor)
+    replaceCurrent(editor, replaceText)
     updateResults()
-  }, [editor, updateResults])
+  }, [editor, replaceText, updateResults])
 
   // 替换全部
   const handleReplaceAll = useCallback(() => {
     if (!editor) return
-    replaceAll(editor)
+    replaceAll(editor, replaceText)
     updateResults()
-  }, [editor, updateResults])
+  }, [editor, replaceText, updateResults])
 
   // 查找上一个
   const handlePrev = useCallback(() => {
@@ -328,14 +297,6 @@ export function SearchReplacePanel({ editor, readOnly = false, open, focusReques
       if (!editor.isDestroyed) updateResults()
     }, 0)
   }, [editor, updateResults])
-
-  // 替换文本变化
-  const handleReplaceChange = useCallback((value: string) => {
-    setReplaceText(value)
-    if (editor) {
-      setReplaceTerm(editor, value)
-    }
-  }, [editor])
 
   // 大小写切换
   const handleCaseSensitiveToggle = useCallback(() => {
@@ -433,7 +394,7 @@ export function SearchReplacePanel({ editor, readOnly = false, open, focusReques
             placeholder="替换为..."
             disabled={readOnly}
             value={replaceText}
-            onChange={(e) => handleReplaceChange(e.target.value)}
+            onChange={(e) => setReplaceText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 if (e.shiftKey) {

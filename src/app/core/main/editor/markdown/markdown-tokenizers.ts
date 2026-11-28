@@ -124,10 +124,29 @@ const BARE_TASK_MARKER_AT_END = /(?:^|\n)[ \t]*[-+*][ \t]+\[[ xX]\]$/
 const TASK_ITEM_PREFIX = /^[ \t]*[-+*][ \t]+\[[ xX]\][ \t]+/
 const PADDED_NESTED_TASK_AT_END = /\n[ \t]+[-+*][ \t]+\[[ xX]\][ \t]+(?:\n[ \t]*)*$/
 
+// In a Marked tokenizer override, false delegates to the existing rule and
+// undefined reports no match. Leave token creation and extension precedence to Marked.
+function blockMarkerCandidate(source: string): false | undefined {
+  if (/^[\s<>*_-]/.test(source)) return false
+}
+
+function continuationLineCandidate(source: string): false | undefined {
+  const newline = source.indexOf('\n')
+  if (newline >= 0 && newline + 1 < source.length && source[newline + 1] !== '\n') return false
+}
+
 export function createIsolatedMarkdownLexer(): Marked {
   const isolated = createCjkMarkdownLexer()
   isolated.use({
     tokenizer: {
+      // These three blocks need a marker before prose. Tables and Setext
+      // headings need a following nonempty line. Avoid running their full
+      // regexes over the remaining document when that prerequisite is absent.
+      blockquote: blockMarkerCandidate,
+      hr: blockMarkerCandidate,
+      html: blockMarkerCandidate,
+      table: continuationLineCandidate,
+      lheading: continuationLineCandidate,
       list(source) {
         const list = Tokenizer.prototype.list.call(this, source)
         if (!list) return undefined

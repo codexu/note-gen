@@ -1,4 +1,4 @@
-import { readDir, BaseDirectory, DirEntry } from "@tauri-apps/plugin-fs";
+import { readDir, stat, BaseDirectory, DirEntry } from "@tauri-apps/plugin-fs";
 import { getFilePathOptions, getWorkspacePath } from "./workspace";
 import { join } from "@tauri-apps/api/path";
 
@@ -126,12 +126,9 @@ export async function getAllMarkdownFiles(includeMetadata: boolean = false, skip
           // 如果需要元数据，获取文件完整元数据
           if (includeMetadata) {
             try {
-              const { stat } = await import('@tauri-apps/plugin-fs');
-              // 使用 getFilePathOptions 获取正确的路径（兼容自定义工作区和默认工作区）
-              const pathOptions = await getFilePathOptions(currentRelativePath);
-              const metadata = pathOptions.baseDir
-                ? await stat(pathOptions.path, { baseDir: pathOptions.baseDir })
-                : await stat(pathOptions.path);
+              const metadata = useCustomPath
+                ? await stat(fullPath)
+                : await stat(`article/${currentRelativePath}`, { baseDir: BaseDirectory.AppData });
 
               // 存储 modifiedAt 用于兼容
               fileInfo.modifiedAt = metadata.mtime ?? undefined;

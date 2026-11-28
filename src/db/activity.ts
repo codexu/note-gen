@@ -81,27 +81,25 @@ async function createActivitySchema(db: ActivityDatabase) {
 }
 
 export async function initActivityDb() {
-  await getActivityDb()
-  await backfillActivityEvents()
+  const db = await getActivityDb()
+  await backfillActivityEvents(db)
+}
+
+function activityValues(event: InsertActivityEventInput) {
+  return [
+    event.source, event.title, event.description ?? null, event.path ?? null,
+    event.tagId ?? null, event.dedupeKey ?? null, event.createdAt ?? Date.now(),
+  ]
 }
 
 export async function insertActivityEvent(event: InsertActivityEventInput) {
   const db = await getActivityDb()
-  const createdAt = event.createdAt ?? Date.now()
 
   return await db.execute(
     `insert or ignore into activity_events
       (source, title, description, path, tagId, dedupeKey, createdAt)
      values ($1, $2, $3, $4, $5, $6, $7)`,
-    [
-      event.source,
-      event.title,
-      event.description ?? null,
-      event.path ?? null,
-      event.tagId ?? null,
-      event.dedupeKey ?? null,
-      createdAt,
-    ]
+    activityValues(event)
   )
 }
 
@@ -189,7 +187,7 @@ export async function recordCanvasActivity(params: {
   })
 }
 
-async function backfillActivityEvents() {
+async function backfillActivityEvents(db: ActivityDatabase) {
   const [marks, chats, files, canvases] = await Promise.all([
     getAllMarks(),
     getAllChats(),
@@ -197,12 +195,30 @@ async function backfillActivityEvents() {
     getCanvasProjectSummaries(),
   ])
 
+  // 128 rows × 7 parameters stays below SQLite's legacy 999-variable limit.
+  const rows: ReturnType<typeof activityValues>[] = []
+  async function flush() {
+    if (!rows.length) return
+    const values = rows.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')
+    await db.execute(`
+      with incoming(source, title, description, path, tagId, dedupeKey, createdAt) as (values ${values})
+      insert or ignore into activity_events (source, title, description, path, tagId, dedupeKey, createdAt)
+      select * from incoming
+      where not exists (select 1 from activity_events e where e.dedupeKey = incoming.dedupeKey)
+    `, rows.flat())
+    rows.length = 0
+  }
+  async function add(event: InsertActivityEventInput) {
+    rows.push(activityValues(event))
+    if (rows.length === 128) await flush()
+  }
+
   for (const mark of marks) {
     if (mark.deleted === 1) continue
 
     const preview = truncateActivityText(mark.desc || mark.content || mark.url || '', 140)
 
-    await insertActivityEvent({
+    await add({
       source: 'record',
       title: preview || mark.type,
       description: preview || mark.type,
@@ -217,7 +233,7 @@ async function backfillActivityEvents() {
 
     const preview = truncateActivityText(chat.content, 140)
 
-    await insertActivityEvent({
+    await add({
       source: 'chat',
       title: truncateActivityText(chat.content, 64),
       description: preview,
@@ -231,7 +247,7 @@ async function backfillActivityEvents() {
     const modifiedAt = file.metadata?.modifiedAt?.getTime()
     if (!modifiedAt) continue
 
-    await insertActivityEvent({
+    await add({
       source: 'writing',
       title: truncateActivityText(file.name, 64),
       description: truncateActivityText(file.relativePath, 140),
@@ -242,7 +258,7 @@ async function backfillActivityEvents() {
   }
 
   for (const canvas of canvases) {
-    await insertActivityEvent({
+    await add({
       source: 'canvas',
       title: truncateActivityText(canvas.title, 64),
       description: truncateActivityText(canvas.title, 140),
@@ -251,4 +267,5 @@ async function backfillActivityEvents() {
       createdAt: canvas.updatedAt,
     })
   }
+  await flush()
 }

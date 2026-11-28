@@ -5,6 +5,13 @@
   <uses-permission android:name="android.permission.RECORD_AUDIO" />
   <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.VIEW" />
+      <data android:mimeType="*/*" />
+    </intent>
+  </queries>
+
   <application
     android:label="NoteGen"
     android:icon="@mipmap/ic_launcher"
@@ -15,6 +22,7 @@
       android:name=".MainActivity"
       android:label="NoteGen"
       android:exported="true"
+      android:launchMode="singleTask"
       android:configChanges="uiMode"
       android:windowSoftInputMode="adjustResize"
       tools:node="merge"
@@ -23,6 +31,29 @@
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <action android:name="android.intent.action.SEND" />
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/x-markdown" />
+      </intent-filter>
+        <!-- DEEP LINK PLUGIN. AUTO-GENERATED. DO NOT REMOVE. -->
+
+        <!-- DEEP LINK PLUGIN. AUTO-GENERATED. DO NOT REMOVE. -->
+        <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
+        <intent-filter>
+            <action android:name="android.intent.action.SEND" />
+            <action android:name="android.intent.action.SEND_MULTIPLE" />
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:mimeType="text/markdown" />
+            <data android:pathPattern=".*\\.md" />
+            <data android:pathPattern=".*\\.markdown" />
+        </intent-filter>
+
+        <!-- tauri-file-associations. AUTO-GENERATED. DO NOT REMOVE. -->
     </activity>
   </application>
 </manifest>

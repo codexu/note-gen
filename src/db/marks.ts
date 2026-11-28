@@ -342,6 +342,28 @@ export async function insertExternalMark(mark: Partial<Mark> & { sourceId: strin
   }
 }
 
+export async function insertAndroidMarkdownMark(mark: Partial<Mark> & { sourceId: string }) {
+  const db = await getDb()
+  const prefix = `${mark.sourceId}:reimport:`
+  while (true) {
+    const [previous] = await db.select<Mark[]>(
+      `select ${MARK_COLUMNS} from marks
+        where sourceId = $1 or sourceId glob $2
+        order by deleted, length(sourceId) desc, sourceId desc limit 1`,
+      [mark.sourceId, `${prefix}[0-9]*`],
+    )
+    if (previous && !previous.deleted) return { mark: previous, duplicate: true }
+
+    // Derive the next identity from the shared history so simultaneous shares
+    // de-duplicate without changing the existing recycle-bin record.
+    const generation = previous?.sourceId?.startsWith(prefix)
+      ? Number(previous.sourceId.slice(prefix.length)) : 0
+    const sourceId = previous ? `${prefix}${generation + 1}` : mark.sourceId
+    const saved = await insertExternalMark({ ...mark, sourceId })
+    if (!saved.mark.deleted) return saved
+  }
+}
+
 export async function getAllMarks() {
   const db = await getDb();
   return attachMarkTagIds(await db.select<Mark[]>(`select ${MARK_COLUMNS} from marks order by createdAt desc`))

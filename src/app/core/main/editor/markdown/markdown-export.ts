@@ -241,23 +241,28 @@ function downloadBlob(blob: Blob, filename: string) {
 
 async function saveTextExport(
   content: string,
-  filename: string,
+  baseName: string,
   extension: string,
   mimeType: string,
   filterName: string,
 ) {
+  const filename = `${baseName}.${extension}`
   if (checkIsTauri()) {
+    const { platform } = await import('@tauri-apps/plugin-os')
+    const isAndroid = platform() === 'android'
     const selectedPath = await save({
       title: '导出',
       defaultPath: filename,
-      filters: [{ name: filterName, extensions: [extension] }],
+      filters: [{ name: filterName, extensions: [isAndroid ? mimeType : extension] }],
     })
 
     if (!selectedPath) {
       return false
     }
 
-    await writeTextFile(ensureExtension(selectedPath, extension), content)
+    // Android grants write access to the document URI returned by the picker.
+    const outputPath = isAndroid ? selectedPath : ensureExtension(selectedPath, extension)
+    await writeTextFile(outputPath, content)
     return true
   }
 
@@ -737,7 +742,7 @@ export async function exportMarkdownSource(
   if (format === 'markdown') {
     return await saveTextExport(
       await getValue(source.markdown),
-      `${fileName}.md`,
+      fileName,
       'md',
       'text/markdown',
       'Markdown Files',
@@ -747,7 +752,7 @@ export async function exportMarkdownSource(
   if (format === 'html') {
     return await saveTextExport(
       await buildMarkdownExportDocument(source),
-      `${fileName}.html`,
+      fileName,
       'html',
       'text/html',
       'HTML Files',
@@ -761,7 +766,7 @@ export async function exportMarkdownSource(
 
     return await saveTextExport(
       JSON.stringify(jsonContent, null, 2),
-      `${fileName}.json`,
+      fileName,
       'json',
       'application/json',
       'JSON Files',

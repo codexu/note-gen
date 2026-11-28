@@ -114,6 +114,7 @@ export default function RootLayout({
   const { initVectorDb } = useVectorStore()
   const { currentLocale } = useI18n()
   const [pluginsReady, setPluginsReady] = useState(false)
+  const setupHydrated = useInitialSetupStore(state => state.hydrated)
   const setupVisible = useInitialSetupStore(state => state.visible)
   const showSetup = pluginsReady && setupVisible
   useEffect(() => {
@@ -316,7 +317,7 @@ export default function RootLayout({
               <ControlRecording />
               <ControlImage />
               <ControlLink />
-              <ControlFile />
+              <ControlFile androidImportReady={pluginsReady && setupHydrated && !setupVisible} />
               <ControlTodo />
             </div>
           </TooltipProvider>

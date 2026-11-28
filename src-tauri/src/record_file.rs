@@ -2,8 +2,9 @@ use tauri::AppHandle;
 
 #[cfg(target_os = "android")]
 use tauri::{
+    ipc::Channel,
     plugin::{Builder, PluginHandle, TauriPlugin},
-    Manager, Runtime, State, Wry,
+    Emitter, Manager, Runtime, State, Wry,
 };
 
 #[cfg(target_os = "android")]
@@ -15,6 +16,17 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .setup(|app, api| {
             match api.register_android_plugin("com.codexu.NoteGen", "RecordFilePlugin") {
                 Ok(handle) => {
+                    let app_handle = app.clone();
+                    let listener: Channel = Channel::new(move |_| {
+                        let _ = app_handle.emit("android-markdown-files-ready", ());
+                        Ok(())
+                    });
+                    if let Err(error) = handle.run_mobile_plugin::<()>(
+                        "setMarkdownFilesListener",
+                        serde_json::json!({ "handler": listener }),
+                    ) {
+                        eprintln!("Android Markdown file listener unavailable: {error}");
+                    }
                     app.manage(AndroidRecordFilePlugin(handle));
                 }
                 Err(error) => eprintln!("Android record file opener unavailable: {error}"),
@@ -56,6 +68,33 @@ pub async fn pick_android_record_file(app: AppHandle) -> Result<PickedRecordFile
     })
     .await
     .map_err(|error| format!("Failed to select the record file: {error}"))?
+}
+
+#[cfg(target_os = "android")]
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct PendingMarkdownFile {
+    path: String,
+    name: String,
+}
+
+#[cfg(target_os = "android")]
+#[derive(serde::Deserialize)]
+struct PendingMarkdownFiles {
+    files: Vec<PendingMarkdownFile>,
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn take_android_markdown_files(app: AppHandle) -> Result<Vec<PendingMarkdownFile>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        android_plugin(&app)?
+            .0
+            .run_mobile_plugin::<PendingMarkdownFiles>("takePendingMarkdownFiles", ())
+            .map(|pending| pending.files)
+            .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| format!("Failed to receive Android Markdown files: {error}"))?
 }
 
 #[cfg(target_os = "ios")]
